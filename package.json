@@ -1,0 +1,65 @@
+{
+  "name": "sw",
+  "version": "1.0.0",
+  "private": true,
+  "description": "",
+  "homepage": "https://github.com/eGavr/sw#readme",
+  "bugs": {
+    "url": "https://github.com/eGavr/sw/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eGavr/sw.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "main": "build/main.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf build/",
+    "start:api": "node build/presentation/api/index.js",
+    "start:api:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/server/nestjs/modules/api/index.ts",
+    "start:api:dev:with:tracing": "OTEL_ENABLED=true OTEL_SERVICE_NAME=sw:api npm run start:api:dev",
+    "start:wd": "node build/presentation/wd/index.js",
+    "start:wd:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/server/nestjs/modules/wd/index.ts",
+    "docker:run:jaegertracing": "docker run -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest",
+    "lint": "eslint .",
+    "lint:fix": "npm run lint -- --fix",
+    "test:unit": "echo \"Error: no test specified\" && exit 1",
+    "test:integration": "NODE_ENV=integration_test jest --config ./test/integration/jest.integration.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@eslint/json": "^0.14.0",
+    "@nestjs/testing": "^11.1.13",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/lodash": "^4.17.23",
+    "@types/node": "^24.10.8",
+    "@types/supertest": "^6.0.3",
+    "eslint-plugin-import": "^2.32.0",
+    "jest": "^30.2.0",
+    "nodemon": "^3.1.11",
+    "rimraf": "^6.1.2",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.53.0"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.12",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.1.12",
+    "@nestjs/platform-express": "^11.1.12",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.69.0",
+    "@opentelemetry/instrumentation-nestjs-core": "^0.57.0",
+    "@opentelemetry/sdk-node": "^0.211.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.3",
+    "express": "^5.2.1",
+    "lodash": "^4.17.23",
+    "uuid": "^13.0.0"
+  }
+}

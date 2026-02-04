@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "./build",
+    "rootDir": "./",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "strictPropertyInitialization": false,
+    "isolatedModules": true
+  },
+  "exclude": ["node_modules", "test", "build", "**/*test.ts"]
+}
