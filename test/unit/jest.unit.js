@@ -1,8 +1,8 @@
 export default {
     moduleFileExtensions: ["js", "json", "ts"],
-    rootDir: ".",
+    rootDir: "../../",
     testEnvironment: "node",
-    testRegex: ".test.integration.ts$",
+    testRegex: ".test.ts$",
     transform: {
         "^.+\\.(t|j)s$": ["ts-jest"],
     },
