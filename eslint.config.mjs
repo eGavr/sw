@@ -42,7 +42,7 @@ export default defineConfig(
                 },
                 {
                     selector: ["variable", "function"],
-                    format: ["camelCase"],
+                    format: ["camelCase", "PascalCase"],
                     leadingUnderscore: "forbid",
                 },
             ],
