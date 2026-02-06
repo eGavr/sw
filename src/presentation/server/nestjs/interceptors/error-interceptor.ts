@@ -6,13 +6,15 @@ import {
     Injectable, 
     InternalServerErrorException, 
     NestInterceptor, 
-    NotFoundException, 
+    NotFoundException,
+    UnauthorizedException, 
 } from "@nestjs/common";
 import { catchError, Observable, throwError } from "rxjs";
 
 import { DomainError } from "../../../../domain/entities/error/domain-error";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
 import { NotFoundError } from "../../../../domain/entities/error/not-found-error";
+import { UnauthenticatedError } from "../../../../domain/entities/error/unauthenticated-error";
 
 @Injectable()
 export class ErrorInterceptor implements NestInterceptor {
@@ -32,6 +34,10 @@ export class ErrorInterceptor implements NestInterceptor {
 
                         if (err instanceof NotFoundError) {
                             return throwError(() => new NotFoundException(err.message));
+                        }
+
+                        if (err instanceof UnauthenticatedError) {
+                            return throwError(() => new UnauthorizedException(err.message));
                         }
                     }
 

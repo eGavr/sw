@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 
 import { GetEnvironmentUseCase } from "../../../../../../../domain/use-cases/environments/get-environment-use-case";
+import { BearerToken } from "../../../../decorators/param/bearer-token";
 
 import { CreateEnvironmentRequest } from "./dtos/create-environment-request";
 import { CreateEnvironmentResponse } from "./dtos/create-environment-response";
@@ -14,8 +15,11 @@ export class EnvironmentsController {
     ) {}
 
     @Get(":environmentId")
-    async getEnvironment(@Param() params: GetEnvironmentRequest): Promise<GetEnvironmentResponse> {
-        return new GetEnvironmentResponse(await this.getEnvironmentUseCase.execute(params));
+    async getEnvironment(
+        @Param() params: GetEnvironmentRequest, 
+        @BearerToken() token?: string,
+    ): Promise<GetEnvironmentResponse> {
+        return new GetEnvironmentResponse(await this.getEnvironmentUseCase.execute({ userCredentials: { token }, params }));
     }
 
     @Get()
