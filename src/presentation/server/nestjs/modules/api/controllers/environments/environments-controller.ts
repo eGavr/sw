@@ -17,9 +17,9 @@ export class EnvironmentsController {
     @Get(":environmentId")
     async getEnvironment(
         @Param() params: GetEnvironmentRequest, 
-        @BearerToken() token?: string,
+        @BearerToken() token: string,
     ): Promise<GetEnvironmentResponse> {
-        return new GetEnvironmentResponse(await this.getEnvironmentUseCase.execute({ userCredentials: { token }, params }));
+        return new GetEnvironmentResponse(await this.getEnvironmentUseCase.execute({ creds: { token }, params }));
     }
 
     @Get()

@@ -1,21 +1,15 @@
-import { UnauthenticatedError } from "../error/unauthenticated-error";
-
-type UserCredentialsInput = {
-    token?: string;
+type CreateUserCredentialsParams = {
+    token: string;
 }
 
 export class UserCredentials {
-    static create(input: UserCredentialsInput): UserCredentials {
+    static create(input: CreateUserCredentialsParams): UserCredentials {
         return new this(input);
     }
 
-    private constructor(input: UserCredentialsInput) {
-        this.assert(input);
-    }
+    public readonly token: string;
 
-    private assert(input: UserCredentialsInput): void {
-        if (!input.token) {
-            throw new UnauthenticatedError();
-        }
+    private constructor(input: CreateUserCredentialsParams) {
+        this.token = input.token;
     }
 }

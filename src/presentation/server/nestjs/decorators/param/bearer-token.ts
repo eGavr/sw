@@ -1,5 +1,7 @@
 import { createParamDecorator, ExecutionContext } from "@nestjs/common";
 
+import { UnauthenticatedError } from "../../../../../domain/entities/error/unauthenticated-error";
+
 export const BearerToken = createParamDecorator(
     (_data: unknown, ctx: ExecutionContext) => {
         const request = ctx.switchToHttp().getRequest();
@@ -9,6 +11,6 @@ export const BearerToken = createParamDecorator(
             return authorization.split(" ")[1];
         }
     
-        return null;
+        throw new UnauthenticatedError();
     },
 );
