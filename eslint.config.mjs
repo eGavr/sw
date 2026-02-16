@@ -15,8 +15,12 @@ export default defineConfig(
         plugins: {
             import: importPlugin,
         },
+        // TODO: rule for class properties order
         rules: {
-            "indent": ["error", 4, { "ignoredNodes": ["PropertyDefinition"] }], // FIXME: get rid of "PropertyDefinition" in "ignoredNodes"
+            "indent": ["error", 4, { 
+                "SwitchCase": 1, 
+                "ignoredNodes": ["PropertyDefinition"], // FIXME: get rid of "PropertyDefinition" in "ignoredNodes"
+            }],
             "no-tabs": "error",
             "keyword-spacing": "error",
             "curly": ["error", "all"],

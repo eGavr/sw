@@ -1,51 +1,48 @@
 import { Injectable } from "@nestjs/common";
 
-import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
+import { AccountRepository } from "../../../data/repositories/account-repository";
 import { PermissionRepository } from "../../../data/repositories/permission-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
-import { EnvironmentId } from "../../entities/environment/environment-id";
-import { NotFoundError } from "../../entities/error/not-found-error";
+import { Account } from "../../entities/account/account";
 import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
 import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
 import { PermissionName } from "../../entities/permission/permission-name";
 import { UserCredentials } from "../../entities/user/user-credentials";
 
-type GetEnvironmentInput = {
+type CreateAccountInput = {
     creds: {
         token: string;
     },
     params: {
-        environmentId: string;
+        name: string;
     }
 }
 
-type GetEnvironmentResult = { id: string };
+type CreateAccountResult = Account;
 
 @Injectable()
-export class GetEnvironmentUseCase {
-    private readonly permissionName = PermissionName.Environments.Read;
+export class CreateAccountUseCase {
+    private readonly permissionName = PermissionName.Accounts.Create;
 
     constructor(
         private readonly userRepository: UserRepository,
         private readonly permissionRepository: PermissionRepository,
-        private readonly environmentRepository: EnvironmentRepository, 
+        private readonly accountRepository: AccountRepository,
     ) {}
 
-    async execute({ creds, params }: GetEnvironmentInput): Promise<GetEnvironmentResult> {
+    async execute({ creds, params }: CreateAccountInput): Promise<CreateAccountResult> {
         const user = await this.userRepository.find({ filter: { creds: UserCredentials.create(creds) } });
-
         if (!user) {
             throw new UnauthenticatedError();
         }
 
-        const environment = await this.environmentRepository.get(params.environmentId);
-        const permissions = await this.permissionRepository.findAll({ filter: { user, account: environment.account } });
+        const account = await this.accountRepository.create({ ...params, createdBy: user });
+        const permissions = await this.permissionRepository.findAll({ filter: { user, account } });
 
         if (!permissions.find(this.permissionName)) {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);
         }
 
-        throw new NotFoundError(`resource: ${EnvironmentId.fromString(params.environmentId)}: not found`);
+        return this.accountRepository.save(account);
     }
 }
-
