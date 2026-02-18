@@ -4,7 +4,7 @@ import { Account } from "../../domain/entities/account/account";
 import { Permission } from "../../domain/entities/permission/permission";
 import { PermissionList } from "../../domain/entities/permission/permission-list";
 import { User } from "../../domain/entities/user/user";
-import { PermissionDataSource } from "../data-sources/acl/local/permission-data-source";
+import { PermissionDataSource } from "../data-sources/resource-provider/local/permission-data-source";
 
 export type FindPermissionsQuery = {
     filter: {

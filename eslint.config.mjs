@@ -50,6 +50,7 @@ export default defineConfig(
                     leadingUnderscore: "forbid",
                 },
             ],
+            "@typescript-eslint/no-empty-function": ["error", { allow: ["private-constructors"] }],
             "import/order": [
                 "error", 
                 { 
@@ -61,6 +62,12 @@ export default defineConfig(
                     "newlines-between": "always",
                 },
             ],
+        },
+    },
+    {
+        files: ["**/postgres/migration/migrations/*.ts"],
+        rules: {
+            "max-len": "off", // FIXME: switch on "max-len" rule for migrations
         },
     },
     {

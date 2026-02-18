@@ -31,6 +31,6 @@ export class Environment {
     }
 
     get account(): Account {
-        return Account.create({ name: "some-name", createdBy: User.create({ externalId: "" }) });
+        return Account.create({ name: "some-name", createdBy: User.create({ externalId: "", providerType: "" }) });
     }
 }

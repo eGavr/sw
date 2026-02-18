@@ -4,9 +4,8 @@ import { GetEnvironmentUseCase } from "../../../../../../../domain/use-cases/env
 import { BearerToken } from "../../../../decorators/param/bearer-token";
 
 import { CreateEnvironmentRequest } from "./dtos/create-environment-request";
-import { CreateEnvironmentResponse } from "./dtos/create-environment-response";
+import { EnvironmentDto } from "./dtos/environment-dto";
 import { GetEnvironmentRequest } from "./dtos/get-environment-request";
-import { GetEnvironmentResponse } from "./dtos/get-environment-response";
 
 @Controller("environments")
 export class EnvironmentsController {
@@ -18,8 +17,8 @@ export class EnvironmentsController {
     async getEnvironment(
         @Param() params: GetEnvironmentRequest, 
         @BearerToken() token: string,
-    ): Promise<GetEnvironmentResponse> {
-        return new GetEnvironmentResponse(await this.getEnvironmentUseCase.execute({ creds: { token }, params }));
+    ): Promise<EnvironmentDto> {
+        return new EnvironmentDto(await this.getEnvironmentUseCase.execute({ creds: { token }, params }));
     }
 
     @Get()
@@ -28,7 +27,7 @@ export class EnvironmentsController {
     }
 
     @Post()
-    async createEnvironment(@Body() params: CreateEnvironmentRequest): Promise<CreateEnvironmentResponse> {
-        return new CreateEnvironmentResponse({ id: "", platformName: params.platformName, platformVersion: params.platformVersion });
+    async createEnvironment(@Body() params: CreateEnvironmentRequest): Promise<EnvironmentDto> {
+        return new EnvironmentDto({ id: "", platformName: params.platformName, platformVersion: params.platformVersion });
     }
 }

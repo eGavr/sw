@@ -1,4 +1,5 @@
 export enum AccountPermission {
+    Read = "account:read",
     Create = "account:create",
 }
 
@@ -7,7 +8,7 @@ export enum EnvironmentPermission {
 }
 
 export class PermissionName {
-    static readonly Accounts = AccountPermission;
+    static readonly Account = AccountPermission;
 
-    static readonly Environments = EnvironmentPermission;
+    static readonly Environment = EnvironmentPermission;
 }

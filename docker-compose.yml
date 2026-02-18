@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    env_file:
+      - ./env/.env.development
+    # environment:
+      # POSTGRES_USER: sw
+      # POSTGRES_PASSWORD: sw
+      # POSTGRES_DB: sw
+    ports:
+      - "5432:5432"
+
+  adminer:
+    image: adminer
+    ports:
+      - 8080:8080
