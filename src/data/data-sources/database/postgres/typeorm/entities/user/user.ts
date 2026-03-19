@@ -1,6 +1,7 @@
 import { Column, Entity, PrimaryColumn, Unique } from "typeorm";
 
-import { UserData, User as UserEntity } from "../../../../../domain/entities/user/user";
+import { UserData, User as UserEntity } from "../../../../../../../domain/entities/user/user";
+import { DateColumn } from "../../columns-extra/date-column";
 
 @Entity()
 @Unique(["externalId", "providerType"])
@@ -11,6 +12,8 @@ export class User {
         user.id = entity.id;
         user.externalId = entity.externalId;
         user.providerType = entity.providerType;
+        user.createdAt = entity.createdAt;
+        user.updatedAt = entity.updatedAt;
 
         return user;
     }
@@ -24,11 +27,21 @@ export class User {
     @Column()
     providerType: string;
 
+    @DateColumn()
+    createdAt: Date;
+
+    @DateColumn()
+    updatedAt: Date;
+
+    private constructor() {}
+
     toObject(): UserData {
         return {
             id: this.id,
             externalId: this.externalId,
             providerType: this.providerType,
+            createdAt: this.createdAt,
+            updatedAt: this.updatedAt,
         }
     }
 }

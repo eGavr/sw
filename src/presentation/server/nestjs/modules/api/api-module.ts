@@ -6,7 +6,7 @@ import { APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
 import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../../../data/data-sources/auth/user-data-source-provider";
 import { AccountDataSource } from "../../../../../data/data-sources/database/postgres/account-data-source";
-import { PostgresModule } from "../../../../../data/data-sources/database/postgres/postgres-module";
+import { PostgresModule } from "../../../../../data/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../../../data/data-sources/database/postgres/user-data-source";
 import { PermissionDataSource } from "../../../../../data/data-sources/resource-provider/local/permission-data-source";
 import { EnvironmentDataSource } from "../../../../../data/data-sources/ydb/environment-data-source";

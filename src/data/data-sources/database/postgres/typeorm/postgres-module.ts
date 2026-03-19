@@ -2,8 +2,8 @@ import { Module, OnApplicationShutdown } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
 
-import { Logger } from "../../../../infrastructure/logging/logger";
-import { LoggerModule } from "../../../../infrastructure/logging/logger-module";
+import { Logger } from "../../../../../infrastructure/logging/logger";
+import { LoggerModule } from "../../../../../infrastructure/logging/logger-module";
 
 import { PostgresConnection } from "./postgres-connection";
 

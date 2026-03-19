@@ -3,7 +3,7 @@ import { DataSource } from "typeorm";
 
 import { UserData } from "../../../../domain/entities/user/user";
 
-import { User } from "./entities/user";
+import { User } from "./typeorm/entities/user/user";
 
 @Injectable()
 export class UserDataSource {

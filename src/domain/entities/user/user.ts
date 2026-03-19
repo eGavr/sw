@@ -4,6 +4,8 @@ export type UserData = {
     id: string;
     externalId: string;
     providerType: string;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 type CreateUserParams = {
@@ -15,6 +17,8 @@ type UserConstructorParams = {
     id?: string;
     externalId: string;
     providerType: string;
+    createdAt?: Date;
+    updatedAt?: Date;
 }
 
 export class User {
@@ -28,6 +32,8 @@ export class User {
 
     readonly externalId: string;
     readonly providerType: string;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
 
     private readonly _id: UserId;
 
@@ -35,6 +41,8 @@ export class User {
         this._id = params.id ? UserId.fromString(params.id) : UserId.create();
         this.externalId = params.externalId;
         this.providerType = params.providerType;
+        this.createdAt = params.createdAt ?? new Date();
+        this.updatedAt = params.updatedAt ?? this.createdAt;
     }
 
     get id(): string {
@@ -46,6 +54,8 @@ export class User {
             id: this.id,
             externalId: this.externalId,
             providerType: this.providerType,
+            createdAt: this.createdAt,
+            updatedAt: this.updatedAt,
         }
     }
 }

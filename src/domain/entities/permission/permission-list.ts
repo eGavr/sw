@@ -15,6 +15,14 @@ export class PermissionList {
         return this.permissions.find((permission) => permission.name === name) ?? null;
     }
 
+    each(cb: (permission: Permission) => void): void {
+        this.permissions.forEach(cb);
+    }
+
+    map<T>(cb: (permission: Permission) => T): Array<T> {
+        return this.permissions.map(cb);
+    }
+
     toArray(): Array<PermissionData> {
         return this.permissions.map(p => p.toObject()).sort((p1, p2) => String(p1.name).localeCompare(String(p2.name)));
     }

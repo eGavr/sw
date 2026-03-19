@@ -1,4 +1,4 @@
-import { PostgresConnection as Connection } from "../../../src/data/data-sources/database/postgres/postgres-connection";
+import { PostgresConnection as Connection } from "../../../src/data/data-sources/database/postgres/typeorm/postgres-connection";
 import { UserCollection } from "../../../src/data/data-sources/resource-provider/local/enties/user-collection";
 
 import { PgConnection } from "./postgres-connection";

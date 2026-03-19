@@ -65,7 +65,7 @@ export default defineConfig(
         },
     },
     {
-        files: ["**/postgres/migration/migrations/*.ts"],
+        files: ["**/postgres/typeorm/migration/migrations/*.ts"],
         rules: {
             "max-len": "off", // FIXME: switch on "max-len" rule for migrations
         },

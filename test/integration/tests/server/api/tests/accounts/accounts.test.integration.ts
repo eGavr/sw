@@ -85,13 +85,14 @@ describe("/accounts", () => {
             });
         });
 
-        test("should support creating multiple accounts for a user", async () => {
+        test.only("should support creating multiple accounts for a user", async () => {
             const user = LocalUserFactory.createUserWhoCanCreateAccount();
 
             await request(app.getHttpServer())
                 .post("/accounts")
                 .set(LocalAuthorizationHeaderFactory.createForUser(user))
-                .send(CreateAccountBody.create({ name: "first-account-name" }));
+                .send(CreateAccountBody.create({ name: "first-account-name" }))
+                .expect(HttpStatus.CREATED);
 
             await request(app.getHttpServer())
                 .post("/accounts")
