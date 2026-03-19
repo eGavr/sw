@@ -1,16 +1,20 @@
 import { UserId } from "./user-id";
 
 export type UserData = {
+    id: string;
     externalId: string;
+    providerType: string;
 }
 
 type CreateUserParams = {
     externalId: string;
+    providerType: string;
 }
 
 type UserConstructorParams = {
     id?: string;
     externalId: string;
+    providerType: string;
 }
 
 export class User {
@@ -22,16 +26,26 @@ export class User {
         return new User(params)
     }
 
-    public readonly externalId: string;
+    readonly externalId: string;
+    readonly providerType: string;
 
     private readonly _id: UserId;
 
     private constructor(params: UserConstructorParams) {
         this._id = params.id ? UserId.fromString(params.id) : UserId.create();
         this.externalId = params.externalId;
+        this.providerType = params.providerType;
     }
 
     get id(): string {
         return this._id.getValue();
+    }
+
+    toObject(): UserData {
+        return {
+            id: this.id,
+            externalId: this.externalId,
+            providerType: this.providerType,
+        }
     }
 }

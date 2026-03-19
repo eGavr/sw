@@ -3,8 +3,7 @@ import { Injectable } from "@nestjs/common";
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
 import { PermissionRepository } from "../../../data/repositories/permission-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
-import { EnvironmentId } from "../../entities/environment/environment-id";
-import { NotFoundError } from "../../entities/error/not-found-error";
+import { NotFoundResourceError } from "../../entities/error/not-found/not-found-resource-error";
 import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
 import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
 import { PermissionName } from "../../entities/permission/permission-name";
@@ -23,7 +22,7 @@ type GetEnvironmentResult = { id: string };
 
 @Injectable()
 export class GetEnvironmentUseCase {
-    private readonly permissionName = PermissionName.Environments.Read;
+    private readonly permissionName = PermissionName.Environment.Read;
 
     constructor(
         private readonly userRepository: UserRepository,
@@ -45,7 +44,7 @@ export class GetEnvironmentUseCase {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);
         }
 
-        throw new NotFoundError(`resource: ${EnvironmentId.fromString(params.environmentId)}: not found`);
+        throw new NotFoundResourceError(params.environmentId);
     }
 }
 

@@ -9,4 +9,7 @@ export default {
     transformIgnorePatterns: [
         "node_modules/(?!(uuid/.*))",
     ],
+    setupFilesAfterEnv: [
+        "./setup/index.ts",
+    ],
 };

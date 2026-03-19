@@ -14,12 +14,15 @@ import { catchError, Observable, throwError } from "rxjs";
 
 import { DomainError } from "../../../../domain/entities/error/domain-error";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
-import { NotFoundError } from "../../../../domain/entities/error/not-found-error";
+import { NotFoundError } from "../../../../domain/entities/error/not-found/not-found-error";
 import { PermissionDeniedError } from "../../../../domain/entities/error/permission-denied-error";
 import { UnauthenticatedError } from "../../../../domain/entities/error/unauthenticated-error";
+import { Logger } from "../../../../infrastructure/logging/logger";
 
 @Injectable()
 export class ErrorInterceptor implements NestInterceptor {
+    constructor(private readonly logger: Logger) {}
+
     intercept(_: ExecutionContext, next: CallHandler<unknown>): Observable<unknown> | Promise<Observable<unknown>> {
         return next
             .handle()
@@ -45,7 +48,11 @@ export class ErrorInterceptor implements NestInterceptor {
                         if (err instanceof PermissionDeniedError) {
                             return throwError(() => new ForbiddenException(err.message))
                         }
-                    }
+                    } 
+
+                    console.log(err);
+
+                    this.logger.fatal(err.stack || err.message || err);
 
                     return throwError(() => new InternalServerErrorException());
                 }),
