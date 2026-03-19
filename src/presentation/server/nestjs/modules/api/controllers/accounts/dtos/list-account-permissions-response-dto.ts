@@ -1,8 +1,8 @@
-import { PermissionList } from "../../../../../../../../domain/entities/permission/permission-list";
+import { UserPermissionList } from "../../../../../../../../domain/entities/user/user-permission-list";
 import { ResponseDto } from "../../../../../dtos/response-dto";
 
 export class ListAccountPermissionsResponseDto implements ResponseDto {
-    constructor(private readonly permissions: PermissionList) {}
+    constructor(private readonly permissions: UserPermissionList) {}
 
     toObject(): object {
         return {

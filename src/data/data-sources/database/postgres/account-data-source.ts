@@ -3,8 +3,10 @@ import { DataSource } from "typeorm";
 
 import { Account as AccountEntity, AccountData } from "../../../../domain/entities/account/account";
 
-import { Account } from "./entities/account";
-import { User } from "./entities/user";
+import { Account } from "./typeorm/entities/account/account";
+import { AccountUserPermission } from "./typeorm/entities/account/account-user-permission";
+import { User } from "./typeorm/entities/user/user";
+import { AccountUserPermissionList } from "./typeorm/entities/account/account-user-permission-list";
 
 type FindOneAccountParams = {
     id: string;
@@ -23,5 +25,6 @@ export class AccountDataSource {
     async saveOne(account: AccountEntity): Promise<void> {
         await this.dataSource.getRepository(User).upsert(User.from(account.createdBy), ["id"]);
         await this.dataSource.getRepository(Account).save(Account.from(account));
+        await this.dataSource.getRepository(AccountUserPermission).save(AccountUserPermissionList.from(account))
     }
 }

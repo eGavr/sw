@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common";
 
 import { AccountRepository } from "../../../data/repositories/account-repository";
-import { PermissionRepository } from "../../../data/repositories/permission-repository";
+import { UserPermissionRepository } from "../../../data/repositories/user-permission-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
 import { Account } from "../../entities/account/account";
 import { AccountId } from "../../entities/account/account-id";
 import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
-import { PermissionName } from "../../entities/permission/permission-name";
+import { UserPermissionName } from "../../entities/user/user-permission-name";
 import { UserCredentials } from "../../entities/user/user-credentials";
 
 type GetAccountInput = {
@@ -22,11 +22,11 @@ type GetAccountResult = Account;
 
 @Injectable()
 export class GetAccountUseCase {
-    private readonly permissionName = PermissionName.Account.Read;
+    private readonly permissionName = UserPermissionName.Account.Read;
 
     constructor(
         private readonly userRepository: UserRepository,
-        private readonly permissionRepository: PermissionRepository,
+        private readonly userPermissionRepository: UserPermissionRepository,
         private readonly accountRepository: AccountRepository,
     ) {}
 

@@ -6,14 +6,19 @@ import { APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
 import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../../../data/data-sources/auth/user-data-source-provider";
 import { AccountDataSource } from "../../../../../data/data-sources/database/postgres/account-data-source";
-import { PostgresModule } from "../../../../../data/data-sources/database/postgres/postgres-module";
+import { PostgresModule } from "../../../../../data/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../../../data/data-sources/database/postgres/user-data-source";
-import { PermissionDataSource } from "../../../../../data/data-sources/resource-provider/local/permission-data-source";
+import { 
+    UserPermissionDataSource as ResourceProviderUserPermissionDataSource 
+} from "../../../../../data/data-sources/resource-provider/local/user-permission-data-source";
+import {
+    UserPermissionDataSource as PgUserPermissionDataSource,
+} from "../../../../../data/data-sources/database/postgres/user-permission-data-source";
 import { EnvironmentDataSource } from "../../../../../data/data-sources/ydb/environment-data-source";
 import { YdbModule } from "../../../../../data/data-sources/ydb/ydb-module";
 import { AccountRepository } from "../../../../../data/repositories/account-repository";
 import { EnvironmentRepository } from "../../../../../data/repositories/environment-repository";
-import { PermissionRepository } from "../../../../../data/repositories/permission-repository";
+import { UserPermissionRepository } from "../../../../../data/repositories/user-permission-repository";
 import { UserRepository } from "../../../../../data/repositories/user-repository";
 import { CreateAccountUseCase } from "../../../../../domain/use-cases/accounts/create-account-use-case";
 import { GetAccountUseCase } from "../../../../../domain/use-cases/accounts/get-account-use-case";
@@ -51,14 +56,15 @@ import { EnvironmentsController } from "./controllers/environments/environments-
 
         AccountRepository,
         UserRepository,
-        PermissionRepository,
+        UserPermissionRepository,
         EnvironmentRepository,
 
         AccountDataSource,
         EnvironmentDataSource,
         AuthUserDataSourceProvider,
-        PermissionDataSource,
         PgUserDataSource,
+        ResourceProviderUserPermissionDataSource,
+        PgUserPermissionDataSource,
 
         {
             provide: APP_INTERCEPTOR,

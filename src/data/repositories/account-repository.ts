@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import { Account, CreateAccountParams } from "../../domain/entities/account/account";
+import { Account, AccountCreateParams } from "../../domain/entities/account/account";
 import { AccountId } from "../../domain/entities/account/account-id";
 import { NotFoundResourceError } from "../../domain/entities/error/not-found/not-found-resource-error";
 import { AccountDataSource } from "../data-sources/database/postgres/account-data-source";
@@ -19,7 +19,7 @@ export class AccountRepository {
         return Account.fromObject(data);
     }
 
-    async create(params: CreateAccountParams): Promise<Account> {
+    async create(params: AccountCreateParams): Promise<Account> {
         return Account.create(params);
     }
 

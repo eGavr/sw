@@ -6,12 +6,13 @@ import { config } from "dotenv";
 import { DataSource } from "typeorm";
 import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
-import { Account } from "./entities/account";
-import { AccountResourceProvider } from "./entities/account-resource-provider";
-import { User } from "./entities/user";
+import { Account } from "./entities/account/account";
+import { AccountResourceProvider } from "./entities/account/account-resource-provider";
+import { User } from "./entities/user/user";
+import { AccountUserPermission } from "./entities/account/account-user-permission";
 
 export class PostgresConnection {
-    static fromEnv(): PostgresConnection {
+    static fromEnv(): DataSource {
         config({ 
             path: [".env", `env/.env.${process.env.NODE_ENV || "development"}`], 
             quiet: true, 
@@ -34,8 +35,9 @@ export class PostgresConnection {
             migrationsTableName: "__migrations",
             namingStrategy: new SnakeNamingStrategy(),
             entities: [
-                Account,
                 AccountResourceProvider,
+                AccountUserPermission,
+                Account,
                 User,
             ],
         })

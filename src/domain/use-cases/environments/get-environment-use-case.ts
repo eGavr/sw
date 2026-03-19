@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common";
 
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
-import { PermissionRepository } from "../../../data/repositories/permission-repository";
+import { UserPermissionRepository } from "../../../data/repositories/user-permission-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
 import { NotFoundResourceError } from "../../entities/error/not-found/not-found-resource-error";
 import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
 import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
-import { PermissionName } from "../../entities/permission/permission-name";
+import { UserPermissionName } from "../../entities/user/user-permission-name";
 import { UserCredentials } from "../../entities/user/user-credentials";
 
 type GetEnvironmentInput = {
@@ -22,11 +22,11 @@ type GetEnvironmentResult = { id: string };
 
 @Injectable()
 export class GetEnvironmentUseCase {
-    private readonly permissionName = PermissionName.Environment.Read;
+    private readonly permissionName = UserPermissionName.Environment.Read;
 
     constructor(
         private readonly userRepository: UserRepository,
-        private readonly permissionRepository: PermissionRepository,
+        private readonly userPermissionRepository: UserPermissionRepository,
         private readonly environmentRepository: EnvironmentRepository, 
     ) {}
 
@@ -38,7 +38,7 @@ export class GetEnvironmentUseCase {
         }
 
         const environment = await this.environmentRepository.get(params.environmentId);
-        const permissions = await this.permissionRepository.findAll({ filter: { user, account: environment.account } });
+        const permissions = await this.userPermissionRepository.findAll({ filter: { user, account: environment.account } });
 
         if (!permissions.find(this.permissionName)) {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);

@@ -1,5 +1,5 @@
 import { NotFoundError } from "../../../../../domain/entities/error/not-found/not-found-error";
-import { PermissionName } from "../../../../../domain/entities/permission/permission-name";
+import { UserPermissionName } from "../../../../../domain/entities/user/user-permission-name";
 
 import { LocalUser } from "./local-user";
 
@@ -18,7 +18,7 @@ export class UserCollection {
 
     private constructor() {}
 
-    create({ permissions }: { permissions: Array<PermissionName> }): LocalUser {
+    create({ permissions }: { permissions: Array<UserPermissionName> }): LocalUser {
         const user = new LocalUser(permissions);
 
         this.users.push(user);

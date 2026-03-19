@@ -7,7 +7,7 @@ export enum EnvironmentPermission {
     Read = "environment:read",
 }
 
-export class PermissionName {
+export class UserPermissionName {
     static readonly Account = AccountPermission;
 
     static readonly Environment = EnvironmentPermission;

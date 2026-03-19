@@ -1,7 +1,7 @@
 import { HttpStatus } from "@nestjs/common";
 import request from "supertest";
 
-import { PermissionList } from "../../../../../../../src/domain/entities/permission/permission-list";
+import { UserPermissionList } from "../../../../../../../src/domain/entities/user/user-permission-list";
 import { ApiModule } from "../../../../../../../src/presentation/server/nestjs/modules/api/api-module";
 import { TestingApp } from "../../utils/app/testing-app";
 import { LocalUserFactory } from "../../utils/entities/user/local-user-factory";
@@ -91,7 +91,8 @@ describe("/accounts", () => {
             await request(app.getHttpServer())
                 .post("/accounts")
                 .set(LocalAuthorizationHeaderFactory.createForUser(user))
-                .send(CreateAccountBody.create({ name: "first-account-name" }));
+                .send(CreateAccountBody.create({ name: "first-account-name" }))
+                .expect(HttpStatus.CREATED);
 
             await request(app.getHttpServer())
                 .post("/accounts")
@@ -111,7 +112,7 @@ describe("/accounts", () => {
             await request(app.getHttpServer())
                 .get(`/accounts/${account.id}/permissions`)
                 .set(LocalAuthorizationHeaderFactory.createForUser(user))
-                .expect(HttpStatus.OK, { permissions: PermissionList.getAll().toArray() });
+                .expect(HttpStatus.OK, { permissions: UserPermissionList.getAll().toArray() });
         });
     });
 });

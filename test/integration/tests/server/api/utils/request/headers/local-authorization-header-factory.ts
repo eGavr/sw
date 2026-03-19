@@ -1,4 +1,4 @@
-import { LocalUser } from "../../../../../../../../src/data/data-sources/resource-provider/local/enties/local-user";
+import { LocalUser } from "../../../../../../../../src/data/data-sources/resource-provider/local/entities/local-user";
 
 type AuthorizationHeader = { authorization: string };
 
