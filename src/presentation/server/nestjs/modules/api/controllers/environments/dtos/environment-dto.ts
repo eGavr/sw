@@ -5,15 +5,13 @@ export class EnvironmentDto implements ResponseDto {
     constructor(private readonly environment: Environment) {}
 
     toObject(): object {
-        // `endpoint` is intentionally NOT exposed: it is the container's internal WebDriver address.
-        // Clients reach the browser only through the wd proxy (via the session id), never directly.
         return {
-            id: this.environment.id,
-            accountId: this.environment.accountId.getValue(),
-            providerName: this.environment.providerName,
+            name: `accounts/${this.environment.accountId.getValue()}/environments/${this.environment.id}`,
+            uid: this.environment.id,
             platform: this.environment.platform.toObject(),
             applications: this.environment.applications.toArray(),
-            createdAt: this.environment.createdAt.toISOString(),
+            providerName: this.environment.providerName,
+            createTime: this.environment.createdAt.toISOString(),
         };
     }
 }

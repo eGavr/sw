@@ -2,7 +2,7 @@ import "../../../../../infrastructure/tracing";
 
 import { BadRequestException, MiddlewareConsumer, Module, NestModule, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
+import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
 import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../../../data/data-sources/auth/user-data-source-provider";
 import { EnvironmentDataSourceProvider } from "../../../../../data/data-sources/compute/environment-data-source-provider";
@@ -26,7 +26,7 @@ import { GetEnvironmentUseCase } from "../../../../../domain/use-cases/environme
 import { ListEnvironmentsUseCase } from "../../../../../domain/use-cases/environments/list-environments-use-case";
 import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
 import { LoggerModule } from "../../../../../infrastructure/logging/logger-module";
-import { ErrorInterceptor } from "../../interceptors/error-interceptor";
+import { AipExceptionFilter } from "../../filters/aip-exception-filter";
 import { ResponseInterceptor } from "../../interceptors/response-interceptor";
 import { ContextMiddleware } from "../../middlewares/contex-middleware";
 import { LoggingMiddleware } from "../../middlewares/logging-middleware";
@@ -69,8 +69,8 @@ import { EnvironmentsController } from "./controllers/environments/environments-
         PgUserPermissionDataSource,
 
         {
-            provide: APP_INTERCEPTOR,
-            useClass: ErrorInterceptor,
+            provide: APP_FILTER,
+            useClass: AipExceptionFilter,
         },
         {
             provide: APP_INTERCEPTOR,

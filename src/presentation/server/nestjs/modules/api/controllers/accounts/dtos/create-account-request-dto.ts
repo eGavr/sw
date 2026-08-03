@@ -11,7 +11,7 @@ class ResourcesDto {
 
 export class CreateAccountRequestDto {
     @IsString()
-    name: string;
+    displayName: string;
 
     @IsDefined()
     @ValidateNested()

@@ -6,13 +6,15 @@ export class AccountDto implements ResponseDto {
 
     toObject(): object {
         return {
-            id: this.account.id,
-            name: this.account.name,
-            createdBy: this.account.createdBy.id,
+            name: `accounts/${this.account.id}`,
+            uid: this.account.id,
+            displayName: this.account.name,
+            createTime: this.account.createdAt.toISOString(),
+            updateTime: this.account.updatedAt.toISOString(),
             resources: {
                 providerId: this.account.resources.providerId,
                 providerType: this.account.resources.providerType,
             },
-        }
+        };
     }
-} 
+}

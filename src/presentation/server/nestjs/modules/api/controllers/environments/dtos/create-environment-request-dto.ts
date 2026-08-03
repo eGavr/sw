@@ -26,9 +26,6 @@ class ApplicationDto {
 }
 
 export class CreateEnvironmentRequestDto {
-    @IsString()
-    accountId: string;
-
     @IsDefined()
     @ValidateNested()
     @Type(() => PlatformDto)

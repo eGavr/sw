@@ -5,15 +5,15 @@ import { DeleteEnvironmentUseCase } from "../../../../../../../domain/use-cases/
 import { GetEnvironmentUseCase } from "../../../../../../../domain/use-cases/environments/get-environment-use-case";
 import { ListEnvironmentsUseCase } from "../../../../../../../domain/use-cases/environments/list-environments-use-case";
 import { BearerToken } from "../../../../decorators/param/bearer-token";
+import { EmptyResponseDto } from "../../../../dtos/empty-response-dto";
+import { paginate } from "../../../../pagination/page";
 
 import { CreateEnvironmentRequestDto } from "./dtos/create-environment-request-dto";
-import { DeleteEnvironmentRequestDto } from "./dtos/delete-environment-request-dto";
 import { EnvironmentDto } from "./dtos/environment-dto";
-import { GetEnvironmentRequestDto } from "./dtos/get-environment-request-dto";
 import { ListEnvironmentsRequestDto } from "./dtos/list-environments-request-dto";
 import { ListEnvironmentsResponseDto } from "./dtos/list-environments-response-dto";
 
-@Controller("environments")
+@Controller("accounts/:account/environments")
 export class EnvironmentsController {
     constructor(
         private readonly createEnvironmentUseCase: CreateEnvironmentUseCase,
@@ -24,33 +24,39 @@ export class EnvironmentsController {
 
     @Post()
     async createEnvironment(
-        @Body() params: CreateEnvironmentRequestDto,
+        @Param("account") account: string,
+        @Body() body: CreateEnvironmentRequestDto,
         @BearerToken() token: string,
     ): Promise<EnvironmentDto> {
-        return new EnvironmentDto(await this.createEnvironmentUseCase.execute({ creds: { token }, params }));
+        return new EnvironmentDto(await this.createEnvironmentUseCase.execute({
+            creds: { token },
+            params: { accountId: account, platform: body.platform, application: body.application },
+        }));
     }
 
     @Get()
     async listEnvironments(
-        @Query() params: ListEnvironmentsRequestDto,
+        @Param("account") account: string,
+        @Query() query: ListEnvironmentsRequestDto,
         @BearerToken() token: string,
     ): Promise<ListEnvironmentsResponseDto> {
-        return new ListEnvironmentsResponseDto(await this.listEnvironmentsUseCase.execute({ creds: { token }, params }));
+        const environments = await this.listEnvironmentsUseCase.execute({ creds: { token }, params: { accountId: account } });
+        const page = paginate(environments, query.pageSize, query.pageToken);
+
+        return new ListEnvironmentsResponseDto(page.items, page.nextPageToken);
     }
 
-    @Get(":environmentId")
-    async getEnvironment(
-        @Param() params: GetEnvironmentRequestDto,
-        @BearerToken() token: string,
-    ): Promise<EnvironmentDto> {
-        return new EnvironmentDto(await this.getEnvironmentUseCase.execute({ creds: { token }, params }));
+    @Get(":environment")
+    async getEnvironment(@Param("environment") environment: string, @BearerToken() token: string): Promise<EnvironmentDto> {
+        return new EnvironmentDto(
+            await this.getEnvironmentUseCase.execute({ creds: { token }, params: { environmentId: environment } }),
+        );
     }
 
-    @Delete(":environmentId")
-    async deleteEnvironment(
-        @Param() params: DeleteEnvironmentRequestDto,
-        @BearerToken() token: string,
-    ): Promise<EnvironmentDto> {
-        return new EnvironmentDto(await this.deleteEnvironmentUseCase.execute({ creds: { token }, params }));
+    @Delete(":environment")
+    async deleteEnvironment(@Param("environment") environment: string, @BearerToken() token: string): Promise<EmptyResponseDto> {
+        await this.deleteEnvironmentUseCase.execute({ creds: { token }, params: { environmentId: environment } });
+
+        return new EmptyResponseDto();
     }
 }
