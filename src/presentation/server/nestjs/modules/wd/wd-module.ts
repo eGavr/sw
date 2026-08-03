@@ -8,7 +8,6 @@ import { SessionDataSourceProvider } from "../../../../../data/data-sources/comp
 import { EnvironmentRepository } from "../../../../../data/repositories/environment-repository";
 import { SessionRepository } from "../../../../../data/repositories/session-repository";
 import { CreateSessionUseCase } from "../../../../../domain/use-cases/sessions/create-session-use-case";
-import { DeleteSessionUseCase } from "../../../../../domain/use-cases/sessions/delete-session-use-case";
 import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
 import { LoggerModule } from "../../../../../infrastructure/logging/logger-module";
 import { ErrorInterceptor } from "../../interceptors/error-interceptor";
@@ -17,6 +16,7 @@ import { ContextMiddleware } from "../../middlewares/contex-middleware";
 import { LoggingMiddleware } from "../../middlewares/logging-middleware";
 
 import { SessionsController } from "./controllers/sessions/sessions-controller";
+import { WebDriverProxy } from "./webdriver-proxy";
 
 @Module({
     imports: [
@@ -28,7 +28,6 @@ import { SessionsController } from "./controllers/sessions/sessions-controller";
     controllers: [SessionsController],
     providers: [
         CreateSessionUseCase,
-        DeleteSessionUseCase,
 
         SessionRepository,
         EnvironmentRepository,
@@ -36,6 +35,7 @@ import { SessionsController } from "./controllers/sessions/sessions-controller";
         LocalComputeStore,
         EnvironmentDataSourceProvider,
         SessionDataSourceProvider,
+        WebDriverProxy,
 
         {
             provide: APP_INTERCEPTOR,

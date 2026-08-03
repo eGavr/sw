@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Param, Post } from "@nestjs/common";
+import { All, Body, Controller, Post, Req, Res } from "@nestjs/common";
+import type { Request, Response } from "express";
 
 import { CreateSessionUseCase } from "../../../../../../../domain/use-cases/sessions/create-session-use-case";
-import { DeleteSessionUseCase } from "../../../../../../../domain/use-cases/sessions/delete-session-use-case";
+import { SessionRoute } from "../../session-route";
+import { WebDriverProxy } from "../../webdriver-proxy";
 
 import { CreateSessionRequestDto } from "./dtos/create-session-request-dto";
-import { DeleteSessionRequestDto } from "./dtos/delete-session-request-dto";
 import { SessionDto } from "./dtos/session-dto";
 
 // FIXME: add data-plane authentication (external IdP / OAuth) once the auth strategy for wd lands.
@@ -12,7 +13,7 @@ import { SessionDto } from "./dtos/session-dto";
 export class SessionsController {
     constructor(
         private readonly createSessionUseCase: CreateSessionUseCase,
-        private readonly deleteSessionUseCase: DeleteSessionUseCase,
+        private readonly webDriverProxy: WebDriverProxy,
     ) {}
 
     @Post()
@@ -20,8 +21,41 @@ export class SessionsController {
         return new SessionDto(await this.createSessionUseCase.execute({ params }));
     }
 
-    @Delete(":sessionId")
-    async deleteSession(@Param() params: DeleteSessionRequestDto): Promise<SessionDto> {
-        return new SessionDto(await this.deleteSessionUseCase.execute({ params }));
+    @All(":sessionId")
+    async proxySessionRoot(@Req() request: Request, @Res() response: Response): Promise<void> {
+        await this.proxy(request, response);
+    }
+
+    @All(":sessionId/*rest")
+    async proxySessionCommand(@Req() request: Request, @Res() response: Response): Promise<void> {
+        await this.proxy(request, response);
+    }
+
+    private async proxy(request: Request, response: Response): Promise<void> {
+        const token = request.params.sessionId as string;
+        const route = SessionRoute.decode(token);
+
+        if (!route) {
+            response.status(400).json({ error: "invalid session id" });
+
+            return;
+        }
+
+        const prefix = `/sessions/${token}/`;
+        const tail = request.path.startsWith(prefix) ? request.path.slice(prefix.length) : "";
+        const body = request.body && Object.keys(request.body).length > 0 ? JSON.stringify(request.body) : undefined;
+
+        try {
+            const upstream = await this.webDriverProxy.forward(route.endpoint, route.webDriverSessionId, {
+                method: request.method,
+                path: tail,
+                headers: { "content-type": request.headers["content-type"] },
+                body,
+            });
+
+            response.status(upstream.status).set(upstream.headers).send(upstream.body);
+        } catch {
+            response.status(502).json({ error: "webdriver proxy failed" });
+        }
     }
 }

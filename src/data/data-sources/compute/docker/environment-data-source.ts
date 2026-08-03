@@ -18,9 +18,23 @@ export type DockerEnvironmentConfig = {
     command?: Array<string>;
 };
 
-const defaultInternalPort = 4444;
+export const defaultInternalPort = 4444;
 
 const resolveSeleniumImage = (application: ApplicationData): string => `selenium/standalone-chrome:${application.version}`;
+
+// Builds the compute config from installation settings. `image` may be a fixed tag (e.g. the
+// arm64 `seleniarm/standalone-chromium:latest`) or a template containing `{version}`, which is
+// replaced with the requested application version. Falls back to the amd64 selenium images.
+export function buildDockerEnvironmentConfig(image: string | undefined, internalPort: number): DockerEnvironmentConfig {
+    if (!image) {
+        return { resolveImage: resolveSeleniumImage, internalPort };
+    }
+
+    const resolveImage = (application: ApplicationData): string =>
+        (image.includes("{version}") ? image.replace("{version}", application.version) : image);
+
+    return { resolveImage, internalPort };
+}
 
 // Docker-backed compute: an environment is a container of a prebuilt image that exposes
 // a WebDriver endpoint. The container labels carry the full EnvironmentData so the

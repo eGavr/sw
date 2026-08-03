@@ -11,6 +11,7 @@ export type SessionData = {
     idleTimeoutMs: number;
     createdAt: Date;
     lastActivityAt: Date;
+    endpoint?: string | null;
     webDriverSessionId?: string | null;
 };
 
@@ -19,7 +20,6 @@ export type SessionCreateParams = {
     application: Application;
     idleTimeout: SessionIdleTimeout;
     now: Date;
-    webDriverSessionId?: string;
 };
 
 type SessionConstructorParams = {
@@ -29,6 +29,7 @@ type SessionConstructorParams = {
     idleTimeout: SessionIdleTimeout;
     createdAt: Date;
     lastActivityAt: Date;
+    endpoint?: string | null;
     webDriverSessionId?: string | null;
 };
 
@@ -40,7 +41,6 @@ export class Session {
             idleTimeout: params.idleTimeout,
             createdAt: params.now,
             lastActivityAt: params.now,
-            webDriverSessionId: params.webDriverSessionId ?? null,
         });
     }
 
@@ -52,6 +52,7 @@ export class Session {
             idleTimeout: SessionIdleTimeout.fromMilliseconds(data.idleTimeoutMs),
             createdAt: data.createdAt,
             lastActivityAt: data.lastActivityAt,
+            endpoint: data.endpoint ?? null,
             webDriverSessionId: data.webDriverSessionId ?? null,
         });
     }
@@ -63,6 +64,7 @@ export class Session {
     private readonly _id: SessionId;
     private readonly _environmentId: EnvironmentId;
     private _lastActivityAt: Date;
+    private readonly _endpoint: string | null;
     private _webDriverSessionId: string | null;
 
     private constructor(params: SessionConstructorParams) {
@@ -72,6 +74,7 @@ export class Session {
         this.idleTimeout = params.idleTimeout;
         this.createdAt = params.createdAt;
         this._lastActivityAt = params.lastActivityAt;
+        this._endpoint = params.endpoint ?? null;
         this._webDriverSessionId = params.webDriverSessionId ?? null;
     }
 
@@ -85,6 +88,10 @@ export class Session {
 
     get lastActivityAt(): Date {
         return this._lastActivityAt;
+    }
+
+    get endpoint(): string | null {
+        return this._endpoint;
     }
 
     get webDriverSessionId(): string | null {
@@ -113,6 +120,7 @@ export class Session {
             idleTimeoutMs: this.idleTimeout.milliseconds,
             createdAt: this.createdAt,
             lastActivityAt: this._lastActivityAt,
+            endpoint: this._endpoint,
             webDriverSessionId: this._webDriverSessionId,
         };
     }

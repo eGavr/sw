@@ -5,9 +5,9 @@ import { ResponseDto } from "../dtos/response-dto";
 
 @Injectable()
 export class ResponseInterceptor implements NestInterceptor {
-    intercept(_: ExecutionContext, next: CallHandler): Observable<object> | Promise<Observable<object>> {
+    intercept(_: ExecutionContext, next: CallHandler): Observable<unknown> | Promise<Observable<unknown>> {
         return next
             .handle()
-            .pipe(map((data: ResponseDto) => data.toObject()));
+            .pipe(map((data: ResponseDto | undefined) => (data && typeof data.toObject === "function" ? data.toObject() : data)));
     }
 }

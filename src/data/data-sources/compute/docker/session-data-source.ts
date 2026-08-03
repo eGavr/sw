@@ -8,13 +8,12 @@ import { SessionDataSource } from "../session-data-source";
 import { DockerEnvironmentDataSource } from "./environment-data-source";
 import { WebDriverClient } from "./webdriver-client";
 
-// Docker session lifecycle: created against the environment container's WebDriver endpoint.
-// Session bookkeeping lives in the wd process (its single owner); the underlying browser
-// session lives in the container. Endpoint is resolved via the docker environment data source.
+// Docker sessions are stateless: a session is created against the environment container's
+// WebDriver endpoint, and its client-facing id encodes that endpoint (see the wd SessionRoute),
+// so subsequent commands and deletion are routed by the transport proxy without a lookup.
+// Concurrency ("one active session per environment") is enforced by the browser node itself.
 @Injectable()
 export class DockerSessionDataSource extends SessionDataSource {
-    private readonly sessions = new Map<string, SessionData>();
-
     constructor(
         private readonly environmentDataSource: DockerEnvironmentDataSource,
         private readonly webDriver: WebDriverClient,
@@ -33,35 +32,21 @@ export class DockerSessionDataSource extends SessionDataSource {
             throw new InternalError(`docker session: ${session.environmentId}: ${(error as Error).message}`);
         }
 
-        const stored: SessionData = { ...session, webDriverSessionId };
-
-        this.sessions.set(stored.id, stored);
-
-        return stored;
+        return { ...session, endpoint, webDriverSessionId };
     }
 
-    async get(id: string): Promise<SessionData | null> {
-        return this.sessions.get(id) ?? null;
+    // Docker sessions are addressed by the routable id via the transport proxy; there is no
+    // server-side registry to read/mutate here. FIXME: expose live sessions via the node status API.
+    async get(): Promise<SessionData | null> {
+        return null;
     }
 
-    async listByEnvironment(environmentId: string): Promise<Array<SessionData>> {
-        return [...this.sessions.values()].filter((session) => session.environmentId === environmentId);
+    async listByEnvironment(): Promise<Array<SessionData>> {
+        return [];
     }
 
-    async delete(id: string): Promise<void> {
-        const session = this.sessions.get(id);
-
-        if (!session) {
-            return;
-        }
-
-        this.sessions.delete(id);
-
-        if (session.webDriverSessionId) {
-            const endpoint = await this.resolveEndpoint(session.environmentId);
-
-            await this.webDriver.deleteSession(endpoint, session.webDriverSessionId);
-        }
+    async delete(): Promise<void> {
+        return;
     }
 
     private async resolveEndpoint(environmentId: string): Promise<string> {
