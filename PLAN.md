@@ -5,7 +5,10 @@
 **Соответствие Google AIP — СДЕЛАНО** (только control-plane `api`; data-plane `wd` — это W3C WebDriver,
 свой стандарт). `/v1`; иерархия `accounts/{account}/environments/{environment}`; `name`/`uid`/`createTime`;
 Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageToken`/`nextPageToken`); ошибки AIP-193.
-Отложено (minor): user-specified `{resource}_id`, List accounts, permissions как custom `:method`, message у 401.
+Сделано из «отложенного»: **List accounts** (`GET /v1/accounts`, AIP-132) и **непустой message у 401**.
+Осталось: **permissions по IAM** (`:testIamPermissions`) — это СЛЕДУЮЩАЯ ЗАДАЧА (см. секцию ниже);
+`{resource}_id` — доменное решение (нужен релакс id `AccountId`/`EnvironmentId` с uuid до формата
+`^[a-z][a-z0-9-]*$` под человекочитаемые имена).
 
 ## Сделано
 
@@ -76,3 +79,59 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
 9. **Масштабирование**: сейчас `wd` — один процесс; stateless-роутинг по session id это уже
    поддерживает, но инвариант «одна активная сессия на окружение» для docker делегирован ноде
    браузера. Продумать для нескольких инстансов `wd`.
+
+---
+
+## СЛЕДУЮЩАЯ ЗАДАЧА: permissions по IAM (`:testIamPermissions`)
+
+Сейчас `GET /v1/accounts/{account}/permissions` возвращает ВСЕ права пользователя — это не стандартный
+AIP-метод (проверено по AIP-136: стандартного метода «выдай все мои права» нет). Переделать в IAM-стиль
+(реальный метод `google.iam.v1`, который ТЕСТИРУЕТ переданный набор):
+
+    POST /v1/accounts/{account}:testIamPermissions
+      body:  {"permissions": ["environment:create","environment:delete"]}
+      resp:  {"permissions": ["environment:create"]}     # подмножество, которым владелец обладает
+
+План:
+- Use-case `TestAccountPermissionsUseCase`: auth (`UserRepository.find`) → загрузить права пользователя
+  на аккаунте (`AccountUserPermissionRepository.findAll({ user, account })`) → пересечь с запрошенным
+  набором (пересечение — доменное правило; на `AccountUserPermissionList` уже есть `find(name): boolean`,
+  использовать его; при желании добавить метод `intersect(names)`).
+- DTO: request `{ permissions: string[] }`, response `{ permissions: string[] }`.
+- Заменить старый `list-account-permissions` (use-case + endpoint `GET .../permissions` +
+  `ListAccountPermissionsResponseDto` + `ListAccountPermissionsUseCase`).
+- РОУТИНГ-ЛОВУШКА: `:verb` конфликтует с express `:param`. В express5 param `:account` матчит `[^/]+`
+  (двоеточие внутри сегмента), поэтому маршрут вида `POST accounts/:resource` поймает
+  `{id}:testIamPermissions` целиком — сплитить по ПОСЛЕДНЕМУ ":" на `{id}` + `{verb}` и валидировать
+  `verb === "testIamPermissions"`. Проверить рабочий вариант при реализации (возможны альтернативы).
+- Проверить e2e: `POST .../{account}:testIamPermissions` с набором [есть, нет] → вернётся только «есть».
+
+---
+
+## Как запускать локально (runbook)
+
+Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-chromium:latest` подтянут;
+`node_modules` стоят. Порт 5432 занят чужим `hyperenv-api-postgresql` → наш Postgres на **5433**.
+И `api`, и `wd` теперь требуют Postgres (auth через `UserRepository`).
+
+    # БД + миграции (один раз)
+    docker run -d --name sw-db -e POSTGRES_USER=sw -e POSTGRES_PASSWORD=sw -e POSTGRES_DB=sw -p 5433:5432 postgres:16-alpine
+    POSTGRES_PORT=5433 npm run pg:migration:run:dev
+
+    # control-plane (api, :3000) — всё под /v1; локальный токен: любой `Bearer <что-то>`
+    POSTGRES_PORT=5433 npm run start:api:dev
+    curl -X POST localhost:3000/v1/accounts -H 'Authorization: Bearer <user1>' -H 'content-type: application/json' \
+      -d '{"displayName":"team-a","resources":{"providerId":"p","providerType":"docker"}}'   # -> uid
+    curl localhost:3000/v1/accounts -H 'Authorization: Bearer <user1>'                        # List accounts
+    # окружения вложены: POST/GET/LIST/DELETE /v1/accounts/{account}/environments[/{env}]
+
+    # data-plane (wd, :3001) — W3C WebDriver
+    POSTGRES_PORT=5433 npm run start:wd:dev
+    ENV_ID=$(npm run --silent env:create:dev | sed -n 's/.*"environmentId": "\([^"]*\)".*/\1/p')   # dev-хелпер, минуя api
+    SESSION_ID=$(curl -s -X POST localhost:3001/sessions -H 'Authorization: Bearer <user1>' -H 'content-type: application/json' \
+      -d "{\"environmentId\":\"$ENV_ID\",\"application\":{\"name\":\"chrome\",\"version\":\"latest\"}}" | sed 's/.*"id":"//;s/".*//')
+    curl localhost:3001/sessions/$SESSION_ID/url            # прокси-команды — без токена (доступ по SESSION_ID)
+    npm run env:delete:dev -- $ENV_ID
+
+Проверка: `npx tsc --noEmit` · `npx eslint <files>` · `npx jest --config ./test/unit/jest.unit.js`.
+Дев-e2e делаю поднятием реальных `api`/`wd` + Postgres(5433) + Docker и curl-прогоном (см. историю сессии).
