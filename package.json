@@ -33,6 +33,7 @@
     "start:api:dev:with:tracing": "OTEL_ENABLED=true OTEL_SERVICE_NAME=sw:api npm run start:api:dev",
     "start:wd": "node build/presentation/wd/index.js",
     "start:wd:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/server/nestjs/modules/wd/index.ts",
+    "env:create:dev": "ts-node scripts/dev/create-environment.ts",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "jest --config ./test/unit/jest.unit.js",
     "test:integration": "NODE_ENV=integration_test jest --config ./test/integration/jest.integration.js"
