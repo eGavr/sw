@@ -2,13 +2,15 @@ import { All, Body, Controller, Post, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 
 import { CreateSessionUseCase } from "../../../../../../../domain/use-cases/sessions/create-session-use-case";
+import { BearerToken } from "../../../../decorators/param/bearer-token";
 import { SessionRoute } from "../../session-route";
 import { WebDriverProxy } from "../../webdriver-proxy";
 
 import { CreateSessionRequestDto } from "./dtos/create-session-request-dto";
 import { SessionDto } from "./dtos/session-dto";
 
-// FIXME: add data-plane authentication (external IdP / OAuth) once the auth strategy for wd lands.
+// Auth is required only to CREATE a session; subsequent commands and teardown are authorized by
+// possession of the (unguessable) session id, so /sessions/:id/* is intentionally not authenticated.
 @Controller("sessions")
 export class SessionsController {
     constructor(
@@ -17,8 +19,8 @@ export class SessionsController {
     ) {}
 
     @Post()
-    async createSession(@Body() params: CreateSessionRequestDto): Promise<SessionDto> {
-        return new SessionDto(await this.createSessionUseCase.execute({ params }));
+    async createSession(@Body() params: CreateSessionRequestDto, @BearerToken() token: string): Promise<SessionDto> {
+        return new SessionDto(await this.createSessionUseCase.execute({ creds: { token }, params }));
     }
 
     @All(":sessionId")

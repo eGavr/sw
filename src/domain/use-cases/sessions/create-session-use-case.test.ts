@@ -3,6 +3,7 @@ import { LocalComputeStore } from "../../../data/data-sources/compute/local/loca
 import { LocalSessionDataSource } from "../../../data/data-sources/compute/local/session-data-source";
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
 import { SessionRepository } from "../../../data/repositories/session-repository";
+import { UserRepository } from "../../../data/repositories/user-repository";
 import { AccountId } from "../../entities/account/account-id";
 import { Application } from "../../entities/environment/application/application";
 import { ApplicationKind } from "../../entities/environment/application/application-kind";
@@ -12,11 +13,17 @@ import { ApplicationNotAvailableError } from "../../entities/environment/error/a
 import { EnvironmentBusyError } from "../../entities/environment/error/environment-busy-error";
 import { Platform } from "../../entities/environment/platform/platform";
 import { PlatformName } from "../../entities/environment/platform/platform-name";
+import { User } from "../../entities/user/user";
 
 import { CreateSessionUseCase } from "./create-session-use-case";
 
 describe("CreateSessionUseCase", () => {
+    const creds = { token: "test-token" };
     const chrome = { name: "chrome", version: "100", kind: "browser" };
+
+    const authenticatedUserRepository = {
+        find: async (): Promise<User> => User.create({ externalId: "tester", providerType: "local" }),
+    } as unknown as UserRepository;
 
     const build = async (): Promise<{ useCase: CreateSessionUseCase; environment: Environment }> => {
         const store = new LocalComputeStore();
@@ -31,13 +38,16 @@ describe("CreateSessionUseCase", () => {
             }),
         });
 
-        return { useCase: new CreateSessionUseCase(environmentRepository, sessionRepository), environment };
+        return {
+            useCase: new CreateSessionUseCase(authenticatedUserRepository, environmentRepository, sessionRepository),
+            environment,
+        };
     };
 
     test("should create a session for a supported application", async () => {
         const { useCase, environment } = await build();
 
-        const session = await useCase.execute({ params: { environmentId: environment.id, application: chrome } });
+        const session = await useCase.execute({ creds, params: { environmentId: environment.id, application: chrome } });
 
         expect(session.environmentId.getValue()).toBe(environment.id);
         expect(session.application.name).toBe("chrome");
@@ -46,9 +56,9 @@ describe("CreateSessionUseCase", () => {
     test("should reject a second active session in the same environment", async () => {
         const { useCase, environment } = await build();
 
-        await useCase.execute({ params: { environmentId: environment.id, application: chrome } });
+        await useCase.execute({ creds, params: { environmentId: environment.id, application: chrome } });
 
-        await expect(useCase.execute({ params: { environmentId: environment.id, application: chrome } }))
+        await expect(useCase.execute({ creds, params: { environmentId: environment.id, application: chrome } }))
             .rejects.toBeInstanceOf(EnvironmentBusyError);
     });
 
@@ -57,7 +67,7 @@ describe("CreateSessionUseCase", () => {
 
         const firefox = { name: "firefox", version: "120", kind: "browser" };
 
-        await expect(useCase.execute({ params: { environmentId: environment.id, application: firefox } }))
+        await expect(useCase.execute({ creds, params: { environmentId: environment.id, application: firefox } }))
             .rejects.toBeInstanceOf(ApplicationNotAvailableError);
     });
 });
