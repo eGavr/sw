@@ -8,13 +8,15 @@ import { Account } from "./account";
 describe("Account", () => {
     const createAcctountDefaults = {
         name: "default",
-        createdBy: User.fromObject({ externalId: "default" }),
+        createdBy: User.create({ externalId: "default", providerType: "local" }),
+        resources: { providerId: "default", providerType: "local" },
     };
 
     const accountDataDefaults = {
         id: uuidv4(),
         name: "default",
         createdBy: { externalId: "default" },
+        resources: { providerId: "default", providerType: "local" },
     };
 
     describe("#fromObject", () => {

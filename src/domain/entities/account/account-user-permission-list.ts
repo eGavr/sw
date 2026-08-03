@@ -1,34 +1,36 @@
-import { UserPermissionList } from "../user/user-permission-list";
 import { User } from "../user/user";
+import { UserPermissionData } from "../user/user-permission";
+import { UserPermissionList } from "../user/user-permission-list";
+import { UserPermissionName } from "../user/user-permission-name";
+
 import { Account } from "./account";
 import { AccountUserPermission } from "./account-user-permission";
-import { UserPermissionName } from "../user/user-permission-name";
 
 type AccountUserPermissionListCreateParams = {
     account: Account;
     user: User;
     permissions: UserPermissionList;
-}
+};
 
 type AccountUserPermissionListConstructorParams = {
     account: Account;
     user: User;
     permissions: Array<AccountUserPermission>;
-}
+};
 
 export class AccountUserPermissionList {
-    static create({ account, user, permissions}: AccountUserPermissionListCreateParams) {
+    static create({ account, user, permissions }: AccountUserPermissionListCreateParams): AccountUserPermissionList {
         return new AccountUserPermissionList({
             account,
-            user, 
-            permissions: permissions.map(permission => AccountUserPermission.create({ account, user, permission }))
+            user,
+            permissions: permissions.map((permission) => AccountUserPermission.create({ account, user, permission })),
         });
     }
 
     readonly account: Account;
     readonly user: User;
 
-    private readonly permissions: Array<AccountUserPermission>
+    private readonly permissions: Array<AccountUserPermission>;
 
     constructor(params: AccountUserPermissionListConstructorParams) {
         this.account = params.account;
@@ -36,12 +38,21 @@ export class AccountUserPermissionList {
         this.permissions = params.permissions;
     }
 
-    each(cb: (permission: AccountUserPermission) => void): void {
-        return this.permissions.forEach(cb);
+    isEmpty(): boolean {
+        return this.permissions.length === 0;
     }
 
-    find(permisisonName: UserPermissionName): boolean {
-        // return this.permissions.f
-        throw new Error();
+    find(permissionName: UserPermissionName): boolean {
+        return this.permissions.some((permission) => permission.name === permissionName);
+    }
+
+    each(cb: (permission: AccountUserPermission) => void): void {
+        this.permissions.forEach(cb);
+    }
+
+    toArray(): Array<UserPermissionData> {
+        return this.permissions
+            .map((permission) => ({ name: permission.name }))
+            .sort((first, second) => String(first.name).localeCompare(String(second.name)));
     }
 }

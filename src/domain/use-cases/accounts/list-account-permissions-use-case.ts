@@ -4,11 +4,11 @@ import { AccountRepository } from "../../../data/repositories/account-repository
 import { UserPermissionRepository } from "../../../data/repositories/user-permission-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
 import { AccountId } from "../../entities/account/account-id";
+import { AccountUserPermissionList } from "../../entities/account/account-user-permission-list";
 import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
 import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
-import { UserPermissionList } from "../../entities/user/user-permission-list";
-import { UserPermissionName } from "../../entities/user/user-permission-name";
 import { UserCredentials } from "../../entities/user/user-credentials";
+import { UserPermissionName } from "../../entities/user/user-permission-name";
 
 type ListAccountPermissionsInput = {
     creds: {
@@ -29,8 +29,9 @@ export class ListAccountPermissionsUseCase {
         private readonly accountRepository: AccountRepository,
     ) {}
 
-    async execute({ creds, params }: ListAccountPermissionsInput): Promise<UserPermissionList> {
+    async execute({ creds, params }: ListAccountPermissionsInput): Promise<AccountUserPermissionList> {
         const user = await this.userRepository.find({ filter: { creds: UserCredentials.create(creds) } });
+
         if (!user) {
             throw new UnauthenticatedError();
         }
