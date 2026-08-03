@@ -13,9 +13,6 @@ import { UserDataSource as PgUserDataSource } from "../../../../../data/data-sou
 import {
     UserPermissionDataSource as PgUserPermissionDataSource,
 } from "../../../../../data/data-sources/database/postgres/user-permission-data-source";
-import {
-    UserPermissionDataSource as ResourceProviderUserPermissionDataSource,
-} from "../../../../../data/data-sources/resource-provider/local/user-permission-data-source";
 import { AccountRepository } from "../../../../../data/repositories/account-repository";
 import { EnvironmentRepository } from "../../../../../data/repositories/environment-repository";
 import { UserPermissionRepository } from "../../../../../data/repositories/user-permission-repository";
@@ -69,7 +66,6 @@ import { EnvironmentsController } from "./controllers/environments/environments-
         EnvironmentDataSourceProvider,
         AuthUserDataSourceProvider,
         PgUserDataSource,
-        ResourceProviderUserPermissionDataSource,
         PgUserPermissionDataSource,
 
         {
