@@ -1,6 +1,6 @@
 import { IsString } from "class-validator";
 
-export class GetEnvironmentRequest {
+export class GetEnvironmentRequestDto {
     @IsString()
     environmentId: string;
 }

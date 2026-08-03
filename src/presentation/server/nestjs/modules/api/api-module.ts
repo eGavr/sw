@@ -5,17 +5,17 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
 import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../../../data/data-sources/auth/user-data-source-provider";
+import { EnvironmentDataSourceProvider } from "../../../../../data/data-sources/compute/environment-data-source-provider";
+import { LocalComputeStore } from "../../../../../data/data-sources/compute/local/local-compute-store";
 import { AccountDataSource } from "../../../../../data/data-sources/database/postgres/account-data-source";
 import { PostgresModule } from "../../../../../data/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../../../data/data-sources/database/postgres/user-data-source";
-import { 
-    UserPermissionDataSource as ResourceProviderUserPermissionDataSource 
-} from "../../../../../data/data-sources/resource-provider/local/user-permission-data-source";
 import {
     UserPermissionDataSource as PgUserPermissionDataSource,
 } from "../../../../../data/data-sources/database/postgres/user-permission-data-source";
-import { EnvironmentDataSource } from "../../../../../data/data-sources/ydb/environment-data-source";
-import { YdbModule } from "../../../../../data/data-sources/ydb/ydb-module";
+import {
+    UserPermissionDataSource as ResourceProviderUserPermissionDataSource,
+} from "../../../../../data/data-sources/resource-provider/local/user-permission-data-source";
 import { AccountRepository } from "../../../../../data/repositories/account-repository";
 import { EnvironmentRepository } from "../../../../../data/repositories/environment-repository";
 import { UserPermissionRepository } from "../../../../../data/repositories/user-permission-repository";
@@ -23,7 +23,10 @@ import { UserRepository } from "../../../../../data/repositories/user-repository
 import { CreateAccountUseCase } from "../../../../../domain/use-cases/accounts/create-account-use-case";
 import { GetAccountUseCase } from "../../../../../domain/use-cases/accounts/get-account-use-case";
 import { ListAccountPermissionsUseCase } from "../../../../../domain/use-cases/accounts/list-account-permissions-use-case";
+import { CreateEnvironmentUseCase } from "../../../../../domain/use-cases/environments/create-environment-use-case";
+import { DeleteEnvironmentUseCase } from "../../../../../domain/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../../../domain/use-cases/environments/get-environment-use-case";
+import { ListEnvironmentsUseCase } from "../../../../../domain/use-cases/environments/list-environments-use-case";
 import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
 import { LoggerModule } from "../../../../../infrastructure/logging/logger-module";
 import { ErrorInterceptor } from "../../interceptors/error-interceptor";
@@ -36,19 +39,21 @@ import { EnvironmentsController } from "./controllers/environments/environments-
 
 @Module({
     imports: [
-        ConfigModule.forRoot({ 
-            envFilePath: [".env", `env/.env.${process.env.NODE_ENV || "development"}`], 
+        ConfigModule.forRoot({
+            envFilePath: [".env", `env/.env.${process.env.NODE_ENV || "development"}`],
         }),
         PostgresModule,
-        YdbModule,
         LoggerModule,
     ],
     controllers: [
-        AccountsController, 
+        AccountsController,
         EnvironmentsController,
     ],
     providers: [
+        CreateEnvironmentUseCase,
         GetEnvironmentUseCase,
+        ListEnvironmentsUseCase,
+        DeleteEnvironmentUseCase,
 
         GetAccountUseCase,
         CreateAccountUseCase,
@@ -60,7 +65,8 @@ import { EnvironmentsController } from "./controllers/environments/environments-
         EnvironmentRepository,
 
         AccountDataSource,
-        EnvironmentDataSource,
+        LocalComputeStore,
+        EnvironmentDataSourceProvider,
         AuthUserDataSourceProvider,
         PgUserDataSource,
         ResourceProviderUserPermissionDataSource,
@@ -80,7 +86,7 @@ import { EnvironmentsController } from "./controllers/environments/environments-
                 {
                     whitelist: true,
                     forbidNonWhitelisted: true,
-                    exceptionFactory: (errors): BadRequestException => 
+                    exceptionFactory: (errors): BadRequestException =>
                         new BadRequestException(ClassValidatorError.stringifyConstraints(errors[0])),
                 },
             ),

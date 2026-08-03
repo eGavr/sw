@@ -5,6 +5,8 @@ export enum AccountPermission {
 
 export enum EnvironmentPermission {
     Read = "environment:read",
+    Create = "environment:create",
+    Delete = "environment:delete",
 }
 
 export class UserPermissionName {

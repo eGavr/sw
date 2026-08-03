@@ -4,50 +4,48 @@ import { AccountRepository } from "../../../data/repositories/account-repository
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
 import { UserPermissionRepository } from "../../../data/repositories/user-permission-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
+import { AccountId } from "../../entities/account/account-id";
 import { Environment } from "../../entities/environment/environment";
-import { EnvironmentId } from "../../entities/environment/environment-id";
 import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
 import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
 import { UserCredentials } from "../../entities/user/user-credentials";
 import { UserPermissionName } from "../../entities/user/user-permission-name";
 
-type GetEnvironmentInput = {
+type ListEnvironmentsInput = {
     creds: {
         token: string;
     },
     params: {
-        environmentId: string;
+        accountId: string;
     },
 }
 
-type GetEnvironmentResult = Environment;
-
 @Injectable()
-export class GetEnvironmentUseCase {
+export class ListEnvironmentsUseCase {
     private readonly permissionName = UserPermissionName.Environment.Read;
 
     constructor(
         private readonly userRepository: UserRepository,
         private readonly userPermissionRepository: UserPermissionRepository,
-        private readonly environmentRepository: EnvironmentRepository,
         private readonly accountRepository: AccountRepository,
+        private readonly environmentRepository: EnvironmentRepository,
     ) {}
 
-    async execute({ creds, params }: GetEnvironmentInput): Promise<GetEnvironmentResult> {
+    async execute({ creds, params }: ListEnvironmentsInput): Promise<Array<Environment>> {
         const user = await this.userRepository.find({ filter: { creds: UserCredentials.create(creds) } });
 
         if (!user) {
             throw new UnauthenticatedError();
         }
 
-        const environment = await this.environmentRepository.get(EnvironmentId.fromString(params.environmentId));
-        const account = await this.accountRepository.get(environment.accountId);
+        const accountId = AccountId.fromString(params.accountId);
+        const account = await this.accountRepository.get(accountId);
         const permissions = await this.userPermissionRepository.findAll({ filter: { user, account } });
 
         if (!permissions.find(this.permissionName)) {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);
         }
 
-        return environment;
+        return this.environmentRepository.listByAccount(accountId);
     }
 }

@@ -11,7 +11,7 @@ import { UnauthenticatedError } from "../../entities/error/unauthenticated-error
 import { UserCredentials } from "../../entities/user/user-credentials";
 import { UserPermissionName } from "../../entities/user/user-permission-name";
 
-type GetEnvironmentInput = {
+type DeleteEnvironmentInput = {
     creds: {
         token: string;
     },
@@ -20,33 +20,34 @@ type GetEnvironmentInput = {
     },
 }
 
-type GetEnvironmentResult = Environment;
-
 @Injectable()
-export class GetEnvironmentUseCase {
-    private readonly permissionName = UserPermissionName.Environment.Read;
+export class DeleteEnvironmentUseCase {
+    private readonly permissionName = UserPermissionName.Environment.Delete;
 
     constructor(
         private readonly userRepository: UserRepository,
         private readonly userPermissionRepository: UserPermissionRepository,
-        private readonly environmentRepository: EnvironmentRepository,
         private readonly accountRepository: AccountRepository,
+        private readonly environmentRepository: EnvironmentRepository,
     ) {}
 
-    async execute({ creds, params }: GetEnvironmentInput): Promise<GetEnvironmentResult> {
+    async execute({ creds, params }: DeleteEnvironmentInput): Promise<Environment> {
         const user = await this.userRepository.find({ filter: { creds: UserCredentials.create(creds) } });
 
         if (!user) {
             throw new UnauthenticatedError();
         }
 
-        const environment = await this.environmentRepository.get(EnvironmentId.fromString(params.environmentId));
+        const environmentId = EnvironmentId.fromString(params.environmentId);
+        const environment = await this.environmentRepository.get(environmentId);
         const account = await this.accountRepository.get(environment.accountId);
         const permissions = await this.userPermissionRepository.findAll({ filter: { user, account } });
 
         if (!permissions.find(this.permissionName)) {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);
         }
+
+        await this.environmentRepository.delete(environmentId);
 
         return environment;
     }
