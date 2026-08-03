@@ -1,7 +1,8 @@
 import { Type } from "class-transformer";
 import { IsInt, IsOptional, IsString, Min } from "class-validator";
 
-export class ListEnvironmentsRequestDto {
+// Shared AIP-158 pagination query fields.
+export class PageRequestDto {
     @IsOptional()
     @Type(() => Number)
     @IsInt()

@@ -7,10 +7,10 @@ import { ListEnvironmentsUseCase } from "../../../../../../../domain/use-cases/e
 import { BearerToken } from "../../../../decorators/param/bearer-token";
 import { EmptyResponseDto } from "../../../../dtos/empty-response-dto";
 import { paginate } from "../../../../pagination/page";
+import { PageRequestDto } from "../../../../pagination/page-request-dto";
 
 import { CreateEnvironmentRequestDto } from "./dtos/create-environment-request-dto";
 import { EnvironmentDto } from "./dtos/environment-dto";
-import { ListEnvironmentsRequestDto } from "./dtos/list-environments-request-dto";
 import { ListEnvironmentsResponseDto } from "./dtos/list-environments-response-dto";
 
 @Controller("accounts/:account/environments")
@@ -37,7 +37,7 @@ export class EnvironmentsController {
     @Get()
     async listEnvironments(
         @Param("account") account: string,
-        @Query() query: ListEnvironmentsRequestDto,
+        @Query() query: PageRequestDto,
         @BearerToken() token: string,
     ): Promise<ListEnvironmentsResponseDto> {
         const environments = await this.listEnvironmentsUseCase.execute({ creds: { token }, params: { accountId: account } });

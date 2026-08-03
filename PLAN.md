@@ -2,6 +2,11 @@
 
 Ветка: `feat.environment-domain-and-compute-backend`.
 
+**Соответствие Google AIP — СДЕЛАНО** (только control-plane `api`; data-plane `wd` — это W3C WebDriver,
+свой стандарт). `/v1`; иерархия `accounts/{account}/environments/{environment}`; `name`/`uid`/`createTime`;
+Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageToken`/`nextPageToken`); ошибки AIP-193.
+Отложено (minor): user-specified `{resource}_id`, List accounts, permissions как custom `:method`, message у 401.
+
 ## Сделано
 
 Сквозной сценарий воспроизведён и проверен на живом браузере:

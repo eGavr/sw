@@ -11,6 +11,6 @@ export const BearerToken = createParamDecorator(
             return authorization.split(" ")[1];
         }
     
-        throw new UnauthenticatedError();
+        throw new UnauthenticatedError("missing or malformed Authorization: Bearer token");
     },
 );
