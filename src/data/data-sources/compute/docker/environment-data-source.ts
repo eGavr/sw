@@ -15,25 +15,34 @@ import { dockerLabels, dockerProviderValue } from "./labels";
 export type DockerEnvironmentConfig = {
     resolveImage: (application: ApplicationData) => string;
     internalPort: number;
+    sessionTimeoutSeconds: number;
     command?: Array<string>;
 };
 
 export const defaultInternalPort = 4444;
+
+// Idle timeout the browser node enforces per session: it kills a session that receives no command
+// within this window and resets it on every command — the "smart" idle timeout, delegated to the node.
+export const defaultSessionTimeoutSeconds = 300;
 
 const resolveSeleniumImage = (application: ApplicationData): string => `selenium/standalone-chrome:${application.version}`;
 
 // Builds the compute config from installation settings. `image` may be a fixed tag (e.g. the
 // arm64 `seleniarm/standalone-chromium:latest`) or a template containing `{version}`, which is
 // replaced with the requested application version. Falls back to the amd64 selenium images.
-export function buildDockerEnvironmentConfig(image: string | undefined, internalPort: number): DockerEnvironmentConfig {
+export function buildDockerEnvironmentConfig(
+    image: string | undefined,
+    internalPort: number,
+    sessionTimeoutSeconds: number,
+): DockerEnvironmentConfig {
     if (!image) {
-        return { resolveImage: resolveSeleniumImage, internalPort };
+        return { resolveImage: resolveSeleniumImage, internalPort, sessionTimeoutSeconds };
     }
 
     const resolveImage = (application: ApplicationData): string =>
         (image.includes("{version}") ? image.replace("{version}", application.version) : image);
 
-    return { resolveImage, internalPort };
+    return { resolveImage, internalPort, sessionTimeoutSeconds };
 }
 
 // Docker-backed compute: an environment is a container of a prebuilt image that exposes
@@ -43,7 +52,11 @@ export function buildDockerEnvironmentConfig(image: string | undefined, internal
 export class DockerEnvironmentDataSource extends EnvironmentDataSource {
     constructor(
         private readonly docker: DockerClient,
-        private readonly config: DockerEnvironmentConfig = { resolveImage: resolveSeleniumImage, internalPort: defaultInternalPort },
+        private readonly config: DockerEnvironmentConfig = {
+            resolveImage: resolveSeleniumImage,
+            internalPort: defaultInternalPort,
+            sessionTimeoutSeconds: defaultSessionTimeoutSeconds,
+        },
     ) {
         super();
     }
@@ -68,6 +81,12 @@ export class DockerEnvironmentDataSource extends EnvironmentDataSource {
             command: this.config.command,
             publishPort: this.config.internalPort,
             shmSize: "2g",
+            // Delegate the smart idle timeout and the "one active session" invariant to the browser node.
+            env: {
+                SE_NODE_SESSION_TIMEOUT: String(this.config.sessionTimeoutSeconds),
+                SE_NODE_MAX_SESSIONS: "1",
+                SE_NODE_OVERRIDE_MAX_SESSIONS: "true",
+            },
             labels: {
                 [dockerLabels.provider]: dockerProviderValue,
                 [dockerLabels.environmentId]: data.id,

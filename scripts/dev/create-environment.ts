@@ -8,6 +8,7 @@ import {
 // WebDriver endpoint is ready, so the wd data-plane can be exercised without the api control-plane.
 const image = process.env.COMPUTE_DOCKER_IMAGE ?? "seleniarm/standalone-chromium:latest";
 const accountId = process.env.DEV_ACCOUNT_ID ?? "11111111-1111-4111-8111-111111111111";
+const sessionTimeoutSeconds = Number(process.env.COMPUTE_DOCKER_SESSION_TIMEOUT ?? "300");
 
 async function waitReady(endpoint: string, timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs;
@@ -31,7 +32,8 @@ async function waitReady(endpoint: string, timeoutMs: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-    const dataSource = new DockerEnvironmentDataSource(new DockerClient(), buildDockerEnvironmentConfig(image, 4444));
+    const config = buildDockerEnvironmentConfig(image, 4444, sessionTimeoutSeconds);
+    const dataSource = new DockerEnvironmentDataSource(new DockerClient(), config);
 
     const environment = await dataSource.create({
         accountId,
