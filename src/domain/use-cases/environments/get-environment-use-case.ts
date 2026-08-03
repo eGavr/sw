@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
 import { AccountRepository } from "../../../data/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../../data/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
-import { UserPermissionRepository } from "../../../data/repositories/user-permission-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
 import { Environment } from "../../entities/environment/environment";
 import { EnvironmentId } from "../../entities/environment/environment-id";
@@ -28,7 +28,7 @@ export class GetEnvironmentUseCase {
 
     constructor(
         private readonly userRepository: UserRepository,
-        private readonly userPermissionRepository: UserPermissionRepository,
+        private readonly accountUserPermissionRepository: AccountUserPermissionRepository,
         private readonly environmentRepository: EnvironmentRepository,
         private readonly accountRepository: AccountRepository,
     ) {}
@@ -42,7 +42,7 @@ export class GetEnvironmentUseCase {
 
         const environment = await this.environmentRepository.get(EnvironmentId.fromString(params.environmentId));
         const account = await this.accountRepository.get(environment.accountId);
-        const permissions = await this.userPermissionRepository.findAll({ filter: { user, account } });
+        const permissions = await this.accountUserPermissionRepository.findAll({ filter: { user, account } });
 
         if (!permissions.find(this.permissionName)) {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);

@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
 import { AccountRepository } from "../../../data/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../../data/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
-import { UserPermissionRepository } from "../../../data/repositories/user-permission-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
 import { AccountId } from "../../entities/account/account-id";
 import { Application } from "../../entities/environment/application/application";
@@ -40,7 +40,7 @@ export class CreateEnvironmentUseCase {
 
     constructor(
         private readonly userRepository: UserRepository,
-        private readonly userPermissionRepository: UserPermissionRepository,
+        private readonly accountUserPermissionRepository: AccountUserPermissionRepository,
         private readonly accountRepository: AccountRepository,
         private readonly environmentRepository: EnvironmentRepository,
     ) {}
@@ -54,7 +54,7 @@ export class CreateEnvironmentUseCase {
 
         const accountId = AccountId.fromString(params.accountId);
         const account = await this.accountRepository.get(accountId);
-        const permissions = await this.userPermissionRepository.findAll({ filter: { user, account } });
+        const permissions = await this.accountUserPermissionRepository.findAll({ filter: { user, account } });
 
         if (!permissions.find(this.permissionName)) {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);

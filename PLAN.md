@@ -36,15 +36,20 @@
    создать сессию в этом окружении» — вместе с аккаунтами (п.3). Проверено e2e: без/невалидный токен
    → 401, валидный → 201, прокси без токена → 200.
 
-3. **Bootstrap аккаунтов + авторизация в `api` (локально).** Флоу `create-account` из ветки grant-all
-   сейчас в тупике: для создания аккаунта нужно право `Account.Create`, но права выдаются только при
-   сохранении аккаунта, а `resource-provider/local` `UserCollection` ничем не сидируется. Починить
-   сидирование/бутстрап, чтобы окружения можно было создавать через `api` локально (сейчас для демо
-   используется дев-хелпер `npm run env:create:dev`). Заодно **переработать `UserPermissionRepository`**
-   (аудит по принципу repo/data-source): он назван `UserPermission*`, но возвращает
-   `AccountUserPermissionList`, и права по сути — часть агрегата `Account`, а не отдельная сущность;
-   плюс это pg + fallback на resource-provider, а не «сборка частей». И подключить авторизацию к
-   `create-session` (может ли пользователь создать сессию в окружении этого аккаунта).
+3. **Bootstrap аккаунтов + авторизация в `api` — БОЛЬШАЯ ЧАСТЬ СДЕЛАНА.**
+   - ~~Deadlock `create-account`~~ починен: self-service — любой аутентифицированный создаёт аккаунт и
+     становится владельцем со всеми правами (grant-all в `Account.create`, персист на `save`).
+   - ~~`UserPermissionRepository`~~ → переименован в **`AccountUserPermissionRepository`** (репозиторий
+     над `AccountUserPermission`), сделан **postgres-only** (убран сломанный fallback на
+     resource-provider). Мёртвый `data-sources/resource-provider/*` удалён.
+   - `get-account` теперь реально проверяет `Account.Read` (раньше только объявлял).
+   - Проверено e2e (реальный Postgres): create account → get account → list permissions (все 5) →
+     create environment → get environment; без токена → 401.
+
+   Осталось: (а) авторизация на `create-session` (может ли пользователь создать сессию в окружении
+   этого аккаунта) — сейчас только аутентификация; (б) опционально — более глубокая модель: права как
+   часть агрегата `Account` (авторизация читает `Account` с правами через `AccountRepository`, без
+   отдельного permission-репозитория).
 
    Попутно сделано (аудит): удалён мёртвый `data-sources/ydb/*` (окружения/сессии теперь на `compute`).
 

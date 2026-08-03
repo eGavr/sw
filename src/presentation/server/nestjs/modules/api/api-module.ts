@@ -14,8 +14,8 @@ import {
     UserPermissionDataSource as PgUserPermissionDataSource,
 } from "../../../../../data/data-sources/database/postgres/user-permission-data-source";
 import { AccountRepository } from "../../../../../data/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../../../../data/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../../../../data/repositories/environment-repository";
-import { UserPermissionRepository } from "../../../../../data/repositories/user-permission-repository";
 import { UserRepository } from "../../../../../data/repositories/user-repository";
 import { CreateAccountUseCase } from "../../../../../domain/use-cases/accounts/create-account-use-case";
 import { GetAccountUseCase } from "../../../../../domain/use-cases/accounts/get-account-use-case";
@@ -58,7 +58,7 @@ import { EnvironmentsController } from "./controllers/environments/environments-
 
         AccountRepository,
         UserRepository,
-        UserPermissionRepository,
+        AccountUserPermissionRepository,
         EnvironmentRepository,
 
         AccountDataSource,

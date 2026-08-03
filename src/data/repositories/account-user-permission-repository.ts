@@ -16,7 +16,7 @@ export type FindPermissionsQuery = {
 };
 
 @Injectable()
-export class UserPermissionRepository {
+export class AccountUserPermissionRepository {
     constructor(private readonly userPermissionDataSource: UserPermissionDataSource) {}
 
     async findAll(query: FindPermissionsQuery): Promise<AccountUserPermissionList> {
