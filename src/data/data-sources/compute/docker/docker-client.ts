@@ -10,6 +10,7 @@ export type DockerRunOptions = {
     labels: Record<string, string>;
     publishPort: number;
     command?: Array<string>;
+    shmSize?: string;
 };
 
 export type DockerContainer = {
@@ -47,6 +48,10 @@ export class DockerClient {
 
         for (const [key, value] of Object.entries(options.labels)) {
             args.push("--label", `${key}=${value}`);
+        }
+
+        if (options.shmSize) {
+            args.push("--shm-size", options.shmSize);
         }
 
         args.push("--publish", `0:${options.publishPort}`, options.image);

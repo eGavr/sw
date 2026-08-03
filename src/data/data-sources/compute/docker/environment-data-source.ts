@@ -10,6 +10,7 @@ import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-
 import { CreateEnvironmentInput, EnvironmentDataSource } from "../environment-data-source";
 
 import { DockerClient, DockerContainer } from "./docker-client";
+import { dockerLabels, dockerProviderValue } from "./labels";
 
 export type DockerEnvironmentConfig = {
     resolveImage: (application: ApplicationData) => string;
@@ -20,11 +21,6 @@ export type DockerEnvironmentConfig = {
 const defaultInternalPort = 4444;
 
 const resolveSeleniumImage = (application: ApplicationData): string => `selenium/standalone-chrome:${application.version}`;
-
-const labelProvider = "sw.provider";
-const labelEnvironmentId = "sw.environment.id";
-const labelAccountId = "sw.account.id";
-const labelData = "sw.environment.data";
 
 // Docker-backed compute: an environment is a container of a prebuilt image that exposes
 // a WebDriver endpoint. The container labels carry the full EnvironmentData so the
@@ -57,11 +53,12 @@ export class DockerEnvironmentDataSource extends EnvironmentDataSource {
             image: this.config.resolveImage(primary),
             command: this.config.command,
             publishPort: this.config.internalPort,
+            shmSize: "2g",
             labels: {
-                [labelProvider]: "docker",
-                [labelEnvironmentId]: data.id,
-                [labelAccountId]: data.accountId,
-                [labelData]: this.encode(data),
+                [dockerLabels.provider]: dockerProviderValue,
+                [dockerLabels.environmentId]: data.id,
+                [dockerLabels.accountId]: data.accountId,
+                [dockerLabels.data]: this.encode(data),
             },
         });
 
@@ -69,7 +66,7 @@ export class DockerEnvironmentDataSource extends EnvironmentDataSource {
     }
 
     async get(id: string): Promise<EnvironmentData | null> {
-        const [containerId] = await this.docker.listByLabel(labelEnvironmentId, id);
+        const [containerId] = await this.docker.listByLabel(dockerLabels.environmentId, id);
 
         if (!containerId) {
             return null;
@@ -79,16 +76,16 @@ export class DockerEnvironmentDataSource extends EnvironmentDataSource {
     }
 
     async listByAccount(accountId: string): Promise<Array<EnvironmentData>> {
-        const containerIds = await this.docker.listByLabel(labelAccountId, accountId);
+        const containerIds = await this.docker.listByLabel(dockerLabels.accountId, accountId);
         const containers = await Promise.all(containerIds.map((containerId) => this.docker.inspect(containerId)));
 
         return containers
-            .filter((container) => container.labels[labelProvider] === "docker")
+            .filter((container) => container.labels[dockerLabels.provider] === dockerProviderValue)
             .map((container) => this.toEnvironmentData(container));
     }
 
     async delete(id: string): Promise<void> {
-        const [containerId] = await this.docker.listByLabel(labelEnvironmentId, id);
+        const [containerId] = await this.docker.listByLabel(dockerLabels.environmentId, id);
 
         if (containerId) {
             await this.docker.remove(containerId);
@@ -100,7 +97,7 @@ export class DockerEnvironmentDataSource extends EnvironmentDataSource {
     }
 
     private toEnvironmentData(container: DockerContainer): EnvironmentData {
-        const data = JSON.parse(Buffer.from(container.labels[labelData], "base64").toString("utf8")) as EnvironmentData;
+        const data = JSON.parse(Buffer.from(container.labels[dockerLabels.data], "base64").toString("utf8")) as EnvironmentData;
         const hostPort = container.ports[`${this.config.internalPort}/tcp`] ?? null;
 
         return {

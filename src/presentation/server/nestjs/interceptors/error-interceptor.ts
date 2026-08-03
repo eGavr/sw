@@ -1,17 +1,19 @@
-import { 
-    BadRequestException, 
-    CallHandler, 
-    ExecutionContext, 
-    ForbiddenException, 
-    HttpException, 
-    Injectable, 
-    InternalServerErrorException, 
-    NestInterceptor, 
+import {
+    BadRequestException,
+    CallHandler,
+    ConflictException,
+    ExecutionContext,
+    ForbiddenException,
+    HttpException,
+    Injectable,
+    InternalServerErrorException,
+    NestInterceptor,
     NotFoundException,
-    UnauthorizedException, 
+    UnauthorizedException,
 } from "@nestjs/common";
 import { catchError, Observable, throwError } from "rxjs";
 
+import { ConflictError } from "../../../../domain/entities/error/conflict-error";
 import { DomainError } from "../../../../domain/entities/error/domain-error";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
 import { NotFoundError } from "../../../../domain/entities/error/not-found/not-found-error";
@@ -48,7 +50,11 @@ export class ErrorInterceptor implements NestInterceptor {
                         if (err instanceof PermissionDeniedError) {
                             return throwError(() => new ForbiddenException(err.message))
                         }
-                    } 
+
+                        if (err instanceof ConflictError) {
+                            return throwError(() => new ConflictException(err.message));
+                        }
+                    }
 
                     console.log(err);
 
