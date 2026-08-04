@@ -4,45 +4,48 @@ import { AccountRepository } from "../../../data/repositories/account-repository
 import { AccountUserPermissionRepository } from "../../../data/repositories/account-user-permission-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
 import { AccountId } from "../../entities/account/account-id";
-import { AccountUserPermissionList } from "../../entities/account/account-user-permission-list";
-import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
 import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
 import { UserCredentials } from "../../entities/user/user-credentials";
 import { UserPermissionName } from "../../entities/user/user-permission-name";
 
-type ListAccountPermissionsInput = {
+type TestAccountPermissionsInput = {
     creds: {
         token: string;
     },
     params: {
         accountId: string;
+        permissions: ReadonlyArray<string>;
     }
 }
 
+// google.iam.v1 TestIamPermissions: returns the subset of the requested permissions that the
+// caller holds on the account. Any authenticated caller may test their own permissions, so no
+// permission is required to call it. A non-existent account yields an empty set (not NOT_FOUND).
 @Injectable()
-export class ListAccountPermissionsUseCase {
-    private readonly permissionName = UserPermissionName.Account.Read;
-
+export class TestAccountPermissionsUseCase {
     constructor(
         private readonly userRepository: UserRepository,
         private readonly accountUserPermissionRepository: AccountUserPermissionRepository,
         private readonly accountRepository: AccountRepository,
     ) {}
 
-    async execute({ creds, params }: ListAccountPermissionsInput): Promise<AccountUserPermissionList> {
+    async execute({ creds, params }: TestAccountPermissionsInput): Promise<Array<UserPermissionName>> {
         const user = await this.userRepository.find({ filter: { creds: UserCredentials.create(creds) } });
 
         if (!user) {
             throw new UnauthenticatedError();
         }
 
-        const account = await this.accountRepository.get(AccountId.fromString(params.accountId));
-        const permissions = await this.accountUserPermissionRepository.findAll({ filter: { user, account } });
+        const requested = params.permissions.map((permission) => UserPermissionName.fromString(permission));
 
-        if (!permissions.find(this.permissionName)) {
-            throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);
+        const account = await this.accountRepository.find(AccountId.fromString(params.accountId));
+
+        if (!account) {
+            return [];
         }
 
-        return permissions;
+        const permissions = await this.accountUserPermissionRepository.findAll({ filter: { user, account } });
+
+        return permissions.intersect(requested);
     }
 }

@@ -107,12 +107,15 @@ describe("/accounts", () => {
             const { body: account } = await request(app.getHttpServer())
                 .post("/accounts")
                 .set(LocalAuthorizationHeaderFactory.createForUser(user))
-                .send(CreateAccountBody.create())
-            
+                .send(CreateAccountBody.create());
+
+            const permissions = UserPermissionList.getAll().toArray().map((permission) => permission.name);
+
             await request(app.getHttpServer())
-                .get(`/accounts/${account.id}/permissions`)
+                .post(`/accounts/${account.uid}:testIamPermissions`)
                 .set(LocalAuthorizationHeaderFactory.createForUser(user))
-                .expect(HttpStatus.OK, { permissions: UserPermissionList.getAll().toArray() });
+                .send({ permissions })
+                .expect(HttpStatus.OK, { permissions });
         });
     });
 });

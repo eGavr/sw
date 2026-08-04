@@ -19,8 +19,8 @@ import { EnvironmentRepository } from "../../../../../data/repositories/environm
 import { UserRepository } from "../../../../../data/repositories/user-repository";
 import { CreateAccountUseCase } from "../../../../../domain/use-cases/accounts/create-account-use-case";
 import { GetAccountUseCase } from "../../../../../domain/use-cases/accounts/get-account-use-case";
-import { ListAccountPermissionsUseCase } from "../../../../../domain/use-cases/accounts/list-account-permissions-use-case";
 import { ListAccountsUseCase } from "../../../../../domain/use-cases/accounts/list-accounts-use-case";
+import { TestAccountPermissionsUseCase } from "../../../../../domain/use-cases/accounts/test-account-permissions-use-case";
 import { CreateEnvironmentUseCase } from "../../../../../domain/use-cases/environments/create-environment-use-case";
 import { DeleteEnvironmentUseCase } from "../../../../../domain/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../../../domain/use-cases/environments/get-environment-use-case";
@@ -56,7 +56,7 @@ import { EnvironmentsController } from "./controllers/environments/environments-
         GetAccountUseCase,
         CreateAccountUseCase,
         ListAccountsUseCase,
-        ListAccountPermissionsUseCase,
+        TestAccountPermissionsUseCase,
 
         AccountRepository,
         UserRepository,

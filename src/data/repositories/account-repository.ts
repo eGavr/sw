@@ -11,13 +11,19 @@ export class AccountRepository {
     constructor(private readonly accountDataSource: AccountDataSource) {}
 
     async get(accountId: AccountId): Promise<Account> {
-        const data = await this.accountDataSource.findOne({ id: accountId.getValue() });
+        const account = await this.find(accountId);
 
-        if (!data) {
+        if (!account) {
             throw new NotFoundResourceError(accountId.getValue());
         }
 
-        return Account.fromObject(data);
+        return account;
+    }
+
+    async find(accountId: AccountId): Promise<Account | null> {
+        const data = await this.accountDataSource.findOne({ id: accountId.getValue() });
+
+        return data ? Account.fromObject(data) : null;
     }
 
     async listByUser(user: User): Promise<Array<Account>> {
