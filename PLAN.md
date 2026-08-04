@@ -63,8 +63,12 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
      их postgres data-source-ы. Проверено e2e (api+wd+docker): без токена → 401, чужой → 403
      (`no permission: session:create`), владелец авторизован (доходит до создания сессии).
 
-   Осталось: (б) опционально — более глубокая модель: права как часть агрегата `Account` (авторизация
-   читает `Account` с правами через `AccountRepository`, без отдельного permission-репозитория).
+   - (б) «более глубокая модель прав» — **разобрано и осознанно отклонено** (сверено с DDD и
+     hyperenv-api): агрегат = граница транзакции, толстый `Account`/загрузка всех членов и
+     use-case-level Unit of Work — анти-паттерны. Оставили: grant — часть агрегата `Account`;
+     `AccountDataSource.saveOne` атомарен (транзакция **внутри data source**); авторизация — узкое
+     targeted-чтение `AccountUserPermissionRepository.findAll`. Правила зафиксированы в `CLAUDE.md`
+     (транзакция — забота data source; чтение ≠ запись; `with(id, cb)` для load-mutate-save).
 
    Попутно сделано (аудит): удалён мёртвый `data-sources/ydb/*` (окружения/сессии теперь на `compute`).
 
