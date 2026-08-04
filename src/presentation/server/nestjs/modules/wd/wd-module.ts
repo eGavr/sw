@@ -6,8 +6,14 @@ import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../.
 import { EnvironmentDataSourceProvider } from "../../../../../data/data-sources/compute/environment-data-source-provider";
 import { LocalComputeStore } from "../../../../../data/data-sources/compute/local/local-compute-store";
 import { SessionDataSourceProvider } from "../../../../../data/data-sources/compute/session-data-source-provider";
+import { AccountDataSource } from "../../../../../data/data-sources/database/postgres/account-data-source";
 import { PostgresModule } from "../../../../../data/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../../../data/data-sources/database/postgres/user-data-source";
+import {
+    UserPermissionDataSource as PgUserPermissionDataSource,
+} from "../../../../../data/data-sources/database/postgres/user-permission-data-source";
+import { AccountRepository } from "../../../../../data/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../../../../data/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../../../../data/repositories/environment-repository";
 import { SessionRepository } from "../../../../../data/repositories/session-repository";
 import { UserRepository } from "../../../../../data/repositories/user-repository";
@@ -37,12 +43,16 @@ import { WebDriverProxy } from "./webdriver-proxy";
         SessionRepository,
         EnvironmentRepository,
         UserRepository,
+        AccountRepository,
+        AccountUserPermissionRepository,
 
         LocalComputeStore,
         EnvironmentDataSourceProvider,
         SessionDataSourceProvider,
         AuthUserDataSourceProvider,
         PgUserDataSource,
+        AccountDataSource,
+        PgUserPermissionDataSource,
         WebDriverProxy,
 
         {

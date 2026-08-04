@@ -1,6 +1,8 @@
 import { LocalEnvironmentDataSource } from "../../../data/data-sources/compute/local/environment-data-source";
 import { LocalComputeStore } from "../../../data/data-sources/compute/local/local-compute-store";
 import { LocalSessionDataSource } from "../../../data/data-sources/compute/local/session-data-source";
+import { AccountRepository } from "../../../data/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../../data/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
 import { SessionRepository } from "../../../data/repositories/session-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
@@ -13,6 +15,7 @@ import { ApplicationNotAvailableError } from "../../entities/environment/error/a
 import { EnvironmentBusyError } from "../../entities/environment/error/environment-busy-error";
 import { Platform } from "../../entities/environment/platform/platform";
 import { PlatformName } from "../../entities/environment/platform/platform-name";
+import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
 import { User } from "../../entities/user/user";
 
 import { CreateSessionUseCase } from "./create-session-use-case";
@@ -25,7 +28,14 @@ describe("CreateSessionUseCase", () => {
         find: async (): Promise<User> => User.create({ externalId: "tester", providerType: "local" }),
     } as unknown as UserRepository;
 
-    const build = async (): Promise<{ useCase: CreateSessionUseCase; environment: Environment }> => {
+    const accountRepository = { get: async (): Promise<object> => ({}) } as unknown as AccountRepository;
+
+    const permissionRepository = (authorized: boolean): AccountUserPermissionRepository =>
+        ({
+            findAll: async (): Promise<{ find: () => boolean }> => ({ find: (): boolean => authorized }),
+        }) as unknown as AccountUserPermissionRepository;
+
+    const build = async (authorized = true): Promise<{ useCase: CreateSessionUseCase; environment: Environment }> => {
         const store = new LocalComputeStore();
         const environmentRepository = new EnvironmentRepository(new LocalEnvironmentDataSource(store));
         const sessionRepository = new SessionRepository(new LocalSessionDataSource(store));
@@ -39,7 +49,13 @@ describe("CreateSessionUseCase", () => {
         });
 
         return {
-            useCase: new CreateSessionUseCase(authenticatedUserRepository, environmentRepository, sessionRepository),
+            useCase: new CreateSessionUseCase(
+                authenticatedUserRepository,
+                permissionRepository(authorized),
+                accountRepository,
+                environmentRepository,
+                sessionRepository,
+            ),
             environment,
         };
     };
@@ -69,5 +85,12 @@ describe("CreateSessionUseCase", () => {
 
         await expect(useCase.execute({ creds, params: { environmentId: environment.id, application: firefox } }))
             .rejects.toBeInstanceOf(ApplicationNotAvailableError);
+    });
+
+    test("should reject a user without the session:create permission", async () => {
+        const { useCase, environment } = await build(false);
+
+        await expect(useCase.execute({ creds, params: { environmentId: environment.id, application: chrome } }))
+            .rejects.toBeInstanceOf(PermissionDeniedError);
     });
 });

@@ -11,14 +11,21 @@ export enum EnvironmentPermission {
     Delete = "environment:delete",
 }
 
+export enum SessionPermission {
+    Create = "session:create",
+}
+
 export class UserPermissionName {
     static readonly Account = AccountPermission;
 
     static readonly Environment = EnvironmentPermission;
 
+    static readonly Session = SessionPermission;
+
     private static readonly knownNames: ReadonlySet<string> = new Set<string>([
         ...Object.values(AccountPermission),
         ...Object.values(EnvironmentPermission),
+        ...Object.values(SessionPermission),
     ]);
 
     // Parses a transport string into a domain permission name. Google IAM testIamPermissions

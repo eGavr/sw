@@ -5,11 +5,12 @@ export class UserPermissionList {
     static getAll(): UserPermissionList {
         const account = Object.values(UserPermissionName.Account);
         const environment = Object.values(UserPermissionName.Environment);
+        const session = Object.values(UserPermissionName.Session);
 
-        return UserPermissionList.create({ permissions: [...account, ...environment] });
+        return UserPermissionList.create({ permissions: [...account, ...environment, ...session] });
     }
 
-    static create({ permissions }: { permissions: Array<UserPermissionName> }) {
+    static create({ permissions }: { permissions: Array<UserPermissionName> }): UserPermissionList {
         return new UserPermissionList(permissions.map(permissionName => new UserPermission(permissionName)));
     }
 
