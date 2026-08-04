@@ -6,9 +6,11 @@
 свой стандарт). `/v1`; иерархия `accounts/{account}/environments/{environment}`; `name`/`uid`/`createTime`;
 Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageToken`/`nextPageToken`); ошибки AIP-193.
 Сделано из «отложенного»: **List accounts** (`GET /v1/accounts`, AIP-132) и **непустой message у 401**.
-Осталось: **permissions по IAM** (`:testIamPermissions`) — это СЛЕДУЮЩАЯ ЗАДАЧА (см. секцию ниже);
-`{resource}_id` — доменное решение (нужен релакс id `AccountId`/`EnvironmentId` с uuid до формата
-`^[a-z][a-z0-9-]*$` под человекочитаемые имена).
+Сделано также: **permissions по IAM** — `GET .../permissions` заменён на IAM-метод
+`POST /v1/accounts/{account}:testIamPermissions` (google.iam.v1): тестирует переданный набор и
+возвращает подмножество, которым владеет вызывающий (детали — в разделе «Сделано»).
+Осталось: `{resource}_id` — доменное решение (нужен релакс id `AccountId`/`EnvironmentId` с uuid до
+формата `^[a-z][a-z0-9-]*$` под человекочитаемые имена).
 
 ## Сделано
 
@@ -82,29 +84,25 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
 
 ---
 
-## СЛЕДУЮЩАЯ ЗАДАЧА: permissions по IAM (`:testIamPermissions`)
+## Permissions по IAM (`:testIamPermissions`) — СДЕЛАНО
 
-Сейчас `GET /v1/accounts/{account}/permissions` возвращает ВСЕ права пользователя — это не стандартный
-AIP-метод (проверено по AIP-136: стандартного метода «выдай все мои права» нет). Переделать в IAM-стиль
-(реальный метод `google.iam.v1`, который ТЕСТИРУЕТ переданный набор):
+`GET /v1/accounts/{account}/permissions` (возвращал ВСЕ права — нестандартно, по AIP-136 такого метода
+нет) заменён на IAM-метод `google.iam.v1`, который ТЕСТИРУЕТ переданный набор:
 
-    POST /v1/accounts/{account}:testIamPermissions
+    POST /v1/accounts/{account}:testIamPermissions           # 200
       body:  {"permissions": ["environment:create","environment:delete"]}
-      resp:  {"permissions": ["environment:create"]}     # подмножество, которым владелец обладает
+      resp:  {"permissions": ["environment:create"]}         # подмножество, которым владеет вызывающий
 
-План:
-- Use-case `TestAccountPermissionsUseCase`: auth (`UserRepository.find`) → загрузить права пользователя
-  на аккаунте (`AccountUserPermissionRepository.findAll({ user, account })`) → пересечь с запрошенным
-  набором (пересечение — доменное правило; на `AccountUserPermissionList` уже есть `find(name): boolean`,
-  использовать его; при желании добавить метод `intersect(names)`).
-- DTO: request `{ permissions: string[] }`, response `{ permissions: string[] }`.
-- Заменить старый `list-account-permissions` (use-case + endpoint `GET .../permissions` +
-  `ListAccountPermissionsResponseDto` + `ListAccountPermissionsUseCase`).
-- РОУТИНГ-ЛОВУШКА: `:verb` конфликтует с express `:param`. В express5 param `:account` матчит `[^/]+`
-  (двоеточие внутри сегмента), поэтому маршрут вида `POST accounts/:resource` поймает
-  `{id}:testIamPermissions` целиком — сплитить по ПОСЛЕДНЕМУ ":" на `{id}` + `{verb}` и валидировать
-  `verb === "testIamPermissions"`. Проверить рабочий вариант при реализации (возможны альтернативы).
-- Проверить e2e: `POST .../{account}:testIamPermissions` с набором [есть, нет] → вернётся только «есть».
+Реализовано по рекомендациям Google IAM (проверено e2e):
+- `TestAccountPermissionsUseCase`: auth → `AccountRepository.find` → `AccountUserPermissionRepository`
+  → `AccountUserPermissionList.intersect(requested)` (пересечение — доменное правило, порядок сохраняется).
+- **Право на сам вызов не требуется** (любой аутентифицированный тестирует свои права); чужой юзер → `[]`.
+- **Неизвестное право → `INVALID_ARGUMENT`** (`UserPermissionName.fromString`).
+- **Несуществующий аккаунт → `[]`** (не `NOT_FOUND`); набор ограничен 100; ответ `200` (не 201).
+- Роутинг: express матчит `{account}:testIamPermissions` одним сегментом → сплит по последнему `:` в
+  контроллере, невалидный verb → `404`. `AccountRepository.find` (nullable) добавлен под пустой набор.
+- Удалён старый `list-account-permissions` (use-case + endpoint + DTO). Юнит-тесты на `fromString`/
+  `intersect`; интеграционный тест прав обновлён на новый метод.
 
 ---
 
@@ -123,6 +121,10 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
     curl -X POST localhost:3000/v1/accounts -H 'Authorization: Bearer <user1>' -H 'content-type: application/json' \
       -d '{"displayName":"team-a","resources":{"providerId":"p","providerType":"docker"}}'   # -> uid
     curl localhost:3000/v1/accounts -H 'Authorization: Bearer <user1>'                        # List accounts
+    # проверить права (IAM): вернётся подмножество, которым владеет вызывающий
+    # ВНИМАНИЕ zsh: используй ${ACC}, иначе $ACC:testIamPermissions съест `:t` history-модификатор
+    curl -X POST "localhost:3000/v1/accounts/${ACC}:testIamPermissions" -H 'Authorization: Bearer <user1>' \
+      -H 'content-type: application/json' -d '{"permissions":["environment:create","account:read"]}'
     # окружения вложены: POST/GET/LIST/DELETE /v1/accounts/{account}/environments[/{env}]
 
     # data-plane (wd, :3001) — W3C WebDriver
