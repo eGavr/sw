@@ -1,7 +1,7 @@
 import { Type } from "class-transformer";
 import { IsDefined, IsOptional, IsString, ValidateNested } from "class-validator";
 
-class PlatformDto {
+class PlatformModel {
     @IsString()
     name: string;
 
@@ -13,7 +13,7 @@ class PlatformDto {
     deviceModel?: string;
 }
 
-class ApplicationDto {
+class ApplicationModel {
     @IsString()
     name: string;
 
@@ -25,14 +25,14 @@ class ApplicationDto {
     kind?: string;
 }
 
-export class CreateEnvironmentRequestDto {
+export class CreateEnvironmentRequestModel {
     @IsDefined()
     @ValidateNested()
-    @Type(() => PlatformDto)
-    platform: PlatformDto;
+    @Type(() => PlatformModel)
+    platform: PlatformModel;
 
     @IsDefined()
     @ValidateNested()
-    @Type(() => ApplicationDto)
-    application: ApplicationDto;
+    @Type(() => ApplicationModel)
+    application: ApplicationModel;
 }

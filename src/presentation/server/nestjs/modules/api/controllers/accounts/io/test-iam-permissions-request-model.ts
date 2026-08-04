@@ -1,6 +1,6 @@
 import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsString } from "class-validator";
 
-export class TestIamPermissionsRequestDto {
+export class TestIamPermissionsRequestModel {
     @IsArray()
     @ArrayNotEmpty()
     @ArrayMaxSize(100)

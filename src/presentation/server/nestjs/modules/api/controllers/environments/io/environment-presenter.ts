@@ -1,10 +1,10 @@
 import { Environment } from "../../../../../../../../domain/entities/environment/environment";
-import { ResponseDto } from "../../../../../dtos/response-dto";
+import { Presenter } from "../../../../../presenters/presenter";
 
-export class EnvironmentDto implements ResponseDto {
+export class EnvironmentPresenter implements Presenter {
     constructor(private readonly environment: Environment) {}
 
-    toObject(): object {
+    present(): object {
         return {
             name: `accounts/${this.environment.accountId.getValue()}/environments/${this.environment.id}`,
             uid: this.environment.id,

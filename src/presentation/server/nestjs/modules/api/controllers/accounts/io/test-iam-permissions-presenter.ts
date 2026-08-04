@@ -1,10 +1,10 @@
 import { UserPermissionName } from "../../../../../../../../domain/entities/user/user-permission-name";
-import { ResponseDto } from "../../../../../dtos/response-dto";
+import { Presenter } from "../../../../../presenters/presenter";
 
-export class TestIamPermissionsResponseDto implements ResponseDto {
+export class TestIamPermissionsPresenter implements Presenter {
     constructor(private readonly permissions: ReadonlyArray<UserPermissionName>) {}
 
-    toObject(): object {
+    present(): object {
         return {
             permissions: [...this.permissions],
         };

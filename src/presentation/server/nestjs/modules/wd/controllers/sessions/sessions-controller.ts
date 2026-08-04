@@ -6,8 +6,8 @@ import { BearerToken } from "../../../../decorators/param/bearer-token";
 import { SessionRoute } from "../../session-route";
 import { WebDriverProxy } from "../../webdriver-proxy";
 
-import { CreateSessionRequestDto } from "./dtos/create-session-request-dto";
-import { SessionDto } from "./dtos/session-dto";
+import { CreateSessionRequestModel } from "./io/create-session-request-model";
+import { SessionPresenter } from "./io/session-presenter";
 
 // Auth is required only to CREATE a session; subsequent commands and teardown are authorized by
 // possession of the (unguessable) session id, so /sessions/:id/* is intentionally not authenticated.
@@ -19,8 +19,8 @@ export class SessionsController {
     ) {}
 
     @Post()
-    async createSession(@Body() params: CreateSessionRequestDto, @BearerToken() token: string): Promise<SessionDto> {
-        return new SessionDto(await this.createSessionUseCase.execute({ creds: { token }, params }));
+    async createSession(@Body() params: CreateSessionRequestModel, @BearerToken() token: string): Promise<SessionPresenter> {
+        return new SessionPresenter(await this.createSessionUseCase.execute({ creds: { token }, params }));
     }
 
     @All(":sessionId")

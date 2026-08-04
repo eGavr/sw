@@ -1,11 +1,11 @@
 import { Session } from "../../../../../../../../domain/entities/session/session";
-import { ResponseDto } from "../../../../../dtos/response-dto";
+import { Presenter } from "../../../../../presenters/presenter";
 import { SessionRoute } from "../../../session-route";
 
-export class SessionDto implements ResponseDto {
+export class SessionPresenter implements Presenter {
     constructor(private readonly session: Session) {}
 
-    toObject(): object {
+    present(): object {
         const id = this.session.endpoint && this.session.webDriverSessionId
             ? SessionRoute.encode(this.session.endpoint, this.session.webDriverSessionId)
             : this.session.id;

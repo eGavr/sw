@@ -1,10 +1,10 @@
 import { Account } from "../../../../../../../../domain/entities/account/account";
-import { ResponseDto } from "../../../../../dtos/response-dto";
+import { Presenter } from "../../../../../presenters/presenter";
 
-export class AccountDto implements ResponseDto {
+export class AccountPresenter implements Presenter {
     constructor(private readonly account: Account) {}
 
-    toObject(): object {
+    present(): object {
         return {
             name: `accounts/${this.account.id}`,
             uid: this.account.id,

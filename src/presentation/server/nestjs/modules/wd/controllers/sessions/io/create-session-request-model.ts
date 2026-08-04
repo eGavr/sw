@@ -1,7 +1,7 @@
 import { Type } from "class-transformer";
 import { IsDefined, IsOptional, IsString, ValidateNested } from "class-validator";
 
-class ApplicationDto {
+class ApplicationModel {
     @IsString()
     name: string;
 
@@ -13,12 +13,12 @@ class ApplicationDto {
     kind?: string;
 }
 
-export class CreateSessionRequestDto {
+export class CreateSessionRequestModel {
     @IsString()
     environmentId: string;
 
     @IsDefined()
     @ValidateNested()
-    @Type(() => ApplicationDto)
-    application: ApplicationDto;
+    @Type(() => ApplicationModel)
+    application: ApplicationModel;
 }
