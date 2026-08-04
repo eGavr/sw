@@ -72,8 +72,14 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
 
    Попутно сделано (аудит): удалён мёртвый `data-sources/ydb/*` (окружения/сессии теперь на `compute`).
 
-4. **WS-протоколы**: проксирование `bidi`/`devtools`/`vnc` (сейчас проксируются только HTTP-команды).
-   Для интерактива, стриминга и просмотра браузера.
+4. **WS-протоколы — СДЕЛАНО (ядро).** Stateless WebSocket-reverse-proxy на data-plane: `wd` ловит
+   HTTP `upgrade` (минуя Nest-роутинг), декодирует endpoint из session id и пайпит кадры в
+   `ws(s)://{endpoint}/session/{wdSessionId}/{rest}`. Без auth (capability по session id, как HTTP-прокси).
+   BiDi включён на создании сессии (`webSocketUrl: true`); CDP/VNC отдаёт нода. Схема URL:
+   `ws://{wd}/sessions/{id}/se/{bidi,cdp,vnc}`. Проверено e2e на живом контейнере (BiDi `session.status`,
+   CDP `Browser.getVersion`); юнит-тесты на роутинг. **Осталось (follow-up):** отдавать `webSocketUrl`/
+   `se:cdp`/`se:vnc` в ответе create-session, чтобы клиенты авто-обнаруживали проксирующий URL (сейчас
+   URL строится по схеме детерминированно); явный e2e для VNC (тот же путь, но бинарные кадры).
 
 5. **Второй резолвер образа**: «свой базовый linux + доустановка нужного Chrome на старте»
    (договорённость «selenium сейчас, свой потом»). Порт уже конфигурируемый.
