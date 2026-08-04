@@ -36,8 +36,10 @@ export class AccountDataSource {
     }
 
     async saveOne(account: AccountEntity): Promise<void> {
-        await this.dataSource.getRepository(User).upsert(User.from(account.createdBy), ["id"]);
-        await this.dataSource.getRepository(Account).save(Account.from(account));
-        await this.dataSource.getRepository(AccountUserPermission).save(AccountUserPermissionList.from(account));
+        await this.dataSource.transaction(async (manager) => {
+            await manager.getRepository(User).upsert(User.from(account.createdBy), ["id"]);
+            await manager.getRepository(Account).save(Account.from(account));
+            await manager.getRepository(AccountUserPermission).save(AccountUserPermissionList.from(account));
+        });
     }
 }
