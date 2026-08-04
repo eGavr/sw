@@ -56,10 +56,15 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    - Проверено e2e (реальный Postgres): create account → get account → list permissions (все 5) →
      create environment → get environment; без токена → 401.
 
-   Осталось: (а) авторизация на `create-session` (может ли пользователь создать сессию в окружении
-   этого аккаунта) — сейчас только аутентификация; (б) опционально — более глубокая модель: права как
-   часть агрегата `Account` (авторизация читает `Account` с правами через `AccountRepository`, без
-   отдельного permission-репозитория).
+   - ~~авторизация на `create-session`~~ **СДЕЛАНО**: добавлено первоклассное право `session:create`;
+     `CreateSessionUseCase` (data-plane `wd`) грузит окружение → его аккаунт → требует `session:create`
+     (как environment-use-cases). Право входит в grant-all (`UserPermissionList.getAll`) и в known-names
+     (`testIamPermissions`); `wd-module` получил `AccountRepository`/`AccountUserPermissionRepository` +
+     их postgres data-source-ы. Проверено e2e (api+wd+docker): без токена → 401, чужой → 403
+     (`no permission: session:create`), владелец авторизован (доходит до создания сессии).
+
+   Осталось: (б) опционально — более глубокая модель: права как часть агрегата `Account` (авторизация
+   читает `Account` с правами через `AccountRepository`, без отдельного permission-репозитория).
 
    Попутно сделано (аудит): удалён мёртвый `data-sources/ydb/*` (окружения/сессии теперь на `compute`).
 
