@@ -46,8 +46,6 @@ export class AccountUserPermissionList {
         return this.permissions.some((permission) => permission.name === permissionName);
     }
 
-    // Returns the subset of the requested permissions that this list holds, preserving the
-    // requested order (google.iam.v1 testIamPermissions semantics).
     intersect(requested: ReadonlyArray<UserPermissionName>): Array<UserPermissionName> {
         return requested.filter((permissionName) => this.find(permissionName));
     }

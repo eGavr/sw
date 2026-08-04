@@ -6,7 +6,6 @@ type NewSessionResponse = {
     };
 };
 
-// Inner backend client: the operational W3C WebDriver HTTP calls against a container endpoint.
 @Injectable()
 export class WebDriverClient {
     async createSession(endpoint: string, browserName: string): Promise<string> {

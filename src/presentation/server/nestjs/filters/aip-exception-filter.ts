@@ -28,8 +28,7 @@ const httpStatusToRpcCode: Record<number, string> = {
     504: "DEADLINE_EXCEEDED",
 };
 
-// Formats every error as the canonical Google AIP-193 error response:
-// { "error": { "code": <http>, "message": ..., "status": <google.rpc.Code name> } }.
+// Formats every error as the AIP-193 error response.
 @Catch()
 export class AipExceptionFilter implements ExceptionFilter {
     constructor(private readonly logger: Logger) {}

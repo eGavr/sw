@@ -28,8 +28,6 @@ export class UserPermissionName {
         ...Object.values(SessionPermission),
     ]);
 
-    // Parses a transport string into a domain permission name. Google IAM testIamPermissions
-    // rejects permissions that are not valid for the resource type with INVALID_ARGUMENT.
     static fromString(value: string): UserPermissionName {
         if (!UserPermissionName.knownNames.has(value)) {
             throw new InvalidArgumentError(`unknown permission: ${value}`);
