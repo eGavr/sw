@@ -72,8 +72,12 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
 6. **Стабилизация конфигурации**: в env-файлах есть устаревший `ENVIRONMENT_PROVIDER` (не читается —
    код использует `COMPUTE_PROVIDER`); задокументировать `COMPUTE_*`. Согласовать `.env.production`.
 
-7. **Тесты**: интеграционные тесты `wd`-флоу (create → proxy → delete) и `api`-CRUD окружений;
-   единый e2e-харнесс.
+7. **Тесты — `api`-харнесс СДЕЛАН.** Интеграционный харнесс приведён к текущей реальности и зелёный
+   (27/27): `accounts` (self-service create, grant-all owner, AIP-форма/ошибки, `:testIamPermissions`,
+   PERMISSION_DENIED не-владельцу, пагинация) и вложенные `accounts/{account}/environments` (CRUD на
+   local-compute). Харнесс: stateless local-auth (`Authorization.forUser(id)`), Postgres на 5433,
+   `COMPUTE_PROVIDER=local`, `maxWorkers=1` (общая БД + TRUNCATE между кейсами → строго последовательно).
+   Осталось: интеграционные тесты `wd`-флоу (create session → proxy → delete) и единый e2e-харнесс.
 
 8. **Пре-существующий ESLint-долг** (~38 проблем в старых файлах, не из этой работы) — подчистить
    `eslint --fix` отдельным коммитом.
