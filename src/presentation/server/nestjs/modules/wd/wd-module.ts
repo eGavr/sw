@@ -27,6 +27,7 @@ import { LoggingMiddleware } from "../../middlewares/logging-middleware";
 
 import { SessionsController } from "./controllers/sessions/sessions-controller";
 import { WebDriverProxy } from "./webdriver-proxy";
+import { WebSocketProxy } from "./websocket-proxy";
 
 @Module({
     imports: [
@@ -54,6 +55,7 @@ import { WebDriverProxy } from "./webdriver-proxy";
         AccountDataSource,
         PgUserPermissionDataSource,
         WebDriverProxy,
+        WebSocketProxy,
 
         {
             provide: APP_INTERCEPTOR,

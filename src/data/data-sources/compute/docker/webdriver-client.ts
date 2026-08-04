@@ -12,7 +12,7 @@ export class WebDriverClient {
         const response = await fetch(`${endpoint}/session`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ capabilities: { alwaysMatch: { browserName } } }),
+            body: JSON.stringify({ capabilities: { alwaysMatch: { browserName, webSocketUrl: true } } }),
         });
 
         if (!response.ok) {

@@ -48,6 +48,7 @@
     "@types/lodash": "^4.17.23",
     "@types/node": "^24.10.8",
     "@types/supertest": "^6.0.3",
+    "@types/ws": "^8.18.1",
     "eslint-plugin-import": "^2.32.0",
     "jest": "^30.2.0",
     "nodemon": "^3.1.11",
@@ -76,6 +77,7 @@
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.28",
     "typeorm-naming-strategies": "^4.1.0",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "ws": "^8.21.2"
   }
 }
