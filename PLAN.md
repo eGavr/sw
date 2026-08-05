@@ -105,7 +105,12 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    PERMISSION_DENIED не-владельцу, пагинация) и вложенные `accounts/{account}/environments` (CRUD на
    local-compute). Харнесс: stateless local-auth (`Authorization.forUser(id)`), Postgres на 5433,
    `COMPUTE_PROVIDER=local`, `maxWorkers=1` (общая БД + TRUNCATE между кейсами → строго последовательно).
-   Осталось: интеграционные тесты `wd`-флоу (create session → proxy → delete) и единый e2e-харнесс.
+   **`wd`-флоу СДЕЛАН**: create-session на local-compute (401/201/403/404/409/400) + stateless-прокси
+   (crafted session id → фейковый upstream: форвард команды + DELETE + 400 на кривой id). Общие утилиты
+   харнесса подняты в `server/utils` (api и wd их шарят). Вся интеграционка зелёная (**37/37**).
+   Мелочь: изредка (~1/5) supertest ловит транзиентный `ECONNRESET` (keep-alive), не связан с логикой;
+   ре-ран зелёный. WS-прокси в интеграции не покрыт (upgrade вешается в bootstrap, а не в модуле) — есть
+   юнит-тесты роутинга + живой e2e.
 
 8. **Пре-существующий ESLint-долг** (~38 проблем в старых файлах, не из этой работы) — подчистить
    `eslint --fix` отдельным коммитом.
