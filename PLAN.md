@@ -93,8 +93,12 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    текущий дефолт. **Осталось (follow-up, только под нативную арх):** сам install-at-startup образ
    (Dockerfile+entrypoint, качающий Chrome-for-Testing) для версий вне selenium-тегов / своего базового образа.
 
-6. **Стабилизация конфигурации**: в env-файлах есть устаревший `ENVIRONMENT_PROVIDER` (не читается —
-   код использует `COMPUTE_PROVIDER`); задокументировать `COMPUTE_*`. Согласовать `.env.production`.
+6. **Стабилизация конфигурации — СДЕЛАНО.** Убраны мёртвые ключи (`ACL_PROVIDER`,
+   `ENVIRONMENT_PROVIDER` — код на `COMPUTE_PROVIDER`); починен неполный `.env.production` (падал бы на
+   старте — не было `POSTGRES_*`/`COMPUTE_PROVIDER`); `.env.development` выровнен на Postgres **5433**
+   (больше не нужен per-command override) + задокументированы `COMPUTE_*` (`PORT`/`SESSION_TIMEOUT`/
+   `PLATFORM`/`BASE_IMAGE`); удалён мёртвый `.env.testing` (никакой `NODE_ENV=testing` не используется).
+   Проверено: `api` поднимается на dev-конфиге и коннектится к 5433 без оверрайда.
 
 7. **Тесты — `api`-харнесс СДЕЛАН.** Интеграционный харнесс приведён к текущей реальности и зелёный
    (27/27): `accounts` (self-service create, grant-all owner, AIP-форма/ошибки, `:testIamPermissions`,
@@ -137,15 +141,15 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
 ## Как запускать локально (runbook)
 
 Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-chromium:latest` подтянут;
-`node_modules` стоят. Порт 5432 занят чужим `hyperenv-api-postgresql` → наш Postgres на **5433**.
-И `api`, и `wd` теперь требуют Postgres (auth через `UserRepository`).
+`node_modules` стоят. Порт 5432 занят чужим `hyperenv-api-postgresql` → наш Postgres на **5433**
+(уже прописан в `.env.development`, оверрайд не нужен). И `api`, и `wd` требуют Postgres.
 
     # БД + миграции (один раз)
     docker run -d --name sw-db -e POSTGRES_USER=sw -e POSTGRES_PASSWORD=sw -e POSTGRES_DB=sw -p 5433:5432 postgres:16-alpine
-    POSTGRES_PORT=5433 npm run pg:migration:run:dev
+    npm run pg:migration:run:dev
 
     # control-plane (api, :3000) — всё под /v1; локальный токен: любой `Bearer <что-то>`
-    POSTGRES_PORT=5433 npm run start:api:dev
+    npm run start:api:dev
     curl -X POST localhost:3000/v1/accounts -H 'Authorization: Bearer <user1>' -H 'content-type: application/json' \
       -d '{"displayName":"team-a","resources":{"providerId":"p","providerType":"docker"}}'   # -> uid
     curl localhost:3000/v1/accounts -H 'Authorization: Bearer <user1>'                        # List accounts
@@ -155,8 +159,8 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
       -H 'content-type: application/json' -d '{"permissions":["environment:create","account:read"]}'
     # окружения вложены: POST/GET/LIST/DELETE /v1/accounts/{account}/environments[/{env}]
 
-    # data-plane (wd, :3001) — W3C WebDriver
-    POSTGRES_PORT=5433 npm run start:wd:dev
+    # data-plane (wd, :3001) — W3C WebDriver + WS-протоколы (bidi/cdp/vnc): ws://{wd}/sessions/{id}/se/{bidi,cdp,vnc}
+    npm run start:wd:dev
     ENV_ID=$(npm run --silent env:create:dev | sed -n 's/.*"environmentId": "\([^"]*\)".*/\1/p')   # dev-хелпер, минуя api
     SESSION_ID=$(curl -s -X POST localhost:3001/sessions -H 'Authorization: Bearer <user1>' -H 'content-type: application/json' \
       -d "{\"environmentId\":\"$ENV_ID\",\"application\":{\"name\":\"chrome\",\"version\":\"latest\"}}" | sed 's/.*"id":"//;s/".*//')
