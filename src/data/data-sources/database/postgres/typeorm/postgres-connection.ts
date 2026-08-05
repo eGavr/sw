@@ -8,8 +8,8 @@ import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
 import { Account } from "./entities/account/account";
 import { AccountResourceProvider } from "./entities/account/account-resource-provider";
-import { User } from "./entities/user/user";
 import { AccountUserPermission } from "./entities/account/account-user-permission";
+import { User } from "./entities/user/user";
 
 export class PostgresConnection {
     static fromEnv(): DataSource {

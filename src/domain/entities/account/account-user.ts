@@ -1,6 +1,7 @@
-import { UserPermissionList } from "../user/user-permission-list";
 import { User } from "../user/user"
 import { UserIdValue } from "../user/user-id";
+import { UserPermissionList } from "../user/user-permission-list";
+
 import { Account } from "./account";
 import { AccountUserPermission } from "./account-user-permission";
 import { AccountUserPermissionList } from "./account-user-permission-list";
@@ -18,7 +19,7 @@ type AccountUserConstructorParams = {
 }
 
 export class AccountUser {
-    static create(params: AccountUserCreateParams) {
+    static create(params: AccountUserCreateParams): AccountUser {
         const { account, user, permissions  } = params;
 
         return new AccountUser({

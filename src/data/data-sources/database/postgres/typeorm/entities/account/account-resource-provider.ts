@@ -1,6 +1,8 @@
 import { Column, Entity, PrimaryColumn } from "typeorm";
 
-import { AccountResourceProvider as AccountResourceProviderEntity } from "../../../../../../../domain/entities/account/account-resource-provider";
+import {
+    AccountResourceProvider as AccountResourceProviderEntity,
+} from "../../../../../../../domain/entities/account/account-resource-provider";
 import { DateColumn } from "../../columns-extra/date-column";
 
 @Entity()

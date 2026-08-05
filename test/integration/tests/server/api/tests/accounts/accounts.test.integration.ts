@@ -6,8 +6,8 @@ import { UserPermissionList } from "../../../../../../../src/domain/entities/use
 import { ApiModule } from "../../../../../../../src/presentation/server/nestjs/modules/api/api-module";
 import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
-import { CreateAccountBody } from "../../utils/request/body/create-account-body";
 import { Authorization } from "../../../utils/request/headers/authorization";
+import { CreateAccountBody } from "../../utils/request/body/create-account-body";
 
 type AuthHeader = { authorization: string };
 

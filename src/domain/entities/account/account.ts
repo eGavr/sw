@@ -1,5 +1,5 @@
-import { UserPermissionList } from "../user/user-permission-list";
 import { User, UserData } from "../user/user";
+import { UserPermissionList } from "../user/user-permission-list";
 
 import { AccountId } from "./account-id";
 import { AccountName } from "./account-name";

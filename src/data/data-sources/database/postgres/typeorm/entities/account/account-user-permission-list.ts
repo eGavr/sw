@@ -19,5 +19,4 @@ export class AccountUserPermissionList {
 
     private constructor(private readonly permissions: Array<AccountUserPermission>) {}
 
-
 }

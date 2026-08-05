@@ -1,7 +1,8 @@
 import { Uuid } from "../../types/uuid/uuid";
+import { User } from "../user/user";
 import { UserPermission } from "../user/user-permission";
 import { UserPermissionName } from "../user/user-permission-name";
-import { User } from "../user/user";
+
 import { Account } from "./account";
 
 type AccountUserPermissionCreateParams = {
@@ -20,7 +21,7 @@ type AccountUserPermissionConstructorParams = {
 }
 
 export class AccountUserPermission {
-    static create(params: AccountUserPermissionCreateParams) {
+    static create(params: AccountUserPermissionCreateParams): AccountUserPermission {
         return new AccountUserPermission(params);
     }
 

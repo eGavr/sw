@@ -1,6 +1,7 @@
-import { UserPermissionList } from "../user/user-permission-list";
 import { User } from "../user/user";
 import { UserIdValue } from "../user/user-id";
+import { UserPermissionList } from "../user/user-permission-list";
+
 import { Account } from "./account";
 import { AccountUser } from "./account-user";
 
@@ -17,7 +18,7 @@ export class AccountUserList {
         this.users.set(user.id, AccountUser.create({ account: this.account, user, permissions }));
     }
 
-    each(cb: (user: AccountUser) => void) {
+    each(cb: (user: AccountUser) => void): void {
         for (const [, user] of this.users) {
             cb(user);
         }
