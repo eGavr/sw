@@ -4,136 +4,218 @@
 Это отменяет раннее решение «live-состояние знает только провайдер, Postgres — только accounts/permissions».
 
 ## Пивот
-- **Postgres = источник правды о live-инвентаре** (реестр окружений + их занятость). Compute
-  (Docker / в будущем облако) — **исполнитель**; связь `env id → контейнер` он держит **у себя**,
-  никакой завязки на docker в БД (в БД — абстрактный `id`).
-- **Окружение = capability-стереотип** (W3C WebDriver + Appium), матчится против запрошенных
-  capabilities сессии (модель Selenium Grid: node stereotype ↔ requested caps). Браузер — частный
-  случай **Application**. Модель сразу покрывает десктоп (linux/win/mac) и мобилки (android/ios).
-- **Async-жизненный цикл окружения**: `enqueued → preparing → executing → deleting → (строка снесена GC)`.
-- **Сессии отдельной таблицей НЕ храним** (пока): только `environment` + флаг `busy`. Секрет сессии
-  (wdSessionId) в БД/логи **не кладём** — роутинг stateless (endpoint закодирован в session id).
+- **Postgres = источник правды о live-инвентаре** (реестр окружений + занятость). Compute
+  (Docker / в будущем облако) — **исполнитель**; связь `env id → контейнер` держит **у себя**,
+  в БД — абстрактный `id`.
+- **Окружение = устройство/контейнер с НАБОРОМ установленных приложений** (capability-стереотип,
+  W3C WebDriver + Appium). Занятость (`busy`) — свойство **окружения** (устройства/контейнера),
+  а не приложения: пока крутится сессия любого приложения — окружение занято целиком. Сессия
+  аллоцируется под **конкретное приложение из набора**. Браузер — частный случай **Application**.
+  Модель покрывает десктоп (linux/win/mac) и мобилки (android/ios).
+  - *Почему набор, а не одно приложение:* реальное устройство (android) держит несколько приложений;
+    моделировать «один app = одно окружение» нельзя — две строки на одно физическое устройство дали бы
+    независимый `busy` и сломали 1:1-занятость. Для Docker — выбор оператора: упаковать несколько
+    браузеров в один образ (одно окружение, общая занятость) или разнести на разные образы
+    (независимая занятость).
+- **Async-жизненный цикл**: `enqueued → preparing → executing → deleting → (строка снесена GC)`,
+  плюс терминальный `failed` (провижн не удался).
+- **Сессии отдельной таблицей НЕ храним** (пока): только `environment` (+ дочерняя
+  `environment_application`) + флаг `busy`. Секрет сессии (wdSessionId) в БД/логи **не кладём** —
+  роутинг stateless (endpoint закодирован в session id).
 
-## Схема `environment`
+## Схема БД
 ```
-id                   uuid pk
-account_id           uuid
-state                enqueued | preparing | executing | deleting
--- capability-стереотип (что окружение предлагает; всё NOT NULL — есть у любого окружения):
-platform_name        -- linux|windows|mac|android|ios
-platform_version     -- версия ОС
-device_name          -- мобилка: модель телефона; десктоп: идентичность машины/ноды (реальное значение, не null)
-application_name      -- chrome | firefox | com.example.app  (браузер = приложение)
-application_version   -- матч по мажору; version_sort под диапазоны = TODO
--- runtime:
-endpoint             -- КУДА направлять трафик (http://host:port); пишет compute при запуске; null до запуска
-busy                 boolean NOT NULL DEFAULT false  -- ставит ХАРТБИТ агента, НЕ create-session
-last_heartbeat_at    -- null до первого хартбита
-created_at, updated_at
+environment
+  id                   uuid pk
+  account_id           uuid   -- тенант-владелец (FK account)
+  connection_id        uuid   -- на каком облаке крутится (FK connection); ДОБАВЛЯЕТСЯ в стадии 2.5
+  state                enqueued | preparing | executing | deleting | failed
+  state_reason         null | PERMISSION_DENIED | QUOTA_EXCEEDED | INVALID_CAPS | PROVIDER_ERROR
+  -- capability-описатели: по ним аллокатор ИЩЕТ окружение (это «что матчить», НЕ «где стоит»):
+  platform_name        NOT NULL   -- linux|windows|mac|android|ios
+  platform_version     NOT NULL
+  device_name          NOT NULL   -- реальное осмысленное значение даже когда «не важно» (без variant-null)
+  -- runtime:
+  endpoint             null до регистрации  -- КУДА слать трафик; пишет internal-handler при регистрации
+  busy                 boolean NOT NULL DEFAULT false   -- ставит ХАРТБИТ агента, НЕ create-session
+  last_heartbeat_at    null до первого хартбита
+  created_at, updated_at
+
+environment_application         -- набор установленных приложений (часть агрегата Environment), 1:N
+  id                   uuid pk
+  environment_id       uuid   FK environment ON DELETE CASCADE
+  application_name     NOT NULL   -- chrome | firefox | com.example.app  (браузер = приложение)
+  application_version  NOT NULL   -- матч по мажору; version_sort под диапазоны = TODO
+  UNIQUE(environment_id, application_name, application_version)
+  -- application_kind УБРАН (для матчинга не нужен)
 ```
 Правило nullable: **variant-nullable** (поле осмысленно только для части строк по типу) — запрещено
-(поэтому `device_name` всегда с реальным значением, нет `application_kind`/`automationName`);
-**lifecycle-nullable** («ещё не / сейчас не»: `endpoint` до запуска, `last_heartbeat_at` до первого
-хартбита) — допустимо. Нет `allocation_id`/fencing (см. «Аллокация»).
+(поэтому `device_name` всегда с реальным значением, нет `application_kind`); **lifecycle-nullable**
+(«ещё не / сейчас не»: `endpoint`, `last_heartbeat_at`, `state_reason`) — допустимо. Нет
+`allocation_id`/fencing (см. «Аллокация»).
 
-Индекс под аллокацию: частичный по «свободным исполняющимся», напр.
-`(account_id, platform_name, application_name, application_version) WHERE state='executing' AND busy=false`.
+Индекс под аллокацию: частичный `(platform_name, platform_version) WHERE state='executing' AND
+busy=false`; матч приложения — `EXISTS` по `environment_application` (опц. индекс
+`(application_name, application_version)`).
+
+## Кто что пишет в БД (важно: воркер НЕ хартбитит)
+- **api** (control-plane): `INSERT enqueued` (create), `UPDATE state=deleting` (delete). **Наша
+  авторизация — синхронно здесь.**
+- **worker**: только claim (`enqueued→preparing`, SKIP LOCKED) и переходы `failed`/ретрай.
+  `busy`/`last_heartbeat_at`/`endpoint` **не трогает**.
+- **internal-handler** (принимает хартбит агента изнутри контейнера): пишет `busy` +
+  `last_heartbeat_at`; **первый хартбит = регистрация** → пишет `endpoint` + `state=executing`.
+- **GC** (`pg_cron`): `DELETE` протухших/старых.
 
 ## Liveness — единый порог
-Агент хартбитит **раз в ~3с** (+ немедленный хартбит при смене состояния busy↔free — опц. оптимизация).
-Окно свежести — **6с** (потом конфиг). **Один порог 6с используется везде**: фильтр аллокации,
-вычисление эффективного статуса, GC. Хартбит — единственный сигнал liveness и занятости.
+Агент хартбитит **раз в ~3с** (+ немедленный хартбит при смене busy↔free — опц. оптимизация).
+Окно свежести — **6с** (потом конфиг). **Один порог 6с везде**: фильтр аллокации, эффективный статус, GC.
+Хартбит — единственный сигнал liveness и занятости.
 
 ## Создание окружения (async)
-1. `POST /v1/accounts/{a}/environments {platform, application}` → строка `state=enqueued` → ответ:
-   ресурс в состоянии `ENQUEUED` (клиент поллит `GET`). *(create — state-based async, как и delete.)*
-2. **Воркер** (см. ниже) подхватывает `enqueued` → `state=preparing` (короткая claim-транзакция) →
-   зовёт compute «подними окружение id=…» → compute поднимает контейнер, **прокидывает внутрь `id`
-   + базовый URL `/internal`**, и **пишет `endpoint`** (он один знает host-mapped порт).
-3. **Агент** внутри контейнера хартбитит `POST /internal/environments/{id}:heartbeat {busy}`.
-   **Первый хартбит = регистрация** → `state=executing` + `last_heartbeat_at`.
-4. Клиент через `GET` видит переход в `EXECUTING`.
+1. `POST …/environments {platform, applications}` → **синхронно** в api-хендлере: authN + наша authZ
+   (`environment:create`) + есть ACTIVE connection у аккаунта → `INSERT state=enqueued` → ответ:
+   ресурс `ENQUEUED` (клиент поллит `GET`). *(create — state-based async, как и delete.)*
+2. **Воркер** подхватывает `enqueued` → `state=preparing` (короткая claim-транзакция) → зовёт
+   `compute.start(id, credential)`; compute поднимает контейнер, **выбирает host-порт и прокидывает
+   внутрь `id` + `endpoint` + базовый URL `/internal`** (env-vars).
+3. **Агент** внутри контейнера шлёт первый хартбит `POST /internal/environments/{id}:heartbeat
+   {endpoint, busy}` → **internal-handler пишет `endpoint` + `last_heartbeat_at` + `state=executing`**
+   (регистрация).
+4. Клиент через `GET` видит `EXECUTING`.
+   Провижн не удался → см. «Ошибки провижна».
 
-## Воркер: без поллинга, без дедлока, масштабируемо
-- **`LISTEN/NOTIFY`**: триггер `AFTER INSERT/UPDATE … WHEN state IN ('enqueued','deleting')` →
-  `pg_notify('environment_work', id)`. Воркер держит постоянный `pg`-коннекшн с `LISTEN` (TypeORM
-  LISTEN нормально не отдаёт → raw `pg`-клиент). NOTIFY — только «будильник».
-- **Startup catch-up**: на старте скан существующих `enqueued`/`deleting` (NOTIFY не durable).
-- **Claim без гонок и дедлока**:
-  `UPDATE environment SET state='preparing' WHERE id=(SELECT id FROM environment WHERE state='enqueued'
-   ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING …`.
-  `SKIP LOCKED` **никогда не ждёт** → дедлок невозможен; каждый воркер берёт свою строку.
-- **Короткая claim-транзакция**: заклеймил (`→ preparing`) и **COMMIT**, долгий запуск — вне блокировки.
-  Крашнулся после claim (застряло `preparing`) → **preparing-timeout** возвращает в `enqueued`.
-- Один воркер обслуживает **оба** перехода: `enqueued` (запуск) и `deleting` (остановка).
+## Ошибки провижна (failed / ретрай)
+- Compute-адаптер (data-source) переводит ошибку провайдера в **доменную классификацию** на границе
+  data-слоя (не пропуская backend-текст/секреты):
+  - **permanent** (нет прав / нет квоты / кривые caps) → `preparing → failed` + `state_reason`,
+    **без ретрая**.
+  - **transient** (сеть / 5xx / временно нет ёмкости) → `preparing → enqueued` (bounded retry +
+    backoff); ретраи исчерпаны → `failed`.
+- Решение «ретрай или падать» — **доменное правило стейт-машины** `Environment`
+  (`failProvisioning(reason)` / `retryProvisioning()`); воркер лишь диспетчеризует пойманную
+  классифицированную ошибку.
+- `failed` — из `preparing` («не поднялось»). Если `executing` **уже жил и умер** (доступ отозвали на
+  ходу, краш) — это протухший хартбит, ловит heartbeat-GC, а **не** `failed`. Разные механизмы.
+- `failed` не имеет хартбита → heartbeat-GC его не сносит → **TTL-GC**
+  `DELETE WHERE state='failed' AND updated_at < now()-<ttl>` (окно прочитать причину) + юзер может
+  `DELETE` сам.
+- На transient-падении воркер делает best-effort `compute.stop`, чтобы не оставить orphan-контейнер.
+- `GET`: `failed` → эффективный `FAILED` + `state_reason` (AIP-216 state + AIP-193 error detail).
+- Аллокацию не трогает: она берёт только `executing & busy=false & свежий` → `failed`/`enqueued`/
+  `preparing`/`deleting` отсекаются сами.
 
 ## Аллокация сессии (create-session)
 - `POST /sessions {accountId, application}` — **без явного environmentId** (пул-аллокация).
-- **Арбитр занятости 1:1 — сам endpoint/нода** (`SE_NODE_MAX_SESSIONS=1` принимает одну new-session,
-  остальные отбраковывает). БД-`busy` — **подсказка**, не гарантия (поэтому НЕ нужен ни `allocation_id`,
-  ни `UNIQUE(active session)`).
-- **На create-пути в БД НЕ пишем** (стабильная нагрузка; занятость отрапортует следующий хартбит):
+- **Арбитр занятости 1:1 — сам endpoint/нода** (`SE_NODE_MAX_SESSIONS=1`). БД-`busy` — **подсказка**,
+  не гарантия (поэтому НЕ нужен ни `allocation_id`, ни `UNIQUE(active session)`).
+- **На create-пути в БД НЕ пишем** (занятость отрапортует следующий хартбит):
   ```
   loop (bounded):
-    cand = SELECT свободное (state='executing', busy=false,
-                             last_heartbeat_at > now()-interval '6s', <caps match>)
+    cand = SELECT свободное
+           (state='executing', busy=false, last_heartbeat_at > now()-interval '6s',
+            <platform match>,
+            EXISTS(environment_application: application_name=? AND application_version=?))
            ORDER BY random() LIMIT 1                    -- ПОДСКАЗКА (может быть протухшей)
     if none → 409/503 «нет свободных под caps»
     try POST {cand.endpoint}/session (caps):
         success  → return encode(cand.endpoint, wdSessionId)
-        rejected → continue                             -- нода отбраковала (уже занято) → берём другую
+        rejected → continue                             -- нода отбраковала → берём другого
   ```
-- Матчинг caps: только **указанные** в запросе caps учитываются (Selenium Grid semantics); версия —
-  по мажору сейчас, констрейнты (`>=`) через `application_version_sort` = TODO.
+- Матчинг caps: только **указанные** в запросе caps (Selenium Grid semantics); версия — по мажору
+  сейчас, констрейнты (`>=`) через `application_version_sort` = TODO.
 
 ## Удаление окружения (async, state-based по AIP — НЕ кастомный verb)
-- `DELETE /v1/accounts/{a}/environments/{id}` → `state=deleting`, `202`. Метод остаётся стандартным
-  `DELETE` (AIP-135); асинхронность выражается **полем `state`** (AIP-216) + поллингом `GET` — как и
-  async create. *(LRO/AIP-151 — более тяжёлая альтернатива; выбрали лёгкий state-based.)*
-- `deleting` сразу выпадает из аллокации (фильтр берёт только `executing`).
-- **Воркер** подхватывает `deleting` → compute **останавливает контейнер** (актуатор остановки).
+- `DELETE …/environments/{id}` → `state=deleting`, `202`. Метод стандартный `DELETE` (AIP-135);
+  асинхронность — полем `state` (AIP-216) + поллингом `GET`.
+- `deleting` сразу выпадает из аллокации.
+- **Воркер** подхватывает `deleting` → `compute.stop` (актуатор остановки).
 - Контейнер погас → хартбиты прекратились → `last_heartbeat_at` протух.
-- **GC сносит строку** (по протухшему хартбиту) — **`pg_cron`** прямо в БД (или лёгкий app-side reaper,
-  если расширения нет):
-  ```sql
-  DELETE FROM environment WHERE state='deleting' AND last_heartbeat_at < now() - interval '6 seconds';
-  ```
-  Тот же GC чистит **крашнутые `executing`** (хартбит протух). Таблица не растёт (hard delete).
-- **Эффективный статус вычисляется при `GET`** из (`state` + свежесть хартбита), а не отдаётся сырым:
-  `deleting`+протух → **`DELETED`**; `executing`+свеж → `ACTIVE`; `executing`+протух → фактически мёртв;
-  строки нет → `404`.
-- Разделение: **воркер = остановка контейнера, GC = уборка строки**. Агент строку НЕ удаляет
-  (умирает вместе с контейнером — ненадёжно); его хартбит просто прекращается.
+- **GC сносит строку** — **`pg_cron`** (или app-side reaper): `DELETE FROM environment WHERE
+  state='deleting' AND last_heartbeat_at < now() - interval '6 seconds';`. Тот же GC чистит крашнутые
+  `executing`. Таблица не растёт (hard delete).
+- **Эффективный статус на `GET`** из (`state` + свежесть хартбита): `deleting`+протух → `DELETED`;
+  `executing`+свеж → `ACTIVE`; строки нет → `404`.
+- Разделение: **воркер = остановка контейнера, GC = уборка строки**. Агент строку НЕ удаляет.
 
 ## Internal callback API
-- Одна ручка: `POST /internal/environments/{id}:heartbeat {busy}` (AIP custom method). Первый хартбит =
-  регистрация (`preparing→executing`). **Нет** отдельного `:released` (busy несёт хартбит) и **нет**
-  отдельного register.
+- Одна ручка: `POST /internal/environments/{id}:heartbeat {endpoint?, busy}` (AIP custom method).
+  **Первый хартбит = регистрация** (пишет `endpoint`, `preparing→executing`). Нет отдельного
+  `:released` (busy несёт хартбит) и нет отдельного register.
 - Auth `/internal` (внутренний секрет / mTLS, не пользовательский токен) — **отдельная задача** (позже).
 
 ## Агент (в образе)
-Живёт внутри образа окружения (сайдкар/процесс). На вход — `env id` + базовый URL `/internal` (env-vars).
-Хартбитит `{alive, busy}`; `busy` берёт, интроспектируя состояние ноды (кол-во активных сессий).
-Реализация агента — инфра-задача.
+Живёт внутри образа окружения (сайдкар/процесс). На вход — `env id` + `endpoint` + базовый URL
+`/internal` (env-vars от compute). Хартбитит `{endpoint, busy}` (endpoint — при регистрации);
+`busy` берёт, интроспектируя ноду (кол-во активных сессий). Реализация агента — инфра-задача.
+
+## Модель аккаунтов, пользователей и подключений (authN / authZ / ресурсы)
+Три раздельных слоя (сейчас в коде склеены (2)+(3) — рерайт слоя подключений на стадии 2.5):
+- **Слой 1 — Идентичность (authN):** `User(external_id, provider_type)` — один логин через IdP.
+  Оставляем как есть; про ресурсы ничего не знает.
+- **Слой 2 — Тенант + НАША авторизация:** `Account` + `account_user_permission` (membership:
+  `environment:create`, `session:create`, …). Оставляем как есть. Наши права, без внешних систем.
+- **Слой 3 — Ресурс-подключения (external authZ):** `Connection(id, account_id, provider_type,
+  external_ref, credential_ref, state)` — **отдельный агрегат**, N на аккаунт (ссылка на account по
+  id). Заменяет неиспользуемый `AccountResourceProvider` (1:1). Провижнинг берёт `credential`; истина
+  о внешнем доступе — на стороне провайдера.
+  - `environment.connection_id` — на каком облаке крутится окружение.
+  - `credential_ref` → секрет-стор (dev: шифрованное поле; prod: KMS/secret-manager); никогда
+    plaintext / в логи (как `wdSessionId`); для `local`/`docker` — null.
+  - `Connection` — свой агрегат (не разбухший `Account`); ссылки по идентити (`account_id`,
+    `environment.connection_id`).
+
+### Авторизация — путь A (согласован)
+```
+POST /accounts/{acc}/environments {connection?, platform, applications}
+  СИНХРОННО (api-хендлер):
+    authN → наша authZ: membership(acc,user) имеет environment:create? → 403
+          → есть ACTIVE connection у аккаунта?                         → 400/409
+          → INSERT env(account_id, connection_id, state=enqueued)      → ответ клиенту сразу
+  АСИНХРОННО (воркер, provision-time):
+    compute.start(env, connection.credential)
+      accept           → executing        (внешний доступ подтверждён самим провайдером)
+      reject permanent → failed(PERMISSION_DENIED | QUOTA_EXCEEDED | …)  ← внешняя истина
+      reject transient → retry/enqueued → … → failed
+```
+- **Наша authZ — синхронно** (быстрый 403/400). **Внешний доступ энфорсит провайдер на провижне**:
+  воркер не делает отдельный «а можно?»-роундтрип — `provider.start` есть и запрос, и ответ
+  авторизации (accept/reject). Это тот же принцип, что «владение секретом = авторизация».
+- **Путь A**: полагаемся на provision-time. Оптимизации потом: **(C)** фоновая валидация `Connection`
+  (health-check кредов при подключении и периодически) + `connection.state=active|invalid` для быстрого
+  **локального** фидбэка; **(B)** синхронный pre-flight у провайдера — только если нужна 100%
+  синхронная уверенность на каждый create.
+- Роутинг провижна: `environment → account → connection → compute-адаптер` (порт `ComputeProvider`
+  тот же; выбор адаптера переезжает из install-конфига `COMPUTE_PROVIDER` в per-account connection).
+  «Мак с докером» и «настоящее облако» — два адаптера одного порта.
+- Отложено: per-connection права; мульти-identity на логин; хранение/ротация кредов; 1 vs N подключений
+  (модель N; dev может держать одно дефолтное).
 
 ## Открытые TODO / отложенные решения
 - `application_version_sort` + матчинг диапазонов версий (сейчас — только мажор).
 - Auth `/internal` (секрет/mTLS).
-- Реализация агента в образе + как он читает `busy` у ноды.
-- Возврат `endpoint` из compute (compute должен сообщать host-порт).
+- Реализация агента: чтение `busy` у ноды + рапорт `endpoint` при регистрации.
+- Ретрай-политика провижна (кол-во попыток, backoff) + TTL для `failed` — конфиг.
 - Доступность `pg_cron` (иначе app-side reaper).
-- Preparing-timeout / recovery специфика; возможные `failed`-состояния (если create не поднялся).
-- Именование состояний под AIP-216 (`CREATING/ACTIVE/DELETING`) vs внутренние тонкие (`enqueued/preparing/…`).
+- Preparing-timeout / recovery; возврат `endpoint` из compute (host-порт).
+- Именование состояний под AIP-216 (внешние `CREATING/ACTIVE/DELETING/FAILED` vs внутренние тонкие).
+- Секрет-стор для `credential_ref`; фоновая валидация `Connection` (опт. C).
 
 ## Стадии реализации
 1. **[сделано]** ADR (этот файл) + разворот доменной секции `CLAUDE.md`/памяти.
-2. Миграция `environment` (реестр + `state` + capability-колонки + `busy` + `last_heartbeat_at`);
-   доменный `Environment` со стейт-машиной; репозиторий поверх Postgres; async `create` (`enqueued`);
-   `GET` c эффективным `state`; async `delete` (`deleting`).
-3. Compute-воркер: LISTEN/NOTIFY + SKIP LOCKED claim для `enqueued` (запуск) и `deleting` (остановка);
-   запись `endpoint`; preparing-timeout recovery.
-4. Агент (в образе) + `/internal:heartbeat` (активация + `busy` + liveness).
+2. Миграция `environment` (+ `environment_application`; `state` вкл. `failed`; `state_reason`;
+   capability-колонки; `busy`; `last_heartbeat_at`; **без** `connection_id` пока); доменный
+   `Environment` со стейт-машиной (набор приложений; `failProvisioning`/`retryProvisioning` как
+   спецификация); репозиторий поверх Postgres; async `create` (`enqueued`); `GET` c эффективным
+   `state`; async `delete` (`deleting`). **Аккаунты/юзеры НЕ трогаем.**
+2.5. **Рерайт слоя подключений** (перед воркером): `Connection`-агрегат (N на аккаунт, `credential_ref`,
+   `state`) + `environment.connection_id` + роутинг провижна `env→account→connection→адаптер`; замена
+   `AccountResourceProvider`. Аддитивная миграция.
+3. Compute-воркер: `LISTEN/NOTIFY` + `FOR UPDATE SKIP LOCKED` claim (`enqueued` запуск, `deleting`
+   остановка); наполнение переходов `failed`/ретрай; best-effort stop orphan; preparing-timeout recovery.
+4. Агент (в образе) + `/internal:heartbeat` (регистрация: `endpoint`+`executing`; `busy`; liveness).
 5. Аллокация сессии: `create-session` на `{accountId, application}` с оптимистичным pick+retry;
    убрать явный `environmentId`.
-6. GC (`pg_cron`) + вычисляемый эффективный статус + конфигурируемый порог свежести.
+6. GC (`pg_cron`: `deleting` + `failed` TTL + stale `executing`) + вычисляемый эффективный статус +
+   конфигурируемый порог свежести.
 7. Auth `/internal` (отдельно).

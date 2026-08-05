@@ -120,16 +120,32 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
 9. **Масштабирование / переархитектура окружений+сессий — ДИЗАЙН СОГЛАСОВАН, В РАБОТЕ.**
    Полный дизайн (источник правды) — **`docs/design/environment-lifecycle-and-allocation.md`**. Кратко:
    **Postgres = источник live-правды** (реестр окружений + `busy`), compute — исполнитель (без завязки
-   на docker в БД, абстрактный `id`). Окружение = **capability-стереотип** (W3C+Appium; браузер = частный
-   Application), матч как в Selenium Grid. **Async-цикл** `enqueued → preparing → executing → deleting →
-   (GC)`. **Воркер** через `LISTEN/NOTIFY` + `FOR UPDATE SKIP LOCKED` (без поллинга/дедлока). **Аллокация**
-   сессии: `POST /sessions {accountId, application}` (без явного env), арбитр 1:1 — **нода** (`max-sessions=1`),
+   на docker в БД, абстрактный `id`). Окружение = **устройство/контейнер с НАБОРОМ приложений**
+   (capability-стереотип W3C+Appium; браузер = частный Application), занятость `busy` — на окружении, не на
+   приложении; матч как в Selenium Grid (дочерняя `environment_application`, `EXISTS`). **Async-цикл**
+   `enqueued → preparing → executing → deleting → (GC)` + терминальный **`failed`** (permanent — нет
+   прав/квоты/caps → без ретрая; transient → ретрай через `enqueued`; `state_reason`; TTL-GC). **Воркер**
+   через `LISTEN/NOTIFY` + `FOR UPDATE SKIP LOCKED` (без поллинга/дедлока); воркер НЕ хартбитит — `endpoint`
+   и `executing` пишет **internal-ручка при первом хартбите агента** (регистрация). **Аллокация** сессии:
+   `POST /sessions {accountId, application}` (без явного env), арбитр 1:1 — **нода** (`max-sessions=1`),
    БД-`busy` — подсказка, оптимистичный pick+retry, на create-пути в БД не пишем. **`busy` ставит хартбит
    агента** (~3с; окно свежести 6с — единый порог для аллокации/статуса/GC). **Delete** — state-based по AIP
    (метод `DELETE` → `state=deleting`, поллинг `GET`; НЕ кастомный verb), воркер гасит контейнер, **GC
    (`pg_cron`) сносит строку** по протухшему хартбиту; `DELETED` — вычисляемый статус. Секрет сессии в БД/логи
-   НЕ кладём. **Стадии 1–7 — в `docs/design/…`; стадия 1 (ADR + доменная дока) сделана, следующая — стадия 2
-   (миграция `environment` + стейт-машина + async create/delete + GET state).**
+   НЕ кладём.
+   **Аккаунты/доступ — 3 слоя** (тоже в design-doc): authN `User(external_id,provider_type)`; наша authZ
+   `Account`+`account_user_permission` (синхронно в handler-е); ресурс-подключения `Connection` (N на аккаунт,
+   `credential_ref`, `state`; заменяет `AccountResourceProvider`; `environment.connection_id`). **Путь A**:
+   авторизация к провайдеру = владение активным `Connection`, внешний доступ энфорсит провайдер на провижне
+   (`compute.start(credential)`, reject → `failed`), не синхронным гейтом; оптимизации (фоновая валидация
+   Connection / pre-flight) — потом.
+   **Стадии — в `docs/design/…`; стадия 1 (ADR + доменная дока) сделана. Следующая — стадия 2**: миграция
+   `environment` (+ `environment_application`, `state` вкл. `failed`, `state_reason`, capability-колонки,
+   `busy`, `last_heartbeat_at`; **без** `connection_id`) + доменная стейт-машина `Environment` (набор
+   приложений; `failProvisioning`/`retryProvisioning` как спецификация) + Postgres-репозиторий + async
+   `create`(`enqueued`) + `GET` с эффективным `state` + async `delete`(`deleting`). **Стадия 2.5** (перед
+   воркером) — рерайт слоя подключений (`Connection`-агрегат + `environment.connection_id` + роутинг
+   провижна). Стадии 3–7 — воркер / агент+heartbeat / аллокация / GC / auth `/internal`.
 
 ---
 
