@@ -6,7 +6,7 @@ import { PlatformVersion } from "./platform-version";
 export type PlatformData = {
     name: string;
     version: string;
-    deviceModel?: string | null;
+    deviceModel: string;
 };
 
 export type PlatformCreateParams = {
@@ -17,10 +17,12 @@ export type PlatformCreateParams = {
 
 export class Platform {
     static create(params: PlatformCreateParams): Platform {
-        return new Platform(params.name, new PlatformVersion(params.version), params.deviceModel ?? null);
+        // device_name is a match capability and stays a real non-null value: a desktop env has no
+        // device, so it defaults to the platform name rather than a null/sentinel.
+        return new Platform(params.name, new PlatformVersion(params.version), params.deviceModel ?? params.name);
     }
 
-    static fromObject(data: PlatformData): Platform {
+    static fromObject(data: { name: string; version: string; deviceModel?: string | null }): Platform {
         return Platform.create({
             name: Platform.toName(data.name),
             version: data.version,
@@ -40,9 +42,9 @@ export class Platform {
 
     private readonly _name: PlatformName;
     private readonly _version: PlatformVersion;
-    private readonly _deviceModel: string | null;
+    private readonly _deviceModel: string;
 
-    private constructor(name: PlatformName, version: PlatformVersion, deviceModel: string | null) {
+    private constructor(name: PlatformName, version: PlatformVersion, deviceModel: string) {
         this._name = name;
         this._version = version;
         this._deviceModel = deviceModel;
@@ -56,7 +58,7 @@ export class Platform {
         return this._version.getValue();
     }
 
-    get deviceModel(): string | null {
+    get deviceModel(): string {
         return this._deviceModel;
     }
 

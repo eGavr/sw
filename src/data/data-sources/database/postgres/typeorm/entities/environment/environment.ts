@@ -18,9 +18,7 @@ export class Environment {
         environment.stateReason = data.stateReason ?? null;
         environment.platformName = data.platform.name;
         environment.platformVersion = data.platform.version;
-        // device_name is a match capability; a desktop env has no device, so fall back to the
-        // platform name to keep the column NOT NULL without a variant-null.
-        environment.deviceName = data.platform.deviceModel ?? data.platform.name;
+        environment.deviceName = data.platform.deviceModel;
         environment.endpoint = data.endpoint ?? null;
         environment.busy = data.busy;
         environment.lastHeartbeatAt = data.lastHeartbeatAt ?? null;

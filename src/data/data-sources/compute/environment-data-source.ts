@@ -1,10 +1,9 @@
 import { ApplicationData } from "../../../domain/entities/environment/application/application";
 import { EnvironmentData } from "../../../domain/entities/environment/environment";
-import { PlatformData } from "../../../domain/entities/environment/platform/platform";
 
 export type CreateEnvironmentInput = {
     accountId: string;
-    platform: PlatformData;
+    platform: { name: string; version: string; deviceModel?: string | null };
     applications: Array<ApplicationData>;
 };
 
