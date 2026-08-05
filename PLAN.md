@@ -81,8 +81,17 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    `se:cdp`/`se:vnc` в ответе create-session, чтобы клиенты авто-обнаруживали проксирующий URL (сейчас
    URL строится по схеме детерминированно); явный e2e для VNC (тот же путь, но бинарные кадры).
 
-5. **Второй резолвер образа**: «свой базовый linux + доустановка нужного Chrome на старте»
-   (договорённость «selenium сейчас, свой потом»). Порт уже конфигурируемый.
+5. **Резолвер образа — app-часть СДЕЛАНА.** Резолвер обобщён до `{image, env}` со стратегиями
+   `prebuilt` (браузер вшит в тег; selenium публикует пер-версии теги, напр. `selenium/standalone-chrome:148.0`)
+   и `install` (свой базовый образ ставит браузер на старте, получая его через `SW_BROWSER_NAME`/
+   `SW_BROWSER_VERSION`), выбор по `COMPUTE_DOCKER_BASE_IMAGE`. Добавлен `COMPUTE_DOCKER_PLATFORM` →
+   `docker run --platform`. Юнит-тесты на обе стратегии.
+   **Важный вывод по dev-окружению (проверено e2e):** `selenium/standalone-chrome` — только **amd64**;
+   на arm-маке под `--platform linux/amd64` контейнер поднимается и WebDriver отвечает, но **сам Chrome
+   падает под QEMU** («session not created: Chrome instance exited»). То есть реальный Chrome нужной версии —
+   это **нативный amd64** (prod/CI), а на маке для локалки остаётся **Chromium** (`seleniarm`, нативно) —
+   текущий дефолт. **Осталось (follow-up, только под нативную арх):** сам install-at-startup образ
+   (Dockerfile+entrypoint, качающий Chrome-for-Testing) для версий вне selenium-тегов / своего базового образа.
 
 6. **Стабилизация конфигурации**: в env-файлах есть устаревший `ENVIRONMENT_PROVIDER` (не читается —
    код использует `COMPUTE_PROVIDER`); задокументировать `COMPUTE_*`. Согласовать `.env.production`.
