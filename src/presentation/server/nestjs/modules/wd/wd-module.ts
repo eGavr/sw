@@ -3,10 +3,10 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
 import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../../../data/data-sources/auth/user-data-source-provider";
-import { EnvironmentDataSourceProvider } from "../../../../../data/data-sources/compute/environment-data-source-provider";
 import { LocalComputeStore } from "../../../../../data/data-sources/compute/local/local-compute-store";
 import { SessionDataSourceProvider } from "../../../../../data/data-sources/compute/session-data-source-provider";
 import { AccountDataSource } from "../../../../../data/data-sources/database/postgres/account-data-source";
+import { EnvironmentDataSource } from "../../../../../data/data-sources/database/postgres/environment-data-source";
 import { PostgresModule } from "../../../../../data/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../../../data/data-sources/database/postgres/user-data-source";
 import {
@@ -48,7 +48,7 @@ import { WebSocketProxy } from "./websocket-proxy";
         AccountUserPermissionRepository,
 
         LocalComputeStore,
-        EnvironmentDataSourceProvider,
+        EnvironmentDataSource,
         SessionDataSourceProvider,
         AuthUserDataSourceProvider,
         PgUserDataSource,

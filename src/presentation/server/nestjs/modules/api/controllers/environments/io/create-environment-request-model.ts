@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsDefined, IsOptional, IsString, ValidateNested } from "class-validator";
+import { ArrayNotEmpty, IsDefined, IsOptional, IsString, ValidateNested } from "class-validator";
 
 class PlatformModel {
     @IsString()
@@ -19,10 +19,6 @@ class ApplicationModel {
 
     @IsString()
     version: string;
-
-    @IsOptional()
-    @IsString()
-    kind?: string;
 }
 
 export class CreateEnvironmentRequestModel {
@@ -31,8 +27,8 @@ export class CreateEnvironmentRequestModel {
     @Type(() => PlatformModel)
     platform: PlatformModel;
 
-    @IsDefined()
-    @ValidateNested()
+    @ArrayNotEmpty()
+    @ValidateNested({ each: true })
     @Type(() => ApplicationModel)
-    application: ApplicationModel;
+    applications: Array<ApplicationModel>;
 }

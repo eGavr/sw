@@ -5,7 +5,6 @@ import { ApplicationData } from "../../../../domain/entities/environment/applica
 import { ApplicationList } from "../../../../domain/entities/environment/application/application-list";
 import { Environment, EnvironmentData } from "../../../../domain/entities/environment/environment";
 import { Platform } from "../../../../domain/entities/environment/platform/platform";
-import { EnvironmentProviderName } from "../../../../domain/entities/environment/provider/environment-provider-name";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
 import { CreateEnvironmentInput, EnvironmentDataSource } from "../environment-data-source";
 
@@ -93,7 +92,6 @@ export class DockerEnvironmentDataSource extends EnvironmentDataSource {
 
         const environment = Environment.create({
             accountId: AccountId.fromString(input.accountId),
-            providerName: EnvironmentProviderName.Docker,
             platform: Platform.fromObject(input.platform),
             applications: ApplicationList.fromObject(input.applications),
         });
@@ -161,6 +159,8 @@ export class DockerEnvironmentDataSource extends EnvironmentDataSource {
         return {
             ...data,
             createdAt: new Date(data.createdAt),
+            updatedAt: new Date(data.updatedAt),
+            lastHeartbeatAt: data.lastHeartbeatAt ? new Date(data.lastHeartbeatAt) : null,
             endpoint: hostPort ? `http://127.0.0.1:${hostPort}` : null,
         };
     }

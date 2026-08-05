@@ -5,9 +5,8 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
 import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../../../data/data-sources/auth/user-data-source-provider";
-import { EnvironmentDataSourceProvider } from "../../../../../data/data-sources/compute/environment-data-source-provider";
-import { LocalComputeStore } from "../../../../../data/data-sources/compute/local/local-compute-store";
 import { AccountDataSource } from "../../../../../data/data-sources/database/postgres/account-data-source";
+import { EnvironmentDataSource } from "../../../../../data/data-sources/database/postgres/environment-data-source";
 import { PostgresModule } from "../../../../../data/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../../../data/data-sources/database/postgres/user-data-source";
 import {
@@ -64,8 +63,7 @@ import { EnvironmentsController } from "./controllers/environments/environments-
         EnvironmentRepository,
 
         AccountDataSource,
-        LocalComputeStore,
-        EnvironmentDataSourceProvider,
+        EnvironmentDataSource,
         AuthUserDataSourceProvider,
         PgUserDataSource,
         PgUserPermissionDataSource,

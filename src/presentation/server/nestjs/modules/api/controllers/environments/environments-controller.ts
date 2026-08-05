@@ -30,7 +30,7 @@ export class EnvironmentsController {
     ): Promise<EnvironmentPresenter> {
         return new EnvironmentPresenter(await this.createEnvironmentUseCase.execute({
             creds: { token },
-            params: { accountId: account, platform: body.platform, application: body.application },
+            params: { accountId: account, platform: body.platform, applications: body.applications },
         }));
     }
 

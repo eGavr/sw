@@ -49,7 +49,7 @@ describe("/sessions", () => {
         const environment = await environmentRepository.create({
             accountId: AccountId.fromString(account.id),
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
-            applications: ApplicationList.fromObject([{ name: "chrome", version: "latest", kind: "browser" }]),
+            applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
 
         return { owner: Authorization.forUser(externalId), environmentId: environment.id };
@@ -81,7 +81,7 @@ describe("/sessions", () => {
 
             expect(body.id).toEqual(expect.any(String));
             expect(body.environmentId).toBe(environmentId);
-            expect(body.application).toEqual({ name: "chrome", version: "latest", kind: "browser" });
+            expect(body.application).toEqual({ name: "chrome", version: "latest" });
         });
 
         test("responds FORBIDDEN for a non-owner (no session:create)", async () => {

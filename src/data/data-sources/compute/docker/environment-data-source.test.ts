@@ -1,10 +1,9 @@
 import { ApplicationData } from "../../../../domain/entities/environment/application/application";
-import { ApplicationKind } from "../../../../domain/entities/environment/application/application-kind";
 
 import { buildDockerEnvironmentConfig } from "./environment-data-source";
 
 describe("buildDockerEnvironmentConfig", () => {
-    const chrome: ApplicationData = { name: "chrome", version: "124", kind: ApplicationKind.Browser };
+    const chrome: ApplicationData = { name: "chrome", version: "124" };
     const base = { internalPort: 4444, sessionTimeoutSeconds: 300 };
 
     describe("prebuilt strategy", () => {

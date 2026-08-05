@@ -139,13 +139,20 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    авторизация к провайдеру = владение активным `Connection`, внешний доступ энфорсит провайдер на провижне
    (`compute.start(credential)`, reject → `failed`), не синхронным гейтом; оптимизации (фоновая валидация
    Connection / pre-flight) — потом.
-   **Стадии — в `docs/design/…`; стадия 1 (ADR + доменная дока) сделана. Следующая — стадия 2**: миграция
-   `environment` (+ `environment_application`, `state` вкл. `failed`, `state_reason`, capability-колонки,
-   `busy`, `last_heartbeat_at`; **без** `connection_id`) + доменная стейт-машина `Environment` (набор
-   приложений; `failProvisioning`/`retryProvisioning` как спецификация) + Postgres-репозиторий + async
-   `create`(`enqueued`) + `GET` с эффективным `state` + async `delete`(`deleting`). **Стадия 2.5** (перед
-   воркером) — рерайт слоя подключений (`Connection`-агрегат + `environment.connection_id` + роутинг
-   провижна). Стадии 3–7 — воркер / агент+heartbeat / аллокация / GC / auth `/internal`.
+   **Стадии — в `docs/design/…`; стадии 1 (ADR) и 2 СДЕЛАНЫ.**
+   Стадия 2 (проверено: `tsc` 0 · `eslint` 0 · юниты **66/66** · интеграция **37/37** · живой Postgres):
+   миграция `environment`+`environment_application`; доменная стейт-машина `Environment` (набор приложений,
+   `failed`/`state_reason`, переходы `claim`/`register`/`heartbeat`/`failProvisioning`/`retryProvisioning`/
+   `startDeletion`, `effectiveStatus(now,window)`); Postgres `EnvironmentDataSource` + `EnvironmentRepository`
+   поверх него; async `create`→`ENQUEUED` (контейнер НЕ поднимается), `GET`/`LIST` с derived `state`, async
+   `delete`→`DELETING`/`DELETED` (строка живёт до GC). API create теперь `applications: [...]`, presenter
+   отдаёт `state` (без `providerName`/`kind`). Compute env-датасорсы оставлены под сессионный путь (их
+   удаление + вынос image-resolver в compute-исполнитель — стадия 3/5); wd create-session на local-compute
+   жив. Правило зафиксировано: data source/repository без доменных вычислений (предикаты живости формирует
+   домен) — см. `CLAUDE.md`.
+   **Следующая — стадия 2.5** (перед воркером): рерайт слоя подключений (`Connection`-агрегат +
+   `environment.connection_id` + роутинг провижна `env→account→connection→адаптер`). Стадии 3–7 — воркер /
+   агент+heartbeat / аллокация / GC / auth `/internal`.
 
 ---
 

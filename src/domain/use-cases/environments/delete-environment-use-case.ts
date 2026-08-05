@@ -47,7 +47,8 @@ export class DeleteEnvironmentUseCase {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);
         }
 
-        await this.environmentRepository.delete(environmentId);
+        environment.startDeletion();
+        await this.environmentRepository.save(environment);
 
         return environment;
     }

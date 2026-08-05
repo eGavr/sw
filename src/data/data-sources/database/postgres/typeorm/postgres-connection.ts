@@ -9,6 +9,8 @@ import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 import { Account } from "./entities/account/account";
 import { AccountResourceProvider } from "./entities/account/account-resource-provider";
 import { AccountUserPermission } from "./entities/account/account-user-permission";
+import { Environment } from "./entities/environment/environment";
+import { EnvironmentApplication } from "./entities/environment/environment-application";
 import { User } from "./entities/user/user";
 
 export class PostgresConnection {
@@ -39,6 +41,8 @@ export class PostgresConnection {
                 AccountUserPermission,
                 Account,
                 User,
+                Environment,
+                EnvironmentApplication,
             ],
         })
     }

@@ -124,6 +124,9 @@ busy=false`; матч приложения — `EXISTS` по `environment_applic
   ```
 - Матчинг caps: только **указанные** в запросе caps (Selenium Grid semantics); версия — по мажору
   сейчас, констрейнты (`>=`) через `application_version_sort` = TODO.
+- **Слои:** предикат живости/свободности формирует ДОМЕН (cutoff-таймстемп «now − freshness», набор
+  допустимых состояний, критерий caps) и передаёт его репозиторию→data source готовым; data source лишь
+  транслирует его в SQL. Порог свежести (6с) и правило «свободно» в data source не хардкодим.
 
 ## Удаление окружения (async, state-based по AIP — НЕ кастомный verb)
 - `DELETE …/environments/{id}` → `state=deleting`, `202`. Метод стандартный `DELETE` (AIP-135);

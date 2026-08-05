@@ -5,22 +5,28 @@ import { Application, ApplicationData } from "./application/application";
 import { ApplicationList } from "./application/application-list";
 import { EnvironmentEndpoint } from "./environment-endpoint";
 import { EnvironmentId } from "./environment-id";
+import { EnvironmentState } from "./environment-state";
+import { EnvironmentStateReason } from "./environment-state-reason";
+import { EnvironmentStatus } from "./environment-status";
+import { InvalidEnvironmentStateTransitionError } from "./error/invalid-environment-state-transition-error";
 import { Platform, PlatformData } from "./platform/platform";
-import { EnvironmentProviderName } from "./provider/environment-provider-name";
 
 export type EnvironmentData = {
     id: string;
     accountId: string;
-    providerName: string;
+    state: string;
+    stateReason?: string | null;
     platform: PlatformData;
     applications: Array<ApplicationData>;
     endpoint?: string | null;
+    busy: boolean;
+    lastHeartbeatAt?: Date | null;
     createdAt: Date;
+    updatedAt: Date;
 };
 
 export type EnvironmentCreateParams = {
     accountId: AccountId;
-    providerName: EnvironmentProviderName;
     platform: Platform;
     applications: ApplicationList;
 };
@@ -28,57 +34,83 @@ export type EnvironmentCreateParams = {
 type EnvironmentConstructorParams = {
     id?: EnvironmentId;
     accountId: AccountId;
-    providerName: EnvironmentProviderName;
+    state?: EnvironmentState;
+    stateReason?: EnvironmentStateReason | null;
     platform: Platform;
     applications: ApplicationList;
     endpoint?: EnvironmentEndpoint | null;
+    busy?: boolean;
+    lastHeartbeatAt?: Date | null;
     createdAt?: Date;
+    updatedAt?: Date;
 };
 
 export class Environment {
     static create(params: EnvironmentCreateParams): Environment {
-        return new Environment(params);
+        return new Environment({ ...params, state: EnvironmentState.Enqueued });
     }
 
     static fromObject(data: EnvironmentData): Environment {
         return new Environment({
             id: EnvironmentId.fromString(data.id),
             accountId: AccountId.fromString(data.accountId),
-            providerName: Environment.toProviderName(data.providerName),
+            state: Environment.toState(data.state),
+            stateReason: data.stateReason ? Environment.toStateReason(data.stateReason) : null,
             platform: Platform.fromObject(data.platform),
             applications: ApplicationList.fromObject(data.applications),
             endpoint: data.endpoint ? new EnvironmentEndpoint(data.endpoint) : null,
+            busy: data.busy,
+            lastHeartbeatAt: data.lastHeartbeatAt ?? null,
             createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
         });
     }
 
-    private static toProviderName(value: string): EnvironmentProviderName {
-        const providerName = Object.values(EnvironmentProviderName).find((candidate) => candidate === value);
+    private static toState(value: string): EnvironmentState {
+        const state = Object.values(EnvironmentState).find((candidate) => candidate === value);
 
-        if (!providerName) {
-            throw new InvalidArgumentError(`environment provider name: ${value}: unknown`);
+        if (!state) {
+            throw new InvalidArgumentError(`environment state: ${value}: unknown`);
         }
 
-        return providerName;
+        return state;
     }
 
-    readonly providerName: EnvironmentProviderName;
+    private static toStateReason(value: string): EnvironmentStateReason {
+        const reason = Object.values(EnvironmentStateReason).find((candidate) => candidate === value);
+
+        if (!reason) {
+            throw new InvalidArgumentError(`environment state reason: ${value}: unknown`);
+        }
+
+        return reason;
+    }
+
     readonly platform: Platform;
     readonly applications: ApplicationList;
     readonly createdAt: Date;
 
     private readonly _id: EnvironmentId;
     private readonly _accountId: AccountId;
+    private _state: EnvironmentState;
+    private _stateReason: EnvironmentStateReason | null;
     private _endpoint: EnvironmentEndpoint | null;
+    private _busy: boolean;
+    private _lastHeartbeatAt: Date | null;
+    private _updatedAt: Date;
 
     private constructor(params: EnvironmentConstructorParams) {
         this._id = params.id ?? EnvironmentId.create();
         this._accountId = params.accountId;
-        this.providerName = params.providerName;
+        this._state = params.state ?? EnvironmentState.Enqueued;
+        this._stateReason = params.stateReason ?? null;
         this.platform = params.platform;
         this.applications = params.applications;
         this._endpoint = params.endpoint ?? null;
+        this._busy = params.busy ?? false;
+        this._lastHeartbeatAt = params.lastHeartbeatAt ?? null;
         this.createdAt = params.createdAt ?? new Date();
+        this._updatedAt = params.updatedAt ?? this.createdAt;
     }
 
     get id(): string {
@@ -89,27 +121,118 @@ export class Environment {
         return this._accountId;
     }
 
+    get state(): EnvironmentState {
+        return this._state;
+    }
+
+    get stateReason(): EnvironmentStateReason | null {
+        return this._stateReason;
+    }
+
     get endpoint(): string | null {
         return this._endpoint?.getValue() ?? null;
+    }
+
+    get busy(): boolean {
+        return this._busy;
+    }
+
+    get lastHeartbeatAt(): Date | null {
+        return this._lastHeartbeatAt;
+    }
+
+    get updatedAt(): Date {
+        return this._updatedAt;
     }
 
     supports(application: Application): boolean {
         return this.applications.has(application);
     }
 
-    assignEndpoint(endpoint: EnvironmentEndpoint): void {
+    claim(): void {
+        this.transition(EnvironmentState.Enqueued, EnvironmentState.Preparing);
+    }
+
+    register(endpoint: EnvironmentEndpoint, now: Date): void {
+        this.transition(EnvironmentState.Preparing, EnvironmentState.Executing);
         this._endpoint = endpoint;
+        this._lastHeartbeatAt = now;
+    }
+
+    heartbeat(busy: boolean, now: Date): void {
+        if (this._state !== EnvironmentState.Executing) {
+            throw new InvalidEnvironmentStateTransitionError(this._state, EnvironmentState.Executing);
+        }
+
+        this._busy = busy;
+        this._lastHeartbeatAt = now;
+        this.touch();
+    }
+
+    failProvisioning(reason: EnvironmentStateReason): void {
+        this.transition(EnvironmentState.Preparing, EnvironmentState.Failed);
+        this._stateReason = reason;
+    }
+
+    retryProvisioning(): void {
+        this.transition(EnvironmentState.Preparing, EnvironmentState.Enqueued);
+        this._stateReason = null;
+    }
+
+    startDeletion(): void {
+        if (this._state === EnvironmentState.Deleting) {
+            return;
+        }
+
+        this._state = EnvironmentState.Deleting;
+        this.touch();
+    }
+
+    effectiveStatus(now: Date, freshnessWindowMs: number): EnvironmentStatus {
+        switch (this._state) {
+            case EnvironmentState.Enqueued:
+                return EnvironmentStatus.Enqueued;
+            case EnvironmentState.Preparing:
+                return EnvironmentStatus.Preparing;
+            case EnvironmentState.Failed:
+                return EnvironmentStatus.Failed;
+            case EnvironmentState.Executing:
+                return this.isFresh(now, freshnessWindowMs) ? EnvironmentStatus.Active : EnvironmentStatus.Unhealthy;
+            case EnvironmentState.Deleting:
+                return this.isFresh(now, freshnessWindowMs) ? EnvironmentStatus.Deleting : EnvironmentStatus.Deleted;
+        }
     }
 
     toObject(): EnvironmentData {
         return {
             id: this.id,
             accountId: this._accountId.getValue(),
-            providerName: this.providerName,
+            state: this._state,
+            stateReason: this._stateReason,
             platform: this.platform.toObject(),
             applications: this.applications.toArray(),
             endpoint: this.endpoint,
+            busy: this._busy,
+            lastHeartbeatAt: this._lastHeartbeatAt,
             createdAt: this.createdAt,
+            updatedAt: this._updatedAt,
         };
+    }
+
+    private isFresh(now: Date, freshnessWindowMs: number): boolean {
+        return this._lastHeartbeatAt !== null && now.getTime() - this._lastHeartbeatAt.getTime() <= freshnessWindowMs;
+    }
+
+    private transition(from: EnvironmentState, to: EnvironmentState): void {
+        if (this._state !== from) {
+            throw new InvalidEnvironmentStateTransitionError(this._state, to);
+        }
+
+        this._state = to;
+        this.touch();
+    }
+
+    private touch(): void {
+        this._updatedAt = new Date();
     }
 }

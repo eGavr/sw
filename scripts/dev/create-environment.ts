@@ -44,7 +44,7 @@ async function main(): Promise<void> {
     const environment = await dataSource.create({
         accountId,
         platform: { name: "linux", version: "22.04" },
-        applications: [{ name: "chrome", version: "latest", kind: "browser" }],
+        applications: [{ name: "chrome", version: "latest" }],
     });
 
     process.stdout.write(`provisioning ${environment.id} (${image}); waiting for the browser to become ready...\n`);

@@ -6,7 +6,6 @@ import { EnvironmentRepository } from "../../../data/repositories/environment-re
 import { SessionRepository } from "../../../data/repositories/session-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
 import { Application } from "../../entities/environment/application/application";
-import { ApplicationKind } from "../../entities/environment/application/application-kind";
 import { EnvironmentId } from "../../entities/environment/environment-id";
 import { ApplicationNotAvailableError } from "../../entities/environment/error/application-not-available-error";
 import { EnvironmentBusyError } from "../../entities/environment/error/environment-busy-error";
@@ -26,7 +25,6 @@ type CreateSessionInput = {
         application: {
             name: string;
             version: string;
-            kind?: string;
         };
     },
 }
@@ -65,7 +63,6 @@ export class CreateSessionUseCase {
         const application = Application.fromObject({
             name: params.application.name,
             version: params.application.version,
-            kind: params.application.kind ?? ApplicationKind.Browser,
         });
 
         if (!environment.supports(application)) {

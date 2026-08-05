@@ -6,7 +6,6 @@ import { EnvironmentRepository } from "../../../data/repositories/environment-re
 import { UserRepository } from "../../../data/repositories/user-repository";
 import { AccountId } from "../../entities/account/account-id";
 import { Application } from "../../entities/environment/application/application";
-import { ApplicationKind } from "../../entities/environment/application/application-kind";
 import { ApplicationList } from "../../entities/environment/application/application-list";
 import { Environment } from "../../entities/environment/environment";
 import { Platform } from "../../entities/environment/platform/platform";
@@ -26,11 +25,10 @@ type CreateEnvironmentInput = {
             version: string;
             deviceModel?: string;
         };
-        application: {
+        applications: Array<{
             name: string;
             version: string;
-            kind?: string;
-        };
+        }>;
     },
 }
 
@@ -60,16 +58,14 @@ export class CreateEnvironmentUseCase {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);
         }
 
-        const application = Application.fromObject({
-            name: params.application.name,
-            version: params.application.version,
-            kind: params.application.kind ?? ApplicationKind.Browser,
+        const applications = ApplicationList.create({
+            applications: params.applications.map((application) => Application.fromObject(application)),
         });
 
         return this.environmentRepository.create({
             accountId,
             platform: Platform.fromObject(params.platform),
-            applications: ApplicationList.create({ applications: [application] }),
+            applications,
         });
     }
 }

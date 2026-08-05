@@ -10,7 +10,7 @@ import { CreateAccountBody } from "../../utils/request/body/create-account-body"
 
 const validEnvironmentBody = {
     platform: { name: "linux", version: "latest" },
-    application: { name: "chrome", version: "latest" },
+    applications: [{ name: "chrome", version: "latest" }],
 };
 
 describe("/accounts/:account/environments", () => {
@@ -48,9 +48,9 @@ describe("/accounts/:account/environments", () => {
             expect(body).toEqual({
                 name: `accounts/${accountId}/environments/${body.uid}`,
                 uid: expect.any(String),
+                state: "ENQUEUED",
                 platform: { name: "linux", version: "latest", deviceModel: null },
-                applications: [{ name: "chrome", version: "latest", kind: "browser" }],
-                providerName: "Local",
+                applications: [{ name: "chrome", version: "latest" }],
                 createTime: expect.any(String),
             });
         });
@@ -91,7 +91,7 @@ describe("/accounts/:account/environments", () => {
     });
 
     describe("lifecycle (create -> get -> list -> delete)", () => {
-        test("creates, reads, lists and deletes an environment", async () => {
+        test("creates enqueued, reads, lists and deletes an environment (state-based)", async () => {
             const { owner, accountId } = await createAccount();
 
             const { body: environment } = await createEnvironment(accountId, owner).expect(HttpStatus.CREATED);
@@ -100,7 +100,10 @@ describe("/accounts/:account/environments", () => {
                 .get(`/accounts/${accountId}/environments/${environment.uid}`)
                 .set(owner)
                 .expect(HttpStatus.OK)
-                .expect((response) => expect(response.body.uid).toBe(environment.uid));
+                .expect((response) => {
+                    expect(response.body.uid).toBe(environment.uid);
+                    expect(response.body.state).toBe("ENQUEUED");
+                });
 
             const list = await request(app.getHttpServer())
                 .get(`/accounts/${accountId}/environments`)
@@ -115,10 +118,12 @@ describe("/accounts/:account/environments", () => {
                 .set(owner)
                 .expect(HttpStatus.OK, {});
 
+            // Delete is async/state-based: the row survives (GC removes it later); GET derives DELETED.
             await request(app.getHttpServer())
                 .get(`/accounts/${accountId}/environments/${environment.uid}`)
                 .set(owner)
-                .expect(HttpStatus.NOT_FOUND);
+                .expect(HttpStatus.OK)
+                .expect((response) => expect(response.body.state).toBe("DELETED"));
         });
     });
 

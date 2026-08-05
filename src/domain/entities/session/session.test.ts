@@ -1,5 +1,4 @@
 import { Application } from "../environment/application/application";
-import { ApplicationKind } from "../environment/application/application-kind";
 import { EnvironmentId } from "../environment/environment-id";
 
 import { Session } from "./session";
@@ -9,7 +8,7 @@ describe("Session", () => {
     const createSession = (now: Date): Session =>
         Session.create({
             environmentId: EnvironmentId.create(),
-            application: Application.create({ name: "chrome", version: "100", kind: ApplicationKind.Browser }),
+            application: Application.create({ name: "chrome", version: "100" }),
             idleTimeout: SessionIdleTimeout.fromMilliseconds(30_000),
             now,
         });
