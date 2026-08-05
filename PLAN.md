@@ -117,9 +117,19 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    (перенос длинного импорта, return-типы у статиков `AccountUser`/`AccountUserList`/`AccountUserPermission`).
    Поведение не менялось; tsc/юниты 52/52/интеграция 37/37 зелёные.
 
-9. **Масштабирование**: сейчас `wd` — один процесс; stateless-роутинг по session id это уже
-   поддерживает, но инвариант «одна активная сессия на окружение» для docker делегирован ноде
-   браузера. Продумать для нескольких инстансов `wd`.
+9. **Масштабирование / переархитектура окружений+сессий — ДИЗАЙН СОГЛАСОВАН, В РАБОТЕ.**
+   Полный дизайн (источник правды) — **`docs/design/environment-lifecycle-and-allocation.md`**. Кратко:
+   **Postgres = источник live-правды** (реестр окружений + `busy`), compute — исполнитель (без завязки
+   на docker в БД, абстрактный `id`). Окружение = **capability-стереотип** (W3C+Appium; браузер = частный
+   Application), матч как в Selenium Grid. **Async-цикл** `enqueued → preparing → executing → deleting →
+   (GC)`. **Воркер** через `LISTEN/NOTIFY` + `FOR UPDATE SKIP LOCKED` (без поллинга/дедлока). **Аллокация**
+   сессии: `POST /sessions {accountId, application}` (без явного env), арбитр 1:1 — **нода** (`max-sessions=1`),
+   БД-`busy` — подсказка, оптимистичный pick+retry, на create-пути в БД не пишем. **`busy` ставит хартбит
+   агента** (~3с; окно свежести 6с — единый порог для аллокации/статуса/GC). **Delete** — state-based по AIP
+   (метод `DELETE` → `state=deleting`, поллинг `GET`; НЕ кастомный verb), воркер гасит контейнер, **GC
+   (`pg_cron`) сносит строку** по протухшему хартбиту; `DELETED` — вычисляемый статус. Секрет сессии в БД/логи
+   НЕ кладём. **Стадии 1–7 — в `docs/design/…`; стадия 1 (ADR + доменная дока) сделана, следующая — стадия 2
+   (миграция `environment` + стейт-машина + async create/delete + GET state).**
 
 ---
 
