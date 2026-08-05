@@ -31,9 +31,11 @@ export const EnvironmentDataSourceProvider = {
 };
 
 function dockerConfig(configService: ConfigService): ReturnType<typeof buildDockerEnvironmentConfig> {
-    const image = configService.get<string>("COMPUTE_DOCKER_IMAGE");
-    const internalPort = Number(configService.get<string>("COMPUTE_DOCKER_PORT") ?? String(defaultInternalPort));
-    const sessionTimeout = Number(configService.get<string>("COMPUTE_DOCKER_SESSION_TIMEOUT") ?? String(defaultSessionTimeoutSeconds));
-
-    return buildDockerEnvironmentConfig(image, internalPort, sessionTimeout);
+    return buildDockerEnvironmentConfig({
+        image: configService.get<string>("COMPUTE_DOCKER_IMAGE"),
+        baseImage: configService.get<string>("COMPUTE_DOCKER_BASE_IMAGE"),
+        platform: configService.get<string>("COMPUTE_DOCKER_PLATFORM"),
+        internalPort: Number(configService.get<string>("COMPUTE_DOCKER_PORT") ?? String(defaultInternalPort)),
+        sessionTimeoutSeconds: Number(configService.get<string>("COMPUTE_DOCKER_SESSION_TIMEOUT") ?? String(defaultSessionTimeoutSeconds)),
+    });
 }

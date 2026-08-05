@@ -32,7 +32,13 @@ async function waitReady(endpoint: string, timeoutMs: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-    const config = buildDockerEnvironmentConfig(image, 4444, sessionTimeoutSeconds);
+    const config = buildDockerEnvironmentConfig({
+        image,
+        baseImage: process.env.COMPUTE_DOCKER_BASE_IMAGE,
+        platform: process.env.COMPUTE_DOCKER_PLATFORM,
+        internalPort: 4444,
+        sessionTimeoutSeconds,
+    });
     const dataSource = new DockerEnvironmentDataSource(new DockerClient(), config);
 
     const environment = await dataSource.create({

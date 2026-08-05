@@ -12,6 +12,7 @@ export type DockerRunOptions = {
     command?: Array<string>;
     shmSize?: string;
     env?: Record<string, string>;
+    platform?: string;
 };
 
 export type DockerContainer = {
@@ -46,6 +47,10 @@ type RawInspect = {
 export class DockerClient {
     async run(options: DockerRunOptions): Promise<string> {
         const args = ["run", "-d"];
+
+        if (options.platform) {
+            args.push("--platform", options.platform);
+        }
 
         for (const [key, value] of Object.entries(options.labels)) {
             args.push("--label", `${key}=${value}`);
