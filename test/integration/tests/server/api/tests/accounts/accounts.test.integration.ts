@@ -4,10 +4,10 @@ import { v4 as uuidv4 } from "uuid";
 
 import { UserPermissionList } from "../../../../../../../src/domain/entities/user/user-permission-list";
 import { ApiModule } from "../../../../../../../src/presentation/server/nestjs/modules/api/api-module";
-import { TestingApp } from "../../utils/app/testing-app";
-import { UserFactory } from "../../utils/entities/user/user-factory";
+import { TestingApp } from "../../../utils/app/testing-app";
+import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { CreateAccountBody } from "../../utils/request/body/create-account-body";
-import { Authorization } from "../../utils/request/headers/authorization";
+import { Authorization } from "../../../utils/request/headers/authorization";
 
 type AuthHeader = { authorization: string };
 
