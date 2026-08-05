@@ -15,11 +15,13 @@ export type PlatformCreateParams = {
     deviceModel?: string;
 };
 
+// device_name is a match capability and stays a real non-null value: a desktop env has no device,
+// so it defaults to this rather than a null/sentinel. Mobile envs supply a real device model.
+const defaultDeviceModel = "desktop";
+
 export class Platform {
     static create(params: PlatformCreateParams): Platform {
-        // device_name is a match capability and stays a real non-null value: a desktop env has no
-        // device, so it defaults to the platform name rather than a null/sentinel.
-        return new Platform(params.name, new PlatformVersion(params.version), params.deviceModel ?? params.name);
+        return new Platform(params.name, new PlatformVersion(params.version), params.deviceModel ?? defaultDeviceModel);
     }
 
     static fromObject(data: { name: string; version: string; deviceModel?: string | null }): Platform {

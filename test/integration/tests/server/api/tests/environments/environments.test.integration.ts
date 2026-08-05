@@ -49,7 +49,7 @@ describe("/accounts/:account/environments", () => {
                 name: `accounts/${accountId}/environments/${body.uid}`,
                 uid: expect.any(String),
                 state: "ENQUEUED",
-                platform: { name: "linux", version: "latest", deviceModel: "linux" },
+                platform: { name: "linux", version: "latest", deviceModel: "desktop" },
                 applications: [{ name: "chrome", version: "latest" }],
                 createTime: expect.any(String),
             });
