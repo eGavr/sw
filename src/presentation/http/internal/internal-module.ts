@@ -1,0 +1,66 @@
+import { BadRequestException, MiddlewareConsumer, Module, NestModule, ValidationPipe } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
+
+import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
+import {
+    RecordEnvironmentHeartbeatUseCase,
+} from "../../../application/use-cases/environments/record-environment-heartbeat-use-case";
+import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
+import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
+import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
+import { LoggerModule } from "../../../infrastructure/logging/logger-module";
+import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
+import { AipExceptionFilter } from "../filters/aip-exception-filter";
+import { ResponseInterceptor } from "../interceptors/response-interceptor";
+import { ContextMiddleware } from "../middlewares/contex-middleware";
+import { LoggingMiddleware } from "../middlewares/logging-middleware";
+
+import { InternalEnvironmentsController } from "./controllers/environments/environments-controller";
+
+@Module({
+    imports: [
+        ConfigModule.forRoot({
+            envFilePath: [".env", `env/.env.${process.env.NODE_ENV || "development"}`],
+        }),
+        PostgresModule,
+        LoggerModule,
+    ],
+    controllers: [
+        InternalEnvironmentsController,
+    ],
+    providers: [
+        RecordEnvironmentHeartbeatUseCase,
+
+        { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
+
+        EnvironmentDataSource,
+
+        {
+            provide: APP_FILTER,
+            useClass: AipExceptionFilter,
+        },
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: ResponseInterceptor,
+        },
+        {
+            provide: APP_PIPE,
+            useValue: new ValidationPipe(
+                {
+                    whitelist: true,
+                    forbidNonWhitelisted: true,
+                    exceptionFactory: (errors): BadRequestException =>
+                        new BadRequestException(ClassValidatorError.stringifyConstraints(errors[0])),
+                },
+            ),
+        },
+    ],
+})
+export class InternalModule implements NestModule {
+    configure(consumer: MiddlewareConsumer): void {
+        consumer
+            .apply(ContextMiddleware, LoggingMiddleware)
+            .forRoutes("*");
+    }
+}

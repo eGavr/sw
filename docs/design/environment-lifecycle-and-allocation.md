@@ -283,7 +283,12 @@ POST /accounts/{acc}/environments {platform, applications}
    gateway по `providerType`; repo и gateway остаются сиблингами, координирует use-case. `COMPUTE_PROVIDER` больше не
    выбирает адаптер провижна (остался только в legacy session-data-source-пути стадии 5).
    **ОСТАЛОСЬ в стадии 3:** delete-e2e прогон. `executing`/`endpoint` — НЕ здесь (агент, стадия 4).
-4. Агент (в образе) + `/internal:heartbeat` (регистрация: `endpoint`+`executing`; `busy`; liveness).
+4. **[серверная часть сделана]** `/internal:heartbeat` — `POST /internal/environments/{id}:heartbeat {endpoint?, busy}`
+   (отдельный `InternalModule`/сервис, `INTERNAL_PORT`). Первый хартбит = регистрация (`preparing→executing` + `endpoint`);
+   каждый — `busy`+liveness. Хартбит не вовремя → 409 (домен: `InvalidEnvironmentStateTransitionError` ⊂ `ConflictError`),
+   регистрация без endpoint → 400. Use-case `RecordEnvironmentHeartbeatUseCase` (домен `register`/`heartbeat`).
+   Покрыто integration (blackbox через ручку). **ОСТАЛОСЬ:** auth `/internal` (внутренний секрет/mTLS — стадия 7) +
+   сам агент в образе (инфра: шлёт хартбит, `busy` интроспекцией ноды).
 5. Аллокация сессии: `create-session` на `{accountId, application}` с оптимистичным pick+retry;
    убрать явный `environmentId`.
 6. GC (`pg_cron`: `deleting` + `failed` TTL + stale `executing`) + вычисляемый эффективный статус +
