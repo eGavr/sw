@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { DataSource } from "typeorm";
 
-import { FindPermissionsQuery } from "../../../repositories/account-user-permission-repository";
+import { FindPermissionsQuery } from "../../../../application/interfaces/repositories/account-user-permission-repository";
 
 import { AccountUserPermission } from "./typeorm/entities/account/account-user-permission";
 

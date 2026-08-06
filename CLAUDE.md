@@ -69,7 +69,8 @@ presentation <- use case <- repository <- data source <- external backend client
 
 ## Gateways
 
--   **Gateway** (`infrastructure/gateways/`) — driven-порт над ВНЕШНЕЙ системой, которой мы командуем/спрашиваем (Docker, облако, платёжка), а НЕ хранилище нашего агрегата. Repository абстрагирует персистентность МОЕГО агрегата; Gateway — интеграцию с ЧУЖОЙ системой. Полный разбор с примерами — `infrastructure/gateways/__ABOUT_GATEWAYS__.md`.
+-   **Gateway** — driven-порт над ВНЕШНЕЙ системой, которой мы командуем/спрашиваем (Docker, облако, платёжка), а НЕ хранилище нашего агрегата. Repository абстрагирует персистентность МОЕГО агрегата; Gateway — интеграцию с ЧУЖОЙ системой. Полный разбор с примерами — `infrastructure/gateways/__ABOUT_GATEWAYS__.md`.
+-   **Раскладка портов/реализаций (строгий DIP):** порт gateway-я и порт репозитория — абстрактные классы в `application/interfaces/{gateways,repositories}/` (служат и типом, и DI-токеном); реализации — в `infrastructure/{gateways,repositories}/`. Связывание в композит-руте (модуле): `{ provide: <Port>, useClass: <Impl> }`. Use-case инжектит порт по абстракции, не реализацию.
 -   Методы gateway-я — в НАШЕМ словаре по смыслу операции над внешней системой (`provision`/`deprovision`/`send`/`fetch`), т.е. ровно те verb'ы (`start`/`stop`/…), что запрещены репозиторию. Операционные вызовы клиента (`docker run`/`remove`) — внутри адаптера; наружу порт отдаёт доменно-осмысленный результат / `void`.
 -   На вход gateway может принимать доменные сущности/VO; на выход — исход операции, НЕ реконституированный из хранилища агрегат.
 -   **Зависимости: repository и gateway — сиблинги, друг друга НЕ инжектят.** Их координирует use-case (инжектит оба). Repository инжектит только свои data source-ы; gateway — только свой backend-клиент. Захотелось «repo зовёт gateway» (или наоборот) → координацию поднять в use-case.

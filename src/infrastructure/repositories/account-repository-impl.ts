@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
+import { AccountRepository } from "../../application/interfaces/repositories/account-repository";
 import { Account, AccountCreateParams } from "../../domain/entities/account/account";
 import { AccountId } from "../../domain/entities/account/account-id";
 import { NotFoundResourceError } from "../../domain/entities/error/not-found/not-found-resource-error";
@@ -7,8 +8,10 @@ import { User } from "../../domain/entities/user/user";
 import { AccountDataSource } from "../data-sources/database/postgres/account-data-source";
 
 @Injectable()
-export class AccountRepository {
-    constructor(private readonly accountDataSource: AccountDataSource) {}
+export class AccountRepositoryImpl extends AccountRepository {
+    constructor(private readonly accountDataSource: AccountDataSource) {
+        super();
+    }
 
     async get(accountId: AccountId): Promise<Account> {
         const account = await this.find(accountId);

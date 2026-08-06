@@ -6,9 +6,9 @@ import { PermissionDeniedError } from "../../../domain/entities/error/permission
 import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
 import { UserCredentials } from "../../../domain/entities/user/user-credentials";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
-import { AccountRepository } from "../../../infrastructure/repositories/account-repository";
-import { AccountUserPermissionRepository } from "../../../infrastructure/repositories/account-user-permission-repository";
-import { UserRepository } from "../../../infrastructure/repositories/user-repository";
+import { AccountRepository } from "../../interfaces/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../interfaces/repositories/account-user-permission-repository";
+import { UserRepository } from "../../interfaces/repositories/user-repository";
 
 type GetAccountInput = {
     creds: {

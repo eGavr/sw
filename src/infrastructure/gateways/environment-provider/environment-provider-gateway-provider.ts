@@ -1,5 +1,6 @@
 import { ConfigService } from "@nestjs/config";
 
+import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
 import { InternalError } from "../../../domain/entities/error/internal-error";
 import { DockerClient } from "../../data-sources/compute/docker/docker-client";
 import {
@@ -10,7 +11,6 @@ import {
 } from "../../data-sources/compute/docker/environment-data-source";
 
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
-import { EnvironmentProviderGateway } from "./environment-provider-gateway";
 import { LocalEnvironmentProviderGateway } from "./local-environment-provider-gateway";
 
 export const EnvironmentProviderGatewayProvider = {

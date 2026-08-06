@@ -1,23 +1,20 @@
 import { Injectable } from "@nestjs/common";
 
-import { Account } from "../../domain/entities/account/account";
+import {
+    AccountUserPermissionRepository,
+    FindPermissionsQuery,
+} from "../../application/interfaces/repositories/account-user-permission-repository";
 import { AccountUserPermission } from "../../domain/entities/account/account-user-permission";
 import { AccountUserPermissionList } from "../../domain/entities/account/account-user-permission-list";
-import { User } from "../../domain/entities/user/user";
 import { UserPermission } from "../../domain/entities/user/user-permission";
 import { UserPermissionName } from "../../domain/entities/user/user-permission-name";
 import { UserPermissionDataSource } from "../data-sources/database/postgres/user-permission-data-source";
 
-export type FindPermissionsQuery = {
-    filter: {
-        user: User;
-        account: Account;
-    };
-};
-
 @Injectable()
-export class AccountUserPermissionRepository {
-    constructor(private readonly userPermissionDataSource: UserPermissionDataSource) {}
+export class AccountUserPermissionRepositoryImpl extends AccountUserPermissionRepository {
+    constructor(private readonly userPermissionDataSource: UserPermissionDataSource) {
+        super();
+    }
 
     async findAll(query: FindPermissionsQuery): Promise<AccountUserPermissionList> {
         const { account, user } = query.filter;

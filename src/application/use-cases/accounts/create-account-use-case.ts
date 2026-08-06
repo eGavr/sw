@@ -4,9 +4,9 @@ import { Account } from "../../../domain/entities/account/account";
 import { AccountId } from "../../../domain/entities/account/account-id";
 import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
 import { UserCredentials } from "../../../domain/entities/user/user-credentials";
-import { AccountRepository } from "../../../infrastructure/repositories/account-repository";
-import { ProviderAccountRepository } from "../../../infrastructure/repositories/provider-account-repository";
-import { UserRepository } from "../../../infrastructure/repositories/user-repository";
+import { AccountRepository } from "../../interfaces/repositories/account-repository";
+import { ProviderAccountRepository } from "../../interfaces/repositories/provider-account-repository";
+import { UserRepository } from "../../interfaces/repositories/user-repository";
 
 type CreateAccountInput = {
     creds: {

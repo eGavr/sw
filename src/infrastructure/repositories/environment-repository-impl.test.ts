@@ -1,3 +1,4 @@
+import { CreateEnvironmentParams } from "../../application/interfaces/repositories/environment-repository";
 import { AccountId } from "../../domain/entities/account/account-id";
 import { Application } from "../../domain/entities/environment/application/application";
 import { ApplicationList } from "../../domain/entities/environment/application/application-list";
@@ -9,7 +10,7 @@ import { Platform } from "../../domain/entities/environment/platform/platform";
 import { PlatformName } from "../../domain/entities/environment/platform/platform-name";
 import { EnvironmentDataSource } from "../data-sources/database/postgres/environment-data-source";
 
-import { CreateEnvironmentParams, EnvironmentRepository } from "./environment-repository";
+import { EnvironmentRepositoryImpl } from "./environment-repository-impl";
 
 class FakeEnvironmentDataSource {
     private readonly rows = new Map<string, EnvironmentData>();
@@ -33,9 +34,9 @@ class FakeEnvironmentDataSource {
     }
 }
 
-describe("EnvironmentRepository", () => {
-    const build = (): EnvironmentRepository =>
-        new EnvironmentRepository(new FakeEnvironmentDataSource() as unknown as EnvironmentDataSource);
+describe("EnvironmentRepositoryImpl", () => {
+    const build = (): EnvironmentRepositoryImpl =>
+        new EnvironmentRepositoryImpl(new FakeEnvironmentDataSource() as unknown as EnvironmentDataSource);
 
     const params = (accountId: AccountId): CreateEnvironmentParams => ({
         accountId,

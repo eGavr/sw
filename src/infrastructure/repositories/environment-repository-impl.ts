@@ -1,25 +1,21 @@
 import { Injectable } from "@nestjs/common";
 
+import {
+    CreateEnvironmentParams,
+    EnvironmentRepository,
+} from "../../application/interfaces/repositories/environment-repository";
 import { AccountId } from "../../domain/entities/account/account-id";
-import { ApplicationList } from "../../domain/entities/environment/application/application-list";
 import { Environment } from "../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../domain/entities/environment/environment-state";
 import { EnvironmentNotFoundError } from "../../domain/entities/environment/error/environment-not-found-error";
-import { Platform } from "../../domain/entities/environment/platform/platform";
-import { ProviderAccountId } from "../../domain/entities/provider-account/provider-account-id";
 import { EnvironmentDataSource } from "../data-sources/database/postgres/environment-data-source";
 
-export type CreateEnvironmentParams = {
-    accountId: AccountId;
-    providerAccountId: ProviderAccountId;
-    platform: Platform;
-    applications: ApplicationList;
-};
-
 @Injectable()
-export class EnvironmentRepository {
-    constructor(private readonly environmentDataSource: EnvironmentDataSource) {}
+export class EnvironmentRepositoryImpl extends EnvironmentRepository {
+    constructor(private readonly environmentDataSource: EnvironmentDataSource) {
+        super();
+    }
 
     async create(params: CreateEnvironmentParams): Promise<Environment> {
         const environment = Environment.create(params);

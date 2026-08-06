@@ -1,4 +1,4 @@
-import { FindUserQuery } from "../../repositories/user-repository";
+import { FindUserQuery } from "../../../application/interfaces/repositories/user-repository";
 
 export type User = {
     id: string;

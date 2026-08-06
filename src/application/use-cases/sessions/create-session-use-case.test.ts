@@ -10,11 +10,11 @@ import { PermissionDeniedError } from "../../../domain/entities/error/permission
 import { User } from "../../../domain/entities/user/user";
 import { LocalComputeStore } from "../../../infrastructure/data-sources/compute/local/local-compute-store";
 import { LocalSessionDataSource } from "../../../infrastructure/data-sources/compute/local/session-data-source";
-import { AccountRepository } from "../../../infrastructure/repositories/account-repository";
-import { AccountUserPermissionRepository } from "../../../infrastructure/repositories/account-user-permission-repository";
-import { EnvironmentRepository } from "../../../infrastructure/repositories/environment-repository";
-import { SessionRepository } from "../../../infrastructure/repositories/session-repository";
-import { UserRepository } from "../../../infrastructure/repositories/user-repository";
+import { SessionRepositoryImpl } from "../../../infrastructure/repositories/session-repository-impl";
+import { AccountRepository } from "../../interfaces/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../interfaces/repositories/account-user-permission-repository";
+import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
+import { UserRepository } from "../../interfaces/repositories/user-repository";
 
 import { CreateSessionUseCase } from "./create-session-use-case";
 
@@ -34,7 +34,7 @@ describe("CreateSessionUseCase", () => {
         }) as unknown as AccountUserPermissionRepository;
 
     const build = (authorized = true): { useCase: CreateSessionUseCase; environment: Environment } => {
-        const sessionRepository = new SessionRepository(new LocalSessionDataSource(new LocalComputeStore()));
+        const sessionRepository = new SessionRepositoryImpl(new LocalSessionDataSource(new LocalComputeStore()));
 
         const environment = Environment.create({
             accountId: AccountId.create(),

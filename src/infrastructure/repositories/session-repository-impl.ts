@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
+import { SessionRepository } from "../../application/interfaces/repositories/session-repository";
 import { EnvironmentId } from "../../domain/entities/environment/environment-id";
 import { SessionNotFoundError } from "../../domain/entities/session/error/session-not-found-error";
 import { Session } from "../../domain/entities/session/session";
@@ -7,8 +8,10 @@ import { SessionId } from "../../domain/entities/session/session-id";
 import { SessionDataSource } from "../data-sources/compute/session-data-source";
 
 @Injectable()
-export class SessionRepository {
-    constructor(private readonly sessionDataSource: SessionDataSource) {}
+export class SessionRepositoryImpl extends SessionRepository {
+    constructor(private readonly sessionDataSource: SessionDataSource) {
+        super();
+    }
 
     async create(session: Session): Promise<Session> {
         const data = await this.sessionDataSource.create(session.toObject());

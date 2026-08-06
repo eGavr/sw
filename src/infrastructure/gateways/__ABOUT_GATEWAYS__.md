@@ -120,17 +120,22 @@ env.markDispatched(); environmentRepository.save(env)           // ХРАНИЛ�
 ([hexagonal folder structure](https://codeartify.substack.com/p/folder-structures),
 [scalastic: ports & adapters](https://scalastic.io/en/hexagonal-architecture/)).
 
-Наш проект — **прагматичный гибрид**: driven-порты и их адаптеры уже лежат в `data/` (репозитории в
-`infrastructure/repositories`, compute-абстракция + docker-адаптер в `infrastructure/data-sources/compute`). Ради консистентности
-gateway кладём туда же:
+Мы приняли именно строгий вариант (рефактор R2): **все driven-порты — абстрактные классы в `application/interfaces/`,
+их реализации — в `infrastructure/`**. Это касается и репозиториев, и gateway-ев одинаково:
 ```text
+src/application/interfaces/
+    gateways/<что>-gateway.ts               # порт gateway: абстрактный класс, методы в нашем словаре
+    repositories/<сущность>-repository.ts   # порт репозитория: абстрактный класс
+
 src/infrastructure/gateways/<что-абстрагируем>/
-    <что>-gateway.ts                      # порт: методы в нашем словаре
-    <backend>/<backend>-<что>-gateway.ts   # адаптер (клиент внешней системы внутри)
-    <что>-gateway-provider.ts              # фабрика адаптера (по конфигу/провайдеру), если их несколько
+    <backend>/<backend>-<что>-gateway.ts    # адаптер (клиент внешней системы внутри)
+    <что>-gateway-provider.ts               # фабрика адаптера (по конфигу/провайдеру), если их несколько
+src/infrastructure/repositories/<сущность>-repository-impl.ts   # реализация репозитория
 ```
-Строгий hexagonal (порты → `application/ports`, адаптеры → `infrastructure`) — это **отдельный общий рефактор
-для ВСЕХ портов** (репозитории/data-source тоже), а не только для gateway.
+Абстрактный класс (а не TS-`interface`) — потому что в NestJS он служит одновременно типом и **DI-токеном**:
+`{ provide: EnvironmentProviderGateway, useClass: DockerEnvironmentProviderGateway }` (для репозиториев —
+`{ provide: <X>Repository, useClass: <X>RepositoryImpl }`). Use-case инжектит порт по абстракции, композит-рут
+(модуль) связывает его с реализацией. Порт зависит только от `domain`; реализация — от `domain` + свои data-source-ы/клиент.
 
 ## 7. Зависимости: что во что инжектится
 

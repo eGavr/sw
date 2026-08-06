@@ -11,11 +11,11 @@ import { NoActiveProviderAccountError } from "../../../domain/entities/provider-
 import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
 import { UserCredentials } from "../../../domain/entities/user/user-credentials";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
-import { AccountRepository } from "../../../infrastructure/repositories/account-repository";
-import { AccountUserPermissionRepository } from "../../../infrastructure/repositories/account-user-permission-repository";
-import { EnvironmentRepository } from "../../../infrastructure/repositories/environment-repository";
-import { ProviderAccountRepository } from "../../../infrastructure/repositories/provider-account-repository";
-import { UserRepository } from "../../../infrastructure/repositories/user-repository";
+import { AccountRepository } from "../../interfaces/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../interfaces/repositories/account-user-permission-repository";
+import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
+import { ProviderAccountRepository } from "../../interfaces/repositories/provider-account-repository";
+import { UserRepository } from "../../interfaces/repositories/user-repository";
 
 type CreateEnvironmentInput = {
     creds: {

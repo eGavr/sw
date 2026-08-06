@@ -4,6 +4,13 @@ import { BadRequestException, MiddlewareConsumer, Module, NestModule, Validation
 import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
+import { AccountRepository } from "../../../application/interfaces/repositories/account-repository";
+import {
+    AccountUserPermissionRepository,
+} from "../../../application/interfaces/repositories/account-user-permission-repository";
+import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
+import { ProviderAccountRepository } from "../../../application/interfaces/repositories/provider-account-repository";
+import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { CreateAccountUseCase } from "../../../application/use-cases/accounts/create-account-use-case";
 import { GetAccountUseCase } from "../../../application/use-cases/accounts/get-account-use-case";
 import { ListAccountsUseCase } from "../../../application/use-cases/accounts/list-accounts-use-case";
@@ -25,11 +32,13 @@ import {
     UserPermissionDataSource as PgUserPermissionDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/user-permission-data-source";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
-import { AccountRepository } from "../../../infrastructure/repositories/account-repository";
-import { AccountUserPermissionRepository } from "../../../infrastructure/repositories/account-user-permission-repository";
-import { EnvironmentRepository } from "../../../infrastructure/repositories/environment-repository";
-import { ProviderAccountRepository } from "../../../infrastructure/repositories/provider-account-repository";
-import { UserRepository } from "../../../infrastructure/repositories/user-repository";
+import { AccountRepositoryImpl } from "../../../infrastructure/repositories/account-repository-impl";
+import {
+    AccountUserPermissionRepositoryImpl,
+} from "../../../infrastructure/repositories/account-user-permission-repository-impl";
+import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
+import { ProviderAccountRepositoryImpl } from "../../../infrastructure/repositories/provider-account-repository-impl";
+import { UserRepositoryImpl } from "../../../infrastructure/repositories/user-repository-impl";
 import { AipExceptionFilter } from "../filters/aip-exception-filter";
 import { ResponseInterceptor } from "../interceptors/response-interceptor";
 import { ContextMiddleware } from "../middlewares/contex-middleware";
@@ -61,11 +70,11 @@ import { EnvironmentsController } from "./controllers/environments/environments-
         ListAccountsUseCase,
         TestAccountPermissionsUseCase,
 
-        AccountRepository,
-        UserRepository,
-        AccountUserPermissionRepository,
-        EnvironmentRepository,
-        ProviderAccountRepository,
+        { provide: AccountRepository, useClass: AccountRepositoryImpl },
+        { provide: UserRepository, useClass: UserRepositoryImpl },
+        { provide: AccountUserPermissionRepository, useClass: AccountUserPermissionRepositoryImpl },
+        { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
+        { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
 
         AccountDataSource,
         EnvironmentDataSource,

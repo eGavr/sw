@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 
 import { Session } from "../../../domain/entities/session/session";
 import { SessionId } from "../../../domain/entities/session/session-id";
-import { SessionRepository } from "../../../infrastructure/repositories/session-repository";
+import { SessionRepository } from "../../interfaces/repositories/session-repository";
 
 type DeleteSessionInput = {
     params: {

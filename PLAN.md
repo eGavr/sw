@@ -167,10 +167,12 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    `notify_environment_work`. Есть doc `infrastructure/gateways/__ABOUT_GATEWAYS__.md`. **Остаток стадии 3:**
    reaper подвисших `starting`(малый)/`preparing`(большой) через `pg_cron`/app-reaper (`attempts`+идемпотентный
    провижн); per-account routing по `providerAccount.providerType` (сейчас гейтвей по `COMPUTE_PROVIDER`); delete-e2e.
-   **Плюс идёт РАСКЛАДКА ПАПОК по литературе** (см. память `current-state`): [done] `data/`→`infrastructure/`,
+   **Плюс РАСКЛАДКА ПАПОК по литературе** (см. память `current-state`): [done] `data/`→`infrastructure/`,
    use-cases→`application/`, presentation по механизму (`http/{api,wd}` + `worker/`, без уровня `nestjs`);
-   **[next] R2** — порт-интерфейсы (repo+gateway) → `application/interfaces/` (строгий DIP, DI по токену),
-   ждёт подтверждения: data-sources остаются в infra + имя реализации `…RepositoryImpl`.
+   **[done] R2** — порт-интерфейсы (repo+gateway) = абстрактные классы в `application/interfaces/{repositories,gateways}/`
+   (строгий DIP, DI по токену `{ provide: Port, useClass: …Impl }`), реализации остались в `infrastructure/`
+   как `…RepositoryImpl` / `<backend>…Gateway`; общие query-типы (`FindUserQuery`, `FindPermissionsQuery`,
+   `CreateEnvironmentParams`) переехали в порт; data-sources остались в infra. Зелёно: tsc 0 · eslint 0 · unit 73 · integration 37.
    Стадии 4–7 — агент+heartbeat / аллокация / GC / auth `/internal`.
 
 10. **IAM access-management (Слой 2, наша authZ) — ОТДЕЛЬНЫЙ воркстрим, не на критическом пути compute.**

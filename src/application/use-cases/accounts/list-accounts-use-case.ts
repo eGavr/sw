@@ -3,8 +3,8 @@ import { Injectable } from "@nestjs/common";
 import { Account } from "../../../domain/entities/account/account";
 import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
 import { UserCredentials } from "../../../domain/entities/user/user-credentials";
-import { AccountRepository } from "../../../infrastructure/repositories/account-repository";
-import { UserRepository } from "../../../infrastructure/repositories/user-repository";
+import { AccountRepository } from "../../interfaces/repositories/account-repository";
+import { UserRepository } from "../../interfaces/repositories/user-repository";
 
 type ListAccountsInput = {
     creds: {

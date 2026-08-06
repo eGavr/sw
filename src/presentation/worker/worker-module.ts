@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 
+import { EnvironmentRepository } from "../../application/interfaces/repositories/environment-repository";
 import {
     DeprovisionDeletingEnvironmentsUseCase,
 } from "../../application/use-cases/environments/deprovision-deleting-environments-use-case";
@@ -13,7 +14,7 @@ import {
     EnvironmentProviderGatewayProvider,
 } from "../../infrastructure/gateways/environment-provider/environment-provider-gateway-provider";
 import { LoggerModule } from "../../infrastructure/logging/logger-module";
-import { EnvironmentRepository } from "../../infrastructure/repositories/environment-repository";
+import { EnvironmentRepositoryImpl } from "../../infrastructure/repositories/environment-repository-impl";
 
 import { EnvironmentWorker } from "./environment-worker";
 
@@ -29,7 +30,7 @@ import { EnvironmentWorker } from "./environment-worker";
         EnvironmentWorker,
         PrepareNextEnvironmentUseCase,
         DeprovisionDeletingEnvironmentsUseCase,
-        EnvironmentRepository,
+        { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         EnvironmentDataSource,
         EnvironmentProviderGatewayProvider,
     ],
