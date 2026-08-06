@@ -155,9 +155,14 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    заменил `AccountResourceProvider` (убран из `Account` и схемы, миграция дропает таблицу); create-account (A)
    заводит дефолтную `ProviderAccount` из `resources` запроса; create-environment резолвит ACTIVE (иначе 409) и
    пишет `provider_account_id`; account-ответ больше не отдаёт `resources`. Data source фильтрует по переданному
-   `state` (предикат «active» — в домене/репозитории). **Следующая — стадия 3**: compute-воркер (LISTEN/NOTIFY +
-   SKIP LOCKED; `enqueued`→запуск, `deleting`→остановка; запись `endpoint` при регистрации; `failed`/ретрай;
-   роутинг провижна `env→account→providerAccount→адаптер`). Стадии 4–7 — агент+heartbeat / аллокация / GC / auth `/internal`.
+   `state` (предикат «active» — в домене/репозитории). **Следующая — стадия 3**: compute-воркер, **4 фазы**
+   `enqueued→starting→preparing` (воркер забрал→starting; compute OK→preparing; агент→executing на стадии 4).
+   Раскладка: presentation = raw pg `LISTEN`/NOTIFY «насос» (тупой будильник); use-case `find`→`claim`→`save`
+   (optimistic-забор)→`compute.start`→`markDispatched`→`save`; **repository ТОЛЬКО `find`/`save`** (по DDD:
+   актуатор = Gateway, не Repository — сверено с внешними источниками; `start`/`stop` в `DockerClient`,
+   compute-data-source реконсилит на `save`); **reaper** подвисших `starting`(малый таймаут)/`preparing`(большой)
+   — краш после коммита состояния (свет в ДЦ), `attempts`+идемпотентный провижн, тик в `pg_cron`; роутинг
+   `env→account→providerAccount→адаптер`. Стадии 4–7 — агент+heartbeat / аллокация / GC / auth `/internal`.
 
 10. **IAM access-management (Слой 2, наша authZ) — ОТДЕЛЬНЫЙ воркстрим, не на критическом пути compute.**
     Сейчас: `create-account` даёт создателю все права (grant-all owner) + `:testIamPermissions` (проверить свои).

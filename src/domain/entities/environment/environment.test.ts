@@ -20,6 +20,15 @@ function makeEnvironment(): Environment {
     });
 }
 
+// enqueued -> starting -> preparing
+function makePreparing(): Environment {
+    const environment = makeEnvironment();
+    environment.claim();
+    environment.markDispatched();
+
+    return environment;
+}
+
 describe("Environment", () => {
     describe(".create", () => {
         test("should start enqueued, free, without endpoint", () => {
@@ -42,12 +51,12 @@ describe("Environment", () => {
     });
 
     describe("#claim", () => {
-        test("should move enqueued to preparing", () => {
+        test("should move enqueued to starting", () => {
             const environment = makeEnvironment();
 
             environment.claim();
 
-            expect(environment.state).toBe(EnvironmentState.Preparing);
+            expect(environment.state).toBe(EnvironmentState.Starting);
         });
 
         test("should reject claiming twice", () => {
@@ -58,11 +67,27 @@ describe("Environment", () => {
         });
     });
 
+    describe("#markDispatched", () => {
+        test("should move starting to preparing once compute accepted", () => {
+            const environment = makeEnvironment();
+            environment.claim();
+
+            environment.markDispatched();
+
+            expect(environment.state).toBe(EnvironmentState.Preparing);
+        });
+
+        test("should reject dispatch before the environment was claimed", () => {
+            const environment = makeEnvironment();
+
+            expect(() => environment.markDispatched()).toThrow(InvalidEnvironmentStateTransitionError);
+        });
+    });
+
     describe("#register", () => {
         test("should activate a preparing environment with an endpoint and a heartbeat", () => {
-            const environment = makeEnvironment();
+            const environment = makePreparing();
             const now = new Date();
-            environment.claim();
 
             environment.register(new EnvironmentEndpoint("http://host:4444"), now);
 
@@ -72,9 +97,8 @@ describe("Environment", () => {
         });
 
         test("should report UNHEALTHY once the heartbeat goes stale", () => {
-            const environment = makeEnvironment();
+            const environment = makePreparing();
             const registeredAt = new Date(0);
-            environment.claim();
             environment.register(new EnvironmentEndpoint("http://host:4444"), registeredAt);
 
             const later = new Date(registeredAt.getTime() + freshnessMs + 1);
@@ -93,9 +117,8 @@ describe("Environment", () => {
 
     describe("#heartbeat", () => {
         test("should update busy while executing", () => {
-            const environment = makeEnvironment();
+            const environment = makePreparing();
             const now = new Date();
-            environment.claim();
             environment.register(new EnvironmentEndpoint("http://host:4444"), now);
 
             environment.heartbeat(true, now);
@@ -111,7 +134,7 @@ describe("Environment", () => {
     });
 
     describe("#failProvisioning", () => {
-        test("should fail a preparing environment with a reason", () => {
+        test("should fail from starting with a reason", () => {
             const environment = makeEnvironment();
             environment.claim();
 
@@ -121,12 +144,19 @@ describe("Environment", () => {
             expect(environment.stateReason).toBe(EnvironmentStateReason.PermissionDenied);
             expect(environment.effectiveStatus(new Date(), freshnessMs)).toBe(EnvironmentStatus.Failed);
         });
+
+        test("should fail from preparing", () => {
+            const environment = makePreparing();
+
+            environment.failProvisioning(EnvironmentStateReason.ProviderError);
+
+            expect(environment.state).toBe(EnvironmentState.Failed);
+        });
     });
 
     describe("#retryProvisioning", () => {
-        test("should return a preparing environment to the queue and clear the reason", () => {
-            const environment = makeEnvironment();
-            environment.claim();
+        test("should return a provisioning environment to the queue and clear the reason", () => {
+            const environment = makePreparing();
 
             environment.retryProvisioning();
 
@@ -146,9 +176,8 @@ describe("Environment", () => {
         });
 
         test("should read as DELETING while fresh and DELETED once stale", () => {
-            const environment = makeEnvironment();
+            const environment = makePreparing();
             const registeredAt = new Date(0);
-            environment.claim();
             environment.register(new EnvironmentEndpoint("http://host:4444"), registeredAt);
             environment.startDeletion();
 

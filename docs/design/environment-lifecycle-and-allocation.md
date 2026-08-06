@@ -17,8 +17,10 @@
     независимый `busy` и сломали 1:1-занятость. Для Docker — выбор оператора: упаковать несколько
     браузеров в один образ (одно окружение, общая занятость) или разнести на разные образы
     (независимая занятость).
-- **Async-жизненный цикл**: `enqueued → preparing → executing → deleting → (строка снесена GC)`,
-  плюс терминальный `failed` (провижн не удался).
+- **Async-жизненный цикл**: `enqueued → starting → preparing → executing → deleting → (строка снесена GC)`,
+  плюс терминальный `failed` (провижн не удался). `starting` = воркер забрал и диспатчит в compute;
+  `preparing` = compute принял, ждём агента. Разные фазы → разные таймауты (см. «Reclaim»). Внутренние
+  `starting`/`preparing` схлопываются во внешний `PREPARING`.
 - **Сессии отдельной таблицей НЕ храним** (пока): только `environment` (+ дочерняя
   `environment_application`) + флаг `busy`. Секрет сессии (wdSessionId) в БД/логи **не кладём** —
   роутинг stateless (endpoint закодирован в session id).
@@ -61,8 +63,10 @@ busy=false`; матч приложения — `EXISTS` по `environment_applic
 ## Кто что пишет в БД (важно: воркер НЕ хартбитит)
 - **api** (control-plane): `INSERT enqueued` (create), `UPDATE state=deleting` (delete). **Наша
   авторизация — синхронно здесь.**
-- **worker**: только claim (`enqueued→preparing`, SKIP LOCKED) и переходы `failed`/ретрай.
-  `busy`/`last_heartbeat_at`/`endpoint` **не трогает**.
+- **worker**: claim (`enqueued→starting`, guard/optimistic) → `compute.start` вернул OK →
+  `starting→preparing`; плюс переходы `failed`/ретрай и reclaim протухших `starting`/`preparing`.
+  `busy`/`last_heartbeat_at`/`endpoint` **не трогает** (endpoint пишет агент при регистрации). Воркер
+  пишет `starting`+`preparing` — это факт диспатча, который он знает сам (не хартбит/не endpoint).
 - **internal-handler** (принимает хартбит агента изнутри контейнера): пишет `busy` +
   `last_heartbeat_at`; **первый хартбит = регистрация** → пишет `endpoint` + `state=executing`.
 - **GC** (`pg_cron`): `DELETE` протухших/старых.
@@ -76,27 +80,27 @@ busy=false`; матч приложения — `EXISTS` по `environment_applic
 1. `POST …/environments {platform, applications}` → **синхронно** в api-хендлере: authN + наша authZ
    (`environment:create`) + есть ACTIVE connection у аккаунта → `INSERT state=enqueued` → ответ:
    ресурс `ENQUEUED` (клиент поллит `GET`). *(create — state-based async, как и delete.)*
-2. **Воркер** подхватывает `enqueued` → `state=preparing` (короткая claim-транзакция) → зовёт
-   `compute.start(id, credential)`; compute поднимает контейнер, **выбирает host-порт и прокидывает
-   внутрь `id` + `endpoint` + базовый URL `/internal`** (env-vars).
+2. **Воркер** забирает `enqueued → starting` (короткая guard-tx; проиграл гонку → бросил) → зовёт
+   `compute.start(id, credential)`; compute поднимает контейнер, прокидывает внутрь `id` + базовый URL
+   `/internal` (env-vars). Получил **OK** от compute → `starting → preparing`.
 3. **Агент** внутри контейнера шлёт первый хартбит `POST /internal/environments/{id}:heartbeat
    {endpoint, busy}` → **internal-handler пишет `endpoint` + `last_heartbeat_at` + `state=executing`**
    (регистрация).
-4. Клиент через `GET` видит `EXECUTING`.
-   Провижн не удался → см. «Ошибки провижна».
+4. Клиент через `GET` видит `EXECUTING`. (Внутренние `starting`/`preparing` схлопываются во внешний
+   `PREPARING`.) Провижн не удался / завис → см. «Ошибки провижна» и «Reclaim».
 
 ## Ошибки провижна (failed / ретрай)
 - Compute-адаптер (data-source) переводит ошибку провайдера в **доменную классификацию** на границе
   data-слоя (не пропуская backend-текст/секреты):
-  - **permanent** (нет прав / нет квоты / кривые caps) → `preparing → failed` + `state_reason`,
-    **без ретрая**.
-  - **transient** (сеть / 5xx / временно нет ёмкости) → `preparing → enqueued` (bounded retry +
-    backoff); ретраи исчерпаны → `failed`.
+  - **permanent** (нет прав / нет квоты / кривые caps) → `failed` + `state_reason`, **без ретрая**.
+  - **transient** (сеть / 5xx / временно нет ёмкости) → назад в `enqueued` (bounded retry + backoff);
+    ретраи исчерпаны → `failed`.
+- `failProvisioning`/`retryProvisioning` допустимы из **`starting` ИЛИ `preparing`** (обе провижн-фазы).
 - Решение «ретрай или падать» — **доменное правило стейт-машины** `Environment`
   (`failProvisioning(reason)` / `retryProvisioning()`); воркер лишь диспетчеризует пойманную
   классифицированную ошибку.
-- `failed` — из `preparing` («не поднялось»). Если `executing` **уже жил и умер** (доступ отозвали на
-  ходу, краш) — это протухший хартбит, ловит heartbeat-GC, а **не** `failed`. Разные механизмы.
+- `failed` — «не поднялось» (из `starting`/`preparing`). Если `executing` **уже жил и умер** (доступ
+  отозвали на ходу, краш) — это протухший хартбит, ловит heartbeat-GC, а **не** `failed`. Разные механизмы.
 - `failed` не имеет хартбита → heartbeat-GC его не сносит → **TTL-GC**
   `DELETE WHERE state='failed' AND updated_at < now()-<ttl>` (окно прочитать причину) + юзер может
   `DELETE` сам.
@@ -104,6 +108,41 @@ busy=false`; матч приложения — `EXISTS` по `environment_applic
 - `GET`: `failed` → эффективный `FAILED` + `state_reason` (AIP-216 state + AIP-193 error detail).
 - Аллокацию не трогает: она берёт только `executing & busy=false & свежий` → `failed`/`enqueued`/
   `preparing`/`deleting` отсекаются сами.
+
+## Воркер (стадия 3) — раскладка по слоям
+Аналогия «сервер ↔ воркер»: у HTTP-сервера презентация держит сокет и на route-хук зовёт use-case;
+у воркера презентация держит **raw `pg`-коннекшн с `LISTEN`** и на событие в БД зовёт use-case.
+- **presentation (worker runtime):** триггер БД `AFTER INSERT/UPDATE WHEN state IN ('enqueued','deleting')`
+  → `pg_notify('environment_work')`; воркер LISTEN (TypeORM LISTEN не отдаёт → raw `pg`) + **startup
+  catch-up** скан (NOTIFY недурабелен). NOTIFY — **тупой широковещательный будильник**; презентация НЕ
+  трогает SQL/локи, просто «насос»: дёргает use-case, пока тот не скажет «забирать нечего» (дренаж).
+- **use-case:** один сценарий = «подготовить следующее `enqueued`»: `find` → `env.claim()` (домен,
+  `enqueued→starting`) → `save` (проиграл гонку → skip) → `compute.start` → OK → `env.markDispatched()`
+  (`starting→preparing`) → `save`; ошибка → `failProvisioning`/`retryProvisioning`. Claim и провижн — в
+  ОДНОМ use-case (НЕ «презентация захватила → отдельный старт»).
+- **repository:** только `find` + `save` (collection-семантика). **НЕТ `claimNext`/`start`/`stop`**
+  (по DDD: сайд-эффектный актуатор — это Gateway, а не Repository). `start`/`stop` живут в `DockerClient`
+  (`run`/`remove`); **compute-data-source реконсилит контейнер под состояние на `save`** (`preparing`→
+  поднять, `deleting`→снести) — «побочный эффект как save», операционные verb'ы в клиенте бэкенда.
+- **data-source (лок):** конкуренция N воркеров решается НЕ уникальностью уведомления, а
+  **единственностью ЗАХВАТА**: `save` claim'а — **optimistic** (условный `UPDATE … WHERE state='enqueued'`;
+  0 строк → проиграл → skip). Синхронизировать воркеров не надо. `FOR UPDATE SKIP LOCKED` — опция на случай
+  контеншена (нагрузка стабильная/низкая → optimistic достаточно). Лок/guard — забота data-source.
+
+### Reclaim подвисших (краш после коммита состояния)
+Воркер закоммитил `starting`/`preparing` и умер (свет в ДЦ) → строка зависла (БД откатывает только
+НЕзакоммиченное) → нужен app-механизм: **лиз с таймаутом**, два порога:
+- **`starting`-timeout — МАЛЫЙ** (~сек–15с): забрал и умер, не дождавшись OK от compute → быстрый reclaim.
+- **`preparing`-timeout — БОЛЬШОЙ** (~1–2 мин): compute принял, но **агент не отчитался** (кривой образ /
+  агент упал) → reclaim или `failed`.
+Reaper: `state IN ('starting','preparing') AND updated_at < now() - <свой порог>` → назад в `enqueued`
+(bounded `attempts` → `failed`). Возврат — тем же guard-забором. **Идемпотентный провижн**: перед стартом
+снести любой контейнер этого `env id` (по label), иначе повтор наплодит второй.
+- **Тик нельзя убрать совсем** (у таймаута нет события; in-memory таймер умрёт с воркером) → один durable
+  тик в **`pg_cron`** (тот же, что GC): reclaim `starting/preparing→enqueued` сам «звонит» через
+  существующий NOTIFY, воркеры остаются событийными. Fallback без `pg_cron` — один app-reaper под
+  `pg_try_advisory_lock`.
+- Порог свежести хартбита (6с, для `executing`) ≠ provisioning-таймауты (длиннее). Разные вещи.
 
 ## Аллокация сессии (create-session)
 - `POST /sessions {accountId, application}` — **без явного environmentId** (пул-аллокация).
@@ -208,18 +247,23 @@ POST /accounts/{acc}/environments {platform, applications}
 
 ## Стадии реализации
 1. **[сделано]** ADR (этот файл) + разворот доменной секции `CLAUDE.md`/памяти.
-2. Миграция `environment` (+ `environment_application`; `state` вкл. `failed`; `state_reason`;
-   capability-колонки; `busy`; `last_heartbeat_at`; **без** `connection_id` пока); доменный
-   `Environment` со стейт-машиной (набор приложений; `failProvisioning`/`retryProvisioning` как
-   спецификация); репозиторий поверх Postgres; async `create` (`enqueued`); `GET` c эффективным
-   `state`; async `delete` (`deleting`). **Аккаунты/юзеры НЕ трогаем.**
+2. **[сделано]** Миграция `environment` (+ `environment_application`; `state` вкл. `failed`; `state_reason`;
+   capability-колонки; `busy`; `last_heartbeat_at`); доменный `Environment` со стейт-машиной (набор
+   приложений; переходы `claim`/`markDispatched`/`register`/`heartbeat`/`failProvisioning`/`retryProvisioning`/
+   `startDeletion`; `effectiveStatus`); репозиторий поверх Postgres; async `create` (`enqueued`); `GET` c
+   эффективным `state`; async `delete` (`deleting`). *(Позже добавлена 4-я фаза `starting`.)*
 2.5. **[сделано]** Рерайт слоя подключений: `ProviderAccount`-агрегат (N на аккаунт, `credential_ref`,
    `state`, `isActive`) + `ProviderAccountRepository`/`ProviderAccountDataSource` + `environment.provider_account_id`;
    заменил `AccountResourceProvider` (убран из агрегата `Account` и из схемы). create-account (вариант A)
    заводит дефолтную `ProviderAccount`; create-environment резолвит ACTIVE (иначе 409). Роутинг провижна
    `env→account→providerAccount→адаптер` — на воркере (стадия 3). Аддитивная миграция.
-3. Compute-воркер: `LISTEN/NOTIFY` + `FOR UPDATE SKIP LOCKED` claim (`enqueued` запуск, `deleting`
-   остановка); наполнение переходов `failed`/ретрай; best-effort stop orphan; preparing-timeout recovery.
+3. Compute-воркер (4 фазы `enqueued→starting→preparing`): presentation = raw pg `LISTEN`/NOTIFY + catch-up
+   «насос» (тупой будильник); use-case «подготовить следующее `enqueued`» = `find`→`claim`→`save`
+   (optimistic-забор)→`compute.start`→`markDispatched`→`save`; **repository ТОЛЬКО `find`/`save`** (без
+   `claimNext`/`start`/`stop`); compute-data-source реконсилит контейнер на `save` (`start`/`stop` — в
+   `DockerClient`); роутинг `env→account→providerAccount→адаптер`. **Reaper** подвисших `starting`/`preparing`
+   (малый/большой таймауты, `attempts`, идемпотентный провижн) + `deleting`→`compute.stop`. Отдельный
+   entrypoint воркера. `executing`/`endpoint` — НЕ здесь (агент, стадия 4).
 4. Агент (в образе) + `/internal:heartbeat` (регистрация: `endpoint`+`executing`; `busy`; liveness).
 5. Аллокация сессии: `create-session` на `{accountId, application}` с оптимистичным pick+retry;
    убрать явный `environmentId`.

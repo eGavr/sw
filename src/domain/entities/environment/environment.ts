@@ -161,7 +161,11 @@ export class Environment {
     }
 
     claim(): void {
-        this.transition(EnvironmentState.Enqueued, EnvironmentState.Preparing);
+        this.transition(EnvironmentState.Enqueued, EnvironmentState.Starting);
+    }
+
+    markDispatched(): void {
+        this.transition(EnvironmentState.Starting, EnvironmentState.Preparing);
     }
 
     register(endpoint: EnvironmentEndpoint, now: Date): void {
@@ -181,12 +185,12 @@ export class Environment {
     }
 
     failProvisioning(reason: EnvironmentStateReason): void {
-        this.transition(EnvironmentState.Preparing, EnvironmentState.Failed);
+        this.transitionFromProvisioning(EnvironmentState.Failed);
         this._stateReason = reason;
     }
 
     retryProvisioning(): void {
-        this.transition(EnvironmentState.Preparing, EnvironmentState.Enqueued);
+        this.transitionFromProvisioning(EnvironmentState.Enqueued);
         this._stateReason = null;
     }
 
@@ -203,6 +207,8 @@ export class Environment {
         switch (this._state) {
             case EnvironmentState.Enqueued:
                 return EnvironmentStatus.Enqueued;
+            case EnvironmentState.Starting:
+                return EnvironmentStatus.Preparing;
             case EnvironmentState.Preparing:
                 return EnvironmentStatus.Preparing;
             case EnvironmentState.Failed:
@@ -237,6 +243,15 @@ export class Environment {
 
     private transition(from: EnvironmentState, to: EnvironmentState): void {
         if (this._state !== from) {
+            throw new InvalidEnvironmentStateTransitionError(this._state, to);
+        }
+
+        this._state = to;
+        this.touch();
+    }
+
+    private transitionFromProvisioning(to: EnvironmentState): void {
+        if (this._state !== EnvironmentState.Starting && this._state !== EnvironmentState.Preparing) {
             throw new InvalidEnvironmentStateTransitionError(this._state, to);
         }
 
