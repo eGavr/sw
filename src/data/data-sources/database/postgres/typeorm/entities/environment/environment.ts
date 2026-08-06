@@ -67,6 +67,10 @@ export class Environment {
     @Column({ default: false })
     busy: boolean;
 
+    // Provisioning attempts, incremented by the worker's claim; the reaper caps retries with it.
+    @Column({ type: "int", default: 0 })
+    attempts: number;
+
     @Column({ type: "timestamptz", nullable: true })
     lastHeartbeatAt: Date | null;
 

@@ -50,6 +50,25 @@ describe("Environment", () => {
         });
     });
 
+    describe("#shouldBeRunning", () => {
+        test("should want a container only while starting/preparing/executing", () => {
+            const environment = makeEnvironment();
+            expect(environment.shouldBeRunning()).toBe(false); // enqueued
+
+            environment.claim();
+            expect(environment.shouldBeRunning()).toBe(true); // starting
+
+            environment.markDispatched();
+            expect(environment.shouldBeRunning()).toBe(true); // preparing
+
+            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date());
+            expect(environment.shouldBeRunning()).toBe(true); // executing
+
+            environment.startDeletion();
+            expect(environment.shouldBeRunning()).toBe(false); // deleting
+        });
+    });
+
     describe("#claim", () => {
         test("should move enqueued to starting", () => {
             const environment = makeEnvironment();

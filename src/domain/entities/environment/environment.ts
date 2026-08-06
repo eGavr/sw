@@ -160,6 +160,14 @@ export class Environment {
         return this.applications.has(application);
     }
 
+    // Whether the compute backend should be running a container for this environment right now.
+    // The compute data source only reconciles to this flag; it does not decide it.
+    shouldBeRunning(): boolean {
+        return this._state === EnvironmentState.Starting
+            || this._state === EnvironmentState.Preparing
+            || this._state === EnvironmentState.Executing;
+    }
+
     claim(): void {
         this.transition(EnvironmentState.Enqueued, EnvironmentState.Starting);
     }
