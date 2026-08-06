@@ -3,10 +3,10 @@ import { Injectable } from "@nestjs/common";
 import { AccountRepository } from "../../../data/repositories/account-repository";
 import { ProviderAccountRepository } from "../../../data/repositories/provider-account-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
-import { Account } from "../../entities/account/account";
-import { AccountId } from "../../entities/account/account-id";
-import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
-import { UserCredentials } from "../../entities/user/user-credentials";
+import { Account } from "../../../domain/entities/account/account";
+import { AccountId } from "../../../domain/entities/account/account-id";
+import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
+import { UserCredentials } from "../../../domain/entities/user/user-credentials";
 
 type CreateAccountInput = {
     creds: {

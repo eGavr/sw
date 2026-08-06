@@ -2,6 +2,7 @@ import { BadRequestException, MiddlewareConsumer, Module, NestModule, Validation
 import { ConfigModule } from "@nestjs/config";
 import { APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
+import { CreateSessionUseCase } from "../../../../../application/use-cases/sessions/create-session-use-case";
 import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../../../data/data-sources/auth/user-data-source-provider";
 import { LocalComputeStore } from "../../../../../data/data-sources/compute/local/local-compute-store";
 import { SessionDataSourceProvider } from "../../../../../data/data-sources/compute/session-data-source-provider";
@@ -19,7 +20,6 @@ import { EnvironmentRepository } from "../../../../../data/repositories/environm
 import { ProviderAccountRepository } from "../../../../../data/repositories/provider-account-repository";
 import { SessionRepository } from "../../../../../data/repositories/session-repository";
 import { UserRepository } from "../../../../../data/repositories/user-repository";
-import { CreateSessionUseCase } from "../../../../../domain/use-cases/sessions/create-session-use-case";
 import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
 import { LoggerModule } from "../../../../../infrastructure/logging/logger-module";
 import { ErrorInterceptor } from "../../interceptors/error-interceptor";

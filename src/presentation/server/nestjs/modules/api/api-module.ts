@@ -4,6 +4,14 @@ import { BadRequestException, MiddlewareConsumer, Module, NestModule, Validation
 import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
+import { CreateAccountUseCase } from "../../../../../application/use-cases/accounts/create-account-use-case";
+import { GetAccountUseCase } from "../../../../../application/use-cases/accounts/get-account-use-case";
+import { ListAccountsUseCase } from "../../../../../application/use-cases/accounts/list-accounts-use-case";
+import { TestAccountPermissionsUseCase } from "../../../../../application/use-cases/accounts/test-account-permissions-use-case";
+import { CreateEnvironmentUseCase } from "../../../../../application/use-cases/environments/create-environment-use-case";
+import { DeleteEnvironmentUseCase } from "../../../../../application/use-cases/environments/delete-environment-use-case";
+import { GetEnvironmentUseCase } from "../../../../../application/use-cases/environments/get-environment-use-case";
+import { ListEnvironmentsUseCase } from "../../../../../application/use-cases/environments/list-environments-use-case";
 import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../../../data/data-sources/auth/user-data-source-provider";
 import { AccountDataSource } from "../../../../../data/data-sources/database/postgres/account-data-source";
 import { EnvironmentDataSource } from "../../../../../data/data-sources/database/postgres/environment-data-source";
@@ -18,14 +26,6 @@ import { AccountUserPermissionRepository } from "../../../../../data/repositorie
 import { EnvironmentRepository } from "../../../../../data/repositories/environment-repository";
 import { ProviderAccountRepository } from "../../../../../data/repositories/provider-account-repository";
 import { UserRepository } from "../../../../../data/repositories/user-repository";
-import { CreateAccountUseCase } from "../../../../../domain/use-cases/accounts/create-account-use-case";
-import { GetAccountUseCase } from "../../../../../domain/use-cases/accounts/get-account-use-case";
-import { ListAccountsUseCase } from "../../../../../domain/use-cases/accounts/list-accounts-use-case";
-import { TestAccountPermissionsUseCase } from "../../../../../domain/use-cases/accounts/test-account-permissions-use-case";
-import { CreateEnvironmentUseCase } from "../../../../../domain/use-cases/environments/create-environment-use-case";
-import { DeleteEnvironmentUseCase } from "../../../../../domain/use-cases/environments/delete-environment-use-case";
-import { GetEnvironmentUseCase } from "../../../../../domain/use-cases/environments/get-environment-use-case";
-import { ListEnvironmentsUseCase } from "../../../../../domain/use-cases/environments/list-environments-use-case";
 import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
 import { LoggerModule } from "../../../../../infrastructure/logging/logger-module";
 import { AipExceptionFilter } from "../../filters/aip-exception-filter";

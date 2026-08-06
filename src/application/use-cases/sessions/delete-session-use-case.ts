@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
 import { SessionRepository } from "../../../data/repositories/session-repository";
-import { Session } from "../../entities/session/session";
-import { SessionId } from "../../entities/session/session-id";
+import { Session } from "../../../domain/entities/session/session";
+import { SessionId } from "../../../domain/entities/session/session-id";
 
 type DeleteSessionInput = {
     params: {

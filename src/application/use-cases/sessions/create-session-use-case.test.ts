@@ -5,16 +5,16 @@ import { AccountUserPermissionRepository } from "../../../data/repositories/acco
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
 import { SessionRepository } from "../../../data/repositories/session-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
-import { AccountId } from "../../entities/account/account-id";
-import { Application } from "../../entities/environment/application/application";
-import { ApplicationList } from "../../entities/environment/application/application-list";
-import { Environment } from "../../entities/environment/environment";
-import { ApplicationNotAvailableError } from "../../entities/environment/error/application-not-available-error";
-import { EnvironmentBusyError } from "../../entities/environment/error/environment-busy-error";
-import { Platform } from "../../entities/environment/platform/platform";
-import { PlatformName } from "../../entities/environment/platform/platform-name";
-import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
-import { User } from "../../entities/user/user";
+import { AccountId } from "../../../domain/entities/account/account-id";
+import { Application } from "../../../domain/entities/environment/application/application";
+import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
+import { Environment } from "../../../domain/entities/environment/environment";
+import { ApplicationNotAvailableError } from "../../../domain/entities/environment/error/application-not-available-error";
+import { EnvironmentBusyError } from "../../../domain/entities/environment/error/environment-busy-error";
+import { Platform } from "../../../domain/entities/environment/platform/platform";
+import { PlatformName } from "../../../domain/entities/environment/platform/platform-name";
+import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
+import { User } from "../../../domain/entities/user/user";
 
 import { CreateSessionUseCase } from "./create-session-use-case";
 

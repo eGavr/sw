@@ -1,9 +1,9 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, NotFoundException, Param, Post, Query } from "@nestjs/common";
 
-import { CreateAccountUseCase } from "../../../../../../../domain/use-cases/accounts/create-account-use-case";
-import { GetAccountUseCase } from "../../../../../../../domain/use-cases/accounts/get-account-use-case";
-import { ListAccountsUseCase } from "../../../../../../../domain/use-cases/accounts/list-accounts-use-case";
-import { TestAccountPermissionsUseCase } from "../../../../../../../domain/use-cases/accounts/test-account-permissions-use-case";
+import { CreateAccountUseCase } from "../../../../../../../application/use-cases/accounts/create-account-use-case";
+import { GetAccountUseCase } from "../../../../../../../application/use-cases/accounts/get-account-use-case";
+import { ListAccountsUseCase } from "../../../../../../../application/use-cases/accounts/list-accounts-use-case";
+import { TestAccountPermissionsUseCase } from "../../../../../../../application/use-cases/accounts/test-account-permissions-use-case";
 import { BearerToken } from "../../../../decorators/param/bearer-token";
 import { paginate } from "../../../../pagination/page";
 import { PageRequestModel } from "../../../../pagination/page-request-model";

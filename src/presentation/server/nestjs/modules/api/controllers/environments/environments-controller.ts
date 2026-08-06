@@ -1,9 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from "@nestjs/common";
 
-import { CreateEnvironmentUseCase } from "../../../../../../../domain/use-cases/environments/create-environment-use-case";
-import { DeleteEnvironmentUseCase } from "../../../../../../../domain/use-cases/environments/delete-environment-use-case";
-import { GetEnvironmentUseCase } from "../../../../../../../domain/use-cases/environments/get-environment-use-case";
-import { ListEnvironmentsUseCase } from "../../../../../../../domain/use-cases/environments/list-environments-use-case";
+import { CreateEnvironmentUseCase } from "../../../../../../../application/use-cases/environments/create-environment-use-case";
+import { DeleteEnvironmentUseCase } from "../../../../../../../application/use-cases/environments/delete-environment-use-case";
+import { GetEnvironmentUseCase } from "../../../../../../../application/use-cases/environments/get-environment-use-case";
+import { ListEnvironmentsUseCase } from "../../../../../../../application/use-cases/environments/list-environments-use-case";
 import { BearerToken } from "../../../../decorators/param/bearer-token";
 import { paginate } from "../../../../pagination/page";
 import { PageRequestModel } from "../../../../pagination/page-request-model";

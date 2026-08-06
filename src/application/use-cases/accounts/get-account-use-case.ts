@@ -3,12 +3,12 @@ import { Injectable } from "@nestjs/common";
 import { AccountRepository } from "../../../data/repositories/account-repository";
 import { AccountUserPermissionRepository } from "../../../data/repositories/account-user-permission-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
-import { Account } from "../../entities/account/account";
-import { AccountId } from "../../entities/account/account-id";
-import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
-import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
-import { UserCredentials } from "../../entities/user/user-credentials";
-import { UserPermissionName } from "../../entities/user/user-permission-name";
+import { Account } from "../../../domain/entities/account/account";
+import { AccountId } from "../../../domain/entities/account/account-id";
+import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
+import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
+import { UserCredentials } from "../../../domain/entities/user/user-credentials";
+import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 
 type GetAccountInput = {
     creds: {

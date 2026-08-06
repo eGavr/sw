@@ -1,7 +1,7 @@
 import { All, Body, Controller, Post, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 
-import { CreateSessionUseCase } from "../../../../../../../domain/use-cases/sessions/create-session-use-case";
+import { CreateSessionUseCase } from "../../../../../../../application/use-cases/sessions/create-session-use-case";
 import { BearerToken } from "../../../../decorators/param/bearer-token";
 import { SessionRoute } from "../../session-route";
 import { WebDriverProxy } from "../../webdriver-proxy";

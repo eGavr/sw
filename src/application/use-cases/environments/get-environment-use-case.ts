@@ -4,12 +4,12 @@ import { AccountRepository } from "../../../data/repositories/account-repository
 import { AccountUserPermissionRepository } from "../../../data/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
-import { Environment } from "../../entities/environment/environment";
-import { EnvironmentId } from "../../entities/environment/environment-id";
-import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
-import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
-import { UserCredentials } from "../../entities/user/user-credentials";
-import { UserPermissionName } from "../../entities/user/user-permission-name";
+import { Environment } from "../../../domain/entities/environment/environment";
+import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
+import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
+import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
+import { UserCredentials } from "../../../domain/entities/user/user-credentials";
+import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 
 type GetEnvironmentInput = {
     creds: {

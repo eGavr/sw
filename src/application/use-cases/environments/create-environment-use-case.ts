@@ -5,17 +5,17 @@ import { AccountUserPermissionRepository } from "../../../data/repositories/acco
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
 import { ProviderAccountRepository } from "../../../data/repositories/provider-account-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
-import { AccountId } from "../../entities/account/account-id";
-import { Application } from "../../entities/environment/application/application";
-import { ApplicationList } from "../../entities/environment/application/application-list";
-import { Environment } from "../../entities/environment/environment";
-import { Platform } from "../../entities/environment/platform/platform";
-import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
-import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
-import { NoActiveProviderAccountError } from "../../entities/provider-account/error/no-active-provider-account-error";
-import { ProviderAccountId } from "../../entities/provider-account/provider-account-id";
-import { UserCredentials } from "../../entities/user/user-credentials";
-import { UserPermissionName } from "../../entities/user/user-permission-name";
+import { AccountId } from "../../../domain/entities/account/account-id";
+import { Application } from "../../../domain/entities/environment/application/application";
+import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
+import { Environment } from "../../../domain/entities/environment/environment";
+import { Platform } from "../../../domain/entities/environment/platform/platform";
+import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
+import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
+import { NoActiveProviderAccountError } from "../../../domain/entities/provider-account/error/no-active-provider-account-error";
+import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
+import { UserCredentials } from "../../../domain/entities/user/user-credentials";
+import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 
 type CreateEnvironmentInput = {
     creds: {

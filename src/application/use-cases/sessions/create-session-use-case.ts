@@ -5,16 +5,16 @@ import { AccountUserPermissionRepository } from "../../../data/repositories/acco
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
 import { SessionRepository } from "../../../data/repositories/session-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
-import { Application } from "../../entities/environment/application/application";
-import { EnvironmentId } from "../../entities/environment/environment-id";
-import { ApplicationNotAvailableError } from "../../entities/environment/error/application-not-available-error";
-import { EnvironmentBusyError } from "../../entities/environment/error/environment-busy-error";
-import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
-import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
-import { Session } from "../../entities/session/session";
-import { SessionIdleTimeout } from "../../entities/session/session-idle-timeout";
-import { UserCredentials } from "../../entities/user/user-credentials";
-import { UserPermissionName } from "../../entities/user/user-permission-name";
+import { Application } from "../../../domain/entities/environment/application/application";
+import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
+import { ApplicationNotAvailableError } from "../../../domain/entities/environment/error/application-not-available-error";
+import { EnvironmentBusyError } from "../../../domain/entities/environment/error/environment-busy-error";
+import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
+import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
+import { Session } from "../../../domain/entities/session/session";
+import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
+import { UserCredentials } from "../../../domain/entities/user/user-credentials";
+import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 
 type CreateSessionInput = {
     creds: {
