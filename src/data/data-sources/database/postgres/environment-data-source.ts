@@ -32,6 +32,43 @@ export class EnvironmentDataSource {
         });
     }
 
+    // Atomically take the next environment in `state` (oldest first) under a row lock and apply the
+    // caller's transition to it. FOR UPDATE SKIP LOCKED lets N workers claim different rows without
+    // waiting or deadlocking; the transition itself is a domain method run inside `apply`.
+    async withNext(
+        state: string,
+        apply: (data: EnvironmentData) => EnvironmentData,
+    ): Promise<EnvironmentData | null> {
+        return this.dataSource.transaction(async (manager) => {
+            const locked = (await manager.query(
+                "SELECT id FROM environment WHERE state = $1 ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1",
+                [state],
+            )) as Array<{ id: string }>;
+
+            if (locked.length === 0) {
+                return null;
+            }
+
+            const { id } = locked[0];
+            const entity = await manager.getRepository(Environment).findOneOrFail({ where: { id } });
+            const next = apply(entity.toObject());
+
+            await manager.getRepository(Environment).update(id, {
+                state: next.state,
+                attempts: () => "attempts + 1",
+                updatedAt: next.updatedAt,
+            });
+
+            return next;
+        });
+    }
+
+    async findByState(state: string): Promise<Array<EnvironmentData>> {
+        const environments = await this.dataSource.getRepository(Environment).find({ where: { state } });
+
+        return environments.map((environment) => environment.toObject());
+    }
+
     async findOne(id: string): Promise<EnvironmentData | null> {
         const environment = await this.dataSource.getRepository(Environment).findOne({ where: { id } });
 
