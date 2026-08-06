@@ -134,11 +134,11 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    (`pg_cron`) сносит строку** по протухшему хартбиту; `DELETED` — вычисляемый статус. Секрет сессии в БД/логи
    НЕ кладём.
    **Аккаунты/доступ — 3 слоя** (тоже в design-doc): authN `User(external_id,provider_type)`; наша authZ
-   `Account`+`account_user_permission` (синхронно в handler-е); ресурс-подключения `Connection` (N на аккаунт,
-   `credential_ref`, `state`; заменяет `AccountResourceProvider`; `environment.connection_id`). **Путь A**:
-   авторизация к провайдеру = владение активным `Connection`, внешний доступ энфорсит провайдер на провижне
-   (`compute.start(credential)`, reject → `failed`), не синхронным гейтом; оптимизации (фоновая валидация
-   Connection / pre-flight) — потом.
+   `Account`+`account_user_permission` (синхронно в handler-е); ресурс-подключения **`ProviderAccount`** (N на
+   аккаунт, `credential_ref`, `state`; заменил `AccountResourceProvider`; `environment.provider_account_id`) —
+   *привязка аккаунта к провайдеру ресурсов*, не описание провайдера. **Путь A**: авторизация к провайдеру =
+   владение активным `ProviderAccount`, внешний доступ энфорсит провайдер на провижне (`compute.start(credential)`,
+   reject → `failed`), не синхронным гейтом; оптимизации (фоновая валидация / pre-flight) — потом.
    **Стадии — в `docs/design/…`; стадии 1 (ADR) и 2 СДЕЛАНЫ.**
    Стадия 2 (проверено: `tsc` 0 · `eslint` 0 · юниты **66/66** · интеграция **37/37** · живой Postgres):
    миграция `environment`+`environment_application`; доменная стейт-машина `Environment` (набор приложений,
@@ -150,9 +150,14 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    удаление + вынос image-resolver в compute-исполнитель — стадия 3/5); wd create-session на local-compute
    жив. Правило зафиксировано: data source/repository без доменных вычислений (предикаты живости формирует
    домен) — см. `CLAUDE.md`.
-   **Следующая — стадия 2.5** (перед воркером): рерайт слоя подключений (`Connection`-агрегат +
-   `environment.connection_id` + роутинг провижна `env→account→connection→адаптер`). Стадии 3–7 — воркер /
-   агент+heartbeat / аллокация / GC / auth `/internal`.
+   **Стадия 2.5 СДЕЛАНА** (проверено: `tsc` 0 · `eslint` 0 · юниты **69/69** · интеграция **37/37** · живой
+   Postgres): `ProviderAccount`-агрегат (+ repo/data-source, `isActive`), `environment.provider_account_id`,
+   заменил `AccountResourceProvider` (убран из `Account` и схемы, миграция дропает таблицу); create-account (A)
+   заводит дефолтную `ProviderAccount` из `resources` запроса; create-environment резолвит ACTIVE (иначе 409) и
+   пишет `provider_account_id`; account-ответ больше не отдаёт `resources`. Data source фильтрует по переданному
+   `state` (предикат «active» — в домене/репозитории). **Следующая — стадия 3**: compute-воркер (LISTEN/NOTIFY +
+   SKIP LOCKED; `enqueued`→запуск, `deleting`→остановка; запись `endpoint` при регистрации; `failed`/ретрай;
+   роутинг провижна `env→account→providerAccount→адаптер`). Стадии 4–7 — агент+heartbeat / аллокация / GC / auth `/internal`.
 
 ---
 

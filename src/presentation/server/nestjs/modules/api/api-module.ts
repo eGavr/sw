@@ -7,6 +7,7 @@ import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../../../data/data-sources/auth/user-data-source-provider";
 import { AccountDataSource } from "../../../../../data/data-sources/database/postgres/account-data-source";
 import { EnvironmentDataSource } from "../../../../../data/data-sources/database/postgres/environment-data-source";
+import { ProviderAccountDataSource } from "../../../../../data/data-sources/database/postgres/provider-account-data-source";
 import { PostgresModule } from "../../../../../data/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../../../data/data-sources/database/postgres/user-data-source";
 import {
@@ -15,6 +16,7 @@ import {
 import { AccountRepository } from "../../../../../data/repositories/account-repository";
 import { AccountUserPermissionRepository } from "../../../../../data/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../../../../data/repositories/environment-repository";
+import { ProviderAccountRepository } from "../../../../../data/repositories/provider-account-repository";
 import { UserRepository } from "../../../../../data/repositories/user-repository";
 import { CreateAccountUseCase } from "../../../../../domain/use-cases/accounts/create-account-use-case";
 import { GetAccountUseCase } from "../../../../../domain/use-cases/accounts/get-account-use-case";
@@ -61,9 +63,11 @@ import { EnvironmentsController } from "./controllers/environments/environments-
         UserRepository,
         AccountUserPermissionRepository,
         EnvironmentRepository,
+        ProviderAccountRepository,
 
         AccountDataSource,
         EnvironmentDataSource,
+        ProviderAccountDataSource,
         AuthUserDataSourceProvider,
         PgUserDataSource,
         PgUserPermissionDataSource,

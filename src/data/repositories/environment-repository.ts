@@ -6,10 +6,12 @@ import { Environment } from "../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../domain/entities/environment/environment-id";
 import { EnvironmentNotFoundError } from "../../domain/entities/environment/error/environment-not-found-error";
 import { Platform } from "../../domain/entities/environment/platform/platform";
+import { ProviderAccountId } from "../../domain/entities/provider-account/provider-account-id";
 import { EnvironmentDataSource } from "../data-sources/database/postgres/environment-data-source";
 
 export type CreateEnvironmentParams = {
     accountId: AccountId;
+    providerAccountId: ProviderAccountId;
     platform: Platform;
     applications: ApplicationList;
 };

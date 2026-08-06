@@ -28,7 +28,7 @@
 environment
   id                   uuid pk
   account_id           uuid   -- тенант-владелец (FK account)
-  connection_id        uuid   -- на каком облаке крутится (FK connection); ДОБАВЛЯЕТСЯ в стадии 2.5
+  provider_account_id  uuid   -- на каком облаке крутится (FK provider_account, nullable); ДОБАВЛЕНО в стадии 2.5
   state                enqueued | preparing | executing | deleting | failed
   state_reason         null | PERMISSION_DENIED | QUOTA_EXCEEDED | INVALID_CAPS | PROVIDER_ERROR
   -- capability-описатели: по ним аллокатор ИЩЕТ окружение (это «что матчить», НЕ «где стоит»):
@@ -158,25 +158,27 @@ busy=false`; матч приложения — `EXISTS` по `environment_applic
   Оставляем как есть; про ресурсы ничего не знает.
 - **Слой 2 — Тенант + НАША авторизация:** `Account` + `account_user_permission` (membership:
   `environment:create`, `session:create`, …). Оставляем как есть. Наши права, без внешних систем.
-- **Слой 3 — Ресурс-подключения (external authZ):** `Connection(id, account_id, provider_type,
+- **Слой 3 — Ресурс-подключения (external authZ):** `ProviderAccount(id, account_id, provider_type,
   external_ref, credential_ref, state)` — **отдельный агрегат**, N на аккаунт (ссылка на account по
-  id). Заменяет неиспользуемый `AccountResourceProvider` (1:1). Провижнинг берёт `credential`; истина
-  о внешнем доступе — на стороне провайдера.
-  - `environment.connection_id` — на каком облаке крутится окружение.
+  id). Заменил неиспользуемый `AccountResourceProvider` (1:1). Это *привязка аккаунта к провайдеру
+  ресурсов* (связь + креды + состояние), НЕ описание самого провайдера. Провижнинг берёт `credential`;
+  истина о внешнем доступе — на стороне провайдера.
+  - `environment.provider_account_id` — на каком облаке крутится окружение.
   - `credential_ref` → секрет-стор (dev: шифрованное поле; prod: KMS/secret-manager); никогда
     plaintext / в логи (как `wdSessionId`); для `local`/`docker` — null.
-  - `Connection` — свой агрегат (не разбухший `Account`); ссылки по идентити (`account_id`,
-    `environment.connection_id`).
+  - `ProviderAccount` — свой агрегат (не разбухший `Account`); ссылки по идентити (`account_id`,
+    `environment.provider_account_id`). Предикат «активна ли» формирует домен (state=active), data
+    source лишь фильтрует по переданному значению — не хардкодит «что значит active».
 
 ### Авторизация — путь A (согласован)
 ```
-POST /accounts/{acc}/environments {connection?, platform, applications}
+POST /accounts/{acc}/environments {platform, applications}
   СИНХРОННО (api-хендлер):
-    authN → наша authZ: membership(acc,user) имеет environment:create? → 403
-          → есть ACTIVE connection у аккаунта?                         → 400/409
-          → INSERT env(account_id, connection_id, state=enqueued)      → ответ клиенту сразу
+    authN → наша authZ: membership(acc,user) имеет environment:create?       → 403
+          → есть ACTIVE providerAccount у аккаунта?                           → 409
+          → INSERT env(account_id, provider_account_id, state=enqueued)       → ответ клиенту сразу
   АСИНХРОННО (воркер, provision-time):
-    compute.start(env, connection.credential)
+    compute.start(env, providerAccount.credential)
       accept           → executing        (внешний доступ подтверждён самим провайдером)
       reject permanent → failed(PERMISSION_DENIED | QUOTA_EXCEEDED | …)  ← внешняя истина
       reject transient → retry/enqueued → … → failed
@@ -188,11 +190,11 @@ POST /accounts/{acc}/environments {connection?, platform, applications}
   (health-check кредов при подключении и периодически) + `connection.state=active|invalid` для быстрого
   **локального** фидбэка; **(B)** синхронный pre-flight у провайдера — только если нужна 100%
   синхронная уверенность на каждый create.
-- Роутинг провижна: `environment → account → connection → compute-адаптер` (порт `ComputeProvider`
-  тот же; выбор адаптера переезжает из install-конфига `COMPUTE_PROVIDER` в per-account connection).
+- Роутинг провижна: `environment → account → providerAccount → compute-адаптер` (порт `ComputeProvider`
+  тот же; выбор адаптера переезжает из install-конфига `COMPUTE_PROVIDER` в per-account providerAccount).
   «Мак с докером» и «настоящее облако» — два адаптера одного порта.
-- Отложено: per-connection права; мульти-identity на логин; хранение/ротация кредов; 1 vs N подключений
-  (модель N; dev может держать одно дефолтное).
+- Отложено: per-providerAccount права; мульти-identity на логин; хранение/ротация кредов; 1 vs N
+  подключений (модель N; dev держит одно дефолтное, заводится при создании аккаунта — вариант A).
 
 ## Открытые TODO / отложенные решения
 - `application_version_sort` + матчинг диапазонов версий (сейчас — только мажор).
@@ -211,9 +213,11 @@ POST /accounts/{acc}/environments {connection?, platform, applications}
    `Environment` со стейт-машиной (набор приложений; `failProvisioning`/`retryProvisioning` как
    спецификация); репозиторий поверх Postgres; async `create` (`enqueued`); `GET` c эффективным
    `state`; async `delete` (`deleting`). **Аккаунты/юзеры НЕ трогаем.**
-2.5. **Рерайт слоя подключений** (перед воркером): `Connection`-агрегат (N на аккаунт, `credential_ref`,
-   `state`) + `environment.connection_id` + роутинг провижна `env→account→connection→адаптер`; замена
-   `AccountResourceProvider`. Аддитивная миграция.
+2.5. **[сделано]** Рерайт слоя подключений: `ProviderAccount`-агрегат (N на аккаунт, `credential_ref`,
+   `state`, `isActive`) + `ProviderAccountRepository`/`ProviderAccountDataSource` + `environment.provider_account_id`;
+   заменил `AccountResourceProvider` (убран из агрегата `Account` и из схемы). create-account (вариант A)
+   заводит дефолтную `ProviderAccount`; create-environment резолвит ACTIVE (иначе 409). Роутинг провижна
+   `env→account→providerAccount→адаптер` — на воркере (стадия 3). Аддитивная миграция.
 3. Compute-воркер: `LISTEN/NOTIFY` + `FOR UPDATE SKIP LOCKED` claim (`enqueued` запуск, `deleting`
    остановка); наполнение переходов `failed`/ретрай; best-effort stop orphan; preparing-timeout recovery.
 4. Агент (в образе) + `/internal:heartbeat` (регистрация: `endpoint`+`executing`; `busy`; liveness).

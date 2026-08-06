@@ -3,7 +3,6 @@ import { UserPermissionList } from "../user/user-permission-list";
 
 import { AccountId } from "./account-id";
 import { AccountName } from "./account-name";
-import { AccountResourceProvider, AccountResourceProviderData } from "./account-resource-provider";
 import { AccountUser } from "./account-user";
 import { AccountUserList } from "./account-user-list";
 
@@ -13,16 +12,11 @@ export type AccountData = {
     createdAt: Date;
     createdBy: UserData;
     updatedAt: Date;
-    resources: AccountResourceProviderData;
 }
 
 export type AccountCreateParams = {
     name: string;
     createdBy: User;
-    resources: {
-        providerId: string;
-        providerType: string;
-    }
 };
 
 export type AccountConstructorParams = {
@@ -31,27 +25,20 @@ export type AccountConstructorParams = {
     createdAt?: Date;
     createdBy: User;
     updatedAt?: Date;
-    resources: AccountResourceProvider;
 }
 
 export class Account {
     static fromObject(data: AccountData): Account {
-        const { createdBy, resources, ...params } = data;
+        const { createdBy, ...params } = data;
 
-        return new Account({ 
-            ...params, 
+        return new Account({
+            ...params,
             createdBy: User.fromObject(createdBy),
-            resources: AccountResourceProvider.fromObject(resources),
         });
     }
 
     static create(params: AccountCreateParams): Account {
-        const { resources, ...rest } = params;
-
-        const account = new Account({
-            resources: AccountResourceProvider.create(resources),
-            ...rest,
-        });
+        const account = new Account(params);
 
         account.addUser(params.createdBy, UserPermissionList.getAll());
 
@@ -61,7 +48,6 @@ export class Account {
     readonly createdAt: Date;
     readonly createdBy: User;
     readonly updatedAt: Date;
-    readonly resources: AccountResourceProvider;
     readonly users: AccountUserList;
 
     private readonly _id: AccountId;
@@ -73,7 +59,6 @@ export class Account {
         this.createdAt = params.createdAt ?? new Date();
         this.createdBy = params.createdBy;
         this.updatedAt = params.updatedAt ?? this.createdAt;
-        this.resources = params.resources;
         this.users = new AccountUserList({ account: this });
     }
 

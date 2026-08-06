@@ -7,9 +7,11 @@ import { v4 as uuidv4 } from "uuid";
 
 import { AccountRepository } from "../../../../../../../src/data/repositories/account-repository";
 import { EnvironmentRepository } from "../../../../../../../src/data/repositories/environment-repository";
+import { ProviderAccountRepository } from "../../../../../../../src/data/repositories/provider-account-repository";
 import { AccountId } from "../../../../../../../src/domain/entities/account/account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
+import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { SessionRoute } from "../../../../../../../src/presentation/server/nestjs/modules/wd/session-route";
 import { WdModule } from "../../../../../../../src/presentation/server/nestjs/modules/wd/wd-module";
@@ -37,17 +39,23 @@ describe("/sessions", () => {
     const seedOwnedEnvironment = async (): Promise<{ owner: AuthHeader, environmentId: string }> => {
         const externalId = UserFactory.createId();
         const accountRepository = app.app.get(AccountRepository);
+        const providerAccountRepository = app.app.get(ProviderAccountRepository);
         const environmentRepository = app.app.get(EnvironmentRepository);
 
         const account = await accountRepository.create({
             name: `team-${externalId}`,
             createdBy: User.create({ externalId, providerType: "local" }),
-            resources: { providerId: "p", providerType: "local" },
         });
         await accountRepository.save(account);
 
+        const providerAccount = await providerAccountRepository.create({
+            accountId: AccountId.fromString(account.id),
+            providerType: "local",
+        });
+
         const environment = await environmentRepository.create({
             accountId: AccountId.fromString(account.id),
+            providerAccountId: ProviderAccountId.fromString(providerAccount.id),
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });

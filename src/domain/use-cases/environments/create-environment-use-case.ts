@@ -3,6 +3,7 @@ import { Injectable } from "@nestjs/common";
 import { AccountRepository } from "../../../data/repositories/account-repository";
 import { AccountUserPermissionRepository } from "../../../data/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
+import { ProviderAccountRepository } from "../../../data/repositories/provider-account-repository";
 import { UserRepository } from "../../../data/repositories/user-repository";
 import { AccountId } from "../../entities/account/account-id";
 import { Application } from "../../entities/environment/application/application";
@@ -11,6 +12,8 @@ import { Environment } from "../../entities/environment/environment";
 import { Platform } from "../../entities/environment/platform/platform";
 import { PermissionDeniedError } from "../../entities/error/permission-denied-error";
 import { UnauthenticatedError } from "../../entities/error/unauthenticated-error";
+import { NoActiveProviderAccountError } from "../../entities/provider-account/error/no-active-provider-account-error";
+import { ProviderAccountId } from "../../entities/provider-account/provider-account-id";
 import { UserCredentials } from "../../entities/user/user-credentials";
 import { UserPermissionName } from "../../entities/user/user-permission-name";
 
@@ -41,6 +44,7 @@ export class CreateEnvironmentUseCase {
         private readonly accountUserPermissionRepository: AccountUserPermissionRepository,
         private readonly accountRepository: AccountRepository,
         private readonly environmentRepository: EnvironmentRepository,
+        private readonly providerAccountRepository: ProviderAccountRepository,
     ) {}
 
     async execute({ creds, params }: CreateEnvironmentInput): Promise<Environment> {
@@ -58,12 +62,19 @@ export class CreateEnvironmentUseCase {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);
         }
 
+        const providerAccount = await this.providerAccountRepository.findActiveByAccount(accountId);
+
+        if (!providerAccount) {
+            throw new NoActiveProviderAccountError(accountId.getValue());
+        }
+
         const applications = ApplicationList.create({
             applications: params.applications.map((application) => Application.fromObject(application)),
         });
 
         return this.environmentRepository.create({
             accountId,
+            providerAccountId: ProviderAccountId.fromString(providerAccount.id),
             platform: Platform.fromObject(params.platform),
             applications,
         });

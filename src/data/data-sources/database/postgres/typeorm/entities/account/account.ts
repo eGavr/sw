@@ -1,11 +1,9 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne, PrimaryColumn } from "typeorm";
+import { Column, Entity, ManyToOne, PrimaryColumn } from "typeorm";
 
 import { AccountData } from "../../../../../../../domain/entities/account/account";
 import { Account as AccountEntity } from "../../../../../../../domain/entities/account/account";
 import { DateColumn } from "../../columns-extra/date-column";
 import { User } from "../user/user";
-
-import { AccountResourceProvider } from "./account-resource-provider";
 
 @Entity()
 export class Account {
@@ -18,8 +16,6 @@ export class Account {
         account.createdById = entity.createdBy.id;
         account.updatedAt = entity.updatedAt;
 
-        account.resourceProvider = AccountResourceProvider.from(entity.resources);
-        
         return account;
     }
 
@@ -41,13 +37,6 @@ export class Account {
     @DateColumn()
     updatedAt: Date;
 
-    @OneToOne(() => AccountResourceProvider, { cascade: true, eager: true })
-    @JoinColumn()
-    resourceProvider: AccountResourceProvider;
-
-    @Column()
-    resourceProviderId: string;
-
     private constructor() {}
 
     toObject(): AccountData {
@@ -63,13 +52,6 @@ export class Account {
                 updatedAt: this.createdBy.updatedAt,
             },
             updatedAt: this.updatedAt,
-            resources: {
-                id: this.resourceProvider.id,
-                providerId: this.resourceProvider.providerId,
-                providerType: this.resourceProvider.providerType,
-                createdAt: this.resourceProvider.createdAt,
-                updatedAt: this.resourceProvider.updatedAt,
-            }, 
         }
     }
 }

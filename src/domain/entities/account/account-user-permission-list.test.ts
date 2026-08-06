@@ -11,7 +11,6 @@ describe("AccountUserPermissionList", () => {
     const account = Account.create({
         name: "default",
         createdBy: user,
-        resources: { providerId: "default", providerType: "local" },
     });
 
     const listOf = (...names: Array<UserPermissionName>): AccountUserPermissionList => new AccountUserPermissionList({

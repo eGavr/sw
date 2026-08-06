@@ -11,10 +11,6 @@ export class AccountPresenter implements Presenter {
             displayName: this.account.name,
             createTime: this.account.createdAt.toISOString(),
             updateTime: this.account.updatedAt.toISOString(),
-            resources: {
-                providerId: this.account.resources.providerId,
-                providerType: this.account.resources.providerType,
-            },
         };
     }
 }

@@ -82,7 +82,6 @@ describe("/accounts", () => {
                 displayName: "team-a",
                 createTime: expect.any(String),
                 updateTime: expect.any(String),
-                resources: { providerId: "p", providerType: "local" },
             });
         });
 

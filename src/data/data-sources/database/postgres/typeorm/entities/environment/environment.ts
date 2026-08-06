@@ -3,6 +3,7 @@ import { Column, Entity, ManyToOne, OneToMany, PrimaryColumn } from "typeorm";
 import { Environment as EnvironmentEntity, EnvironmentData } from "../../../../../../../domain/entities/environment/environment";
 import { DateColumn } from "../../columns-extra/date-column";
 import { Account } from "../account/account";
+import { ProviderAccount } from "../provider-account/provider-account";
 
 import { EnvironmentApplication } from "./environment-application";
 
@@ -14,6 +15,7 @@ export class Environment {
 
         environment.id = data.id;
         environment.accountId = data.accountId;
+        environment.providerAccountId = data.providerAccountId ?? null;
         environment.state = data.state;
         environment.stateReason = data.stateReason ?? null;
         environment.platformName = data.platform.name;
@@ -37,6 +39,12 @@ export class Environment {
 
     @Column()
     accountId: string;
+
+    @ManyToOne(() => ProviderAccount, providerAccount => providerAccount.id)
+    providerAccount: ProviderAccount;
+
+    @Column({ type: "uuid", nullable: true })
+    providerAccountId: string | null;
 
     @Column()
     state: string;
@@ -77,6 +85,7 @@ export class Environment {
         return {
             id: this.id,
             accountId: this.accountId,
+            providerAccountId: this.providerAccountId,
             state: this.state,
             stateReason: this.stateReason,
             platform: {

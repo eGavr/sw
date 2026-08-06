@@ -7,10 +7,10 @@ import { DataSource } from "typeorm";
 import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
 import { Account } from "./entities/account/account";
-import { AccountResourceProvider } from "./entities/account/account-resource-provider";
 import { AccountUserPermission } from "./entities/account/account-user-permission";
 import { Environment } from "./entities/environment/environment";
 import { EnvironmentApplication } from "./entities/environment/environment-application";
+import { ProviderAccount } from "./entities/provider-account/provider-account";
 import { User } from "./entities/user/user";
 
 export class PostgresConnection {
@@ -37,12 +37,12 @@ export class PostgresConnection {
             migrationsTableName: "__migrations",
             namingStrategy: new SnakeNamingStrategy(),
             entities: [
-                AccountResourceProvider,
                 AccountUserPermission,
                 Account,
                 User,
                 Environment,
                 EnvironmentApplication,
+                ProviderAccount,
             ],
         })
     }
