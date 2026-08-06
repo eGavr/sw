@@ -1,19 +1,21 @@
 import { Injectable } from "@nestjs/common";
 
+import { AccountId } from "../../../domain/entities/account/account-id";
 import { Application } from "../../../domain/entities/environment/application/application";
+import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
-import { ApplicationNotAvailableError } from "../../../domain/entities/environment/error/application-not-available-error";
-import { EnvironmentBusyError } from "../../../domain/entities/environment/error/environment-busy-error";
+import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
 import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
 import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
+import { NoAllocatableEnvironmentError } from "../../../domain/entities/session/error/no-allocatable-environment-error";
 import { Session } from "../../../domain/entities/session/session";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 import { UserCredentials } from "../../../domain/entities/user/user-credentials";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
+import { WebDriverSessionGateway } from "../../interfaces/gateways/webdriver-session-gateway";
 import { AccountRepository } from "../../interfaces/repositories/account-repository";
 import { AccountUserPermissionRepository } from "../../interfaces/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
-import { SessionRepository } from "../../interfaces/repositories/session-repository";
 import { UserRepository } from "../../interfaces/repositories/user-repository";
 
 type CreateSessionInput = {
@@ -21,7 +23,7 @@ type CreateSessionInput = {
         token: string;
     },
     params: {
-        environmentId: string;
+        accountId: string;
         application: {
             name: string;
             version: string;
@@ -29,19 +31,24 @@ type CreateSessionInput = {
     },
 }
 
+// Pool allocation: the caller asks for an application, not a specific environment. We pick a free,
+// fresh, matching environment from the account and open the session on its node. The node is the real
+// 1:1 arbiter, so the DB `busy` is only a hint — we try candidates until one accepts and never write
+// to the DB here (the next agent heartbeat reports the new busy state).
 @Injectable()
 export class CreateSessionUseCase {
     private readonly permissionName = UserPermissionName.Session.Create;
 
-    // FIXME: source the session idle timeout from configuration.
+    // FIXME: source the session idle timeout and the heartbeat freshness window from configuration.
     private readonly idleTimeout = SessionIdleTimeout.fromMilliseconds(60_000);
+    private readonly freshnessMs = 6_000;
 
     constructor(
         private readonly userRepository: UserRepository,
         private readonly accountUserPermissionRepository: AccountUserPermissionRepository,
         private readonly accountRepository: AccountRepository,
         private readonly environmentRepository: EnvironmentRepository,
-        private readonly sessionRepository: SessionRepository,
+        private readonly webDriverSessionGateway: WebDriverSessionGateway,
     ) {}
 
     async execute({ creds, params }: CreateSessionInput): Promise<Session> {
@@ -51,35 +58,53 @@ export class CreateSessionUseCase {
             throw new UnauthenticatedError();
         }
 
-        const environmentId = EnvironmentId.fromString(params.environmentId);
-        const environment = await this.environmentRepository.get(environmentId);
-        const account = await this.accountRepository.get(environment.accountId);
+        const accountId = AccountId.fromString(params.accountId);
+        const account = await this.accountRepository.get(accountId);
         const permissions = await this.accountUserPermissionRepository.findAll({ filter: { user, account } });
 
         if (!permissions.find(this.permissionName)) {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);
         }
 
-        const application = Application.fromObject({
-            name: params.application.name,
-            version: params.application.version,
-        });
+        const application = Application.fromObject(params.application);
+        const criteria = SessionAllocationCriteria.from(new Date(), this.freshnessMs, application);
+        const candidates = await this.environmentRepository.findAllocatable(accountId, criteria);
 
-        if (!environment.supports(application)) {
-            throw new ApplicationNotAvailableError(application.name, application.version);
+        return this.allocate(candidates, application);
+    }
+
+    private async allocate(candidates: Array<Environment>, application: Application): Promise<Session> {
+        for (const candidate of candidates) {
+            const session = await this.tryAllocate(candidate, application);
+
+            if (session) {
+                return session;
+            }
         }
 
-        const active = await this.sessionRepository.listByEnvironment(environmentId);
+        throw new NoAllocatableEnvironmentError(application.name, application.version);
+    }
 
-        if (active.length > 0) {
-            throw new EnvironmentBusyError(environment.id);
+    private async tryAllocate(environment: Environment, application: Application): Promise<Session | null> {
+        if (!environment.endpoint) {
+            return null;
         }
 
-        return this.sessionRepository.create(Session.create({
-            environmentId,
-            application,
-            idleTimeout: this.idleTimeout,
-            now: new Date(),
-        }));
+        try {
+            const webDriverSessionId = await this.webDriverSessionGateway.create(environment.endpoint, application);
+
+            const session = Session.create({
+                environmentId: EnvironmentId.fromString(environment.id),
+                application,
+                idleTimeout: this.idleTimeout,
+                now: new Date(),
+                endpoint: environment.endpoint,
+            });
+            session.bindWebDriverSession(webDriverSessionId);
+
+            return session;
+        } catch {
+            return null;
+        }
     }
 }

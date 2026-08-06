@@ -9,8 +9,12 @@ import { Environment } from "../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../domain/entities/environment/environment-state";
 import { EnvironmentNotFoundError } from "../../domain/entities/environment/error/environment-not-found-error";
+import { SessionAllocationCriteria } from "../../domain/entities/environment/session-allocation-criteria";
 import { StuckProvisioningCriteria } from "../../domain/entities/environment/stuck-provisioning-criteria";
 import { EnvironmentDataSource } from "../data-sources/database/postgres/environment-data-source";
+
+// How many free candidates to fetch and try before giving up — a query bound, not a business rule.
+const allocationCandidateLimit = 8;
 
 @Injectable()
 export class EnvironmentRepositoryImpl extends EnvironmentRepository {
@@ -44,6 +48,24 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
 
     async listByState(state: EnvironmentState): Promise<Array<Environment>> {
         const data = await this.environmentDataSource.findByState(state);
+
+        return data.map(Environment.fromObject);
+    }
+
+    async findAllocatable(accountId: AccountId, criteria: SessionAllocationCriteria): Promise<Array<Environment>> {
+        const predicate = criteria.toPredicate();
+
+        const data = await this.environmentDataSource.findAllocatable(
+            accountId.getValue(),
+            {
+                state: predicate.state,
+                busy: predicate.busy,
+                heartbeatCutoff: predicate.heartbeatCutoff,
+                applicationName: predicate.applicationName,
+                applicationVersion: predicate.applicationVersion,
+            },
+            allocationCandidateLimit,
+        );
 
         return data.map(Environment.fromObject);
     }

@@ -1,48 +1,59 @@
 import { createServer, Server } from "node:http";
 import { AddressInfo } from "node:net";
 
-import { HttpStatus } from "@nestjs/common";
+import { HttpStatus, INestApplication } from "@nestjs/common";
+import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { v4 as uuidv4 } from "uuid";
 
-import { AccountRepository } from "../../../../../../../src/application/interfaces/repositories/account-repository";
-import { EnvironmentRepository } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import {
-    ProviderAccountRepository,
-} from "../../../../../../../src/application/interfaces/repositories/provider-account-repository";
+    WebDriverSessionGateway,
+} from "../../../../../../../src/application/interfaces/gateways/webdriver-session-gateway";
+import { AccountRepository } from "../../../../../../../src/application/interfaces/repositories/account-repository";
+import {
+    EnvironmentRepository,
+} from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import { AccountId } from "../../../../../../../src/domain/entities/account/account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
+import { EnvironmentEndpoint } from "../../../../../../../src/domain/entities/environment/environment-endpoint";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
-import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { SessionRoute } from "../../../../../../../src/presentation/http/wd/session-route";
 import { WdModule } from "../../../../../../../src/presentation/http/wd/wd-module";
-import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { Authorization } from "../../../utils/request/headers/authorization";
 
 type AuthHeader = { authorization: string };
 
 const chrome = { name: "chrome", version: "latest" };
+const nodeEndpoint = "http://127.0.0.1:45454";
+const wdSessionId = "wd-node-session-1";
 
 describe("/sessions", () => {
-    let app: TestingApp;
+    let app: INestApplication;
+    let createSessionOnNode: jest.Mock;
 
     beforeEach(async () => {
-        app = await TestingApp.create(WdModule);
+        createSessionOnNode = jest.fn(async (): Promise<string> => wdSessionId);
+
+        const moduleRef = await Test.createTestingModule({ imports: [WdModule] })
+            .overrideProvider(WebDriverSessionGateway)
+            .useValue({ create: createSessionOnNode })
+            .compile();
+
+        app = moduleRef.createNestApplication();
+        app.enableShutdownHooks();
+        await app.init();
     });
 
     afterEach(async () => {
         await app.close();
     });
 
-    // Seed (in the app's own DI/compute) an account whose owner holds session:create and a Local
-    // environment offering Chrome, so create-session can be exercised without a real browser.
-    const seedOwnedEnvironment = async (): Promise<{ owner: AuthHeader, environmentId: string }> => {
+    // A fresh account's owner holds every permission (grant-all on creation), so it may create sessions.
+    const seedAccount = async (): Promise<{ owner: AuthHeader, accountId: string }> => {
         const externalId = UserFactory.createId();
-        const accountRepository = app.app.get(AccountRepository);
-        const providerAccountRepository = app.app.get(ProviderAccountRepository);
-        const environmentRepository = app.app.get(EnvironmentRepository);
+        const accountRepository = app.get(AccountRepository);
 
         const account = await accountRepository.create({
             name: `team-${externalId}`,
@@ -50,29 +61,52 @@ describe("/sessions", () => {
         });
         await accountRepository.save(account);
 
-        const providerAccount = await providerAccountRepository.create({
-            accountId: AccountId.fromString(account.id),
-            providerType: "local",
-        });
+        return { owner: Authorization.forUser(externalId), accountId: account.id };
+    };
 
-        const environment = await environmentRepository.create({
-            accountId: AccountId.fromString(account.id),
-            providerAccountId: ProviderAccountId.fromString(providerAccount.id),
+    // enqueued -> starting -> preparing -> executing (endpoint + fresh heartbeat), so it is allocatable.
+    const seedExecutingEnvironment = async (): Promise<{ owner: AuthHeader, accountId: string, environmentId: string }> => {
+        const { owner, accountId } = await seedAccount();
+        const environmentRepository = app.get(EnvironmentRepository);
+
+        await environmentRepository.create({
+            accountId: AccountId.fromString(accountId),
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
 
-        return { owner: Authorization.forUser(externalId), environmentId: environment.id };
+        const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());
+
+        if (!claimed) {
+            throw new Error("expected an enqueued environment to claim");
+        }
+
+        claimed.markDispatched();
+        claimed.register(new EnvironmentEndpoint(nodeEndpoint), new Date());
+        await environmentRepository.save(claimed);
+
+        return { owner, accountId, environmentId: claimed.id };
     };
 
-    const createSession = (environmentId: string, auth: AuthHeader): request.Test =>
-        request(app.getHttpServer()).post("/sessions").set(auth).send({ environmentId, application: chrome });
+    const createSession = (accountId: string, auth: AuthHeader, application: object = chrome): request.Test =>
+        request(app.getHttpServer()).post("/sessions").set(auth).send({ accountId, application });
 
-    describe("POST /sessions (create)", () => {
+    describe("POST /sessions (allocate)", () => {
+        test("allocates a free matching environment and returns an id routed to its node", async () => {
+            const { owner, accountId, environmentId } = await seedExecutingEnvironment();
+
+            const { body } = await createSession(accountId, owner).expect(HttpStatus.CREATED);
+
+            expect(body.environmentId).toBe(environmentId);
+            expect(body.application).toEqual({ name: "chrome", version: "latest" });
+            expect(SessionRoute.decode(body.id)).toEqual({ endpoint: nodeEndpoint, webDriverSessionId: wdSessionId });
+            expect(createSessionOnNode).toHaveBeenCalledTimes(1);
+        });
+
         test("responds UNAUTHORIZED for an unauthenticated request", () => {
             return request(app.getHttpServer())
                 .post("/sessions")
-                .send({ environmentId: uuidv4(), application: chrome })
+                .send({ accountId: uuidv4(), application: chrome })
                 .expect(HttpStatus.UNAUTHORIZED);
         });
 
@@ -80,47 +114,38 @@ describe("/sessions", () => {
             return request(app.getHttpServer())
                 .post("/sessions")
                 .set(Authorization.invalidToken)
-                .send({ environmentId: uuidv4(), application: chrome })
+                .send({ accountId: uuidv4(), application: chrome })
                 .expect(HttpStatus.UNAUTHORIZED);
         });
 
-        test("lets the owner create a session", async () => {
-            const { owner, environmentId } = await seedOwnedEnvironment();
-
-            const { body } = await createSession(environmentId, owner).expect(HttpStatus.CREATED);
-
-            expect(body.id).toEqual(expect.any(String));
-            expect(body.environmentId).toBe(environmentId);
-            expect(body.application).toEqual({ name: "chrome", version: "latest" });
-        });
-
         test("responds FORBIDDEN for a non-owner (no session:create)", async () => {
-            const { environmentId } = await seedOwnedEnvironment();
+            const { accountId } = await seedExecutingEnvironment();
             const stranger = Authorization.forUser(UserFactory.createId());
 
-            return createSession(environmentId, stranger).expect(HttpStatus.FORBIDDEN);
+            return createSession(accountId, stranger).expect(HttpStatus.FORBIDDEN);
         });
 
-        test("responds NOT_FOUND for a non-existent environment", () => {
+        test("responds NOT_FOUND for a non-existent account", () => {
             return createSession(uuidv4(), Authorization.forUser(UserFactory.createId())).expect(HttpStatus.NOT_FOUND);
         });
 
-        test("responds CONFLICT for a second active session in the same environment", async () => {
-            const { owner, environmentId } = await seedOwnedEnvironment();
+        test("responds CONFLICT when the account has no free matching environment", async () => {
+            const { owner, accountId } = await seedAccount();
 
-            await createSession(environmentId, owner).expect(HttpStatus.CREATED);
-
-            return createSession(environmentId, owner).expect(HttpStatus.CONFLICT);
+            return createSession(accountId, owner).expect(HttpStatus.CONFLICT);
         });
 
-        test("responds BAD_REQUEST for an application the environment does not offer", async () => {
-            const { owner, environmentId } = await seedOwnedEnvironment();
+        test("responds CONFLICT when no environment offers the requested application", async () => {
+            const { owner, accountId } = await seedExecutingEnvironment();
 
-            return request(app.getHttpServer())
-                .post("/sessions")
-                .set(owner)
-                .send({ environmentId, application: { name: "firefox", version: "latest" } })
-                .expect(HttpStatus.BAD_REQUEST);
+            return createSession(accountId, owner, { name: "firefox", version: "latest" }).expect(HttpStatus.CONFLICT);
+        });
+
+        test("responds CONFLICT when the node rejects the session (busy)", async () => {
+            const { owner, accountId } = await seedExecutingEnvironment();
+            createSessionOnNode.mockRejectedValue(new Error("node full"));
+
+            return createSession(accountId, owner).expect(HttpStatus.CONFLICT);
         });
     });
 

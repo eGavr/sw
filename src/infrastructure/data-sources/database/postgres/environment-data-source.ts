@@ -95,6 +95,38 @@ export class EnvironmentDataSource {
         return environments.map((environment) => environment.toObject());
     }
 
+    // Free environments an account may allocate a session onto, in random order. The state/busy rule,
+    // freshness cutoff and requested application arrive ready from the domain criteria; this only
+    // translates them into SQL. The row limit is a query bound, not a business threshold.
+    async findAllocatable(
+        accountId: string,
+        predicate: {
+            state: string;
+            busy: boolean;
+            heartbeatCutoff: Date;
+            applicationName: string;
+            applicationVersion: string;
+        },
+        limit: number,
+    ): Promise<Array<EnvironmentData>> {
+        const environments = await this.dataSource.getRepository(Environment)
+            .createQueryBuilder("environment")
+            .where("environment.accountId = :accountId", { accountId })
+            .andWhere("environment.state = :state", { state: predicate.state })
+            .andWhere("environment.busy = :busy", { busy: predicate.busy })
+            .andWhere("environment.lastHeartbeatAt > :cutoff", { cutoff: predicate.heartbeatCutoff })
+            .andWhere(
+                "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
+                + " AND ea.application_name = :applicationName AND ea.application_version = :applicationVersion)",
+                { applicationName: predicate.applicationName, applicationVersion: predicate.applicationVersion },
+            )
+            .orderBy("RANDOM()")
+            .limit(limit)
+            .getMany();
+
+        return environments.map((environment) => environment.toObject());
+    }
+
     async findOne(id: string): Promise<EnvironmentData | null> {
         const environment = await this.dataSource.getRepository(Environment).findOne({ where: { id } });
 

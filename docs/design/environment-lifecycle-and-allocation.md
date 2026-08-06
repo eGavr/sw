@@ -289,8 +289,15 @@ POST /accounts/{acc}/environments {platform, applications}
    регистрация без endpoint → 400. Use-case `RecordEnvironmentHeartbeatUseCase` (домен `register`/`heartbeat`).
    Покрыто integration (blackbox через ручку). **ОСТАЛОСЬ:** auth `/internal` (внутренний секрет/mTLS — стадия 7) +
    сам агент в образе (инфра: шлёт хартбит, `busy` интроспекцией ноды).
-5. Аллокация сессии: `create-session` на `{accountId, application}` с оптимистичным pick+retry;
-   убрать явный `environmentId`.
+5. **[сделано]** Аллокация сессии: `create-session` на `{accountId, application}` (без явного `environmentId`).
+   Предикат «свободно+свежо+под caps» формирует ДОМЕН — VO `SessionAllocationCriteria.from(now, freshness, application)`
+   → `{state=executing, busy=false, heartbeatCutoff, appName, appVersion}`; data source лишь транслирует в SQL
+   (`findAllocatable`, `EXISTS` по `environment_application`, `ORDER BY RANDOM() LIMIT N`, порогов/состояний в SQL нет).
+   Use-case: authZ по accountId → кандидаты → **optimistic pick+retry**: POST-им сессию на ноду через driven-порт
+   `WebDriverSessionGateway` (нода — арбитр 1:1; reject → следующий кандидат), **в БД на create-пути не пишем**; id ответа
+   = `SessionRoute.encode(endpoint, wdSessionId)` (секрет `wdSessionId` не в БД/логи). Нет свободных/все reject → 409.
+   Покрыто integration (реальный SQL-аллокатор на Postgres, gateway ноды замокан). *(Старый compute-session/env-модель —
+   `SessionRepository`/`SessionDataSource`/`LocalComputeStore`/`Docker*SessionDataSource` — теперь мёртв: удалить отдельным cleanup.)*
 6. GC (`pg_cron`: `deleting` + `failed` TTL + stale `executing`) + вычисляемый эффективный статус +
    конфигурируемый порог свежести.
 7. Auth `/internal` (отдельно).

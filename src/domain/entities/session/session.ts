@@ -20,6 +20,7 @@ export type SessionCreateParams = {
     application: Application;
     idleTimeout: SessionIdleTimeout;
     now: Date;
+    endpoint?: string | null;
 };
 
 type SessionConstructorParams = {
@@ -41,6 +42,7 @@ export class Session {
             idleTimeout: params.idleTimeout,
             createdAt: params.now,
             lastActivityAt: params.now,
+            endpoint: params.endpoint ?? null,
         });
     }
 

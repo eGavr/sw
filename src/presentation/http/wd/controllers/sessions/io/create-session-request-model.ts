@@ -15,7 +15,7 @@ class ApplicationModel {
 
 export class CreateSessionRequestModel {
     @IsString()
-    environmentId: string;
+    accountId: string;
 
     @IsDefined()
     @ValidateNested()
