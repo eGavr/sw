@@ -29,6 +29,22 @@ function makePreparing(): Environment {
     return environment;
 }
 
+function makeStuck(state: EnvironmentState, attempts: number): Environment {
+    const id = AccountId.create().getValue();
+
+    return Environment.fromObject({
+        id,
+        accountId: AccountId.create().getValue(),
+        state,
+        platform: { name: "linux", version: "6", deviceModel: "desktop" },
+        applications: [{ name: "chrome", version: "100" }],
+        busy: false,
+        attempts,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+    });
+}
+
 describe("Environment", () => {
     describe(".create", () => {
         test("should start enqueued, free, without endpoint", () => {
@@ -181,6 +197,40 @@ describe("Environment", () => {
 
             expect(environment.state).toBe(EnvironmentState.Enqueued);
             expect(environment.stateReason).toBeNull();
+        });
+    });
+
+    describe("#reclaimStuck", () => {
+        test("should return a starting environment to the queue while within the retry budget", () => {
+            const environment = makeStuck(EnvironmentState.Starting, 1);
+
+            environment.reclaimStuck(3);
+
+            expect(environment.state).toBe(EnvironmentState.Enqueued);
+            expect(environment.stateReason).toBeNull();
+        });
+
+        test("should return a preparing environment to the queue while within the retry budget", () => {
+            const environment = makeStuck(EnvironmentState.Preparing, 2);
+
+            environment.reclaimStuck(3);
+
+            expect(environment.state).toBe(EnvironmentState.Enqueued);
+        });
+
+        test("should fail once the retry budget is spent, with a timeout reason", () => {
+            const environment = makeStuck(EnvironmentState.Starting, 3);
+
+            environment.reclaimStuck(3);
+
+            expect(environment.state).toBe(EnvironmentState.Failed);
+            expect(environment.stateReason).toBe(EnvironmentStateReason.ProvisioningTimeout);
+        });
+
+        test("should reject reclaiming an environment that is not provisioning", () => {
+            const environment = makeStuck(EnvironmentState.Enqueued, 0);
+
+            expect(() => environment.reclaimStuck(3)).toThrow(InvalidEnvironmentStateTransitionError);
         });
     });
 

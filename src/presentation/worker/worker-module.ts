@@ -8,6 +8,9 @@ import {
 import {
     PrepareNextEnvironmentUseCase,
 } from "../../application/use-cases/environments/prepare-next-environment-use-case";
+import {
+    ReclaimStuckEnvironmentsUseCase,
+} from "../../application/use-cases/environments/reclaim-stuck-environments-use-case";
 import { EnvironmentDataSource } from "../../infrastructure/data-sources/database/postgres/environment-data-source";
 import { PostgresModule } from "../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
 import {
@@ -30,6 +33,7 @@ import { EnvironmentWorker } from "./environment-worker";
         EnvironmentWorker,
         PrepareNextEnvironmentUseCase,
         DeprovisionDeletingEnvironmentsUseCase,
+        ReclaimStuckEnvironmentsUseCase,
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         EnvironmentDataSource,
         EnvironmentProviderGatewayProvider,

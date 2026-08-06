@@ -22,6 +22,7 @@ export type EnvironmentData = {
     applications: Array<ApplicationData>;
     endpoint?: string | null;
     busy: boolean;
+    attempts?: number;
     lastHeartbeatAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
@@ -44,6 +45,7 @@ type EnvironmentConstructorParams = {
     applications: ApplicationList;
     endpoint?: EnvironmentEndpoint | null;
     busy?: boolean;
+    attempts?: number;
     lastHeartbeatAt?: Date | null;
     createdAt?: Date;
     updatedAt?: Date;
@@ -65,6 +67,7 @@ export class Environment {
             applications: ApplicationList.fromObject(data.applications),
             endpoint: data.endpoint ? new EnvironmentEndpoint(data.endpoint) : null,
             busy: data.busy,
+            attempts: data.attempts ?? 0,
             lastHeartbeatAt: data.lastHeartbeatAt ?? null,
             createdAt: data.createdAt,
             updatedAt: data.updatedAt,
@@ -102,6 +105,7 @@ export class Environment {
     private _stateReason: EnvironmentStateReason | null;
     private _endpoint: EnvironmentEndpoint | null;
     private _busy: boolean;
+    private readonly _attempts: number;
     private _lastHeartbeatAt: Date | null;
     private _updatedAt: Date;
 
@@ -115,6 +119,7 @@ export class Environment {
         this.applications = params.applications;
         this._endpoint = params.endpoint ?? null;
         this._busy = params.busy ?? false;
+        this._attempts = params.attempts ?? 0;
         this._lastHeartbeatAt = params.lastHeartbeatAt ?? null;
         this.createdAt = params.createdAt ?? new Date();
         this._updatedAt = params.updatedAt ?? this.createdAt;
@@ -146,6 +151,10 @@ export class Environment {
 
     get busy(): boolean {
         return this._busy;
+    }
+
+    get attempts(): number {
+        return this._attempts;
     }
 
     get lastHeartbeatAt(): Date | null {
@@ -202,6 +211,19 @@ export class Environment {
         this._stateReason = null;
     }
 
+    // Reaper path: a provisioning environment (starting/preparing) whose lease timed out. Within the
+    // retry budget it goes back to the queue for another attempt; once the budget is spent it fails
+    // permanently. The attempt counter itself is bumped by the atomic claim, not here.
+    reclaimStuck(maxAttempts: number): void {
+        if (this._attempts >= maxAttempts) {
+            this.failProvisioning(EnvironmentStateReason.ProvisioningTimeout);
+
+            return;
+        }
+
+        this.retryProvisioning();
+    }
+
     startDeletion(): void {
         if (this._state === EnvironmentState.Deleting) {
             return;
@@ -239,6 +261,7 @@ export class Environment {
             applications: this.applications.toArray(),
             endpoint: this.endpoint,
             busy: this._busy,
+            attempts: this._attempts,
             lastHeartbeatAt: this._lastHeartbeatAt,
             createdAt: this.createdAt,
             updatedAt: this._updatedAt,

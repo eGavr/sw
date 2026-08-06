@@ -103,6 +103,7 @@ export class Environment {
             })),
             endpoint: this.endpoint,
             busy: this.busy,
+            attempts: this.attempts,
             lastHeartbeatAt: this.lastHeartbeatAt,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,

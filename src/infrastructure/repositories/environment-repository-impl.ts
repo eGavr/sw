@@ -9,6 +9,7 @@ import { Environment } from "../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../domain/entities/environment/environment-state";
 import { EnvironmentNotFoundError } from "../../domain/entities/environment/error/environment-not-found-error";
+import { StuckProvisioningCriteria } from "../../domain/entities/environment/stuck-provisioning-criteria";
 import { EnvironmentDataSource } from "../data-sources/database/postgres/environment-data-source";
 
 @Injectable()
@@ -43,6 +44,17 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
 
     async listByState(state: EnvironmentState): Promise<Array<Environment>> {
         const data = await this.environmentDataSource.findByState(state);
+
+        return data.map(Environment.fromObject);
+    }
+
+    async listStuckProvisioning(criteria: StuckProvisioningCriteria): Promise<Array<Environment>> {
+        const predicates = criteria.toPredicates().map((predicate) => ({
+            state: predicate.state,
+            cutoff: predicate.cutoff,
+        }));
+
+        const data = await this.environmentDataSource.findByStateUpdatedBefore(predicates);
 
         return data.map(Environment.fromObject);
     }

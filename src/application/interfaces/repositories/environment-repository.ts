@@ -4,6 +4,7 @@ import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../../domain/entities/environment/environment-state";
 import { Platform } from "../../../domain/entities/environment/platform/platform";
+import { StuckProvisioningCriteria } from "../../../domain/entities/environment/stuck-provisioning-criteria";
 import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
 
 export type CreateEnvironmentParams = {
@@ -21,6 +22,8 @@ export abstract class EnvironmentRepository {
     abstract listByAccount(accountId: AccountId): Promise<Array<Environment>>;
 
     abstract listByState(state: EnvironmentState): Promise<Array<Environment>>;
+
+    abstract listStuckProvisioning(criteria: StuckProvisioningCriteria): Promise<Array<Environment>>;
 
     abstract withNextEnqueued(mutate: (environment: Environment) => void): Promise<Environment | null>;
 

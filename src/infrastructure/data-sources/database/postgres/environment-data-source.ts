@@ -69,6 +69,32 @@ export class EnvironmentDataSource {
         return environments.map((environment) => environment.toObject());
     }
 
+    // Rows matching any of the (state, cutoff) predicates: in that state and last touched before its
+    // cutoff. The states and cutoffs are decided upstream (the domain criteria); this only translates
+    // them into SQL — no state set or freshness threshold is baked in here.
+    async findByStateUpdatedBefore(predicates: Array<{ state: string; cutoff: Date }>): Promise<Array<EnvironmentData>> {
+        if (predicates.length === 0) {
+            return [];
+        }
+
+        const query = this.dataSource.getRepository(Environment).createQueryBuilder("environment");
+
+        predicates.forEach((predicate, index) => {
+            const clause = `environment.state = :state${index} AND environment.updatedAt < :cutoff${index}`;
+            const params = { [`state${index}`]: predicate.state, [`cutoff${index}`]: predicate.cutoff };
+
+            if (index === 0) {
+                query.where(clause, params);
+            } else {
+                query.orWhere(clause, params);
+            }
+        });
+
+        const environments = await query.getMany();
+
+        return environments.map((environment) => environment.toObject());
+    }
+
     async findOne(id: string): Promise<EnvironmentData | null> {
         const environment = await this.dataSource.getRepository(Environment).findOne({ where: { id } });
 

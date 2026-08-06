@@ -270,9 +270,14 @@ POST /accounts/{acc}/environments {platform, applications}
    `DeprovisionDeletingEnvironmentsUseCase` для `deleting`. **`EnvironmentRepository` Postgres-only** (`withNextEnqueued`
    = SKIP LOCKED claim в data-source, `save`, `listByState`); **`EnvironmentProviderGateway`** (порт provision/deprovision,
    docker-адаптер идемпотентный) — сиблинг репозитория. Миграция `attempts` + триггер `notify_environment_work`.
-   **ОСТАЛОСЬ в стадии 3:** reaper подвисших `starting`(малый)/`preparing`(большой таймаут) через `pg_cron`/app;
-   per-account routing по `providerAccount.providerType` (сейчас гейтвей по `COMPUTE_PROVIDER`); delete-e2e прогон.
-   `executing`/`endpoint` — НЕ здесь (агент, стадия 4).
+   **[сделано] reaper подвисших `starting`(малый)/`preparing`(большой таймаут):** app-тик в воркере под
+   `pg_try_advisory_lock` (fallback pg_cron не нужен) → `ReclaimStuckEnvironmentsUseCase`. Предикат «подвис»
+   формирует ДОМЕН — VO `StuckProvisioningCriteria.from(now, timeouts)` отдаёт готовые `{state, cutoff}`; репозиторий
+   пробрасывает, data-source лишь транслирует (`findByStateUpdatedBefore`, без порогов/набора состояний в SQL).
+   Домен `Environment.reclaimStuck(maxAttempts)` = в пределах бюджета `→enqueued` (сам ре-NOTIFY-ит), бюджет исчерпан
+   `→failed`(`PROVISIONING_TIMEOUT`) + `deprovision`. Покрыто: domain-unit + integration (реальный SQL, замокан gateway).
+   **ОСТАЛОСЬ в стадии 3:** per-account routing по `providerAccount.providerType` (сейчас гейтвей по `COMPUTE_PROVIDER`);
+   delete-e2e прогон. `executing`/`endpoint` — НЕ здесь (агент, стадия 4).
 4. Агент (в образе) + `/internal:heartbeat` (регистрация: `endpoint`+`executing`; `busy`; liveness).
 5. Аллокация сессии: `create-session` на `{accountId, application}` с оптимистичным pick+retry;
    убрать явный `environmentId`.
