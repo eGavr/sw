@@ -4,6 +4,7 @@ import { AccountId } from "../../../domain/entities/account/account-id";
 import { Application } from "../../../domain/entities/environment/application/application";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
+import { defaultHeartbeatFreshnessMs } from "../../../domain/entities/environment/heartbeat-freshness";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
 import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
 import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
@@ -38,10 +39,7 @@ type CreateSessionInput = {
 @Injectable()
 export class CreateSessionUseCase {
     private readonly permissionName = UserPermissionName.Session.Create;
-
-    // FIXME: source the session idle timeout and the heartbeat freshness window from configuration.
-    private readonly idleTimeout = SessionIdleTimeout.fromMilliseconds(60_000);
-    private readonly freshnessMs = 6_000;
+    private readonly idleTimeout = SessionIdleTimeout.default();
 
     constructor(
         private readonly userRepository: UserRepository,
@@ -67,7 +65,7 @@ export class CreateSessionUseCase {
         }
 
         const application = Application.fromObject(params.application);
-        const criteria = SessionAllocationCriteria.from(new Date(), this.freshnessMs, application);
+        const criteria = SessionAllocationCriteria.from(new Date(), defaultHeartbeatFreshnessMs, application);
         const candidates = await this.environmentRepository.findAllocatable(accountId, criteria);
 
         return this.allocate(candidates, application);
