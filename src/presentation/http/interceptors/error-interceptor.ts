@@ -13,13 +13,16 @@ import {
 } from "@nestjs/common";
 import { catchError, Observable, throwError } from "rxjs";
 
-import { ConflictError } from "../../../domain/entities/error/conflict-error";
-import { DomainError } from "../../../domain/entities/error/domain-error";
-import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
-import { NotFoundError } from "../../../domain/entities/error/not-found/not-found-error";
-import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
-import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
 import { Logger } from "../../../infrastructure/logging/logger";
+import { domainErrorHttpStatus } from "../errors/error-status";
+
+const httpExceptionByStatus: Record<number, (message: string) => HttpException> = {
+    400: (message: string): HttpException => new BadRequestException(message),
+    401: (message: string): HttpException => new UnauthorizedException(message),
+    403: (message: string): HttpException => new ForbiddenException(message),
+    404: (message: string): HttpException => new NotFoundException(message),
+    409: (message: string): HttpException => new ConflictException(message),
+};
 
 @Injectable()
 export class ErrorInterceptor implements NestInterceptor {
@@ -34,34 +37,17 @@ export class ErrorInterceptor implements NestInterceptor {
                         return throwError(() => err);
                     }
 
-                    if (err instanceof DomainError) {
-                        if (err instanceof InvalidArgumentError) {
-                            return throwError(() => new BadRequestException(err.message))
-                        }
+                    const httpStatus = domainErrorHttpStatus(err);
+                    const toHttpException = httpStatus !== null ? httpExceptionByStatus[httpStatus] : undefined;
 
-                        if (err instanceof NotFoundError) {
-                            return throwError(() => new NotFoundException(err.message));
-                        }
-
-                        if (err instanceof UnauthenticatedError) {
-                            return throwError(() => new UnauthorizedException(err.message));
-                        }
-
-                        if (err instanceof PermissionDeniedError) {
-                            return throwError(() => new ForbiddenException(err.message))
-                        }
-
-                        if (err instanceof ConflictError) {
-                            return throwError(() => new ConflictException(err.message));
-                        }
+                    if (toHttpException) {
+                        return throwError(() => toHttpException(err.message));
                     }
-
-                    console.log(err);
 
                     this.logger.fatal(err.stack || err.message || err);
 
                     return throwError(() => new InternalServerErrorException());
                 }),
-            )
+            );
     }
 }

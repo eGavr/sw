@@ -1,31 +1,13 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from "@nestjs/common";
 import type { Response } from "express";
 
-import { ConflictError } from "../../../domain/entities/error/conflict-error";
-import { DomainError } from "../../../domain/entities/error/domain-error";
-import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
-import { NotFoundError } from "../../../domain/entities/error/not-found/not-found-error";
-import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
-import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
 import { Logger } from "../../../infrastructure/logging/logger";
+import { domainErrorHttpStatus, rpcStatusFor } from "../errors/error-status";
 
 type AipError = {
     code: number;
     status: string;
     message: string;
-};
-
-const httpStatusToRpcCode: Record<number, string> = {
-    400: "INVALID_ARGUMENT",
-    401: "UNAUTHENTICATED",
-    403: "PERMISSION_DENIED",
-    404: "NOT_FOUND",
-    409: "ABORTED",
-    429: "RESOURCE_EXHAUSTED",
-    500: "INTERNAL",
-    501: "UNIMPLEMENTED",
-    503: "UNAVAILABLE",
-    504: "DEADLINE_EXCEEDED",
 };
 
 // Formats every error as the AIP-193 error response.
@@ -44,34 +26,16 @@ export class AipExceptionFilter implements ExceptionFilter {
     }
 
     private toAipError(exception: unknown): AipError {
-        if (exception instanceof InvalidArgumentError) {
-            return { code: 400, status: "INVALID_ARGUMENT", message: exception.message };
-        }
+        const domainHttpStatus = domainErrorHttpStatus(exception);
 
-        if (exception instanceof NotFoundError) {
-            return { code: 404, status: "NOT_FOUND", message: exception.message };
-        }
-
-        if (exception instanceof UnauthenticatedError) {
-            return { code: 401, status: "UNAUTHENTICATED", message: exception.message };
-        }
-
-        if (exception instanceof PermissionDeniedError) {
-            return { code: 403, status: "PERMISSION_DENIED", message: exception.message };
-        }
-
-        if (exception instanceof ConflictError) {
-            return { code: 409, status: "ABORTED", message: exception.message };
-        }
-
-        if (exception instanceof DomainError) {
-            return { code: 500, status: "INTERNAL", message: exception.message };
+        if (domainHttpStatus !== null) {
+            return { code: domainHttpStatus, status: rpcStatusFor(domainHttpStatus), message: (exception as Error).message };
         }
 
         if (exception instanceof HttpException) {
             const code = exception.getStatus();
 
-            return { code, status: httpStatusToRpcCode[code] ?? "UNKNOWN", message: this.httpMessage(exception) };
+            return { code, status: rpcStatusFor(code), message: this.httpMessage(exception) };
         }
 
         return { code: 500, status: "INTERNAL", message: "internal error" };
