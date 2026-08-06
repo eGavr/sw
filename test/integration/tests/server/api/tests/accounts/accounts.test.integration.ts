@@ -3,7 +3,7 @@ import request from "supertest";
 import { v4 as uuidv4 } from "uuid";
 
 import { UserPermissionList } from "../../../../../../../src/domain/entities/user/user-permission-list";
-import { ApiModule } from "../../../../../../../src/presentation/server/nestjs/modules/api/api-module";
+import { ApiModule } from "../../../../../../../src/presentation/http/api/api-module";
 import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { Authorization } from "../../../utils/request/headers/authorization";
