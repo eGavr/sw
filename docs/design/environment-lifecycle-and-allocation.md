@@ -116,18 +116,23 @@ busy=false`; матч приложения — `EXISTS` по `environment_applic
   → `pg_notify('environment_work')`; воркер LISTEN (TypeORM LISTEN не отдаёт → raw `pg`) + **startup
   catch-up** скан (NOTIFY недурабелен). NOTIFY — **тупой широковещательный будильник**; презентация НЕ
   трогает SQL/локи, просто «насос»: дёргает use-case, пока тот не скажет «забирать нечего» (дренаж).
-- **use-case:** один сценарий = «подготовить следующее `enqueued`»: `find` → `env.claim()` (домен,
-  `enqueued→starting`) → `save` (проиграл гонку → skip) → `compute.start` → OK → `env.markDispatched()`
-  (`starting→preparing`) → `save`; ошибка → `failProvisioning`/`retryProvisioning`. Claim и провижн — в
-  ОДНОМ use-case (НЕ «презентация захватила → отдельный старт»).
-- **repository:** только `find` + `save` (collection-семантика). **НЕТ `claimNext`/`start`/`stop`**
-  (по DDD: сайд-эффектный актуатор — это Gateway, а не Repository). `start`/`stop` живут в `DockerClient`
-  (`run`/`remove`); **compute-data-source реконсилит контейнер под состояние на `save`** (`preparing`→
-  поднять, `deleting`→снести) — «побочный эффект как save», операционные verb'ы в клиенте бэкенда.
-- **data-source (лок):** конкуренция N воркеров решается НЕ уникальностью уведомления, а
-  **единственностью ЗАХВАТА**: `save` claim'а — **optimistic** (условный `UPDATE … WHERE state='enqueued'`;
-  0 строк → проиграл → skip). Синхронизировать воркеров не надо. `FOR UPDATE SKIP LOCKED` — опция на случай
-  контеншена (нагрузка стабильная/низкая → optimistic достаточно). Лок/guard — забота data-source.
+- **use-case (`application`):** «подготовить следующее `enqueued`» =
+  `repo.withNextEnqueued(e => e.claim())` (атомарный забор под локом, домен делает `enqueued→starting`) →
+  `gateway.provision(env)` (АКТУАЦИЯ контейнера, НЕ `save`) → `env.markDispatched()` (`starting→preparing`) →
+  `repo.save(env)`; ошибка → `env.failProvisioning(reason)` → `repo.save` + `gateway.deprovision`. **`save`
+  зовём ТОЛЬКО на реальном изменении состояния** (провижн — не `save`). Claim и провижн — в ОДНОМ use-case.
+- **repository (`EnvironmentRepository`, Postgres-only):** `withNextEnqueued(cb)` (паттерн CLAUDE.md
+  `with(id,cb)`, обобщён на «следующий подходящий»), `save`, `listByState`, `get`/`create`/`listByAccount`.
+  **НЕТ `start`/`stop`/`claimNext`-как-verb** — актуатор это отдельный порт (Gateway), не репозиторий.
+- **gateway (`EnvironmentProviderGateway`, driven-порт рядом с репозиторием):** `provision(env)` /
+  `deprovision(env)`; docker-адаптер (`DockerClient.run`/`remove` + image-resolver, **идемпотентно**: снести
+  stale-контейнер по env-id перед свежим run). `start`/`stop` — операционные verb'ы клиента, внутри адаптера.
+  Repo и Gateway — сиблинги-адаптеры, друг друга НЕ инжектят; координирует их use-case (см.
+  `infrastructure/gateways/__ABOUT_GATEWAYS__.md`).
+- **data-source (лок):** claim атомарен — `withNext(state, apply)`: `SELECT … WHERE state=? ORDER BY
+  created_at FOR UPDATE SKIP LOCKED LIMIT 1` в короткой tx, применяет доменный переход из `apply`, `UPDATE` +
+  `attempts+1` + COMMIT (лок отпущен). `SKIP LOCKED` разводит N воркеров без ожидания/дедлока; синхронизировать
+  их не надо. *(Выбрали атомарный claim, а не find+optimistic, чтобы не тащить version/loaded-state в домен.)*
 
 ### Reclaim подвисших (краш после коммита состояния)
 Воркер закоммитил `starting`/`preparing` и умер (свет в ДЦ) → строка зависла (БД откатывает только
@@ -257,13 +262,17 @@ POST /accounts/{acc}/environments {platform, applications}
    заменил `AccountResourceProvider` (убран из агрегата `Account` и из схемы). create-account (вариант A)
    заводит дефолтную `ProviderAccount`; create-environment резолвит ACTIVE (иначе 409). Роутинг провижна
    `env→account→providerAccount→адаптер` — на воркере (стадия 3). Аддитивная миграция.
-3. Compute-воркер (4 фазы `enqueued→starting→preparing`): presentation = raw pg `LISTEN`/NOTIFY + catch-up
-   «насос» (тупой будильник); use-case «подготовить следующее `enqueued`» = `find`→`claim`→`save`
-   (optimistic-забор)→`compute.start`→`markDispatched`→`save`; **repository ТОЛЬКО `find`/`save`** (без
-   `claimNext`/`start`/`stop`); compute-data-source реконсилит контейнер на `save` (`start`/`stop` — в
-   `DockerClient`); роутинг `env→account→providerAccount→адаптер`. **Reaper** подвисших `starting`/`preparing`
-   (малый/большой таймауты, `attempts`, идемпотентный провижн) + `deleting`→`compute.stop`. Отдельный
-   entrypoint воркера. `executing`/`endpoint` — НЕ здесь (агент, стадия 4).
+3. **[в основном сделано]** Compute-воркер (4 фазы `enqueued→starting→preparing`). **Сделано + проверено
+   e2e на живом Docker** (provision-вертикаль: create env → воркер claim→starting → реальный контейнер →
+   preparing): presentation `presentation/worker/` = raw pg `LISTEN`/NOTIFY «насос»; use-case
+   `PrepareNextEnvironmentUseCase` = `repo.withNextEnqueued(e=>e.claim())` → `gateway.provision` →
+   `markDispatched` → `save` (save только на реальном изменении); ошибка → `failProvisioning`+`save`+`deprovision`;
+   `DeprovisionDeletingEnvironmentsUseCase` для `deleting`. **`EnvironmentRepository` Postgres-only** (`withNextEnqueued`
+   = SKIP LOCKED claim в data-source, `save`, `listByState`); **`EnvironmentProviderGateway`** (порт provision/deprovision,
+   docker-адаптер идемпотентный) — сиблинг репозитория. Миграция `attempts` + триггер `notify_environment_work`.
+   **ОСТАЛОСЬ в стадии 3:** reaper подвисших `starting`(малый)/`preparing`(большой таймаут) через `pg_cron`/app;
+   per-account routing по `providerAccount.providerType` (сейчас гейтвей по `COMPUTE_PROVIDER`); delete-e2e прогон.
+   `executing`/`endpoint` — НЕ здесь (агент, стадия 4).
 4. Агент (в образе) + `/internal:heartbeat` (регистрация: `endpoint`+`executing`; `busy`; liveness).
 5. Аллокация сессии: `create-session` на `{accountId, application}` с оптимистичным pick+retry;
    убрать явный `environmentId`.

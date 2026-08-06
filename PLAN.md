@@ -155,14 +155,23 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    заменил `AccountResourceProvider` (убран из `Account` и схемы, миграция дропает таблицу); create-account (A)
    заводит дефолтную `ProviderAccount` из `resources` запроса; create-environment резолвит ACTIVE (иначе 409) и
    пишет `provider_account_id`; account-ответ больше не отдаёт `resources`. Data source фильтрует по переданному
-   `state` (предикат «active» — в домене/репозитории). **Следующая — стадия 3**: compute-воркер, **4 фазы**
-   `enqueued→starting→preparing` (воркер забрал→starting; compute OK→preparing; агент→executing на стадии 4).
-   Раскладка: presentation = raw pg `LISTEN`/NOTIFY «насос» (тупой будильник); use-case `find`→`claim`→`save`
-   (optimistic-забор)→`compute.start`→`markDispatched`→`save`; **repository ТОЛЬКО `find`/`save`** (по DDD:
-   актуатор = Gateway, не Repository — сверено с внешними источниками; `start`/`stop` в `DockerClient`,
-   compute-data-source реконсилит на `save`); **reaper** подвисших `starting`(малый таймаут)/`preparing`(большой)
-   — краш после коммита состояния (свет в ДЦ), `attempts`+идемпотентный провижн, тик в `pg_cron`; роутинг
-   `env→account→providerAccount→адаптер`. Стадии 4–7 — агент+heartbeat / аллокация / GC / auth `/internal`.
+   `state` (предикат «active» — в домене/репозитории).
+   **Стадия 3 — В ОСНОВНОМ СДЕЛАНА (provision-вертикаль доказана e2e на живом Docker).** 4 фазы
+   `enqueued→starting→preparing` (агент→executing = стадия 4). Построено: `presentation/worker/` (raw pg
+   `LISTEN`/NOTIFY «насос»); `PrepareNextEnvironmentUseCase` = `repo.withNextEnqueued(e=>e.claim())` →
+   `gateway.provision` → `markDispatched` → `save` (**save только на реальном изменении**; провижн — не save);
+   ошибка → `failProvisioning`+`save`+`deprovision`; `DeprovisionDeletingEnvironmentsUseCase`. **DDD-развилка
+   решена (сверено с источниками): актуатор = Gateway `EnvironmentProviderGateway`** (provision/deprovision,
+   docker-адаптер идемпотентный), сиблинг репозитория; **`EnvironmentRepository` Postgres-only** (`withNextEnqueued`
+   = атомарный SKIP LOCKED claim в data-source, `save`, `listByState`). Миграция `attempts` + триггер
+   `notify_environment_work`. Есть doc `infrastructure/gateways/__ABOUT_GATEWAYS__.md`. **Остаток стадии 3:**
+   reaper подвисших `starting`(малый)/`preparing`(большой) через `pg_cron`/app-reaper (`attempts`+идемпотентный
+   провижн); per-account routing по `providerAccount.providerType` (сейчас гейтвей по `COMPUTE_PROVIDER`); delete-e2e.
+   **Плюс идёт РАСКЛАДКА ПАПОК по литературе** (см. память `current-state`): [done] `data/`→`infrastructure/`,
+   use-cases→`application/`, presentation по механизму (`http/{api,wd}` + `worker/`, без уровня `nestjs`);
+   **[next] R2** — порт-интерфейсы (repo+gateway) → `application/interfaces/` (строгий DIP, DI по токену),
+   ждёт подтверждения: data-sources остаются в infra + имя реализации `…RepositoryImpl`.
+   Стадии 4–7 — агент+heartbeat / аллокация / GC / auth `/internal`.
 
 10. **IAM access-management (Слой 2, наша authZ) — ОТДЕЛЬНЫЙ воркстрим, не на критическом пути compute.**
     Сейчас: `create-account` даёт создателю все права (grant-all owner) + `:testIamPermissions` (проверить свои).
