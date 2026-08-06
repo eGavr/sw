@@ -1,6 +1,6 @@
 import { ApplicationData } from "../../../../domain/entities/environment/application/application";
 
-import { buildDockerEnvironmentConfig } from "./environment-data-source";
+import { buildDockerEnvironmentConfig } from "./docker-environment-config";
 
 describe("buildDockerEnvironmentConfig", () => {
     const chrome: ApplicationData = { name: "chrome", version: "124" };

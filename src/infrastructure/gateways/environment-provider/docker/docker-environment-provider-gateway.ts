@@ -1,9 +1,10 @@
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
-import { DockerClient } from "../../../data-sources/compute/docker/docker-client";
-import { DockerEnvironmentConfig } from "../../../data-sources/compute/docker/environment-data-source";
-import { dockerLabels, dockerProviderValue } from "../../../data-sources/compute/docker/labels";
+
+import { DockerClient } from "./docker-client";
+import { DockerEnvironmentConfig } from "./docker-environment-config";
+import { dockerLabels, dockerProviderValue } from "./labels";
 
 // Docker adapter: an environment is a container exposing a WebDriver endpoint. provision is
 // idempotent (any stale container for the env id is removed before a fresh run), so a reclaim

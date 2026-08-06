@@ -4,14 +4,14 @@ import { EnvironmentProviderGateway } from "../../../application/interfaces/gate
 import {
     EnvironmentProviderGatewayResolver,
 } from "../../../application/interfaces/gateways/environment-provider-gateway-resolver";
-import { DockerClient } from "../../data-sources/compute/docker/docker-client";
+
+import { DockerClient } from "./docker/docker-client";
 import {
     buildDockerEnvironmentConfig,
     defaultInternalPort,
     defaultSessionTimeoutSeconds,
     DockerEnvironmentConfig,
-} from "../../data-sources/compute/docker/environment-data-source";
-
+} from "./docker/docker-environment-config";
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
 import { EnvironmentProviderGatewayResolverImpl } from "./environment-provider-gateway-resolver-impl";
 import { LocalEnvironmentProviderGateway } from "./local-environment-provider-gateway";

@@ -2,7 +2,8 @@ import { Injectable } from "@nestjs/common";
 
 import { WebDriverSessionGateway } from "../../../application/interfaces/gateways/webdriver-session-gateway";
 import { Application } from "../../../domain/entities/environment/application/application";
-import { WebDriverClient } from "../../data-sources/compute/docker/webdriver-client";
+
+import { WebDriverClient } from "./webdriver-client";
 
 @Injectable()
 export class WebDriverSessionGatewayImpl extends WebDriverSessionGateway {

@@ -14,7 +14,6 @@ import { ClassValidatorError } from "../../../domain/utils/class-validator/class
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
 } from "../../../infrastructure/data-sources/auth/user-data-source-provider";
-import { WebDriverClient } from "../../../infrastructure/data-sources/compute/docker/webdriver-client";
 import { AccountDataSource } from "../../../infrastructure/data-sources/database/postgres/account-data-source";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
@@ -22,6 +21,7 @@ import { UserDataSource as PgUserDataSource } from "../../../infrastructure/data
 import {
     UserPermissionDataSource as PgUserPermissionDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/user-permission-data-source";
+import { WebDriverClient } from "../../../infrastructure/gateways/webdriver-session/webdriver-client";
 import {
     WebDriverSessionGatewayImpl,
 } from "../../../infrastructure/gateways/webdriver-session/webdriver-session-gateway-impl";
