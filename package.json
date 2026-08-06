@@ -37,8 +37,6 @@
     "start:worker:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/worker/index.ts",
     "start:internal": "node build/presentation/internal/index.js",
     "start:internal:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/http/internal/index.ts",
-    "env:create:dev": "ts-node scripts/dev/create-environment.ts",
-    "env:delete:dev": "ts-node scripts/dev/delete-environment.ts",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "jest --config ./test/unit/jest.unit.js",
     "test:integration": "NODE_ENV=integration_test jest --config ./test/integration/jest.integration.js"
