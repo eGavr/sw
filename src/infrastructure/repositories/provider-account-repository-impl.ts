@@ -2,7 +2,9 @@ import { Injectable } from "@nestjs/common";
 
 import { ProviderAccountRepository } from "../../application/interfaces/repositories/provider-account-repository";
 import { AccountId } from "../../domain/entities/account/account-id";
+import { NotFoundResourceError } from "../../domain/entities/error/not-found/not-found-resource-error";
 import { ProviderAccount, ProviderAccountCreateParams } from "../../domain/entities/provider-account/provider-account";
+import { ProviderAccountId } from "../../domain/entities/provider-account/provider-account-id";
 import { ProviderAccountState } from "../../domain/entities/provider-account/provider-account-state";
 import { ProviderAccountDataSource } from "../data-sources/database/postgres/provider-account-data-source";
 
@@ -18,6 +20,16 @@ export class ProviderAccountRepositoryImpl extends ProviderAccountRepository {
         await this.providerAccountDataSource.create(providerAccount);
 
         return providerAccount;
+    }
+
+    async get(providerAccountId: ProviderAccountId): Promise<ProviderAccount> {
+        const data = await this.providerAccountDataSource.findOne(providerAccountId.getValue());
+
+        if (!data) {
+            throw new NotFoundResourceError(providerAccountId.getValue());
+        }
+
+        return ProviderAccount.fromObject(data);
     }
 
     async findActiveByAccount(accountId: AccountId): Promise<ProviderAccount | null> {

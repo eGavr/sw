@@ -20,6 +20,12 @@ export class ProviderAccountDataSource {
         await this.dataSource.getRepository(ProviderAccount).save(ProviderAccount.from(providerAccount));
     }
 
+    async findOne(id: string): Promise<ProviderAccountData | null> {
+        const providerAccount = await this.dataSource.getRepository(ProviderAccount).findOne({ where: { id } });
+
+        return providerAccount?.toObject() ?? null;
+    }
+
     async findOneByAccountAndState(accountId: string, state: string): Promise<ProviderAccountData | null> {
         const providerAccount = await this.dataSource.getRepository(ProviderAccount).findOne({ where: { accountId, state } });
 

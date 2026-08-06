@@ -4,6 +4,9 @@ import { Test } from "@nestjs/testing";
 import { DataSource } from "typeorm";
 
 import { EnvironmentProviderGateway } from "../../../../../../../src/application/interfaces/gateways/environment-provider-gateway";
+import {
+    EnvironmentProviderGatewayResolver,
+} from "../../../../../../../src/application/interfaces/gateways/environment-provider-gateway-resolver";
 import { AccountRepository } from "../../../../../../../src/application/interfaces/repositories/account-repository";
 import {
     EnvironmentRepository,
@@ -66,8 +69,11 @@ describe("environment reaper", () => {
                 { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 {
-                    provide: EnvironmentProviderGateway,
-                    useValue: { provision: async (): Promise<void> => undefined, deprovision },
+                    provide: EnvironmentProviderGatewayResolver,
+                    useValue: {
+                        resolve: (): EnvironmentProviderGateway =>
+                            ({ provision: async (): Promise<void> => undefined, deprovision }),
+                    },
                 },
                 ReclaimStuckEnvironmentsUseCase,
             ],

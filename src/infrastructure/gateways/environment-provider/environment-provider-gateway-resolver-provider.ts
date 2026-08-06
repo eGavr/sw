@@ -1,7 +1,9 @@
 import { ConfigService } from "@nestjs/config";
 
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
-import { InternalError } from "../../../domain/entities/error/internal-error";
+import {
+    EnvironmentProviderGatewayResolver,
+} from "../../../application/interfaces/gateways/environment-provider-gateway-resolver";
 import { DockerClient } from "../../data-sources/compute/docker/docker-client";
 import {
     buildDockerEnvironmentConfig,
@@ -11,21 +13,21 @@ import {
 } from "../../data-sources/compute/docker/environment-data-source";
 
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
+import { EnvironmentProviderGatewayResolverImpl } from "./environment-provider-gateway-resolver-impl";
 import { LocalEnvironmentProviderGateway } from "./local-environment-provider-gateway";
 
-export const EnvironmentProviderGatewayProvider = {
-    provide: EnvironmentProviderGateway,
-    useFactory: (configService: ConfigService): EnvironmentProviderGateway => {
-        const provider = configService.getOrThrow<"local" | "docker">("COMPUTE_PROVIDER");
+// Every supported adapter is registered up front (construction is cheap — the Docker client only
+// shells out per command), so a per-account provider type routes to its gateway without an
+// install-wide COMPUTE_PROVIDER switch.
+export const EnvironmentProviderGatewayResolverProvider = {
+    provide: EnvironmentProviderGatewayResolver,
+    useFactory: (configService: ConfigService): EnvironmentProviderGatewayResolver => {
+        const gateways = new Map<string, EnvironmentProviderGateway>([
+            ["local", new LocalEnvironmentProviderGateway()],
+            ["docker", new DockerEnvironmentProviderGateway(new DockerClient(), dockerConfig(configService))],
+        ]);
 
-        switch (provider) {
-            case "local":
-                return new LocalEnvironmentProviderGateway();
-            case "docker":
-                return new DockerEnvironmentProviderGateway(new DockerClient(), dockerConfig(configService));
-            default:
-                throw new InternalError(`compute provider: ${provider}: unknown`);
-        }
+        return new EnvironmentProviderGatewayResolverImpl(gateways);
     },
     inject: [ConfigService],
 };

@@ -3,8 +3,12 @@ import { Injectable } from "@nestjs/common";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentState } from "../../../domain/entities/environment/environment-state";
 import { StuckProvisioningCriteria } from "../../../domain/entities/environment/stuck-provisioning-criteria";
+import { InternalError } from "../../../domain/entities/error/internal-error";
+import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
 import { EnvironmentProviderGateway } from "../../interfaces/gateways/environment-provider-gateway";
+import { EnvironmentProviderGatewayResolver } from "../../interfaces/gateways/environment-provider-gateway-resolver";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
+import { ProviderAccountRepository } from "../../interfaces/repositories/provider-account-repository";
 
 export type ReclaimStuckEnvironmentsParams = {
     readonly startingTimeoutMs: number;
@@ -20,7 +24,8 @@ export type ReclaimStuckEnvironmentsParams = {
 export class ReclaimStuckEnvironmentsUseCase {
     constructor(
         private readonly environmentRepository: EnvironmentRepository,
-        private readonly environmentProviderGateway: EnvironmentProviderGateway,
+        private readonly providerAccountRepository: ProviderAccountRepository,
+        private readonly environmentProviderGatewayResolver: EnvironmentProviderGatewayResolver,
     ) {}
 
     async execute(params: ReclaimStuckEnvironmentsParams): Promise<void> {
@@ -46,11 +51,25 @@ export class ReclaimStuckEnvironmentsUseCase {
         }
     }
 
+    private async gatewayFor(environment: Environment): Promise<EnvironmentProviderGateway> {
+        if (!environment.providerAccountId) {
+            throw new InternalError(`environment ${environment.id}: no provider account to route to`);
+        }
+
+        const providerAccount = await this.providerAccountRepository.get(
+            ProviderAccountId.fromString(environment.providerAccountId),
+        );
+
+        return this.environmentProviderGatewayResolver.resolve(providerAccount.providerType);
+    }
+
     private async deprovisionQuietly(environment: Environment): Promise<void> {
         try {
-            await this.environmentProviderGateway.deprovision(environment);
+            const gateway = await this.gatewayFor(environment);
+            await gateway.deprovision(environment);
         } catch {
             // Best-effort; a leaked container is caught later by env-id on the next provision/GC.
         }
     }
 }
+
