@@ -159,6 +159,17 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    SKIP LOCKED; `enqueued`→запуск, `deleting`→остановка; запись `endpoint` при регистрации; `failed`/ретрай;
    роутинг провижна `env→account→providerAccount→адаптер`). Стадии 4–7 — агент+heartbeat / аллокация / GC / auth `/internal`.
 
+10. **IAM access-management (Слой 2, наша authZ) — ОТДЕЛЬНЫЙ воркстрим, не на критическом пути compute.**
+    Сейчас: `create-account` даёт создателю все права (grant-all owner) + `:testIamPermissions` (проверить свои).
+    НЕТ: добавить в аккаунт другого юзера, выдать/забрать права — в аккаунте может быть только создатель.
+    Достроить триаду google.iam.v1 (AIP-136) теми же кастомными методами на аккаунте: **`:getIamPolicy`**
+    (прочитать политику) + **`:setIamPolicy`** (задать: добавить юзера + права). Политика = биндинги
+    `role → members`. Решения на потом: ввести **роли** (бандлы permissions: owner/editor/viewer) vs биндить
+    плоские permissions (Google — роли); участник указывается по внешней identity (email/external_id), `User`
+    создаётся лениво при первом логине. *(Альтернатива триаде — REST-коллекция `accounts/{acc}/members/{member}`;
+    но раз есть `:testIamPermissions`, триада консистентнее.)* «Гейт на вход в сервис» (allowlist поверх
+    self-service) — если понадобится, ещё отдельно. Делаем после compute-вертикали.
+
 ---
 
 ## Permissions по IAM (`:testIamPermissions`) — СДЕЛАНО
