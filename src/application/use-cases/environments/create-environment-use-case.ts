@@ -58,7 +58,7 @@ export class CreateEnvironmentUseCase {
         const account = await this.accountRepository.get(accountId);
         const permissions = await this.accountUserPermissionRepository.findAll({ filter: { user, account } });
 
-        if (!permissions.find(this.permissionName)) {
+        if (!permissions.has(this.permissionName)) {
             throw new PermissionDeniedError(`user: no permission: ${this.permissionName}`);
         }
 

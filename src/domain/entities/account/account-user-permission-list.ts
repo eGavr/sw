@@ -38,16 +38,12 @@ export class AccountUserPermissionList {
         this.permissions = params.permissions;
     }
 
-    isEmpty(): boolean {
-        return this.permissions.length === 0;
-    }
-
-    find(permissionName: UserPermissionName): boolean {
+    has(permissionName: UserPermissionName): boolean {
         return this.permissions.some((permission) => permission.name === permissionName);
     }
 
     intersect(requested: ReadonlyArray<UserPermissionName>): Array<UserPermissionName> {
-        return requested.filter((permissionName) => this.find(permissionName));
+        return requested.filter((permissionName) => this.has(permissionName));
     }
 
     each(cb: (permission: AccountUserPermission) => void): void {
