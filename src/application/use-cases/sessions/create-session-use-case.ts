@@ -1,10 +1,5 @@
 import { Injectable } from "@nestjs/common";
 
-import { AccountRepository } from "../../../data/repositories/account-repository";
-import { AccountUserPermissionRepository } from "../../../data/repositories/account-user-permission-repository";
-import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
-import { SessionRepository } from "../../../data/repositories/session-repository";
-import { UserRepository } from "../../../data/repositories/user-repository";
 import { Application } from "../../../domain/entities/environment/application/application";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { ApplicationNotAvailableError } from "../../../domain/entities/environment/error/application-not-available-error";
@@ -15,6 +10,11 @@ import { Session } from "../../../domain/entities/session/session";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 import { UserCredentials } from "../../../domain/entities/user/user-credentials";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
+import { AccountRepository } from "../../../infrastructure/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../../infrastructure/repositories/account-user-permission-repository";
+import { EnvironmentRepository } from "../../../infrastructure/repositories/environment-repository";
+import { SessionRepository } from "../../../infrastructure/repositories/session-repository";
+import { UserRepository } from "../../../infrastructure/repositories/user-repository";
 
 type CreateSessionInput = {
     creds: {

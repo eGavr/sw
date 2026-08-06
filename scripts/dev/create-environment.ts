@@ -1,8 +1,8 @@
-import { DockerClient } from "../../src/data/data-sources/compute/docker/docker-client";
+import { DockerClient } from "../../src/infrastructure/data-sources/compute/docker/docker-client";
 import {
     buildDockerEnvironmentConfig,
     DockerEnvironmentDataSource,
-} from "../../src/data/data-sources/compute/docker/environment-data-source";
+} from "../../src/infrastructure/data-sources/compute/docker/environment-data-source";
 
 // Dev helper: provisions a Docker environment (a browser container) and prints its id once the
 // WebDriver endpoint is ready, so the wd data-plane can be exercised without the api control-plane.

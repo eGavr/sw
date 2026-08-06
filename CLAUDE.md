@@ -20,9 +20,9 @@ presentation <- use case <- repository <- data source <- external backend client
 
 -   `presentation` зависит от application-слоя и транспортных библиотек. Он вызывает use case, но не обращается напрямую к репозиториям и data source-ам.
 -   `application/use-cases` получает репозитории через конструктор и работает с возвращаемыми ими доменными объектами. Use case не обращается напрямую к data source, внешнему клиенту или transport-типу (request-модели/presenter-у).
--   `data/repositories` зависит от домена и data source-ов. Репозиторий объединяет данные нескольких backend-ов, если это нужно для одной доменной сущности.
--   `data/data-sources` предоставляет репозиториям доступ к данным доменных сущностей в конкретном backend-е. Data source использует клиент этого backend-а и не вызывает data source другого backend-а.
--   `domain` содержит бизнес-правила, выраженные через сущности, value objects и специализированные коллекции, а также доменные ошибки. Он не зависит от `application`, `data`, `presentation`, транспортных контрактов, клиентов и фреймворков.
+-   `infrastructure/repositories` зависит от домена и data source-ов. Репозиторий объединяет данные нескольких backend-ов, если это нужно для одной доменной сущности.
+-   `infrastructure/data-sources` предоставляет репозиториям доступ к данным доменных сущностей в конкретном backend-е. Data source использует клиент этого backend-а и не вызывает data source другого backend-а.
+-   `domain` содержит бизнес-правила, выраженные через сущности, value objects и специализированные коллекции, а также доменные ошибки. Он не зависит от `application`, `infrastructure`, `presentation`, транспортных контрактов, клиентов и фреймворков.
 -   `bootstrap.ts`, `compose-*.ts`, фабрики и entrypoint-ы являются composition root: только здесь допустимо знать сразу о нескольких слоях и связывать реализации.
 -   Код в `packages/` должен быть переиспользуемым и не зависеть от конкретного сервиса из `services/`.
 
@@ -59,7 +59,7 @@ presentation <- use case <- repository <- data source <- external backend client
 ## Data sources
 
 -   Data source предоставляет репозиторию доступ к данным или части данных конкретной доменной сущности или агрегата, которые хранятся в одном backend-е. Протокол и API внешнего backend-а инкапсулирует клиент, используемый внутри data source-а.
--   Размещай основной адаптер как `data/data-sources/<backend>/<entity>-data-source.ts`. Клиенты, DTO, mapper-ы и прочие детали реализации backend-а размещай во вложенных папках этого backend-а.
+-   Размещай основной адаптер как `infrastructure/data-sources/<backend>/<entity>-data-source.ts`. Клиенты, DTO, mapper-ы и прочие детали реализации backend-а размещай во вложенных папках этого backend-а.
 -   Называй data source по обслуживаемой сущности или агрегату, а его публичным методам давай семантику хранилища: `get`, `find`, `list`, `create`, `update`, `save`, `delete` и их осмысленные варианты `*Many`/`*All`. Не добавляй в публичный API data source-а сценарные команды; операционные методы вроде `send`, `start` или `stop` оставляй во внутреннем клиенте внешнего backend-а.
 -   Data source одного backend-а не импортирует data source другого backend-а. Координация разных backend-ов находится в репозитории (транзакция между разными backend-ами невозможна — используй eventual consistency).
 -   Транзакция — забота data source конкретного backend-а: открывай её внутри метода data source (напр. `dataSource.transaction(...)`), не поднимай транзакционную границу в репозиторий, use case или presentation. Атомарно пишется один агрегат целиком; если его данные лежат в нескольких таблицах/data source-ах ОДНОГО backend-а, координируй их в одной транзакции — data source, владеющий записью агрегата, может принимать `DataSource | EntityManager` и создавать дочерние data source-ы того же backend-а, привязанные к транзакционному manager-у.
@@ -104,7 +104,7 @@ presentation <- use case <- repository <- data source <- external backend client
 -   **Гарантированные, полностью известные ресурсы — без capacity-машинерии SurfWax.** Сервис всегда знает точный live-набор поднятых окружений/сессий и ограничен известным потолком провайдера. НЕ переносим: static slots, приоритетную очередь запросов, предиктивный автоскейл/warm-пулы, `coordinator`, `ordinator`.
 -   **Не только браузеры (заложено в модели).** Мобильные приложения (Android/iOS через Appium) — первоклассный случай; обобщающее понятие — **Application** (браузер или мобильное приложение + версия). НО в первой локальной версии реализуем только **Chrome/linux (docker)**; для Android только закладываем возможность в абстракциях, ничего не собираем.
 -   Примеры: Chrome 100 → Environment = linux-контейнер нужной версии с доустановленным Chrome 100, Session = WebDriver-сессия Chrome. Android (позже) → Environment = Android нужной версии на модели телефона, Session = запуск приложения через Appium.
--   Compute-backend — внешний backend: доступ к нему инкапсулирует data-source (`data/data-sources/compute/local/…`), а `EnvironmentRepository`/`SessionRepository` дают storage-семантику поверх. Домен про `local`/`docker`/`k8s` не знает.
+-   Compute-backend — внешний backend: доступ к нему инкапсулирует data-source (`infrastructure/data-sources/compute/local/…`), а `EnvironmentRepository`/`SessionRepository` дают storage-семантику поверх. Домен про `local`/`docker`/`k8s` не знает.
 -   **Источник правды о live-инвентаре — Postgres** (реестр окружений + занятость); compute (Docker/…) — исполнитель, который хранит связь `env id → контейнер` у себя, без завязки на docker в БД. *(Пересмотрено: раньше источником был провайдер. Полный дизайн — `docs/design/environment-lifecycle-and-allocation.md`.)* Liveness — по хартбитам (агент шлёт ~раз в 3с; окружение выбираемо, если хартбит ≤6с). Занятость `busy` **ставит хартбит агента**, не create-session. **Секрет сессии (wdSessionId) в БД/логи не кладём.**
 -   **Три раздельных слоя идентичности/доступа** (полный дизайн — тот же design-doc):
     -   **authN (кто ты)** — `User(external_id, provider_type)`: один логин через внешний IdP.

@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 
-import { EnvironmentProviderGateway } from "../../../data/gateways/environment-provider/environment-provider-gateway";
-import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentStateReason } from "../../../domain/entities/environment/environment-state-reason";
+import { EnvironmentProviderGateway } from "../../../infrastructure/gateways/environment-provider/environment-provider-gateway";
+import { EnvironmentRepository } from "../../../infrastructure/repositories/environment-repository";
 
 // Worker scenario: prepare the next enqueued environment. Claims it atomically (domain claim() under
 // a row lock), provisions the container via the gateway, and marks it dispatched. Returns null when

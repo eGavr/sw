@@ -3,25 +3,27 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
 import { CreateSessionUseCase } from "../../../../../application/use-cases/sessions/create-session-use-case";
-import { UserDataSourceProvider as AuthUserDataSourceProvider } from "../../../../../data/data-sources/auth/user-data-source-provider";
-import { LocalComputeStore } from "../../../../../data/data-sources/compute/local/local-compute-store";
-import { SessionDataSourceProvider } from "../../../../../data/data-sources/compute/session-data-source-provider";
-import { AccountDataSource } from "../../../../../data/data-sources/database/postgres/account-data-source";
-import { EnvironmentDataSource } from "../../../../../data/data-sources/database/postgres/environment-data-source";
-import { ProviderAccountDataSource } from "../../../../../data/data-sources/database/postgres/provider-account-data-source";
-import { PostgresModule } from "../../../../../data/data-sources/database/postgres/typeorm/postgres-module";
-import { UserDataSource as PgUserDataSource } from "../../../../../data/data-sources/database/postgres/user-data-source";
+import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
+import {
+    UserDataSourceProvider as AuthUserDataSourceProvider,
+} from "../../../../../infrastructure/data-sources/auth/user-data-source-provider";
+import { LocalComputeStore } from "../../../../../infrastructure/data-sources/compute/local/local-compute-store";
+import { SessionDataSourceProvider } from "../../../../../infrastructure/data-sources/compute/session-data-source-provider";
+import { AccountDataSource } from "../../../../../infrastructure/data-sources/database/postgres/account-data-source";
+import { EnvironmentDataSource } from "../../../../../infrastructure/data-sources/database/postgres/environment-data-source";
+import { ProviderAccountDataSource } from "../../../../../infrastructure/data-sources/database/postgres/provider-account-data-source";
+import { PostgresModule } from "../../../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
+import { UserDataSource as PgUserDataSource } from "../../../../../infrastructure/data-sources/database/postgres/user-data-source";
 import {
     UserPermissionDataSource as PgUserPermissionDataSource,
-} from "../../../../../data/data-sources/database/postgres/user-permission-data-source";
-import { AccountRepository } from "../../../../../data/repositories/account-repository";
-import { AccountUserPermissionRepository } from "../../../../../data/repositories/account-user-permission-repository";
-import { EnvironmentRepository } from "../../../../../data/repositories/environment-repository";
-import { ProviderAccountRepository } from "../../../../../data/repositories/provider-account-repository";
-import { SessionRepository } from "../../../../../data/repositories/session-repository";
-import { UserRepository } from "../../../../../data/repositories/user-repository";
-import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
+} from "../../../../../infrastructure/data-sources/database/postgres/user-permission-data-source";
 import { LoggerModule } from "../../../../../infrastructure/logging/logger-module";
+import { AccountRepository } from "../../../../../infrastructure/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../../../../infrastructure/repositories/account-user-permission-repository";
+import { EnvironmentRepository } from "../../../../../infrastructure/repositories/environment-repository";
+import { ProviderAccountRepository } from "../../../../../infrastructure/repositories/provider-account-repository";
+import { SessionRepository } from "../../../../../infrastructure/repositories/session-repository";
+import { UserRepository } from "../../../../../infrastructure/repositories/user-repository";
 import { ErrorInterceptor } from "../../interceptors/error-interceptor";
 import { ResponseInterceptor } from "../../interceptors/response-interceptor";
 import { ContextMiddleware } from "../../middlewares/contex-middleware";

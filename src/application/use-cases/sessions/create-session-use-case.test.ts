@@ -1,10 +1,3 @@
-import { LocalComputeStore } from "../../../data/data-sources/compute/local/local-compute-store";
-import { LocalSessionDataSource } from "../../../data/data-sources/compute/local/session-data-source";
-import { AccountRepository } from "../../../data/repositories/account-repository";
-import { AccountUserPermissionRepository } from "../../../data/repositories/account-user-permission-repository";
-import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
-import { SessionRepository } from "../../../data/repositories/session-repository";
-import { UserRepository } from "../../../data/repositories/user-repository";
 import { AccountId } from "../../../domain/entities/account/account-id";
 import { Application } from "../../../domain/entities/environment/application/application";
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
@@ -15,6 +8,13 @@ import { Platform } from "../../../domain/entities/environment/platform/platform
 import { PlatformName } from "../../../domain/entities/environment/platform/platform-name";
 import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
 import { User } from "../../../domain/entities/user/user";
+import { LocalComputeStore } from "../../../infrastructure/data-sources/compute/local/local-compute-store";
+import { LocalSessionDataSource } from "../../../infrastructure/data-sources/compute/local/session-data-source";
+import { AccountRepository } from "../../../infrastructure/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../../infrastructure/repositories/account-user-permission-repository";
+import { EnvironmentRepository } from "../../../infrastructure/repositories/environment-repository";
+import { SessionRepository } from "../../../infrastructure/repositories/session-repository";
+import { UserRepository } from "../../../infrastructure/repositories/user-repository";
 
 import { CreateSessionUseCase } from "./create-session-use-case";
 

@@ -1,10 +1,5 @@
 import { Injectable } from "@nestjs/common";
 
-import { AccountRepository } from "../../../data/repositories/account-repository";
-import { AccountUserPermissionRepository } from "../../../data/repositories/account-user-permission-repository";
-import { EnvironmentRepository } from "../../../data/repositories/environment-repository";
-import { ProviderAccountRepository } from "../../../data/repositories/provider-account-repository";
-import { UserRepository } from "../../../data/repositories/user-repository";
 import { AccountId } from "../../../domain/entities/account/account-id";
 import { Application } from "../../../domain/entities/environment/application/application";
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
@@ -16,6 +11,11 @@ import { NoActiveProviderAccountError } from "../../../domain/entities/provider-
 import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
 import { UserCredentials } from "../../../domain/entities/user/user-credentials";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
+import { AccountRepository } from "../../../infrastructure/repositories/account-repository";
+import { AccountUserPermissionRepository } from "../../../infrastructure/repositories/account-user-permission-repository";
+import { EnvironmentRepository } from "../../../infrastructure/repositories/environment-repository";
+import { ProviderAccountRepository } from "../../../infrastructure/repositories/provider-account-repository";
+import { UserRepository } from "../../../infrastructure/repositories/user-repository";
 
 type CreateEnvironmentInput = {
     creds: {

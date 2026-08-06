@@ -121,10 +121,10 @@ env.markDispatched(); environmentRepository.save(env)           // ХРАНИЛ�
 [scalastic: ports & adapters](https://scalastic.io/en/hexagonal-architecture/)).
 
 Наш проект — **прагматичный гибрид**: driven-порты и их адаптеры уже лежат в `data/` (репозитории в
-`data/repositories`, compute-абстракция + docker-адаптер в `data/data-sources/compute`). Ради консистентности
+`infrastructure/repositories`, compute-абстракция + docker-адаптер в `infrastructure/data-sources/compute`). Ради консистентности
 gateway кладём туда же:
 ```text
-src/data/gateways/<что-абстрагируем>/
+src/infrastructure/gateways/<что-абстрагируем>/
     <что>-gateway.ts                      # порт: методы в нашем словаре
     <backend>/<backend>-<что>-gateway.ts   # адаптер (клиент внешней системы внутри)
     <что>-gateway-provider.ts              # фабрика адаптера (по конфигу/провайдеру), если их несколько

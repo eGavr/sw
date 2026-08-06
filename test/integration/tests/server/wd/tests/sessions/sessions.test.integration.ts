@@ -5,14 +5,14 @@ import { HttpStatus } from "@nestjs/common";
 import request from "supertest";
 import { v4 as uuidv4 } from "uuid";
 
-import { AccountRepository } from "../../../../../../../src/data/repositories/account-repository";
-import { EnvironmentRepository } from "../../../../../../../src/data/repositories/environment-repository";
-import { ProviderAccountRepository } from "../../../../../../../src/data/repositories/provider-account-repository";
 import { AccountId } from "../../../../../../../src/domain/entities/account/account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
 import { User } from "../../../../../../../src/domain/entities/user/user";
+import { AccountRepository } from "../../../../../../../src/infrastructure/repositories/account-repository";
+import { EnvironmentRepository } from "../../../../../../../src/infrastructure/repositories/environment-repository";
+import { ProviderAccountRepository } from "../../../../../../../src/infrastructure/repositories/provider-account-repository";
 import { SessionRoute } from "../../../../../../../src/presentation/server/nestjs/modules/wd/session-route";
 import { WdModule } from "../../../../../../../src/presentation/server/nestjs/modules/wd/wd-module";
 import { TestingApp } from "../../../utils/app/testing-app";
