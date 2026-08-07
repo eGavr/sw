@@ -3,6 +3,7 @@ import { ApplicationList } from "../../../domain/entities/environment/applicatio
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../../domain/entities/environment/environment-state";
+import { GarbageCollectionCriteria } from "../../../domain/entities/environment/garbage-collection-criteria";
 import { Platform } from "../../../domain/entities/environment/platform/platform";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
 import { StuckProvisioningCriteria } from "../../../domain/entities/environment/stuck-provisioning-criteria";
@@ -28,6 +29,8 @@ export abstract class EnvironmentRepository {
     abstract listStuckProvisioning(criteria: StuckProvisioningCriteria): Promise<Array<Environment>>;
 
     abstract findAllocatable(accountId: AccountId, criteria: SessionAllocationCriteria): Promise<Array<Environment>>;
+
+    abstract collectGarbage(criteria: GarbageCollectionCriteria): Promise<void>;
 
     abstract withNextEnqueued(mutate: (environment: Environment) => void): Promise<Environment | null>;
 

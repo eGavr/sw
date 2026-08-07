@@ -9,6 +9,7 @@ import { Environment } from "../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../domain/entities/environment/environment-state";
 import { EnvironmentNotFoundError } from "../../domain/entities/environment/error/environment-not-found-error";
+import { GarbageCollectionCriteria } from "../../domain/entities/environment/garbage-collection-criteria";
 import { SessionAllocationCriteria } from "../../domain/entities/environment/session-allocation-criteria";
 import { StuckProvisioningCriteria } from "../../domain/entities/environment/stuck-provisioning-criteria";
 import { EnvironmentDataSource } from "../data-sources/database/postgres/environment-data-source";
@@ -68,6 +69,15 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         );
 
         return data.map(Environment.fromObject);
+    }
+
+    async collectGarbage(criteria: GarbageCollectionCriteria): Promise<void> {
+        await this.environmentDataSource.deleteCollectable(criteria.toPredicates().map((predicate) => ({
+            state: predicate.state,
+            cutoff: predicate.cutoff,
+            timestamp: predicate.timestamp,
+            collectWhenNull: predicate.collectWhenNull,
+        })));
     }
 
     async listStuckProvisioning(criteria: StuckProvisioningCriteria): Promise<Array<Environment>> {

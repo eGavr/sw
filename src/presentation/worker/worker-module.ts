@@ -3,6 +3,9 @@ import { ConfigModule } from "@nestjs/config";
 
 import { EnvironmentRepository } from "../../application/interfaces/repositories/environment-repository";
 import {
+    CollectGarbageEnvironmentsUseCase,
+} from "../../application/use-cases/environments/collect-garbage-environments-use-case";
+import {
     DeprovisionDeletingEnvironmentsUseCase,
 } from "../../application/use-cases/environments/deprovision-deleting-environments-use-case";
 import {
@@ -34,6 +37,7 @@ import { EnvironmentWorker } from "./environment-worker";
         PrepareNextEnvironmentUseCase,
         DeprovisionDeletingEnvironmentsUseCase,
         ReclaimStuckEnvironmentsUseCase,
+        CollectGarbageEnvironmentsUseCase,
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         EnvironmentDataSource,
         EnvironmentProviderGatewayProvider,

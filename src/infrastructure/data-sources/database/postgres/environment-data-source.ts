@@ -69,6 +69,45 @@ export class EnvironmentDataSource {
         return environments.map((environment) => environment.toObject());
     }
 
+    // Hard-delete rows matching any of the (state, cutoff) predicates, each measured by its own
+    // timestamp column (optionally counting a NULL timestamp as past the cutoff). The states, clocks
+    // and cutoffs are decided upstream (the domain criteria); this only translates them into a delete.
+    // Child applications are removed by the ON DELETE CASCADE foreign key.
+    async deleteCollectable(
+        predicates: Array<{
+            state: string;
+            cutoff: Date;
+            timestamp: "lastHeartbeatAt" | "updatedAt";
+            collectWhenNull: boolean;
+        }>,
+    ): Promise<void> {
+        if (predicates.length === 0) {
+            return;
+        }
+
+        const columns: Record<"lastHeartbeatAt" | "updatedAt", string> = {
+            lastHeartbeatAt: "last_heartbeat_at",
+            updatedAt: "updated_at",
+        };
+
+        const query = this.dataSource.createQueryBuilder().delete().from(Environment);
+
+        predicates.forEach((predicate, index) => {
+            const column = columns[predicate.timestamp];
+            const nullClause = predicate.collectWhenNull ? ` OR ${column} IS NULL` : "";
+            const clause = `(state = :state${index} AND (${column} < :cutoff${index}${nullClause}))`;
+            const params = { [`state${index}`]: predicate.state, [`cutoff${index}`]: predicate.cutoff };
+
+            if (index === 0) {
+                query.where(clause, params);
+            } else {
+                query.orWhere(clause, params);
+            }
+        });
+
+        await query.execute();
+    }
+
     // Rows matching any of the (state, cutoff) predicates: in that state and last touched before its
     // cutoff. The states and cutoffs are decided upstream (the domain criteria); this only translates
     // them into SQL — no state set or freshness threshold is baked in here.

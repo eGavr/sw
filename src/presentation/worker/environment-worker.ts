@@ -3,6 +3,9 @@ import { ConfigService } from "@nestjs/config";
 import { Client } from "pg";
 
 import {
+    CollectGarbageEnvironmentsUseCase,
+} from "../../application/use-cases/environments/collect-garbage-environments-use-case";
+import {
     DeprovisionDeletingEnvironmentsUseCase,
 } from "../../application/use-cases/environments/deprovision-deleting-environments-use-case";
 import {
@@ -11,17 +14,21 @@ import {
 import {
     ReclaimStuckEnvironmentsUseCase,
 } from "../../application/use-cases/environments/reclaim-stuck-environments-use-case";
+import { defaultHeartbeatFreshnessMs } from "../../domain/entities/environment/heartbeat-freshness";
 
 const channel = "environment_work";
 
-// One session-scoped advisory-lock key so that, with N workers, only one runs the reaper sweep at a
-// time (the others skip it); it never blocks the LISTEN/pump path.
+// Session-scoped advisory-lock keys so that, with N workers, only one runs each time-based sweep
+// (reaper / GC) at a time (the others skip it); they never block the LISTEN/pump path.
 const reaperLockKey = 0x53574b52;
+const gcLockKey = 0x53574743;
 
 const defaultReaperIntervalMs = 10_000;
 const defaultStartingTimeoutMs = 15_000;
 const defaultPreparingTimeoutMs = 120_000;
 const defaultMaxAttempts = 3;
+const defaultGcIntervalMs = 30_000;
+const defaultFailedTtlMs = 3_600_000;
 
 // Presentation runtime of the worker: holds a raw pg LISTEN connection (the doorbell) and, on each
 // wakeup, drives the use cases. It does no SQL/locks itself — that lives in the data source; the
@@ -32,22 +39,30 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     private pumping = false;
     private pending = false;
     private reaperTimer: NodeJS.Timeout | null = null;
+    private gcTimer: NodeJS.Timeout | null = null;
 
     private readonly reaperIntervalMs: number;
     private readonly startingTimeoutMs: number;
     private readonly preparingTimeoutMs: number;
     private readonly maxAttempts: number;
+    private readonly gcIntervalMs: number;
+    private readonly freshnessMs: number;
+    private readonly failedTtlMs: number;
 
     constructor(
         private readonly configService: ConfigService,
         private readonly prepareNextEnvironment: PrepareNextEnvironmentUseCase,
         private readonly deprovisionDeletingEnvironments: DeprovisionDeletingEnvironmentsUseCase,
         private readonly reclaimStuckEnvironments: ReclaimStuckEnvironmentsUseCase,
+        private readonly collectGarbageEnvironments: CollectGarbageEnvironmentsUseCase,
     ) {
         this.reaperIntervalMs = this.number("WORKER_REAPER_INTERVAL_MS", defaultReaperIntervalMs);
         this.startingTimeoutMs = this.number("WORKER_STARTING_TIMEOUT_MS", defaultStartingTimeoutMs);
         this.preparingTimeoutMs = this.number("WORKER_PREPARING_TIMEOUT_MS", defaultPreparingTimeoutMs);
         this.maxAttempts = this.number("WORKER_PROVISION_MAX_ATTEMPTS", defaultMaxAttempts);
+        this.gcIntervalMs = this.number("WORKER_GC_INTERVAL_MS", defaultGcIntervalMs);
+        this.freshnessMs = this.number("HEARTBEAT_FRESHNESS_MS", defaultHeartbeatFreshnessMs);
+        this.failedTtlMs = this.number("WORKER_FAILED_TTL_MS", defaultFailedTtlMs);
     }
 
     private number(key: string, fallback: number): number {
@@ -73,6 +88,11 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         this.reaperTimer = setInterval(() => void this.reap(), this.reaperIntervalMs);
         this.reaperTimer.unref();
 
+        // GC is another time-based sweep (no event marks a row as collectable): hard-delete finished
+        // rows so the table does not grow.
+        this.gcTimer = setInterval(() => void this.collect(), this.gcIntervalMs);
+        this.gcTimer.unref();
+
         // NOTIFY is not durable: catch up on whatever is already waiting.
         await this.pump();
     }
@@ -81,6 +101,11 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         if (this.reaperTimer) {
             clearInterval(this.reaperTimer);
             this.reaperTimer = null;
+        }
+
+        if (this.gcTimer) {
+            clearInterval(this.gcTimer);
+            this.gcTimer = null;
         }
 
         await this.client?.end();
@@ -116,32 +141,41 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         }
     }
 
-    // Advisory locks are per-connection, so lock and unlock must run on the same client; capture it
-    // once so a concurrent shutdown swapping `this.client` cannot split the pair.
     private async reap(): Promise<void> {
+        await this.underLock(reaperLockKey, () => this.reclaimStuckEnvironments.execute({
+            startingTimeoutMs: this.startingTimeoutMs,
+            preparingTimeoutMs: this.preparingTimeoutMs,
+            maxAttempts: this.maxAttempts,
+        }));
+    }
+
+    private async collect(): Promise<void> {
+        await this.underLock(gcLockKey, () => this.collectGarbageEnvironments.execute({
+            freshnessMs: this.freshnessMs,
+            failedTtlMs: this.failedTtlMs,
+        }));
+    }
+
+    // Run a sweep only if this worker wins the advisory lock (so N workers don't all sweep). Advisory
+    // locks are per-connection, so lock and unlock run on the same captured client — a concurrent
+    // shutdown swapping `this.client` cannot split the pair.
+    private async underLock(key: number, sweep: () => Promise<void>): Promise<void> {
         const client = this.client;
 
-        if (!client || !(await this.tryLock(client))) {
+        if (!client) {
+            return;
+        }
+
+        const result = await client.query<{ locked: boolean }>("SELECT pg_try_advisory_lock($1) AS locked", [key]);
+
+        if (!result.rows[0]?.locked) {
             return;
         }
 
         try {
-            await this.reclaimStuckEnvironments.execute({
-                startingTimeoutMs: this.startingTimeoutMs,
-                preparingTimeoutMs: this.preparingTimeoutMs,
-                maxAttempts: this.maxAttempts,
-            });
+            await sweep();
         } finally {
-            await client.query("SELECT pg_advisory_unlock($1)", [reaperLockKey]);
+            await client.query("SELECT pg_advisory_unlock($1)", [key]);
         }
-    }
-
-    private async tryLock(client: Client): Promise<boolean> {
-        const result = await client.query<{ locked: boolean }>(
-            "SELECT pg_try_advisory_lock($1) AS locked",
-            [reaperLockKey],
-        );
-
-        return result.rows[0]?.locked ?? false;
     }
 }
