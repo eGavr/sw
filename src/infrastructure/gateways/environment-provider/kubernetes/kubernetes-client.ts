@@ -6,7 +6,10 @@ import { Injectable } from "@nestjs/common";
 // the backend client; the gateway builds domain-meaningful manifests and asks this to apply/delete them.
 @Injectable()
 export class KubernetesClient {
-    constructor(private readonly context?: string) {}
+    constructor(
+        private readonly namespace: string,
+        private readonly context?: string,
+    ) {}
 
     async apply(manifest: string): Promise<void> {
         await this.exec(["apply", "-f", "-"], manifest);
@@ -25,7 +28,8 @@ export class KubernetesClient {
     }
 
     private exec(args: Array<string>, stdin?: string): Promise<string> {
-        const full = this.context ? ["--context", this.context, ...args] : args;
+        const scoped = ["-n", this.namespace, ...args];
+        const full = this.context ? ["--context", this.context, ...scoped] : scoped;
 
         return new Promise((resolve, reject) => {
             const child = spawn("kubectl", full, { stdio: ["pipe", "pipe", "pipe"] });

@@ -1,0 +1,6 @@
+# Namespace the environment pods/services live in, isolated from the control plane. The kubernetes
+# compute adapter creates every environment Pod + NodePort Service here (COMPUTE_K8S_NAMESPACE).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sw-environments

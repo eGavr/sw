@@ -62,6 +62,8 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
             [labels.accountId]: environment.accountId.getValue(),
         };
 
+        const namespace = this.config.namespace;
+
         return {
             apiVersion: "v1",
             kind: "List",
@@ -69,7 +71,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
                 {
                     apiVersion: "v1",
                     kind: "Pod",
-                    metadata: { name, labels: metadataLabels },
+                    metadata: { name, namespace, labels: metadataLabels },
                     spec: {
                         restartPolicy: "Never",
                         containers: [{
@@ -80,6 +82,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
                             imagePullPolicy: "IfNotPresent",
                             ports: [{ containerPort: this.config.containerPort }],
                             env: this.env(environment, endpoint),
+                            resources: this.config.resources,
                             volumeMounts: [{ name: "dshm", mountPath: "/dev/shm" }],
                         }],
                         volumes: [{ name: "dshm", emptyDir: { medium: "Memory", sizeLimit: "2Gi" } }],
@@ -88,7 +91,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
                 {
                     apiVersion: "v1",
                     kind: "Service",
-                    metadata: { name, labels: metadataLabels },
+                    metadata: { name, namespace, labels: metadataLabels },
                     spec: {
                         type: "NodePort",
                         selector,

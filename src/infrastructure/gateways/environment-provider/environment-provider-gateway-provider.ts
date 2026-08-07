@@ -13,7 +13,9 @@ import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-pr
 import { KubernetesClient } from "./kubernetes/kubernetes-client";
 import {
     defaultContainerPort,
+    defaultNamespace,
     defaultNodePortRange,
+    defaultResources,
     defaultSessionTimeoutSeconds as defaultK8sSessionTimeoutSeconds,
     KubernetesEnvironmentConfig,
 } from "./kubernetes/kubernetes-environment-config";
@@ -36,7 +38,10 @@ export const EnvironmentProviderGatewayProvider = {
             ["local", new LocalEnvironmentProviderGateway()],
             ["docker", new DockerEnvironmentProviderGateway(new DockerClient(), dockerConfig(configService))],
             ["kubernetes", new KubernetesEnvironmentProviderGateway(
-                new KubernetesClient(configService.get<string>("COMPUTE_K8S_CONTEXT")),
+                new KubernetesClient(
+                    configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultNamespace,
+                    configService.get<string>("COMPUTE_K8S_CONTEXT"),
+                ),
                 kubernetesConfig(configService),
             )],
         ]);
@@ -72,6 +77,7 @@ function kubernetesConfig(configService: ConfigService): KubernetesEnvironmentCo
 
     return {
         image: configService.get<string>("COMPUTE_K8S_IMAGE") ?? "sw/environment-agent:latest",
+        namespace: configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultNamespace,
         containerPort: Number(configService.get<string>("COMPUTE_K8S_PORT") ?? String(defaultContainerPort)),
         sessionTimeoutSeconds: Number(
             configService.get<string>("COMPUTE_K8S_SESSION_TIMEOUT") ?? String(defaultK8sSessionTimeoutSeconds),
@@ -79,6 +85,16 @@ function kubernetesConfig(configService: ConfigService): KubernetesEnvironmentCo
         nodePortRange: {
             min: Number(configService.get<string>("COMPUTE_K8S_NODEPORT_MIN") ?? String(defaultNodePortRange.min)),
             max: Number(configService.get<string>("COMPUTE_K8S_NODEPORT_MAX") ?? String(defaultNodePortRange.max)),
+        },
+        resources: {
+            requests: {
+                cpu: configService.get<string>("COMPUTE_K8S_CPU_REQUEST") ?? defaultResources.requests.cpu,
+                memory: configService.get<string>("COMPUTE_K8S_MEMORY_REQUEST") ?? defaultResources.requests.memory,
+            },
+            limits: {
+                cpu: configService.get<string>("COMPUTE_K8S_CPU_LIMIT") ?? defaultResources.limits.cpu,
+                memory: configService.get<string>("COMPUTE_K8S_MEMORY_LIMIT") ?? defaultResources.limits.memory,
+            },
         },
         // On the dev Mac the wd proxy reaches the cluster's host-mapped node ports on the loopback.
         advertiseHost: configService.get<string>("COMPUTE_K8S_ADVERTISE_HOST") ?? "127.0.0.1",
