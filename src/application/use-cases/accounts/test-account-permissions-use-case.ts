@@ -1,12 +1,10 @@
 import { Injectable } from "@nestjs/common";
 
 import { AccountId } from "../../../domain/entities/account/account-id";
-import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
-import { UserCredentials } from "../../../domain/entities/user/user-credentials";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { AccountRepository } from "../../interfaces/repositories/account-repository";
 import { AccountUserPermissionRepository } from "../../interfaces/repositories/account-user-permission-repository";
-import { UserRepository } from "../../interfaces/repositories/user-repository";
+import { AccessControl } from "../../services/access-control";
 
 type TestAccountPermissionsInput = {
     creds: {
@@ -24,18 +22,13 @@ type TestAccountPermissionsInput = {
 @Injectable()
 export class TestAccountPermissionsUseCase {
     constructor(
-        private readonly userRepository: UserRepository,
+        private readonly accessControl: AccessControl,
         private readonly accountUserPermissionRepository: AccountUserPermissionRepository,
         private readonly accountRepository: AccountRepository,
     ) {}
 
     async execute({ creds, params }: TestAccountPermissionsInput): Promise<Array<UserPermissionName>> {
-        const user = await this.userRepository.find({ filter: { creds: UserCredentials.create(creds) } });
-
-        if (!user) {
-            throw new UnauthenticatedError();
-        }
-
+        const user = await this.accessControl.authenticate(creds);
         const requested = params.permissions.map((permission) => UserPermissionName.fromString(permission));
 
         const account = await this.accountRepository.find(AccountId.fromString(params.accountId));

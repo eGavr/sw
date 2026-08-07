@@ -11,6 +11,7 @@ import {
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import { ProviderAccountRepository } from "../../../application/interfaces/repositories/provider-account-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
+import { AccessControl } from "../../../application/services/access-control";
 import { CreateAccountUseCase } from "../../../application/use-cases/accounts/create-account-use-case";
 import { GetAccountUseCase } from "../../../application/use-cases/accounts/get-account-use-case";
 import { ListAccountsUseCase } from "../../../application/use-cases/accounts/list-accounts-use-case";
@@ -69,6 +70,8 @@ import { EnvironmentsController } from "./controllers/environments/environments-
         CreateAccountUseCase,
         ListAccountsUseCase,
         TestAccountPermissionsUseCase,
+
+        AccessControl,
 
         { provide: AccountRepository, useClass: AccountRepositoryImpl },
         { provide: UserRepository, useClass: UserRepositoryImpl },

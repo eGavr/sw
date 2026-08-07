@@ -2,11 +2,9 @@ import { Injectable } from "@nestjs/common";
 
 import { Account } from "../../../domain/entities/account/account";
 import { AccountId } from "../../../domain/entities/account/account-id";
-import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
-import { UserCredentials } from "../../../domain/entities/user/user-credentials";
 import { AccountRepository } from "../../interfaces/repositories/account-repository";
 import { ProviderAccountRepository } from "../../interfaces/repositories/provider-account-repository";
-import { UserRepository } from "../../interfaces/repositories/user-repository";
+import { AccessControl } from "../../services/access-control";
 
 type CreateAccountInput = {
     creds: {
@@ -24,17 +22,13 @@ type CreateAccountInput = {
 @Injectable()
 export class CreateAccountUseCase {
     constructor(
-        private readonly userRepository: UserRepository,
+        private readonly accessControl: AccessControl,
         private readonly accountRepository: AccountRepository,
         private readonly providerAccountRepository: ProviderAccountRepository,
     ) {}
 
     async execute({ creds, params }: CreateAccountInput): Promise<Account> {
-        const user = await this.userRepository.find({ filter: { creds: UserCredentials.create(creds) } });
-
-        if (!user) {
-            throw new UnauthenticatedError();
-        }
+        const user = await this.accessControl.authenticate(creds);
 
         // Self-service: any authenticated user may create an account and becomes its owner with all
         // permissions (granted inside Account.create and persisted by save). No prior permission is

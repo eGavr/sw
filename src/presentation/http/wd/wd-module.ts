@@ -9,6 +9,7 @@ import {
 } from "../../../application/interfaces/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
+import { AccessControl } from "../../../application/services/access-control";
 import { CreateSessionUseCase } from "../../../application/use-cases/sessions/create-session-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import {
@@ -52,6 +53,8 @@ import { WebSocketProxy } from "./websocket-proxy";
     controllers: [SessionsController],
     providers: [
         CreateSessionUseCase,
+
+        AccessControl,
 
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: UserRepository, useClass: UserRepositoryImpl },

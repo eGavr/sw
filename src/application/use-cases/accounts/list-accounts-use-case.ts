@@ -1,10 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
 import { Account } from "../../../domain/entities/account/account";
-import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
-import { UserCredentials } from "../../../domain/entities/user/user-credentials";
 import { AccountRepository } from "../../interfaces/repositories/account-repository";
-import { UserRepository } from "../../interfaces/repositories/user-repository";
+import { AccessControl } from "../../services/access-control";
 
 type ListAccountsInput = {
     creds: {
@@ -15,16 +13,12 @@ type ListAccountsInput = {
 @Injectable()
 export class ListAccountsUseCase {
     constructor(
-        private readonly userRepository: UserRepository,
+        private readonly accessControl: AccessControl,
         private readonly accountRepository: AccountRepository,
     ) {}
 
     async execute({ creds }: ListAccountsInput): Promise<Array<Account>> {
-        const user = await this.userRepository.find({ filter: { creds: UserCredentials.create(creds) } });
-
-        if (!user) {
-            throw new UnauthenticatedError();
-        }
+        const user = await this.accessControl.authenticate(creds);
 
         return this.accountRepository.listByUser(user);
     }
