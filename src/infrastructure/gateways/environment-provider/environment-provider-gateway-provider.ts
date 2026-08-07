@@ -14,10 +14,12 @@ import { KubernetesClient } from "./kubernetes/kubernetes-client";
 import {
     defaultContainerPort,
     defaultNamespace,
+    defaultNetworking,
     defaultNodePortRange,
     defaultResources,
     defaultSessionTimeoutSeconds as defaultK8sSessionTimeoutSeconds,
     KubernetesEnvironmentConfig,
+    KubernetesNetworking,
 } from "./kubernetes/kubernetes-environment-config";
 import {
     KubernetesEnvironmentProviderGateway,
@@ -78,6 +80,7 @@ function kubernetesConfig(configService: ConfigService): KubernetesEnvironmentCo
     return {
         image: configService.get<string>("COMPUTE_K8S_IMAGE") ?? "sw/environment-agent:latest",
         namespace: configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultNamespace,
+        networking: (configService.get<string>("COMPUTE_K8S_NETWORKING") as KubernetesNetworking) ?? defaultNetworking,
         containerPort: Number(configService.get<string>("COMPUTE_K8S_PORT") ?? String(defaultContainerPort)),
         sessionTimeoutSeconds: Number(
             configService.get<string>("COMPUTE_K8S_SESSION_TIMEOUT") ?? String(defaultK8sSessionTimeoutSeconds),

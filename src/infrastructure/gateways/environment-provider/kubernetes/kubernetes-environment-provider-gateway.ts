@@ -12,11 +12,18 @@ const labels = {
 
 const providerValue = "kubernetes";
 
-// Kubernetes adapter: an environment is a Pod exposing a WebDriver endpoint plus a NodePort Service
-// that publishes it on a host-reachable port (the cluster maps the node-port range to the host, like a
-// Docker published port). provision is idempotent — any Pod/Service for the env id is removed before a
-// fresh apply — so a reclaim retry never leaks a second one. The endpoint is NOT written here: the
-// in-pod agent reports it on registration; this only injects the resolved endpoint + callback URL/secret.
+type ServicePlan = {
+    endpoint: string;
+    serviceType: "NodePort" | "ClusterIP";
+    servicePort: { port: number; targetPort: number; nodePort?: number };
+};
+
+// Kubernetes adapter: an environment is a Pod exposing a WebDriver endpoint plus a Service that
+// publishes it — a NodePort on a host-mapped port for local dev, or a ClusterIP reached by service DNS
+// when the control plane runs in-cluster. provision is idempotent (any Pod/Service for the env id is
+// removed before a fresh apply), so a reclaim retry never leaks a second one. The endpoint is NOT
+// written here: the in-pod agent reports it on registration; this only injects the resolved endpoint +
+// callback URL/secret.
 export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGateway {
     constructor(
         private readonly kubernetes: KubernetesClient,
@@ -28,14 +35,35 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
     async provision(environment: Environment): Promise<void> {
         await this.kubernetes.deleteByLabel(labels.environmentId, environment.id);
 
-        const nodePort = await this.reserveNodePort();
-        const endpoint = `http://${this.config.advertiseHost}:${nodePort}`;
+        const plan = await this.planService(`sw-env-${environment.id}`);
 
-        await this.kubernetes.apply(JSON.stringify(this.manifest(environment, nodePort, endpoint)));
+        await this.kubernetes.apply(JSON.stringify(this.manifest(environment, plan)));
     }
 
     async deprovision(environment: Environment): Promise<void> {
         await this.kubernetes.deleteByLabel(labels.environmentId, environment.id);
+    }
+
+    // Resolve how the pod is published and the endpoint the agent will advertise. cluster-dns reaches the
+    // pod by its Service DNS (control plane in-cluster); nodeport publishes it on a host-mapped port.
+    private async planService(name: string): Promise<ServicePlan> {
+        if (this.config.networking === "cluster-dns") {
+            const endpoint = `http://${name}.${this.config.namespace}.svc.cluster.local:${this.config.containerPort}`;
+
+            return {
+                endpoint,
+                serviceType: "ClusterIP",
+                servicePort: { port: this.config.containerPort, targetPort: this.config.containerPort },
+            };
+        }
+
+        const nodePort = await this.reserveNodePort();
+
+        return {
+            endpoint: `http://${this.config.advertiseHost}:${nodePort}`,
+            serviceType: "NodePort",
+            servicePort: { port: this.config.containerPort, targetPort: this.config.containerPort, nodePort },
+        };
     }
 
     // Pick the lowest node-port in the configured range not already taken by a live sw Service. The pool
@@ -53,7 +81,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         throw new Error("kubernetes: no free node port in the configured range");
     }
 
-    private manifest(environment: Environment, nodePort: number, endpoint: string): object {
+    private manifest(environment: Environment, plan: ServicePlan): object {
         const name = `sw-env-${environment.id}`;
         const selector = { [labels.environmentId]: environment.id };
         const metadataLabels = {
@@ -81,7 +109,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
                             // this a `:latest` tag defaults to Always and fails with ErrImagePull.
                             imagePullPolicy: "IfNotPresent",
                             ports: [{ containerPort: this.config.containerPort }],
-                            env: this.env(environment, endpoint),
+                            env: this.env(environment, plan.endpoint),
                             resources: this.config.resources,
                             volumeMounts: [{ name: "dshm", mountPath: "/dev/shm" }],
                         }],
@@ -92,11 +120,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
                     apiVersion: "v1",
                     kind: "Service",
                     metadata: { name, namespace, labels: metadataLabels },
-                    spec: {
-                        type: "NodePort",
-                        selector,
-                        ports: [{ port: this.config.containerPort, targetPort: this.config.containerPort, nodePort }],
-                    },
+                    spec: { type: plan.serviceType, selector, ports: [plan.servicePort] },
                 },
             ],
         };

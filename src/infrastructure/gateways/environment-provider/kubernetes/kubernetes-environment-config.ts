@@ -3,14 +3,22 @@ export type ResourceQuantities = {
     memory: string;
 };
 
+// How an environment pod is published:
+//  - "nodeport": a NodePort Service on a host-mapped port, endpoint http://<advertiseHost>:<nodePort>.
+//    For local dev (kind + Docker Desktop) where the control plane runs on the host.
+//  - "cluster-dns": a ClusterIP Service, endpoint http://<name>.<ns>.svc.cluster.local:<port>. For a
+//    real cluster where the control plane runs in-cluster and reaches pods by service DNS.
+export type KubernetesNetworking = "nodeport" | "cluster-dns";
+
 export type KubernetesEnvironmentConfig = {
     image: string;
     // Namespace the environment pods/services live in (isolated from the control plane).
     namespace: string;
+    networking: KubernetesNetworking;
     // The WebDriver port the browser node listens on inside the pod.
     containerPort: number;
     sessionTimeoutSeconds: number;
-    // Host-reachable node-port range (mapped to the host by the cluster) to publish environments on.
+    // Host-reachable node-port range (mapped to the host by the cluster), used by "nodeport" networking.
     nodePortRange: { min: number; max: number };
     // Scheduler requests and hard limits for the environment container (a browser needs real memory).
     resources: { requests: ResourceQuantities; limits: ResourceQuantities };
@@ -24,6 +32,8 @@ export type KubernetesEnvironmentConfig = {
 };
 
 export const defaultNamespace = "sw-environments";
+
+export const defaultNetworking: KubernetesNetworking = "nodeport";
 
 export const defaultContainerPort = 4444;
 
