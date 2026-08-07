@@ -298,6 +298,11 @@ POST /accounts/{acc}/environments {platform, applications}
    = `SessionRoute.encode(endpoint, wdSessionId)` (секрет `wdSessionId` не в БД/логи). Нет свободных/все reject → 409.
    Покрыто integration (реальный SQL-аллокатор на Postgres, gateway ноды замокан). *(Старый compute-session/env-модель —
    `SessionRepository`/`SessionDataSource`/`LocalComputeStore`/`Docker*SessionDataSource` — теперь мёртв: удалить отдельным cleanup.)*
-6. GC (`pg_cron`: `deleting` + `failed` TTL + stale `executing`) + вычисляемый эффективный статус +
-   конфигурируемый порог свежести.
+6. **[в основном сделано]** GC — app-тик воркера под своим advisory-lock (`pg_cron` не нужен) →
+   `CollectGarbageEnvironmentsUseCase`. Hard-delete: `deleting` с протухшим/отсутствующим хартбитом и `failed` старше TTL.
+   Предикат формирует ДОМЕН — VO `GarbageCollectionCriteria.from(now, {freshnessMs, failedTtlMs})` → `{state, cutoff, clock, collectWhenNull}`;
+   data source лишь транслирует в bulk-delete (`deleteCollectable`; дети-приложения — по `ON DELETE CASCADE`). Порог свежести
+   стал конфигурируемым (`HEARTBEAT_FRESHNESS_MS`, дефолт = доменная константа); `WORKER_GC_INTERVAL_MS`/`WORKER_FAILED_TTL_MS`.
+   Эффективный статус на `GET` уже считается (`effectiveStatus`). Покрыто integration. **ОСТАЛОСЬ:** уборка крашнутого
+   `executing` (нужен агент; правильный путь — transition→deprovision→collect, а не hard-delete живого контейнера).
 7. Auth `/internal` (отдельно).
