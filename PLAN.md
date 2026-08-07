@@ -33,9 +33,13 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
 1. ~~**Idle-reaper / liveness сессий.**~~ **СДЕЛАНО** — делегировано узлу браузера. «Умный»
    idle-таймаут (сброс на каждой команде) и инвариант «одна активная сессия на окружение» отданы
    Selenium-узлу через `SE_NODE_SESSION_TIMEOUT` и `SE_NODE_MAX_SESSIONS=1`; таймаут конфигурируется
-   `COMPUTE_DOCKER_SESSION_TIMEOUT` (сек, дефолт 300). Доменные `Session.idleTimeout`/`isIdleAt`/`touch`
-   остаются спецификацией (и для local-бэкенда, покрыты юнитами). Проверено e2e: сессия переживает
-   активность и умирает от простоя. Свой in-process reaper понадобится только для мульти-инстансной
+   `COMPUTE_DOCKER_SESSION_TIMEOUT` (сек, дефолт 300). **Явный kill** — стандартный W3C `DELETE /sessions/{id}`
+   проксируется на ноду (`DELETE /session/{wdSessionId}`); нода завершает сессию, а `busy` само-восстанавливается
+   следующим хартбитом агента (окружение снова аллоцируемо). Проверено e2e: сессия переживает активность и умирает
+   от простоя; после `DELETE` команда → `NoSuchSession`, `busy=false`. **Спекулятивная доменная idle-машинерия
+   удалена** (`Session.idleTimeout`/`isIdleAt`/`touch`/`lastActivityAt`, `SessionId`, `SessionIdleTimeout`,
+   `SessionData`/`fromObject`) — в новой модели сессия не персистится и её lifecycle держит нода; `Session` теперь
+   чистый immutable-VO результата аллокации. Свой in-process reaper понадобится только для мульти-инстансной
    политики → см. п.9.
 
 2. ~~**Аутентификация data-plane (`wd`).**~~ **СДЕЛАНО.** Токен требуется только на СОЗДАНИЕ сессии

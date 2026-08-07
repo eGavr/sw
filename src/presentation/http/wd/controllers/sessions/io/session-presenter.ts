@@ -9,9 +9,7 @@ export class SessionPresenter implements Presenter {
     ) {}
 
     present(): object {
-        const id = this.session.endpoint && this.session.webDriverSessionId
-            ? SessionRoute.encode(this.session.endpoint, this.session.webDriverSessionId)
-            : this.session.id;
+        const id = SessionRoute.encode(this.session.endpoint, this.session.webDriverSessionId);
 
         return {
             id,

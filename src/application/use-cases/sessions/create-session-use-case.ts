@@ -8,7 +8,6 @@ import { defaultHeartbeatFreshnessMs } from "../../../domain/entities/environmen
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
 import { NoAllocatableEnvironmentError } from "../../../domain/entities/session/error/no-allocatable-environment-error";
 import { Session } from "../../../domain/entities/session/session";
-import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { WebDriverSessionGateway } from "../../interfaces/gateways/webdriver-session-gateway";
 import { AccountRepository } from "../../interfaces/repositories/account-repository";
@@ -35,7 +34,6 @@ type CreateSessionInput = {
 @Injectable()
 export class CreateSessionUseCase {
     private readonly permissionName = UserPermissionName.Session.Create;
-    private readonly idleTimeout = SessionIdleTimeout.default();
 
     constructor(
         private readonly accessControl: AccessControl,
@@ -78,16 +76,12 @@ export class CreateSessionUseCase {
         try {
             const webDriverSessionId = await this.webDriverSessionGateway.create(environment.endpoint, application);
 
-            const session = Session.create({
+            return Session.create({
                 environmentId: EnvironmentId.fromString(environment.id),
                 application,
-                idleTimeout: this.idleTimeout,
-                now: new Date(),
                 endpoint: environment.endpoint,
+                webDriverSessionId,
             });
-            session.bindWebDriverSession(webDriverSessionId);
-
-            return session;
         } catch {
             return null;
         }
