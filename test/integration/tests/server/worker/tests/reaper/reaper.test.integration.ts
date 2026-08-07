@@ -4,16 +4,10 @@ import { Test } from "@nestjs/testing";
 import { DataSource } from "typeorm";
 
 import { EnvironmentProviderGateway } from "../../../../../../../src/application/interfaces/gateways/environment-provider-gateway";
-import {
-    EnvironmentProviderGatewayResolver,
-} from "../../../../../../../src/application/interfaces/gateways/environment-provider-gateway-resolver";
 import { AccountRepository } from "../../../../../../../src/application/interfaces/repositories/account-repository";
 import {
     EnvironmentRepository,
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
-import {
-    ProviderAccountRepository,
-} from "../../../../../../../src/application/interfaces/repositories/provider-account-repository";
 import {
     ReclaimStuckEnvironmentsUseCase,
 } from "../../../../../../../src/application/use-cases/environments/reclaim-stuck-environments-use-case";
@@ -23,23 +17,16 @@ import { EnvironmentId } from "../../../../../../../src/domain/entities/environm
 import { EnvironmentState } from "../../../../../../../src/domain/entities/environment/environment-state";
 import { EnvironmentStateReason } from "../../../../../../../src/domain/entities/environment/environment-state-reason";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
-import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { AccountDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/account-data-source";
 import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
-import {
-    ProviderAccountDataSource,
-} from "../../../../../../../src/infrastructure/data-sources/database/postgres/provider-account-data-source";
 import { PostgresModule } from "../../../../../../../src/infrastructure/data-sources/database/postgres/typeorm/postgres-module";
 import { AccountRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/account-repository-impl";
 import {
     EnvironmentRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/environment-repository-impl";
-import {
-    ProviderAccountRepositoryImpl,
-} from "../../../../../../../src/infrastructure/repositories/provider-account-repository-impl";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 
 // The worker has no HTTP surface, so the reaper is exercised through its use case against a real
@@ -49,7 +36,6 @@ describe("environment reaper", () => {
     let app: INestApplication;
     let dataSource: DataSource;
     let accountRepository: AccountRepository;
-    let providerAccountRepository: ProviderAccountRepository;
     let environmentRepository: EnvironmentRepository;
     let deprovision: jest.Mock;
 
@@ -63,17 +49,12 @@ describe("environment reaper", () => {
             ],
             providers: [
                 AccountDataSource,
-                ProviderAccountDataSource,
                 EnvironmentDataSource,
                 { provide: AccountRepository, useClass: AccountRepositoryImpl },
-                { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 {
-                    provide: EnvironmentProviderGatewayResolver,
-                    useValue: {
-                        resolve: (): EnvironmentProviderGateway =>
-                            ({ provision: async (): Promise<void> => undefined, deprovision }),
-                    },
+                    provide: EnvironmentProviderGateway,
+                    useValue: { provision: async (): Promise<void> => undefined, deprovision },
                 },
                 ReclaimStuckEnvironmentsUseCase,
             ],
@@ -84,7 +65,6 @@ describe("environment reaper", () => {
 
         dataSource = app.get(DataSource);
         accountRepository = app.get(AccountRepository);
-        providerAccountRepository = app.get(ProviderAccountRepository);
         environmentRepository = app.get(EnvironmentRepository);
     });
 
@@ -102,14 +82,9 @@ describe("environment reaper", () => {
         });
         await accountRepository.save(account);
 
-        const providerAccount = await providerAccountRepository.create({
-            accountId: AccountId.fromString(account.id),
-            providerType: "local",
-        });
-
         await environmentRepository.create({
             accountId: AccountId.fromString(account.id),
-            providerAccountId: ProviderAccountId.fromString(providerAccount.id),
+            providerType: "local",
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });

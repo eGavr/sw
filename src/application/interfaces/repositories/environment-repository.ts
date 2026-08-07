@@ -11,6 +11,7 @@ import { ProviderAccountId } from "../../../domain/entities/provider-account/pro
 export type CreateEnvironmentParams = {
     accountId: AccountId;
     providerAccountId?: ProviderAccountId | null;
+    providerType?: string | null;
     platform: Platform;
     applications: ApplicationList;
 };

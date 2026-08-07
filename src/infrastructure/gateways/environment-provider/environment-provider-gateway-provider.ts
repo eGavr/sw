@@ -1,9 +1,6 @@
 import { ConfigService } from "@nestjs/config";
 
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
-import {
-    EnvironmentProviderGatewayResolver,
-} from "../../../application/interfaces/gateways/environment-provider-gateway-resolver";
 
 import { DockerClient } from "./docker/docker-client";
 import {
@@ -13,21 +10,21 @@ import {
     DockerEnvironmentConfig,
 } from "./docker/docker-environment-config";
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
-import { EnvironmentProviderGatewayResolverImpl } from "./environment-provider-gateway-resolver-impl";
 import { LocalEnvironmentProviderGateway } from "./local-environment-provider-gateway";
+import { RoutingEnvironmentProviderGateway } from "./routing-environment-provider-gateway";
 
 // Every supported adapter is registered up front (construction is cheap — the Docker client only
-// shells out per command), so a per-account provider type routes to its gateway without an
-// install-wide COMPUTE_PROVIDER switch.
-export const EnvironmentProviderGatewayResolverProvider = {
-    provide: EnvironmentProviderGatewayResolver,
-    useFactory: (configService: ConfigService): EnvironmentProviderGatewayResolver => {
+// shells out per command). The routing gateway then dispatches each action to the adapter of the
+// environment's provider type, replacing the install-wide COMPUTE_PROVIDER switch.
+export const EnvironmentProviderGatewayProvider = {
+    provide: EnvironmentProviderGateway,
+    useFactory: (configService: ConfigService): EnvironmentProviderGateway => {
         const gateways = new Map<string, EnvironmentProviderGateway>([
             ["local", new LocalEnvironmentProviderGateway()],
             ["docker", new DockerEnvironmentProviderGateway(new DockerClient(), dockerConfig(configService))],
         ]);
 
-        return new EnvironmentProviderGatewayResolverImpl(gateways);
+        return new RoutingEnvironmentProviderGateway(gateways);
     },
     inject: [ConfigService],
 };

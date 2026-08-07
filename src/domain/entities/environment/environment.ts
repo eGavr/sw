@@ -16,6 +16,7 @@ export type EnvironmentData = {
     id: string;
     accountId: string;
     providerAccountId?: string | null;
+    providerType?: string | null;
     state: string;
     stateReason?: string | null;
     platform: PlatformData;
@@ -31,6 +32,7 @@ export type EnvironmentData = {
 export type EnvironmentCreateParams = {
     accountId: AccountId;
     providerAccountId?: ProviderAccountId | null;
+    providerType?: string | null;
     platform: Platform;
     applications: ApplicationList;
 };
@@ -39,6 +41,7 @@ type EnvironmentConstructorParams = {
     id?: EnvironmentId;
     accountId: AccountId;
     providerAccountId?: ProviderAccountId | null;
+    providerType?: string | null;
     state?: EnvironmentState;
     stateReason?: EnvironmentStateReason | null;
     platform: Platform;
@@ -61,6 +64,7 @@ export class Environment {
             id: EnvironmentId.fromString(data.id),
             accountId: AccountId.fromString(data.accountId),
             providerAccountId: data.providerAccountId ? ProviderAccountId.fromString(data.providerAccountId) : null,
+            providerType: data.providerType ?? null,
             state: Environment.toState(data.state),
             stateReason: data.stateReason ? Environment.toStateReason(data.stateReason) : null,
             platform: Platform.fromObject(data.platform),
@@ -101,6 +105,7 @@ export class Environment {
     private readonly _id: EnvironmentId;
     private readonly _accountId: AccountId;
     private readonly _providerAccountId: ProviderAccountId | null;
+    private readonly _providerType: string | null;
     private _state: EnvironmentState;
     private _stateReason: EnvironmentStateReason | null;
     private _endpoint: EnvironmentEndpoint | null;
@@ -113,6 +118,7 @@ export class Environment {
         this._id = params.id ?? EnvironmentId.create();
         this._accountId = params.accountId;
         this._providerAccountId = params.providerAccountId ?? null;
+        this._providerType = params.providerType ?? null;
         this._state = params.state ?? EnvironmentState.Enqueued;
         this._stateReason = params.stateReason ?? null;
         this.platform = params.platform;
@@ -135,6 +141,10 @@ export class Environment {
 
     get providerAccountId(): string | null {
         return this._providerAccountId?.getValue() ?? null;
+    }
+
+    get providerType(): string | null {
+        return this._providerType;
     }
 
     get state(): EnvironmentState {
@@ -255,6 +265,7 @@ export class Environment {
             id: this.id,
             accountId: this._accountId.getValue(),
             providerAccountId: this.providerAccountId,
+            providerType: this._providerType,
             state: this._state,
             stateReason: this._stateReason,
             platform: this.platform.toObject(),
