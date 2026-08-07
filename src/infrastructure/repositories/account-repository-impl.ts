@@ -3,6 +3,7 @@ import { Injectable } from "@nestjs/common";
 import { AccountRepository } from "../../application/interfaces/repositories/account-repository";
 import { Account, AccountCreateParams } from "../../domain/entities/account/account";
 import { AccountId } from "../../domain/entities/account/account-id";
+import { Member } from "../../domain/entities/account/iam/member";
 import { NotFoundResourceError } from "../../domain/entities/error/not-found/not-found-resource-error";
 import { User } from "../../domain/entities/user/user";
 import { AccountDataSource } from "../data-sources/database/postgres/account-data-source";
@@ -30,7 +31,7 @@ export class AccountRepositoryImpl extends AccountRepository {
     }
 
     async listByUser(user: User): Promise<Array<Account>> {
-        const data = await this.accountDataSource.findAllByUser(user.id);
+        const data = await this.accountDataSource.findAllByMember(Member.user(user.externalId).getValue());
 
         return data.map(Account.fromObject);
     }

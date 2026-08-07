@@ -4,9 +4,6 @@ import { APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
 import { WebDriverSessionGateway } from "../../../application/interfaces/gateways/webdriver-session-gateway";
 import { AccountRepository } from "../../../application/interfaces/repositories/account-repository";
-import {
-    AccountUserPermissionRepository,
-} from "../../../application/interfaces/repositories/account-user-permission-repository";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
@@ -19,18 +16,12 @@ import { AccountDataSource } from "../../../infrastructure/data-sources/database
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../infrastructure/data-sources/database/postgres/user-data-source";
-import {
-    UserPermissionDataSource as PgUserPermissionDataSource,
-} from "../../../infrastructure/data-sources/database/postgres/user-permission-data-source";
 import { WebDriverClient } from "../../../infrastructure/gateways/webdriver-session/webdriver-client";
 import {
     WebDriverSessionGatewayImpl,
 } from "../../../infrastructure/gateways/webdriver-session/webdriver-session-gateway-impl";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { AccountRepositoryImpl } from "../../../infrastructure/repositories/account-repository-impl";
-import {
-    AccountUserPermissionRepositoryImpl,
-} from "../../../infrastructure/repositories/account-user-permission-repository-impl";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import { UserRepositoryImpl } from "../../../infrastructure/repositories/user-repository-impl";
 import { ErrorInterceptor } from "../interceptors/error-interceptor";
@@ -59,7 +50,6 @@ import { WebSocketProxy } from "./websocket-proxy";
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: UserRepository, useClass: UserRepositoryImpl },
         { provide: AccountRepository, useClass: AccountRepositoryImpl },
-        { provide: AccountUserPermissionRepository, useClass: AccountUserPermissionRepositoryImpl },
         { provide: WebDriverSessionGateway, useClass: WebDriverSessionGatewayImpl },
 
         WebDriverClient,
@@ -67,7 +57,6 @@ import { WebSocketProxy } from "./websocket-proxy";
         AuthUserDataSourceProvider,
         PgUserDataSource,
         AccountDataSource,
-        PgUserPermissionDataSource,
         WebDriverProxy,
         WebSocketProxy,
 

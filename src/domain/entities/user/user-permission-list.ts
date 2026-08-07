@@ -14,14 +14,30 @@ export class UserPermissionList {
         return new UserPermissionList(permissions.map(permissionName => new UserPermission(permissionName)));
     }
 
-    private constructor(private readonly permissions: Array<UserPermission>) {}
+    static union(lists: ReadonlyArray<UserPermissionList>): UserPermissionList {
+        const seen = new Set<UserPermissionName>();
 
-    find(name: UserPermissionName): UserPermission | null {
-        return this.permissions.find((permission) => permission.name === name) ?? null;
+        for (const list of lists) {
+            for (const permission of list.permissions) {
+                seen.add(permission.name);
+            }
+        }
+
+        return UserPermissionList.create({ permissions: [...seen] });
     }
 
-    map<T>(cb: (permission: UserPermission) => T): Array<T> {
-        return this.permissions.map(cb);
+    private constructor(private readonly permissions: Array<UserPermission>) {}
+
+    has(name: UserPermissionName): boolean {
+        return this.permissions.some((permission) => permission.name === name);
+    }
+
+    intersect(requested: ReadonlyArray<UserPermissionName>): Array<UserPermissionName> {
+        return requested.filter((name) => this.has(name));
+    }
+
+    names(): Array<UserPermissionName> {
+        return this.toArray().map((permission) => permission.name);
     }
 
     toArray(): Array<UserPermissionData> {

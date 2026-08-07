@@ -222,4 +222,109 @@ describe("/accounts", () => {
                 .expect(HttpStatus.NOT_FOUND);
         });
     });
+
+    const createAccountFor = async (externalId: string): Promise<string> => {
+        const { body } = await request(app.getHttpServer())
+            .post("/accounts")
+            .set(Authorization.forUser(externalId))
+            .send(CreateAccountBody.create())
+            .expect(HttpStatus.CREATED);
+
+        return body.uid;
+    };
+
+    describe("POST /accounts/:account:getIamPolicy", () => {
+        test("returns the policy with the owner bound to roles/admin", async () => {
+            const ownerId = UserFactory.createId();
+            const uid = await createAccountFor(ownerId);
+
+            const { body } = await request(app.getHttpServer())
+                .post(`/accounts/${uid}:getIamPolicy`)
+                .set(Authorization.forUser(ownerId))
+                .send({})
+                .expect(HttpStatus.OK);
+
+            expect(body).toEqual({ version: 1, bindings: [{ role: "roles/admin", members: [`user:${ownerId}`] }] });
+        });
+
+        test("responds PERMISSION_DENIED for a non-owner", async () => {
+            const uid = await createAccountFor(UserFactory.createId());
+
+            return request(app.getHttpServer())
+                .post(`/accounts/${uid}:getIamPolicy`)
+                .set(Authorization.forUser(UserFactory.createId()))
+                .send({})
+                .expect(HttpStatus.FORBIDDEN);
+        });
+    });
+
+    describe("POST /accounts/:account:setIamPolicy", () => {
+        const testPermissions = (uid: string, auth: AuthHeader, permissions: Array<string>): request.Test =>
+            request(app.getHttpServer()).post(`/accounts/${uid}:testIamPermissions`).set(auth).send({ permissions });
+
+        test("lets the owner grant another user a role that then takes effect", async () => {
+            const ownerId = UserFactory.createId();
+            const developerId = UserFactory.createId();
+            const uid = await createAccountFor(ownerId);
+            const developer = Authorization.forUser(developerId);
+
+            await testPermissions(uid, developer, ["environment:create"]).expect(HttpStatus.OK, { permissions: [] });
+
+            const { body } = await request(app.getHttpServer())
+                .post(`/accounts/${uid}:setIamPolicy`)
+                .set(Authorization.forUser(ownerId))
+                .send({
+                    policy: {
+                        bindings: [
+                            { role: "roles/admin", members: [`user:${ownerId}`] },
+                            { role: "roles/developer", members: [`user:${developerId}`] },
+                        ], 
+                    }, 
+                })
+                .expect(HttpStatus.OK);
+
+            expect(body.bindings).toEqual(expect.arrayContaining([
+                { role: "roles/developer", members: [`user:${developerId}`] },
+            ]));
+
+            await testPermissions(uid, developer, ["environment:create"]).expect(HttpStatus.OK, { permissions: ["environment:create"] });
+        });
+
+        test("responds PERMISSION_DENIED for a member without setIamPolicy", async () => {
+            const ownerId = UserFactory.createId();
+            const developerId = UserFactory.createId();
+            const uid = await createAccountFor(ownerId);
+
+            await request(app.getHttpServer())
+                .post(`/accounts/${uid}:setIamPolicy`)
+                .set(Authorization.forUser(ownerId))
+                .send({
+                    policy: {
+                        bindings: [
+                            { role: "roles/admin", members: [`user:${ownerId}`] },
+                            { role: "roles/developer", members: [`user:${developerId}`] },
+                        ], 
+                    }, 
+                })
+                .expect(HttpStatus.OK);
+
+            return request(app.getHttpServer())
+                .post(`/accounts/${uid}:setIamPolicy`)
+                .set(Authorization.forUser(developerId))
+                .send({ policy: { bindings: [{ role: "roles/admin", members: [`user:${developerId}`] }] } })
+                .expect(HttpStatus.FORBIDDEN);
+        });
+
+        test("responds INVALID_ARGUMENT for an unknown role", async () => {
+            const ownerId = UserFactory.createId();
+            const uid = await createAccountFor(ownerId);
+
+            return request(app.getHttpServer())
+                .post(`/accounts/${uid}:setIamPolicy`)
+                .set(Authorization.forUser(ownerId))
+                .send({ policy: { bindings: [{ role: "roles/wizard", members: [`user:${ownerId}`] }] } })
+                .expect(HttpStatus.BAD_REQUEST)
+                .expect((response) => expect(response.body.error.status).toBe("INVALID_ARGUMENT"));
+        });
+    });
 });

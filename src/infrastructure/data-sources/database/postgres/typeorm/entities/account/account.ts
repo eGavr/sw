@@ -1,6 +1,5 @@
 import { Column, Entity, ManyToOne, PrimaryColumn } from "typeorm";
 
-import { AccountData } from "../../../../../../../domain/entities/account/account";
 import { Account as AccountEntity } from "../../../../../../../domain/entities/account/account";
 import { DateColumn } from "../../columns-extra/date-column";
 import { User } from "../user/user";
@@ -38,20 +37,4 @@ export class Account {
     updatedAt: Date;
 
     private constructor() {}
-
-    toObject(): AccountData {
-        return {
-            id: this.id,
-            name: this.name,
-            createdAt: this.createdAt,
-            createdBy: {
-                id: this.createdBy.id,
-                externalId: this.createdBy.externalId,
-                providerType: this.createdBy.providerType,
-                createdAt: this.createdBy.createdAt,
-                updatedAt: this.createdBy.updatedAt,
-            },
-            updatedAt: this.updatedAt,
-        }
-    }
 }

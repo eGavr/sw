@@ -3,6 +3,8 @@ import { InvalidArgumentError } from "../error/invalid-argument-error";
 export enum AccountPermission {
     Read = "account:read",
     Create = "account:create",
+    GetIamPolicy = "account:getIamPolicy",
+    SetIamPolicy = "account:setIamPolicy",
 }
 
 export enum EnvironmentPermission {

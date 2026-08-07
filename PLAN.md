@@ -191,16 +191,22 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    `CreateEnvironmentParams`) переехали в порт; data-sources остались в infra. Зелёно: tsc 0 · eslint 0 · unit 73 · integration 37.
    Стадии 4–7 — агент+heartbeat / аллокация / GC / auth `/internal`.
 
-10. **IAM access-management (Слой 2, наша authZ) — ОТДЕЛЬНЫЙ воркстрим, не на критическом пути compute.**
-    Сейчас: `create-account` даёт создателю все права (grant-all owner) + `:testIamPermissions` (проверить свои).
-    НЕТ: добавить в аккаунт другого юзера, выдать/забрать права — в аккаунте может быть только создатель.
-    Достроить триаду google.iam.v1 (AIP-136) теми же кастомными методами на аккаунте: **`:getIamPolicy`**
-    (прочитать политику) + **`:setIamPolicy`** (задать: добавить юзера + права). Политика = биндинги
-    `role → members`. Решения на потом: ввести **роли** (бандлы permissions: owner/editor/viewer) vs биндить
-    плоские permissions (Google — роли); участник указывается по внешней identity (email/external_id), `User`
-    создаётся лениво при первом логине. *(Альтернатива триаде — REST-коллекция `accounts/{acc}/members/{member}`;
-    но раз есть `:testIamPermissions`, триада консистентнее.)* «Гейт на вход в сервис» (allowlist поверх
-    self-service) — если понадобится, ещё отдельно. Делаем после compute-вертикали.
+10. **IAM access-management (Слой 2, наша authZ) — СДЕЛАНО (Google-модель на ролях, authz переписан с нуля).**
+    Развилка «роли vs плоские права» решена пользователем в пользу **ролей** (как рекомендует Google IAM: права
+    выдаются только через роль, не биндятся напрямую). Триада google.iam.v1 достроена кастомными методами на
+    аккаунте: **`:getIamPolicy`** (нужно `account:getIamPolicy`), **`:setIamPolicy`** (нужно `account:setIamPolicy`,
+    заменяет всю политику), плюс уже бывший `:testIamPermissions` (теперь резолвит роли→права). Домен: `RoleName`
+    (predefined `roles/{admin,developer,viewer}`) + `Role` (каталог роль→permissions), `Member` (`user:<external_id>`,
+    хранится строкой — роль можно выдать до первого логина), `IamBinding`/`IamPolicy` (bind/resolve/grants/test).
+    Агрегат `Account` несёт `IamPolicy`; `Account.create` даёт создателю `roles/admin`; authz = `account.grants(member,
+    permission)` (аккаунт уже загружен — отдельного чтения прав нет, `AccountUserPermissionRepository`/
+    `UserPermissionDataSource`/`AccountUser*` удалены). Хранилище: таблица `account_iam_binding(account_id, role, member)`
+    (миграция дропает `account_user_permission`); `AccountDataSource` грузит/replace-ит биндинги, `listByMember` для
+    `listByUser`. Контроллер мультиплексит `:{verb}` (валидация body под нужную модель). Проверено: **tsc 0 · eslint 0 ·
+    unit 83/83 · integration 57/57** + live (owner создаёт аккаунт → `getIamPolicy` показывает owner=admin → bob без
+    прав 403 → owner `setIamPolicy` даёт bob `roles/developer` → bob создаёт env 201 → bob `getIamPolicy` 403).
+    Осталось (по желанию, не начато): `:setIamPolicy` etag для optimistic concurrency; кастомные роли; «гейт на вход»
+    (allowlist поверх self-service).
 
 ---
 

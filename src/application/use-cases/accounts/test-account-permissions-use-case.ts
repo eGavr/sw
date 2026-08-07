@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 
 import { AccountId } from "../../../domain/entities/account/account-id";
+import { Member } from "../../../domain/entities/account/iam/member";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { AccountRepository } from "../../interfaces/repositories/account-repository";
-import { AccountUserPermissionRepository } from "../../interfaces/repositories/account-user-permission-repository";
 import { AccessControl } from "../../services/access-control";
 
 type TestAccountPermissionsInput = {
@@ -23,7 +23,6 @@ type TestAccountPermissionsInput = {
 export class TestAccountPermissionsUseCase {
     constructor(
         private readonly accessControl: AccessControl,
-        private readonly accountUserPermissionRepository: AccountUserPermissionRepository,
         private readonly accountRepository: AccountRepository,
     ) {}
 
@@ -37,8 +36,6 @@ export class TestAccountPermissionsUseCase {
             return [];
         }
 
-        const permissions = await this.accountUserPermissionRepository.findAll({ filter: { user, account } });
-
-        return permissions.intersect(requested);
+        return account.testPermissions(Member.user(user.externalId), requested);
     }
 }
