@@ -276,12 +276,12 @@ POST /accounts/{acc}/environments {platform, applications}
    пробрасывает, data-source лишь транслирует (`findByStateUpdatedBefore`, без порогов/набора состояний в SQL).
    Домен `Environment.reclaimStuck(maxAttempts)` = в пределах бюджета `→enqueued` (сам ре-NOTIFY-ит), бюджет исчерпан
    `→failed`(`PROVISIONING_TIMEOUT`) + `deprovision`. Покрыто: domain-unit + integration (реальный SQL, замокан gateway).
-   **[сделано] per-account routing:** выбор compute-адаптера уехал из install-конфига `COMPUTE_PROVIDER` в
-   `env→providerAccount→providerType→адаптер`. Порт `EnvironmentProviderGatewayResolver.resolve(providerType)`; impl —
-   map всех адаптеров (`local`/`docker`), собирается фабрикой (docker-клиент шеллит пер-команду, так что строить все
-   заранее дёшево). Воркер-use-case-ы грузят `ProviderAccount` окружения (`ProviderAccountRepository.get`) и резолвят
-   gateway по `providerType`; repo и gateway остаются сиблингами, координирует use-case. `COMPUTE_PROVIDER` больше не
-   выбирает адаптер провижна (остался только в legacy session-data-source-пути стадии 5).
+   **[сделано] per-account routing:** выбор compute-адаптера уехал из install-конфига `COMPUTE_PROVIDER` в per-account.
+   `providerType` пишется на само окружение при создании (из активного `ProviderAccount`), а `RoutingEnvironmentProviderGateway`
+   (один `EnvironmentProviderGateway` поверх map адаптеров `local`/`docker`) диспатчит `provision`/`deprovision` по
+   `env.providerType`. Воркер-use-case-ы инжектят один gateway и зовут его напрямую — **без загрузки `ProviderAccount`** на
+   провижн-пути. `COMPUTE_PROVIDER` больше не выбирает адаптер. *(Раньше был `EnvironmentProviderGatewayResolver` + загрузка
+   PA в каждом use-case — заменено на providerType-на-окружении, чтобы убрать дублирование; см. рефактор-пасс.)*
    **ОСТАЛОСЬ в стадии 3:** delete-e2e прогон. `executing`/`endpoint` — НЕ здесь (агент, стадия 4).
 4. **[серверная часть сделана]** `/internal:heartbeat` — `POST /internal/environments/{id}:heartbeat {endpoint?, busy}`
    (отдельный `InternalModule`/сервис, `INTERNAL_PORT`). Первый хартбит = регистрация (`preparing→executing` + `endpoint`);
