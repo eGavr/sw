@@ -25,7 +25,9 @@ export type DockerRunOptions = {
 @Injectable()
 export class DockerClient {
     async run(options: DockerRunOptions): Promise<string> {
-        const args = ["run", "-d"];
+        // --rm so a container that exits on its own (a crash, or the agent self-fencing when the
+        // backend no longer knows the environment) removes itself, with no control-plane cleanup.
+        const args = ["run", "-d", "--rm"];
 
         if (options.platform) {
             args.push("--platform", options.platform);
