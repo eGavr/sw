@@ -1,6 +1,6 @@
 import { BadRequestException, MiddlewareConsumer, Module, NestModule, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import {
@@ -17,6 +17,7 @@ import { ContextMiddleware } from "../middlewares/contex-middleware";
 import { LoggingMiddleware } from "../middlewares/logging-middleware";
 
 import { InternalEnvironmentsController } from "./controllers/environments/environments-controller";
+import { InternalSecretGuard } from "./guards/internal-secret-guard";
 
 @Module({
     imports: [
@@ -36,6 +37,10 @@ import { InternalEnvironmentsController } from "./controllers/environments/envir
 
         EnvironmentDataSource,
 
+        {
+            provide: APP_GUARD,
+            useClass: InternalSecretGuard,
+        },
         {
             provide: APP_FILTER,
             useClass: AipExceptionFilter,

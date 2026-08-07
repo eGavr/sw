@@ -1,6 +1,6 @@
 import { BadRequestException, INestApplication, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { v4 as uuidv4 } from "uuid";
@@ -46,9 +46,11 @@ import { ResponseInterceptor } from "../../../../../../../src/presentation/http/
 import {
     InternalEnvironmentsController,
 } from "../../../../../../../src/presentation/http/internal/controllers/environments/environments-controller";
+import { InternalSecretGuard } from "../../../../../../../src/presentation/http/internal/guards/internal-secret-guard";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 
 const endpoint = "http://127.0.0.1:44444";
+const secret = "test-internal-secret";
 
 describe("/internal/environments/:id:heartbeat", () => {
     let app: INestApplication;
@@ -73,6 +75,7 @@ describe("/internal/environments/:id:heartbeat", () => {
                 { provide: AccountRepository, useClass: AccountRepositoryImpl },
                 { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
+                { provide: APP_GUARD, useClass: InternalSecretGuard },
                 { provide: APP_FILTER, useClass: AipExceptionFilter },
                 { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
                 {
@@ -139,9 +142,24 @@ describe("/internal/environments/:id:heartbeat", () => {
     };
 
     const heartbeat = (id: string, body: object): request.Test =>
-        request(app.getHttpServer()).post(`/internal/environments/${id}:heartbeat`).send(body);
+        request(app.getHttpServer()).post(`/internal/environments/${id}:heartbeat`).set("x-internal-secret", secret).send(body);
 
     const reload = (id: string): Promise<Environment> => environmentRepository.get(EnvironmentId.fromString(id));
+
+    test("responds UNAUTHENTICATED without the internal secret", () => {
+        return request(app.getHttpServer())
+            .post(`/internal/environments/${uuidv4()}:heartbeat`)
+            .send({ endpoint, busy: false })
+            .expect(401);
+    });
+
+    test("responds UNAUTHENTICATED with a wrong internal secret", () => {
+        return request(app.getHttpServer())
+            .post(`/internal/environments/${uuidv4()}:heartbeat`)
+            .set("x-internal-secret", "wrong")
+            .send({ endpoint, busy: false })
+            .expect(401);
+    });
 
     test("registers on the first heartbeat: preparing -> executing with the endpoint", async () => {
         const id = await seedPreparingEnvironment();
@@ -192,6 +210,10 @@ describe("/internal/environments/:id:heartbeat", () => {
     test("responds NOT_FOUND for an unknown custom verb", async () => {
         const id = await seedPreparingEnvironment();
 
-        return request(app.getHttpServer()).post(`/internal/environments/${id}:frobnicate`).send({ busy: false }).expect(404);
+        return request(app.getHttpServer())
+            .post(`/internal/environments/${id}:frobnicate`)
+            .set("x-internal-secret", secret)
+            .send({ busy: false })
+            .expect(404);
     });
 });
