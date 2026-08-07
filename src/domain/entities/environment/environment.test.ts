@@ -234,6 +234,23 @@ describe("Environment", () => {
         });
     });
 
+    describe("#reclaimCrashed", () => {
+        test("should move an executing environment to deleting", () => {
+            const environment = makePreparing();
+            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date());
+
+            environment.reclaimCrashed();
+
+            expect(environment.state).toBe(EnvironmentState.Deleting);
+        });
+
+        test("should reject reclaiming an environment that is not executing", () => {
+            const environment = makePreparing();
+
+            expect(() => environment.reclaimCrashed()).toThrow(InvalidEnvironmentStateTransitionError);
+        });
+    });
+
     describe("#startDeletion", () => {
         test("should move to deleting and be idempotent", () => {
             const environment = makeEnvironment();

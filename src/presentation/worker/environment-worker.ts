@@ -12,6 +12,9 @@ import {
     PrepareNextEnvironmentUseCase,
 } from "../../application/use-cases/environments/prepare-next-environment-use-case";
 import {
+    ReclaimCrashedEnvironmentsUseCase,
+} from "../../application/use-cases/environments/reclaim-crashed-environments-use-case";
+import {
     ReclaimStuckEnvironmentsUseCase,
 } from "../../application/use-cases/environments/reclaim-stuck-environments-use-case";
 import { defaultHeartbeatFreshnessMs } from "../../domain/entities/environment/heartbeat-freshness";
@@ -54,6 +57,7 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         private readonly prepareNextEnvironment: PrepareNextEnvironmentUseCase,
         private readonly deprovisionDeletingEnvironments: DeprovisionDeletingEnvironmentsUseCase,
         private readonly reclaimStuckEnvironments: ReclaimStuckEnvironmentsUseCase,
+        private readonly reclaimCrashedEnvironments: ReclaimCrashedEnvironmentsUseCase,
         private readonly collectGarbageEnvironments: CollectGarbageEnvironmentsUseCase,
     ) {
         this.reaperIntervalMs = this.number("WORKER_REAPER_INTERVAL_MS", defaultReaperIntervalMs);
@@ -141,12 +145,18 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         }
     }
 
+    // One reaper tick reclaims both classes of environments the system can no longer trust: those stuck
+    // in provisioning (back to the queue or failed) and those that reached `executing` and then died
+    // (heartbeat lapsed → torn down). Both run under the one reaper lock so N workers don't double-sweep.
     private async reap(): Promise<void> {
-        await this.underLock(reaperLockKey, () => this.reclaimStuckEnvironments.execute({
-            startingTimeoutMs: this.startingTimeoutMs,
-            preparingTimeoutMs: this.preparingTimeoutMs,
-            maxAttempts: this.maxAttempts,
-        }));
+        await this.underLock(reaperLockKey, async () => {
+            await this.reclaimStuckEnvironments.execute({
+                startingTimeoutMs: this.startingTimeoutMs,
+                preparingTimeoutMs: this.preparingTimeoutMs,
+                maxAttempts: this.maxAttempts,
+            });
+            await this.reclaimCrashedEnvironments.execute({ freshnessMs: this.freshnessMs });
+        });
     }
 
     private async collect(): Promise<void> {

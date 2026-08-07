@@ -1,5 +1,6 @@
 import { AccountId } from "../../../domain/entities/account/account-id";
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
+import { CrashedExecutionCriteria } from "../../../domain/entities/environment/crashed-execution-criteria";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../../domain/entities/environment/environment-state";
@@ -27,6 +28,8 @@ export abstract class EnvironmentRepository {
     abstract listByState(state: EnvironmentState): Promise<Array<Environment>>;
 
     abstract listStuckProvisioning(criteria: StuckProvisioningCriteria): Promise<Array<Environment>>;
+
+    abstract listCrashed(criteria: CrashedExecutionCriteria): Promise<Array<Environment>>;
 
     abstract findAllocatable(accountId: AccountId, criteria: SessionAllocationCriteria): Promise<Array<Environment>>;
 

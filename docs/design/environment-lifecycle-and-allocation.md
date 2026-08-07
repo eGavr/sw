@@ -304,8 +304,13 @@ POST /accounts/{acc}/environments {platform, applications}
    Предикат формирует ДОМЕН — VO `GarbageCollectionCriteria.from(now, {freshnessMs, failedTtlMs})` → `{state, cutoff, clock, collectWhenNull}`;
    data source лишь транслирует в bulk-delete (`deleteCollectable`; дети-приложения — по `ON DELETE CASCADE`). Порог свежести
    стал конфигурируемым (`HEARTBEAT_FRESHNESS_MS`, дефолт = доменная константа); `WORKER_GC_INTERVAL_MS`/`WORKER_FAILED_TTL_MS`.
-   Эффективный статус на `GET` уже считается (`effectiveStatus`). Покрыто integration. **ОСТАЛОСЬ:** уборка крашнутого
-   `executing` (нужен агент; правильный путь — transition→deprovision→collect, а не hard-delete живого контейнера).
+   Эффективный статус на `GET` уже считается (`effectiveStatus`). Покрыто integration. **[сделано]** уборка крашнутого
+   `executing` — `ReclaimCrashedEnvironmentsUseCase` в reaper-тике: домен-VO `CrashedExecutionCriteria.from(now, freshnessMs)`
+   → `{state=executing, cutoff}` (у executing `updated_at` двигается на каждом хартбите, так что «executing и не трогали дольше
+   окна свежести» = «хартбит протух»); `Environment.reclaimCrashed()` = `executing→deleting`; use-case гасит контейнер **инлайн**
+   (как fail-path у stuck), иначе GC снёс бы `deleting`-строку с уже протухшим хартбитом раньше, чем deprovision уберёт мёртвый
+   контейнер. Дальше существующий GC собирает `deleting`-строку. Путь ровно transition→deprovision→collect, live-проверено (kill
+   контейнера → deleting+снос за один reaper-тик → 404 за один GC-тик).
 7. **[сделано]** Auth `/internal` — `InternalSecretGuard` (presentation, `APP_GUARD` в `InternalModule`) сверяет заголовок
    `x-internal-secret` с `INTERNAL_API_SECRET` (constant-time), иначе 401. Транспортная аутентификация «машина-машина»
    (агент), поэтому в презентации — в отличие от бизнес-authZ (`AccessControl`). mTLS — deployment-level, остаётся follow-up.

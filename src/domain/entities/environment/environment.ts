@@ -234,6 +234,13 @@ export class Environment {
         this.retryProvisioning();
     }
 
+    // Reaper path: an `executing` environment whose heartbeat lapsed — its container/agent died. It is
+    // torn down rather than silently re-created (resources are user-created and guaranteed), so it moves
+    // to `deleting`, where the worker deprovisions the container and GC then removes the row.
+    reclaimCrashed(): void {
+        this.transition(EnvironmentState.Executing, EnvironmentState.Deleting);
+    }
+
     startDeletion(): void {
         if (this._state === EnvironmentState.Deleting) {
             return;

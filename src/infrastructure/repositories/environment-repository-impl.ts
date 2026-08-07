@@ -5,6 +5,7 @@ import {
     EnvironmentRepository,
 } from "../../application/interfaces/repositories/environment-repository";
 import { AccountId } from "../../domain/entities/account/account-id";
+import { CrashedExecutionCriteria } from "../../domain/entities/environment/crashed-execution-criteria";
 import { Environment } from "../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../domain/entities/environment/environment-state";
@@ -81,6 +82,17 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
     }
 
     async listStuckProvisioning(criteria: StuckProvisioningCriteria): Promise<Array<Environment>> {
+        const predicates = criteria.toPredicates().map((predicate) => ({
+            state: predicate.state,
+            cutoff: predicate.cutoff,
+        }));
+
+        const data = await this.environmentDataSource.findByStateUpdatedBefore(predicates);
+
+        return data.map(Environment.fromObject);
+    }
+
+    async listCrashed(criteria: CrashedExecutionCriteria): Promise<Array<Environment>> {
         const predicates = criteria.toPredicates().map((predicate) => ({
             state: predicate.state,
             cutoff: predicate.cutoff,
