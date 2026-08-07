@@ -189,7 +189,8 @@ Reaper: `state IN ('starting','preparing') AND updated_at < now() - <свой п
 - Одна ручка: `POST /internal/environments/{id}:heartbeat {endpoint?, busy}` (AIP custom method).
   **Первый хартбит = регистрация** (пишет `endpoint`, `preparing→executing`). Нет отдельного
   `:released` (busy несёт хартбит) и нет отдельного register.
-- Auth `/internal` (внутренний секрет / mTLS, не пользовательский токен) — **отдельная задача** (позже).
+- Auth `/internal` — **[сделано]** `InternalSecretGuard` по заголовку `x-internal-secret` == `INTERNAL_API_SECRET`
+  (constant-time), не пользовательский токен. mTLS — deployment-level follow-up.
 
 ## Агент (в образе)
 Живёт внутри образа окружения (сайдкар/процесс). На вход — `env id` + `endpoint` + базовый URL
@@ -305,4 +306,6 @@ POST /accounts/{acc}/environments {platform, applications}
    стал конфигурируемым (`HEARTBEAT_FRESHNESS_MS`, дефолт = доменная константа); `WORKER_GC_INTERVAL_MS`/`WORKER_FAILED_TTL_MS`.
    Эффективный статус на `GET` уже считается (`effectiveStatus`). Покрыто integration. **ОСТАЛОСЬ:** уборка крашнутого
    `executing` (нужен агент; правильный путь — transition→deprovision→collect, а не hard-delete живого контейнера).
-7. Auth `/internal` (отдельно).
+7. **[сделано]** Auth `/internal` — `InternalSecretGuard` (presentation, `APP_GUARD` в `InternalModule`) сверяет заголовок
+   `x-internal-secret` с `INTERNAL_API_SECRET` (constant-time), иначе 401. Транспортная аутентификация «машина-машина»
+   (агент), поэтому в презентации — в отличие от бизнес-authZ (`AccessControl`). mTLS — deployment-level, остаётся follow-up.
