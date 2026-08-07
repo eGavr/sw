@@ -5,10 +5,15 @@ import { Injectable } from "@nestjs/common";
 
 const execFileAsync = promisify(execFile);
 
+export type DockerPortMapping = {
+    host: number;
+    container: number;
+};
+
 export type DockerRunOptions = {
     image: string;
     labels: Record<string, string>;
-    publishPort: number;
+    publish: DockerPortMapping;
     command?: Array<string>;
     shmSize?: string;
     env?: Record<string, string>;
@@ -38,7 +43,7 @@ export class DockerClient {
             args.push("--env", `${key}=${value}`);
         }
 
-        args.push("--publish", `0:${options.publishPort}`, options.image);
+        args.push("--publish", `${options.publish.host}:${options.publish.container}`, options.image);
 
         if (options.command) {
             args.push(...options.command);

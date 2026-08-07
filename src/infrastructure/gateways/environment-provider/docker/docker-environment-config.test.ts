@@ -4,7 +4,13 @@ import { buildDockerEnvironmentConfig } from "./docker-environment-config";
 
 describe("buildDockerEnvironmentConfig", () => {
     const chrome: ApplicationData = { name: "chrome", version: "124" };
-    const base = { internalPort: 4444, sessionTimeoutSeconds: 300 };
+    const base = {
+        internalPort: 4444,
+        sessionTimeoutSeconds: 300,
+        advertiseHost: "127.0.0.1",
+        internalUrl: "http://host.docker.internal:3002",
+        internalSecret: "secret",
+    };
 
     describe("prebuilt strategy", () => {
         test("falls back to the selenium image keyed by version", () => {

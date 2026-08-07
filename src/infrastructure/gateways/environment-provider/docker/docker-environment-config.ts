@@ -9,6 +9,11 @@ export type DockerEnvironmentConfig = {
     resolve: (application: ApplicationData) => DockerProvisioning;
     internalPort: number;
     sessionTimeoutSeconds: number;
+    // Host address the node is reachable at (used to build SW_ENDPOINT for the in-container agent).
+    advertiseHost: string;
+    // Base URL the in-container agent calls back on, and the shared secret it authenticates with.
+    internalUrl: string;
+    internalSecret: string;
     platform?: string;
 };
 
@@ -17,6 +22,9 @@ export type BuildDockerEnvironmentConfigOptions = {
     baseImage?: string;
     internalPort: number;
     sessionTimeoutSeconds: number;
+    advertiseHost: string;
+    internalUrl: string;
+    internalSecret: string;
     platform?: string;
 };
 
@@ -53,6 +61,9 @@ export function buildDockerEnvironmentConfig(options: BuildDockerEnvironmentConf
         resolve: options.baseImage ? installResolver(options.baseImage) : prebuiltResolver(options.image),
         internalPort: options.internalPort,
         sessionTimeoutSeconds: options.sessionTimeoutSeconds,
+        advertiseHost: options.advertiseHost,
+        internalUrl: options.internalUrl,
+        internalSecret: options.internalSecret,
         platform: options.platform,
     };
 }

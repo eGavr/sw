@@ -13,6 +13,9 @@ import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-pr
 import { LocalEnvironmentProviderGateway } from "./local-environment-provider-gateway";
 import { RoutingEnvironmentProviderGateway } from "./routing-environment-provider-gateway";
 
+// Fallback callback-API port when INTERNAL_PORT is unset; the env files always set it to 3002.
+const defaultInternalCallbackPort = 3002;
+
 // Every supported adapter is registered up front (construction is cheap — the Docker client only
 // shells out per command). The routing gateway then dispatches each action to the adapter of the
 // environment's provider type, replacing the install-wide COMPUTE_PROVIDER switch.
@@ -30,6 +33,8 @@ export const EnvironmentProviderGatewayProvider = {
 };
 
 function dockerConfig(configService: ConfigService): DockerEnvironmentConfig {
+    const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
+
     return buildDockerEnvironmentConfig({
         image: configService.get<string>("COMPUTE_DOCKER_IMAGE"),
         baseImage: configService.get<string>("COMPUTE_DOCKER_BASE_IMAGE"),
@@ -38,5 +43,12 @@ function dockerConfig(configService: ConfigService): DockerEnvironmentConfig {
         sessionTimeoutSeconds: Number(
             configService.get<string>("COMPUTE_DOCKER_SESSION_TIMEOUT") ?? String(defaultSessionTimeoutSeconds),
         ),
+        // The host address the browser node is reachable at; on the dev Mac that is the loopback the
+        // wd proxy uses to reach the published container port.
+        advertiseHost: configService.get<string>("COMPUTE_DOCKER_ADVERTISE_HOST") ?? "127.0.0.1",
+        // From inside the container the host's internal callback API is reached via host.docker.internal.
+        internalUrl:
+            configService.get<string>("COMPUTE_DOCKER_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,
+        internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
     });
 }
