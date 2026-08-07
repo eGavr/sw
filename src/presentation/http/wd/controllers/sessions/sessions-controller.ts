@@ -19,8 +19,21 @@ export class SessionsController {
     ) {}
 
     @Post()
-    async createSession(@Body() params: CreateSessionRequestModel, @BearerToken() token: string): Promise<SessionPresenter> {
-        return new SessionPresenter(await this.createSessionUseCase.execute({ creds: { token }, params }));
+    async createSession(
+        @Body() params: CreateSessionRequestModel,
+        @BearerToken() token: string,
+        @Req() request: Request,
+    ): Promise<SessionPresenter> {
+        const session = await this.createSessionUseCase.execute({ creds: { token }, params });
+
+        return new SessionPresenter(session, this.webSocketBaseUrl(request));
+    }
+
+    // The wd host the client reached us on, as a ws(s) origin — the proxy the advertised URLs point at.
+    private webSocketBaseUrl(request: Request): string {
+        const scheme = request.protocol === "https" ? "wss" : "ws";
+
+        return `${scheme}://${request.get("host") ?? ""}`;
     }
 
     @All(":sessionId")

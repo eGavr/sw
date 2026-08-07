@@ -77,9 +77,10 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
    `ws(s)://{endpoint}/session/{wdSessionId}/{rest}`. Без auth (capability по session id, как HTTP-прокси).
    BiDi включён на создании сессии (`webSocketUrl: true`); CDP/VNC отдаёт нода. Схема URL:
    `ws://{wd}/sessions/{id}/se/{bidi,cdp,vnc}`. Проверено e2e на живом контейнере (BiDi `session.status`,
-   CDP `Browser.getVersion`); юнит-тесты на роутинг. **Осталось (follow-up):** отдавать `webSocketUrl`/
-   `se:cdp`/`se:vnc` в ответе create-session, чтобы клиенты авто-обнаруживали проксирующий URL (сейчас
-   URL строится по схеме детерминированно); явный e2e для VNC (тот же путь, но бинарные кадры).
+   CDP `Browser.getVersion`); юнит-тесты на роутинг. **Follow-up СДЕЛАН:** ответ create-session теперь
+   отдаёт `webSocketUrls: {bidi, cdp, vnc}` (абсолютные `ws(s)://{wd-host}/sessions/{id}/se/{proto}`, хост
+   берётся из запроса) — клиент не строит URL по конвенции. Явный **VNC e2e** пройден live (первый кадр
+   `RFB 003.008` через прокси) вместе с BiDi (`session.status`) на адвертайзнутых URL.
 
 5. **Резолвер образа — app-часть СДЕЛАНА.** Резолвер обобщён до `{image, env}` со стратегиями
    `prebuilt` (браузер вшит в тег; selenium публикует пер-версии теги, напр. `selenium/standalone-chrome:148.0`)

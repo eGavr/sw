@@ -100,6 +100,15 @@ describe("/sessions", () => {
             expect(body.environmentId).toBe(environmentId);
             expect(body.application).toEqual({ name: "chrome", version: "latest" });
             expect(SessionRoute.decode(body.id)).toEqual({ endpoint: nodeEndpoint, webDriverSessionId: wdSessionId });
+            const bidiSuffix = `/sessions/${body.id}/se/bidi`;
+            expect(body.webSocketUrls.bidi.startsWith("ws://")).toBe(true);
+            expect(body.webSocketUrls.bidi.endsWith(bidiSuffix)).toBe(true);
+            const base = body.webSocketUrls.bidi.slice(0, -bidiSuffix.length);
+            expect(body.webSocketUrls).toEqual({
+                bidi: `${base}/sessions/${body.id}/se/bidi`,
+                cdp: `${base}/sessions/${body.id}/se/cdp`,
+                vnc: `${base}/sessions/${body.id}/se/vnc`,
+            });
             expect(createSessionOnNode).toHaveBeenCalledTimes(1);
         });
 
