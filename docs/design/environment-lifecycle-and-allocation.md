@@ -289,7 +289,9 @@ POST /accounts/{acc}/environments {platform, applications}
    `env.providerType`. Воркер-use-case-ы инжектят один gateway и зовут его напрямую — **без загрузки `ProviderAccount`** на
    провижн-пути. `COMPUTE_PROVIDER` больше не выбирает адаптер. *(Раньше был `EnvironmentProviderGatewayResolver` + загрузка
    PA в каждом use-case — заменено на providerType-на-окружении, чтобы убрать дублирование; см. рефактор-пасс.)*
-   **ОСТАЛОСЬ в стадии 3:** delete-e2e прогон. `executing`/`endpoint` — НЕ здесь (агент, стадия 4).
+   **delete-e2e — [сделано, live]:** `DELETE` → `deleting` → deprovision-sweep сносит контейнер (по NOTIFY, при ещё свежем
+   хартбите) → хартбит протухает (public `DELETED`) → GC сносит строку → `404`. Окно свежести само упорядочивает
+   «deprovision раньше GC», утечки нет.
 4. **[серверная часть сделана]** `/internal:heartbeat` — `POST /internal/environments/{id}:heartbeat {endpoint?, busy}`
    (отдельный `InternalModule`/сервис, `INTERNAL_PORT`). Первый хартбит = регистрация (`preparing→executing` + `endpoint`);
    каждый — `busy`+liveness. Хартбит не вовремя → 409 (домен: `InvalidEnvironmentStateTransitionError` ⊂ `ConflictError`),
