@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import path from "path";
 
 import "reflect-metadata"
@@ -33,6 +34,7 @@ export class PostgresConnection {
             username: configService.getOrThrow("POSTGRES_USER"),
             password: configService.getOrThrow("POSTGRES_PASSWORD"),
             database: configService.getOrThrow("POSTGRES_DATABASE"),
+            ssl: PostgresConnection.ssl(configService),
             migrations: [path.join(__dirname, "migration", "migrations", "*")],
             migrationsTableName: "__migrations",
             namingStrategy: new SnakeNamingStrategy(),
@@ -45,5 +47,17 @@ export class PostgresConnection {
                 ProviderAccount,
             ],
         })
+    }
+
+    // TLS is off by default (local dev / kind). Managed clusters (e.g. Yandex Managed PostgreSQL)
+    // require it: set POSTGRES_SSL=true, and POSTGRES_SSL_CA to the CA bundle for full verification.
+    private static ssl(configService: ConfigService): boolean | { ca?: string; rejectUnauthorized: boolean } {
+        if (configService.get<string>("POSTGRES_SSL") !== "true") {
+            return false;
+        }
+
+        const caPath = configService.get<string>("POSTGRES_SSL_CA");
+
+        return caPath ? { ca: readFileSync(caPath, "utf8"), rejectUnauthorized: true } : { rejectUnauthorized: false };
     }
 }

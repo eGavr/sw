@@ -1,0 +1,19 @@
+# Runs the database migrations once. Apply before (or with) the control plane; re-running is safe
+# (already-applied migrations are skipped). Uses the same image and config/secret as the services.
+apiVersion: batch/v1
+kind: Job
+metadata: { name: sw-migrate, namespace: sw }
+spec:
+  backoffLimit: 3
+  template:
+    metadata: { labels: { app: sw-migrate } }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: sw-migrate
+          image: sw/service:latest
+          imagePullPolicy: IfNotPresent
+          command: ["npm", "run", "pg:migration:run:built"]
+          envFrom: [{ configMapRef: { name: sw-config } }, { secretRef: { name: sw-secrets } }]
+          volumeMounts: [{ name: postgres-ca, mountPath: /etc/ssl/yandex, readOnly: true }]
+      volumes: [{ name: postgres-ca, configMap: { name: sw-postgres-ca, optional: true } }]

@@ -1,12 +1,11 @@
-# Least-privilege access for the worker running in-cluster: it may only manage environment pods and
-# their services in the environments namespace (create/delete/list/get), nothing else. Bind this SA to
-# the worker Deployment (spec.serviceAccountName) when deploying to a real cluster; local dev on the
-# host uses the admin kubeconfig, so this is applied for parity/verification.
+# Least-privilege access for the worker: its ServiceAccount lives in the control-plane namespace (sw)
+# and may only manage environment pods and their services in the sw-environments namespace
+# (get/list/create/delete). The RoleBinding lives in sw-environments and references the SA cross-namespace.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: sw-worker
-  namespace: sw-environments
+  namespace: sw
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -26,7 +25,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: sw-worker
-    namespace: sw-environments
+    namespace: sw
 roleRef:
   kind: Role
   name: sw-environment-manager
