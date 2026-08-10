@@ -244,12 +244,24 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
     SPIFFE** (projected SA token + audience, проверка через TokenReview), чтобы каждый под аутентифицировался как он сам, а не общим
     паролем. Также ротация/секрет-стор для `INTERNAL_API_SECRET`, пока он используется. Без этого в прод не выкатывать.
 
-13. **Доставка агента без пересборки образа — В РАБОТЕ.** Агент запускается РЯДОМ с браузером в том же контейнере (не sidecar —
-    переносимо между докером/k8s/любым рантаймом), но доставляется НЕ вшиванием в образ, а **скачиванием на старте** с контрол-плейна:
-    internal-сервис отдаёт `GET /internal/agentScript:download` (`text/x-shellscript`, под тем же `InternalSecretGuard`);
-    docker/k8s-адаптеры берут **стоковый selenium-образ** (версия браузера = тег) и инъектят команду-бутстрап
-    (`curl -H x-internal-secret … agentScript:download & exec <entrypoint>`; entrypoint в конфиг). Итог: пересборки образа для агента
-    нет вообще, любой браузер = стоковый тег. Убирает кастомный `docker/agent/Dockerfile`.
+13. **Доставка агента без пересборки образа — СДЕЛАНО (`9ee5fee`).** Агент запускается РЯДОМ с браузером в том же контейнере (не
+    sidecar — переносимо между докером/k8s/любым рантаймом), но доставляется НЕ вшиванием в образ, а **скачиванием на старте** с
+    контрол-плейна: internal-сервис отдаёт `GET /internal/agentScript:download` (`text/x-shellscript`, под тем же
+    `InternalSecretGuard`); docker/k8s-адаптеры берут **стоковый selenium-образ** (версия браузера = тег) и инъектят команду-бутстрап
+    (`curl -H x-internal-secret … agentScript:download & exec <entrypoint>`; entrypoint в конфиг). Пересборки образа для агента нет
+    вообще, любой браузер = стоковый тег. Убран кастомный `docker/agent`. Live-проверено на docker и kind.
+
+14. **Деплой в Yandex Cloud — В РАБОТЕ.** Цель: контрол-плейн в **Managed Service for Kubernetes**, окружения = Pod'ы в том же
+    кластере (наш k8s-адаптер + `COMPUTE_K8S_NETWORKING=cluster-dns`). Строительные блоки (research с источниками, в памяти
+    `current-state`): MK8s, Container Registry (node-SA `container-registry.images.puller`), Managed PostgreSQL (6432,
+    `sslmode=verify-full`, та же VPC), NLB/ALB для api+wd, IAM service accounts, зоны `ru-central1-a/b/d`.
+    - **[сделано] контейнеризация сервиса** (`202802c`): multi-stage `Dockerfile` (один образ, 4 entrypoint-а через `command`),
+      kubectl в образе (для k8s-адаптера воркера), копирование `.sh`-ассета в build, `pg:migration:run:built` для migration-Job,
+      `.dockerignore`; поправлены устаревшие не-dev start-скрипты на реальные пути `build/src/presentation/...`. Образ смоук-проверен.
+    - **[след.] k8s-манифесты сервиса**: Deployments (api/wd/internal/worker) + ClusterIP-Services + Ingress/LB для api+wd +
+      ConfigMap + Secret (`INTERNAL_API_SECRET`, креды БД) + расширить RBAC на SA воркера; опц. Terraform (cluster/registry/PG/VPC/IAM).
+    - **[нужен YC-аккаунт юзера]** `yc init`/триал, создать cluster+registry+PG+VPC + роли SA, `docker push` образа, `kubectl apply`,
+      DNS/сертификат. Прод-безопасность internal-канала (п.12) — обязательна до боевого запуска.
 
 ---
 
