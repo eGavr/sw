@@ -1,0 +1,12 @@
+node_modules
+build
+.git
+test
+k8s
+docs
+*.md
+.env
+.env.*
+.vscode
+.idea
+npm-debug.log
