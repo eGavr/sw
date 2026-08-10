@@ -258,10 +258,16 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
     - **[сделано] контейнеризация сервиса** (`202802c`): multi-stage `Dockerfile` (один образ, 4 entrypoint-а через `command`),
       kubectl в образе (для k8s-адаптера воркера), копирование `.sh`-ассета в build, `pg:migration:run:built` для migration-Job,
       `.dockerignore`; поправлены устаревшие не-dev start-скрипты на реальные пути `build/src/presentation/...`. Образ смоук-проверен.
-    - **[след.] k8s-манифесты сервиса**: Deployments (api/wd/internal/worker) + ClusterIP-Services + Ingress/LB для api+wd +
-      ConfigMap + Secret (`INTERNAL_API_SECRET`, креды БД) + расширить RBAC на SA воркера; опц. Terraform (cluster/registry/PG/VPC/IAM).
-    - **[нужен YC-аккаунт юзера]** `yc init`/триал, создать cluster+registry+PG+VPC + роли SA, `docker push` образа, `kubectl apply`,
-      DNS/сертификат. Прод-безопасность internal-канала (п.12) — обязательна до боевого запуска.
+    - **[сделано] k8s-манифесты сервиса** (`25a0105`): `k8s/` — namespaces (`sw` + `sw-environments`), RBAC (SA воркера в `sw` +
+      кросс-ns Role на pods/services в `sw-environments`), ConfigMap+Secret, Deployments api/wd/internal/worker (один образ,
+      per-process `command`; SA только у воркера) + ClusterIP-Services, migration-Job, README (build/push в CR, apply, expose
+      LB/Ingress). Postgres TLS: `POSTGRES_SSL`/`POSTGRES_SSL_CA` (off для dev/kind, verify-full для managed PG). **Полная облачная
+      топология live-проверена на kind:** контрол-плейн подами, in-cluster worker (SA+RBAC+in-cluster kubectl) поднял env-под+Service
+      в `sw-environments` (cluster-dns), агент (скачан с in-cluster internal) → ACTIVE, in-cluster wd-прокси достучался по cluster DNS
+      → `{"value":"sw-cloud-topology"}`, DELETE снёс pod+svc. Опц. Terraform — ещё не делали.
+    - **[нужен YC-аккаунт юзера]** `yc init`/триал, создать cluster+registry+PG+VPC + роли SA, `docker push` образа, заполнить
+      config/secrets (managed-PG FQDN, CA-configmap), `kubectl apply`, expose api+wd (LB/Ingress), DNS/сертификат. Прод-безопасность
+      internal-канала (п.12) — обязательна до боевого запуска.
 
 ---
 
