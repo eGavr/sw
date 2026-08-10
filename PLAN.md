@@ -264,10 +264,15 @@ Get/List/Create/Delete (Delete → `{}`); пагинация (`pageSize`/`pageTo
       LB/Ingress). Postgres TLS: `POSTGRES_SSL`/`POSTGRES_SSL_CA` (off для dev/kind, verify-full для managed PG). **Полная облачная
       топология live-проверена на kind:** контрол-плейн подами, in-cluster worker (SA+RBAC+in-cluster kubectl) поднял env-под+Service
       в `sw-environments` (cluster-dns), агент (скачан с in-cluster internal) → ACTIVE, in-cluster wd-прокси достучался по cluster DNS
-      → `{"value":"sw-cloud-topology"}`, DELETE снёс pod+svc. Опц. Terraform — ещё не делали.
-    - **[нужен YC-аккаунт юзера]** `yc init`/триал, создать cluster+registry+PG+VPC + роли SA, `docker push` образа, заполнить
-      config/secrets (managed-PG FQDN, CA-configmap), `kubectl apply`, expose api+wd (LB/Ingress), DNS/сертификат. Прод-безопасность
-      internal-канала (п.12) — обязательна до боевого запуска.
+      → `{"value":"sw-cloud-topology"}`, DELETE снёс pod+svc.
+    - **[сделано] Terraform** (`8ef081d`): `terraform/` — VPC+subnet+security-groups, 2 SA с ролями (cluster:
+      `k8s.clusters.agent`/`vpc.publicAdmin`/`load-balancer.admin`; nodes: `container-registry.images.puller`), Container Registry,
+      MK8s cluster+node-group, Managed PostgreSQL (+db+user); outputs (registry_id, cluster_name, postgres_host_rw). Структурно
+      валиден (`terraform init/validate/fmt`), НЕ apply-тестирован (нет облачного аккаунта) — SG-правила/версии сверить с доками,
+      для HA — региональный мастер.
+    - **[нужен YC-аккаунт юзера]** `export YC_TOKEN` → `terraform apply` (или ручные `yc`); `docker build/push` в CR; заполнить
+      `k8s/config.yaml` (PG FQDN из output) + `sw-secrets` + `sw-postgres-ca` (CA.pem); `kubectl apply -f k8s/`; expose api+wd
+      (LB/Ingress). Прод-безопасность internal-канала (п.12) — обязательна до боевого запуска.
 
 ---
 
