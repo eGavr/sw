@@ -1,0 +1,43 @@
+# In-cluster Postgres for a proof-of-concept — avoids needing Managed PostgreSQL (VPC/TLS/SG) for a
+# first deploy. NOT for production: single replica, no HA/backups. For prod use Managed PostgreSQL
+# (config.yaml) instead of this.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: sw-postgres-data, namespace: sw }
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: sw-postgres, namespace: sw }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: sw-postgres } }
+  template:
+    metadata: { labels: { app: sw-postgres } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - { name: POSTGRES_USER, value: "sw" }
+            - { name: POSTGRES_DB, value: "sw" }
+            - { name: PGDATA, value: "/var/lib/postgresql/data/pgdata" }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: sw-secrets, key: POSTGRES_PASSWORD } }
+          ports: [{ containerPort: 5432 }]
+          readinessProbe: { exec: { command: ["pg_isready", "-U", "sw"] }, initialDelaySeconds: 5, periodSeconds: 5 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: "1", memory: 512Mi } }
+          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: sw-postgres-data }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: sw-postgres, namespace: sw }
+spec:
+  selector: { app: sw-postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]

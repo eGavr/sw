@@ -5,6 +5,29 @@ as Pods in `sw-environments` by the worker's Kubernetes compute adapter (`COMPUT
 
 Files: `namespace.yaml`, `rbac.yaml` (worker SA + env-namespace Role), `config.yaml` (ConfigMap +
 Secret), `control-plane.yaml` (4 Deployments + api/wd/internal Services), `migrate-job.yaml`.
+For a proof-of-concept: `config-poc.yaml` + `postgres-poc.yaml` run Postgres in-cluster (no Managed
+PostgreSQL, no TLS/VPC/SG) — apply those INSTEAD of `config.yaml`.
+
+## Quick PoC deploy (in-cluster Postgres)
+
+Needs a cluster + Container Registry only (e.g. `cd ../terraform && terraform apply`, or create them
+in the console), plus kubeconfig (`yc managed-kubernetes cluster get-credentials <name> --external`).
+
+```
+REGISTRY=<registry-id>
+docker build -t cr.yandex/$REGISTRY/sw-service:latest .. && yc container registry configure-docker
+docker push cr.yandex/$REGISTRY/sw-service:latest
+# point the manifests at the pushed image:
+sed -i '' "s#sw/service:latest#cr.yandex/$REGISTRY/sw-service:latest#" control-plane.yaml migrate-job.yaml
+
+kubectl apply -f namespace.yaml -f rbac.yaml -f config-poc.yaml -f postgres-poc.yaml
+kubectl -n sw rollout status deploy/sw-postgres
+kubectl apply -f migrate-job.yaml && kubectl -n sw wait --for=condition=complete job/sw-migrate
+kubectl apply -f control-plane.yaml
+kubectl -n sw patch svc sw-api -p '{"spec":{"type":"LoadBalancer"}}'
+kubectl -n sw patch svc sw-wd  -p '{"spec":{"type":"LoadBalancer"}}'
+kubectl -n sw get svc sw-api sw-wd   # external IPs to hit
+```
 
 ## Deploy to Yandex Cloud (Managed Service for Kubernetes)
 
