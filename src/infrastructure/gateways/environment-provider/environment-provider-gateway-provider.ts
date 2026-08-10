@@ -2,6 +2,7 @@ import { ConfigService } from "@nestjs/config";
 
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
 
+import { defaultAgentEntrypoint } from "./agent-bootstrap";
 import { DockerClient } from "./docker/docker-client";
 import {
     buildDockerEnvironmentConfig,
@@ -64,6 +65,7 @@ function dockerConfig(configService: ConfigService): DockerEnvironmentConfig {
         sessionTimeoutSeconds: Number(
             configService.get<string>("COMPUTE_DOCKER_SESSION_TIMEOUT") ?? String(defaultSessionTimeoutSeconds),
         ),
+        entrypoint: configService.get<string>("COMPUTE_DOCKER_ENTRYPOINT") ?? defaultAgentEntrypoint,
         // The host address the browser node is reachable at; on the dev Mac that is the loopback the
         // wd proxy uses to reach the published container port.
         advertiseHost: configService.get<string>("COMPUTE_DOCKER_ADVERTISE_HOST") ?? "127.0.0.1",
@@ -78,13 +80,14 @@ function kubernetesConfig(configService: ConfigService): KubernetesEnvironmentCo
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
     return {
-        image: configService.get<string>("COMPUTE_K8S_IMAGE") ?? "sw/environment-agent:latest",
+        image: configService.get<string>("COMPUTE_K8S_IMAGE") ?? "seleniarm/standalone-chromium:latest",
         namespace: configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultNamespace,
         networking: (configService.get<string>("COMPUTE_K8S_NETWORKING") as KubernetesNetworking) ?? defaultNetworking,
         containerPort: Number(configService.get<string>("COMPUTE_K8S_PORT") ?? String(defaultContainerPort)),
         sessionTimeoutSeconds: Number(
             configService.get<string>("COMPUTE_K8S_SESSION_TIMEOUT") ?? String(defaultK8sSessionTimeoutSeconds),
         ),
+        entrypoint: configService.get<string>("COMPUTE_K8S_ENTRYPOINT") ?? defaultAgentEntrypoint,
         nodePortRange: {
             min: Number(configService.get<string>("COMPUTE_K8S_NODEPORT_MIN") ?? String(defaultNodePortRange.min)),
             max: Number(configService.get<string>("COMPUTE_K8S_NODEPORT_MAX") ?? String(defaultNodePortRange.max)),

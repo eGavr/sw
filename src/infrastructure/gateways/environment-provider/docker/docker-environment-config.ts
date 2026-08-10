@@ -9,6 +9,8 @@ export type DockerEnvironmentConfig = {
     resolve: (application: ApplicationData) => DockerProvisioning;
     internalPort: number;
     sessionTimeoutSeconds: number;
+    // Image entrypoint the bootstrap execs after starting the agent (selenium base default).
+    entrypoint: string;
     // Host address the node is reachable at (used to build SW_ENDPOINT for the in-container agent).
     advertiseHost: string;
     // Base URL the in-container agent calls back on, and the shared secret it authenticates with.
@@ -22,6 +24,7 @@ export type BuildDockerEnvironmentConfigOptions = {
     baseImage?: string;
     internalPort: number;
     sessionTimeoutSeconds: number;
+    entrypoint: string;
     advertiseHost: string;
     internalUrl: string;
     internalSecret: string;
@@ -61,6 +64,7 @@ export function buildDockerEnvironmentConfig(options: BuildDockerEnvironmentConf
         resolve: options.baseImage ? installResolver(options.baseImage) : prebuiltResolver(options.image),
         internalPort: options.internalPort,
         sessionTimeoutSeconds: options.sessionTimeoutSeconds,
+        entrypoint: options.entrypoint,
         advertiseHost: options.advertiseHost,
         internalUrl: options.internalUrl,
         internalSecret: options.internalSecret,

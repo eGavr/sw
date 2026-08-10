@@ -16,6 +16,7 @@ import { ResponseInterceptor } from "../interceptors/response-interceptor";
 import { ContextMiddleware } from "../middlewares/contex-middleware";
 import { LoggingMiddleware } from "../middlewares/logging-middleware";
 
+import { InternalAgentController } from "./controllers/agent/agent-controller";
 import { InternalEnvironmentsController } from "./controllers/environments/environments-controller";
 import { InternalSecretGuard } from "./guards/internal-secret-guard";
 
@@ -29,6 +30,7 @@ import { InternalSecretGuard } from "./guards/internal-secret-guard";
     ],
     controllers: [
         InternalEnvironmentsController,
+        InternalAgentController,
     ],
     providers: [
         RecordEnvironmentHeartbeatUseCase,

@@ -14,6 +14,7 @@ export type DockerRunOptions = {
     image: string;
     labels: Record<string, string>;
     publish: DockerPortMapping;
+    entrypoint?: string;
     command?: Array<string>;
     shmSize?: string;
     env?: Record<string, string>;
@@ -43,6 +44,10 @@ export class DockerClient {
 
         for (const [key, value] of Object.entries(options.env ?? {})) {
             args.push("--env", `${key}=${value}`);
+        }
+
+        if (options.entrypoint) {
+            args.push("--entrypoint", options.entrypoint);
         }
 
         args.push("--publish", `${options.publish.host}:${options.publish.container}`, options.image);

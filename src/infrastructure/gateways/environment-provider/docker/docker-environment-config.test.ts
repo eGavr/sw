@@ -7,6 +7,7 @@ describe("buildDockerEnvironmentConfig", () => {
     const base = {
         internalPort: 4444,
         sessionTimeoutSeconds: 300,
+        entrypoint: "/opt/bin/entry_point.sh",
         advertiseHost: "127.0.0.1",
         internalUrl: "http://host.docker.internal:3002",
         internalSecret: "secret",

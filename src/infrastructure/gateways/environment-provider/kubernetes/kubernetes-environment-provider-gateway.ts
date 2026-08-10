@@ -1,5 +1,6 @@
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
+import { agentBootstrap } from "../agent-bootstrap";
 
 import { KubernetesClient } from "./kubernetes-client";
 import { KubernetesEnvironmentConfig } from "./kubernetes-environment-config";
@@ -105,9 +106,9 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
                         containers: [{
                             name: "node",
                             image: this.config.image,
-                            // The image is loaded into the cluster, not pulled from a registry; without
-                            // this a `:latest` tag defaults to Always and fails with ErrImagePull.
                             imagePullPolicy: "IfNotPresent",
+                            // Stock selenium image: fetch the agent at startup, then exec the node.
+                            command: ["bash", "-c", agentBootstrap(this.config.entrypoint)],
                             ports: [{ containerPort: this.config.containerPort }],
                             env: this.env(environment, plan.endpoint),
                             resources: this.config.resources,

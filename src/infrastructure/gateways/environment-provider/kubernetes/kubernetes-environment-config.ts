@@ -18,6 +18,8 @@ export type KubernetesEnvironmentConfig = {
     // The WebDriver port the browser node listens on inside the pod.
     containerPort: number;
     sessionTimeoutSeconds: number;
+    // Image entrypoint the bootstrap execs after starting the agent (selenium base default).
+    entrypoint: string;
     // Host-reachable node-port range (mapped to the host by the cluster), used by "nodeport" networking.
     nodePortRange: { min: number; max: number };
     // Scheduler requests and hard limits for the environment container (a browser needs real memory).

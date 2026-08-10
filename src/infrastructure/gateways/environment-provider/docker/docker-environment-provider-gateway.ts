@@ -1,18 +1,19 @@
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
+import { agentBootstrap } from "../agent-bootstrap";
 
 import { DockerClient } from "./docker-client";
 import { DockerEnvironmentConfig } from "./docker-environment-config";
 import { reserveFreePort } from "./free-port";
 import { dockerLabels, dockerProviderValue } from "./labels";
 
-// Docker adapter: an environment is a container exposing a WebDriver endpoint. provision is
-// idempotent (any stale container for the env id is removed before a fresh run), so a reclaim
-// retry never leaks a second container. The endpoint is NOT written here — the in-container agent
-// reports it on registration (stage 4). Because a container cannot know its own published host
-// port, the adapter reserves a free host port, publishes the node on it, and injects the resulting
-// endpoint plus the internal callback URL/secret so the agent can register and heartbeat.
+// Docker adapter: an environment is a stock selenium container exposing a WebDriver endpoint. provision
+// is idempotent (any stale container for the env id is removed before a fresh run), so a reclaim retry
+// never leaks a second container. The endpoint is NOT written here — the in-container agent reports it on
+// registration. Because a container cannot know its own published host port, the adapter reserves a free
+// host port, publishes the node on it, and injects the endpoint plus the callback URL/secret. The agent
+// itself is fetched from the control plane at startup (bootstrap command), not baked into the image.
 export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway {
     constructor(
         private readonly docker: DockerClient,
@@ -40,6 +41,8 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
             platform: this.config.platform,
             publish: { host: hostPort, container: this.config.internalPort },
             shmSize: "2g",
+            entrypoint: "bash",
+            command: ["-c", agentBootstrap(this.config.entrypoint)],
             env: {
                 SW_ENVIRONMENT_ID: environment.id,
                 SW_ENDPOINT: endpoint,
