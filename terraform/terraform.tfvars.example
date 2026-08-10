@@ -1,0 +1,13 @@
+cloud_id  = "b1g..."
+folder_id = "b1g..."
+zone      = "ru-central1-a"
+
+# Postgres user password — also put it in the k8s Secret sw-secrets.
+pg_password = "change-me"
+
+# Optional sizing overrides:
+# node_count     = 2
+# node_cores     = 4
+# node_memory_gb = 8
+# k8s_version    = "1.30"
+# pg_version     = "16"
