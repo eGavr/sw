@@ -7,7 +7,7 @@ import { ProviderAccountState } from "./provider-account-state";
 export type ProviderAccountData = {
     id: string;
     accountId: string;
-    providerType: string;
+    provider: string;
     externalRef?: string | null;
     credentialRef?: string | null;
     state: string;
@@ -17,7 +17,7 @@ export type ProviderAccountData = {
 
 export type ProviderAccountCreateParams = {
     accountId: AccountId;
-    providerType: string;
+    provider: string;
     externalRef?: string | null;
     credentialRef?: string | null;
 };
@@ -25,7 +25,7 @@ export type ProviderAccountCreateParams = {
 type ProviderAccountConstructorParams = {
     id?: ProviderAccountId;
     accountId: AccountId;
-    providerType: string;
+    provider: string;
     externalRef?: string | null;
     credentialRef?: string | null;
     state?: ProviderAccountState;
@@ -42,7 +42,7 @@ export class ProviderAccount {
         return new ProviderAccount({
             id: ProviderAccountId.fromString(data.id),
             accountId: AccountId.fromString(data.accountId),
-            providerType: data.providerType,
+            provider: data.provider,
             externalRef: data.externalRef ?? null,
             credentialRef: data.credentialRef ?? null,
             state: ProviderAccount.toState(data.state),
@@ -61,7 +61,7 @@ export class ProviderAccount {
         return state;
     }
 
-    readonly providerType: string;
+    readonly provider: string;
     readonly externalRef: string | null;
     readonly credentialRef: string | null;
     readonly createdAt: Date;
@@ -74,7 +74,7 @@ export class ProviderAccount {
     private constructor(params: ProviderAccountConstructorParams) {
         this._id = params.id ?? ProviderAccountId.create();
         this._accountId = params.accountId;
-        this.providerType = params.providerType;
+        this.provider = params.provider;
         this.externalRef = params.externalRef ?? null;
         this.credentialRef = params.credentialRef ?? null;
         this._state = params.state ?? ProviderAccountState.Active;
@@ -116,7 +116,7 @@ export class ProviderAccount {
         return {
             id: this.id,
             accountId: this._accountId.getValue(),
-            providerType: this.providerType,
+            provider: this.provider,
             externalRef: this.externalRef,
             credentialRef: this.credentialRef,
             state: this._state,

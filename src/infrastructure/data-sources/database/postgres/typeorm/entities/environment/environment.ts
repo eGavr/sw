@@ -16,7 +16,7 @@ export class Environment {
         environment.id = data.id;
         environment.accountId = data.accountId;
         environment.providerAccountId = data.providerAccountId ?? null;
-        environment.providerType = data.providerType ?? null;
+        environment.provider = data.provider ?? null;
         environment.state = data.state;
         environment.stateReason = data.stateReason ?? null;
         environment.platformName = data.platform.name;
@@ -48,7 +48,7 @@ export class Environment {
     providerAccountId: string | null;
 
     @Column({ type: "varchar", nullable: true })
-    providerType: string | null;
+    provider: string | null;
 
     @Column()
     state: string;
@@ -94,7 +94,7 @@ export class Environment {
             id: this.id,
             accountId: this.accountId,
             providerAccountId: this.providerAccountId,
-            providerType: this.providerType,
+            provider: this.provider,
             state: this.state,
             stateReason: this.stateReason,
             platform: {

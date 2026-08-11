@@ -15,7 +15,7 @@ export class ProviderAccount {
 
         providerAccount.id = data.id;
         providerAccount.accountId = data.accountId;
-        providerAccount.providerType = data.providerType;
+        providerAccount.provider = data.provider;
         providerAccount.externalRef = data.externalRef ?? null;
         providerAccount.credentialRef = data.credentialRef ?? null;
         providerAccount.state = data.state;
@@ -35,7 +35,7 @@ export class ProviderAccount {
     accountId: string;
 
     @Column()
-    providerType: string;
+    provider: string;
 
     @Column({ type: "varchar", nullable: true })
     externalRef: string | null;
@@ -58,7 +58,7 @@ export class ProviderAccount {
         return {
             id: this.id,
             accountId: this.accountId,
-            providerType: this.providerType,
+            provider: this.provider,
             externalRef: this.externalRef,
             credentialRef: this.credentialRef,
             state: this.state,

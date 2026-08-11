@@ -1,12 +1,12 @@
 import { Type } from "class-transformer";
 import { IsDefined, IsString, ValidateNested } from "class-validator";
 
-class ResourcesModel {
+class ComputeModel {
     @IsString()
-    providerId: string;
+    provider: string;
 
     @IsString()
-    providerType: string;
+    externalRef: string;
 }
 
 export class CreateAccountRequestModel {
@@ -15,6 +15,6 @@ export class CreateAccountRequestModel {
 
     @IsDefined()
     @ValidateNested()
-    @Type(() => ResourcesModel)
-    resources: ResourcesModel;
+    @Type(() => ComputeModel)
+    compute: ComputeModel;
 }

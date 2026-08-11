@@ -62,7 +62,7 @@ export class CreateEnvironmentUseCase {
         return this.environmentRepository.create({
             accountId,
             providerAccountId: ProviderAccountId.fromString(providerAccount.id),
-            providerType: providerAccount.providerType,
+            provider: providerAccount.provider,
             platform: Platform.fromObject(params.platform),
             applications,
         });

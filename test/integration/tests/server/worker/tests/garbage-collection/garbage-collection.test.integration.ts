@@ -77,7 +77,7 @@ describe("environment garbage collection", () => {
 
         return environmentRepository.create({
             accountId: AccountId.fromString(account.id),
-            providerType: "local",
+            provider: "local",
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });

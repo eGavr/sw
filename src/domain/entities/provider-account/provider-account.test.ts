@@ -5,7 +5,7 @@ import { ProviderAccountState } from "./provider-account-state";
 
 describe("ProviderAccount", () => {
     const build = (): ProviderAccount =>
-        ProviderAccount.create({ accountId: AccountId.create(), providerType: "docker", externalRef: "project-1" });
+        ProviderAccount.create({ accountId: AccountId.create(), provider: "docker", externalRef: "project-1" });
 
     describe(".create", () => {
         test("should start active", () => {

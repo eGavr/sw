@@ -41,7 +41,7 @@ export class AccountsController {
     async createAccount(@Body() body: CreateAccountRequestModel, @BearerToken() token: string): Promise<AccountPresenter> {
         return new AccountPresenter(await this.createAccountUseCase.execute({
             creds: { token },
-            params: { name: body.displayName, resources: body.resources },
+            params: { name: body.displayName, compute: body.compute },
         }));
     }
 

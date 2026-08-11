@@ -19,14 +19,14 @@ export class RoutingEnvironmentProviderGateway extends EnvironmentProviderGatewa
     }
 
     private gatewayFor(environment: Environment): EnvironmentProviderGateway {
-        if (!environment.providerType) {
+        if (!environment.provider) {
             throw new InternalError(`environment ${environment.id}: no provider type to route to`);
         }
 
-        const gateway = this.gatewaysByProviderType.get(environment.providerType);
+        const gateway = this.gatewaysByProviderType.get(environment.provider);
 
         if (!gateway) {
-            throw new InternalError(`compute provider: ${environment.providerType}: unknown`);
+            throw new InternalError(`compute provider: ${environment.provider}: unknown`);
         }
 
         return gateway;

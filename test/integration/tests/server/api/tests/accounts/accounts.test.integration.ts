@@ -73,7 +73,7 @@ describe("/accounts", () => {
             const { body } = await request(app.getHttpServer())
                 .post("/accounts")
                 .set(Authorization.forUser(UserFactory.createId()))
-                .send({ displayName: "team-a", resources: { providerId: "p", providerType: "local" } })
+                .send({ displayName: "team-a", compute: { provider: "local", externalRef: "p" } })
                 .expect(HttpStatus.CREATED);
 
             expect(body).toEqual({

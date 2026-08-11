@@ -112,7 +112,7 @@ describe("/internal/environments/:id:heartbeat", () => {
 
         const providerAccount = await providerAccountRepository.create({
             accountId: AccountId.fromString(account.id),
-            providerType: "local",
+            provider: "local",
         });
 
         const environment = await environmentRepository.create({

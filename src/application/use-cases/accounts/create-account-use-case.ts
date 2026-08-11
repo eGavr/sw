@@ -12,9 +12,9 @@ type CreateAccountInput = {
     },
     params: {
         name: string;
-        resources: {
-            providerId: string;
-            providerType: string;
+        compute: {
+            provider: string;
+            externalRef: string;
         }
     }
 }
@@ -38,8 +38,8 @@ export class CreateAccountUseCase {
 
         await this.providerAccountRepository.create({
             accountId: AccountId.fromString(account.id),
-            providerType: params.resources.providerType,
-            externalRef: params.resources.providerId,
+            provider: params.compute.provider,
+            externalRef: params.compute.externalRef,
         });
 
         return account;
