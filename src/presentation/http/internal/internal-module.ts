@@ -13,6 +13,9 @@ import {
 import {
     UploadSessionLogsUseCase,
 } from "../../../application/use-cases/environments/upload-session-logs-use-case";
+import {
+    UploadSessionVideoUseCase,
+} from "../../../application/use-cases/environments/upload-session-video-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import {
@@ -51,6 +54,7 @@ import { InternalSecretGuard } from "./guards/internal-secret-guard";
     providers: [
         RecordEnvironmentHeartbeatUseCase,
         UploadSessionLogsUseCase,
+        UploadSessionVideoUseCase,
 
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },

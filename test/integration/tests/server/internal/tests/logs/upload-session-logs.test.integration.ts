@@ -23,6 +23,9 @@ import {
 import {
     UploadSessionLogsUseCase,
 } from "../../../../../../../src/application/use-cases/environments/upload-session-logs-use-case";
+import {
+    UploadSessionVideoUseCase,
+} from "../../../../../../../src/application/use-cases/environments/upload-session-video-use-case";
 import { AccountId } from "../../../../../../../src/domain/entities/account/account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
@@ -90,6 +93,7 @@ describe("/internal/environments/:id:uploadSessionLogs", () => {
             providers: [
                 RecordEnvironmentHeartbeatUseCase,
                 UploadSessionLogsUseCase,
+                UploadSessionVideoUseCase,
                 AccountDataSource,
                 ProviderAccountDataSource,
                 EnvironmentDataSource,

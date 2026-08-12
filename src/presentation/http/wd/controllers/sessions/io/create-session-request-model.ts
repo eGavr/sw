@@ -26,4 +26,9 @@ export class CreateSessionRequestModel {
     @IsOptional()
     @IsBoolean()
     logging?: boolean;
+
+    // Opt-in: record this session's video and upload it to the account's storage destination.
+    @IsOptional()
+    @IsBoolean()
+    video?: boolean;
 }

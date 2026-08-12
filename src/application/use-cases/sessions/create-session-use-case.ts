@@ -9,7 +9,7 @@ import { SessionAllocationCriteria } from "../../../domain/entities/environment/
 import { NoAllocatableEnvironmentError } from "../../../domain/entities/session/error/no-allocatable-environment-error";
 import { Session } from "../../../domain/entities/session/session";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
-import { WebDriverSessionGateway } from "../../interfaces/gateways/webdriver-session-gateway";
+import { WebDriverSessionGateway, WebDriverSessionOptions } from "../../interfaces/gateways/webdriver-session-gateway";
 import { AccountRepository } from "../../interfaces/repositories/account-repository";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
 import { AccessControl } from "../../services/access-control";
@@ -25,6 +25,7 @@ type CreateSessionInput = {
             version: string;
         };
         logging?: boolean;
+        video?: boolean;
     },
 }
 
@@ -54,12 +55,16 @@ export class CreateSessionUseCase {
         const criteria = SessionAllocationCriteria.from(new Date(), defaultHeartbeatFreshnessMs, application);
         const candidates = await this.environmentRepository.findAllocatable(accountId, criteria);
 
-        return this.allocate(candidates, application, params.logging ?? false);
+        return this.allocate(candidates, application, { logging: params.logging ?? false, video: params.video ?? false });
     }
 
-    private async allocate(candidates: Array<Environment>, application: Application, logging: boolean): Promise<Session> {
+    private async allocate(
+        candidates: Array<Environment>,
+        application: Application,
+        options: WebDriverSessionOptions,
+    ): Promise<Session> {
         for (const candidate of candidates) {
-            const session = await this.tryAllocate(candidate, application, logging);
+            const session = await this.tryAllocate(candidate, application, options);
 
             if (session) {
                 return session;
@@ -69,13 +74,17 @@ export class CreateSessionUseCase {
         throw new NoAllocatableEnvironmentError(application.name, application.version);
     }
 
-    private async tryAllocate(environment: Environment, application: Application, logging: boolean): Promise<Session | null> {
+    private async tryAllocate(
+        environment: Environment,
+        application: Application,
+        options: WebDriverSessionOptions,
+    ): Promise<Session | null> {
         if (!environment.endpoint) {
             return null;
         }
 
         try {
-            const webDriverSessionId = await this.webDriverSessionGateway.create(environment.endpoint, application, { logging });
+            const webDriverSessionId = await this.webDriverSessionGateway.create(environment.endpoint, application, options);
 
             return Session.create({
                 environmentId: EnvironmentId.fromString(environment.id),

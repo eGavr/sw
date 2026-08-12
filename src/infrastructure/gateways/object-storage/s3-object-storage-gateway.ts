@@ -1,7 +1,12 @@
 import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
 import { Injectable } from "@nestjs/common";
 
-import { ObjectStorageGateway, StoredObject } from "../../../application/interfaces/gateways/object-storage-gateway";
+import {
+    ObjectStorageGateway,
+    StoredObject,
+    StoredStream,
+} from "../../../application/interfaces/gateways/object-storage-gateway";
 import { StorageDestination } from "../../../domain/entities/storage/storage-destination";
 
 const defaultRegion = "us-east-1";
@@ -19,6 +24,20 @@ export class S3ObjectStorageGateway extends ObjectStorageGateway {
             Body: object.body,
             ContentType: object.contentType,
         }));
+    }
+
+    // Streams an object of unknown size straight to storage as an S3 multipart upload — the SDK buffers
+    // only one ~5 MB part at a time, so an arbitrarily large recording never sits whole in memory.
+    async putStream(destination: StorageDestination, key: string, object: StoredStream): Promise<void> {
+        await new Upload({
+            client: this.clientFor(destination),
+            params: {
+                Bucket: destination.bucket,
+                Key: key,
+                Body: object.body,
+                ContentType: object.contentType,
+            },
+        }).done();
     }
 
     async get(destination: StorageDestination, key: string): Promise<StoredObject | null> {

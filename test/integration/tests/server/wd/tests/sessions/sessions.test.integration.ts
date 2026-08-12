@@ -121,15 +121,27 @@ describe("/sessions", () => {
                 .send({ accountId, application: chrome, logging: true })
                 .expect(HttpStatus.CREATED);
 
-            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: true });
+            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: true, video: false });
         });
 
-        test("defaults the logging opt-in to false when omitted", async () => {
+        test("threads the video opt-in through to the node session", async () => {
+            const { owner, accountId } = await seedExecutingEnvironment();
+
+            await request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send({ accountId, application: chrome, video: true })
+                .expect(HttpStatus.CREATED);
+
+            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: false, video: true });
+        });
+
+        test("defaults the logging and video opt-ins to false when omitted", async () => {
             const { owner, accountId } = await seedExecutingEnvironment();
 
             await createSession(accountId, owner).expect(HttpStatus.CREATED);
 
-            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: false });
+            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: false, video: false });
         });
 
         test("responds UNAUTHORIZED for an unauthenticated request", () => {

@@ -45,4 +45,17 @@ describe("WebDriverClient", () => {
 
         expect(alwaysMatch()).not.toHaveProperty("sw:logging");
     });
+
+    test("adds the sw:video capability when video is opted in", async () => {
+        await new WebDriverClient().createSession(endpoint, "chrome", { video: true });
+
+        expect(alwaysMatch()["sw:video"]).toBe(true);
+        expect(alwaysMatch().browserName).toBe("chrome");
+    });
+
+    test("omits the sw:video capability by default", async () => {
+        await new WebDriverClient().createSession(endpoint, "chrome");
+
+        expect(alwaysMatch()).not.toHaveProperty("sw:video");
+    });
 });

@@ -21,9 +21,10 @@ data:
   # Yandex Cloud nodes are amd64 → real Chrome. (On an arm dev cluster use seleniarm/standalone-chromium.)
   COMPUTE_K8S_IMAGE: "selenium/standalone-chrome:latest"
   COMPUTE_K8S_INTERNAL_URL: "http://sw-internal.sw.svc.cluster.local:3002"
-  # Session-log uploads go to an S3-compatible backend (Yandex Object Storage). The bucket/endpoint/region
-  # are per-account (registered via the storageDestination API); access is delegated — the control plane
-  # authenticates with OUR service-account key (AWS_* in the secret), never the user's credentials.
+  # Session-log and session-video uploads go to an S3-compatible backend (Yandex Object Storage). The
+  # bucket/endpoint/region are per-account (registered via the storageDestination API); access is delegated
+  # — the control plane authenticates with OUR service-account key (AWS_* in the secret), never the user's
+  # credentials. ffmpeg for video recording is served from the image (INTERNAL_FFMPEG_DIR default bin/ffmpeg).
   LOG_STORAGE: "s3"
 ---
 apiVersion: v1

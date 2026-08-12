@@ -4,6 +4,9 @@ export type WebDriverSessionOptions = {
     // Opt-in per session: capture this session's logs and upload them (carried to the node as the
     // `sw:logging` capability, which the in-pod agent reads back to decide whether to ship logs).
     readonly logging?: boolean;
+    // Opt-in per session: record this session's video and upload it (carried to the node as the
+    // `sw:video` capability, which the in-pod agent reads back to decide whether to record).
+    readonly video?: boolean;
 };
 
 // Driven port over a running WebDriver node: creates a session on the node at `endpoint` and returns
