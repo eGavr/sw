@@ -22,11 +22,12 @@ INTERVAL="${SW_HEARTBEAT_INTERVAL_SECONDS:-3}"
 : "${SW_ENDPOINT:?SW_ENDPOINT is required}"
 
 heartbeat_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:heartbeat"
-session_logs_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/sessionLogs"
+session_logs_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:uploadSessionLogs"
 
-# The node writes one continuous log stream (not a file per session), so a session's logs are the slice
-# appended between its start and end. Capped to the last max_log_bytes (session end + errors) if larger.
-session_log_glob="${SW_SESSION_LOG_GLOB:-/var/log/supervisor/*.log}"
+# The startup bootstrap redirects the container's whole stdout/stderr into one file (stock selenium logs
+# to stdout, not a per-session file), so a session's logs are the slice appended between its start and
+# end. Capped to the last max_log_bytes (session end + errors) if larger.
+session_log_glob="${SW_SESSION_LOG_GLOB:-/tmp/sw-session.log}"
 max_log_bytes="${SW_MAX_LOG_BYTES:-10485760}"
 
 log() { echo "[heartbeat-agent] $*"; }
@@ -126,8 +127,11 @@ done
 log "registered"
 
 # Heartbeat loop, tracking session start/end transitions to capture and ship the session's logs.
+# `idle_offset` is the log size at the last idle tick; a session's slice starts there (not at the tick
+# that first saw it busy) so the session's own opening lines aren't missed.
 prev_busy=false
 capture=false
+idle_offset=0
 log_offset=0
 
 while true; do
@@ -138,11 +142,13 @@ while true; do
 
     if [ "${busy}" = "true" ] && [ "${prev_busy}" = "false" ]; then
         if session_wants_logs; then capture=true; else capture=false; fi
-        log_offset=$(log_size)
+        log_offset="${idle_offset}"
     elif [ "${busy}" = "false" ] && [ "${prev_busy}" = "true" ]; then
         if [ "${capture}" = "true" ]; then ship_session_logs "${log_offset}"; fi
         capture=false
     fi
+
+    if [ "${busy}" = "false" ]; then idle_offset=$(log_size); fi
 
     prev_busy="${busy}"
 done

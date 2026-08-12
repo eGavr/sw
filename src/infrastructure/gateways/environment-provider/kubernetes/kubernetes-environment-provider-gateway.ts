@@ -1,6 +1,6 @@
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
-import { agentBootstrap } from "../agent-bootstrap";
+import { agentBootstrap, sessionLogFile } from "../agent-bootstrap";
 
 import { KubernetesClient } from "./kubernetes-client";
 import { KubernetesEnvironmentConfig } from "./kubernetes-environment-config";
@@ -133,6 +133,8 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
             SW_ENDPOINT: endpoint,
             SW_INTERNAL_URL: this.config.internalUrl,
             SW_INTERNAL_SECRET: this.config.internalSecret,
+            // The bootstrap redirects the container's stdout here; the agent slices session logs from it.
+            SW_SESSION_LOG_GLOB: sessionLogFile,
             // Delegate the smart idle timeout and the "one active session" invariant to the node.
             SE_NODE_SESSION_TIMEOUT: String(this.config.sessionTimeoutSeconds),
             SE_NODE_MAX_SESSIONS: "1",
