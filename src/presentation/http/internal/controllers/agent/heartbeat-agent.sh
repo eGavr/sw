@@ -101,13 +101,13 @@ download_ffmpeg() {
 }
 
 # Start recording the browser's X display to video_file in the background. Returns non-zero (no recording)
-# if ffmpeg is not available yet. ffmpeg is stopped by writing "q" to its stdin (see below), carried over
-# a fifo whose write end is held open on fd 3 for the whole recording — a backgrounded process in a
-# non-interactive shell inherits SIGINT/SIGQUIT as ignored, so signals cannot stop it gracefully, and a
-# hard kill would leave the mp4 unfinalized (no moov atom, unplayable).
+# if ffmpeg is not available yet (silent — it is retried on the next tick while the session is busy, and
+# download_ffmpeg already logs a failed fetch). ffmpeg is stopped by writing "q" to its stdin (see below),
+# carried over a fifo whose write end is held open on fd 3 for the whole recording — a backgrounded process
+# in a non-interactive shell inherits SIGINT/SIGQUIT as ignored, so signals cannot stop it gracefully, and
+# a hard kill would leave the mp4 unfinalized (no moov atom, unplayable).
 start_recording() {
     if [ ! -x "${ffmpeg_bin}" ]; then
-        log "ffmpeg not ready; skipping video for this session"
         return 1
     fi
 
@@ -241,7 +241,10 @@ download_ffmpeg &
 
 # Heartbeat loop, tracking session start/end transitions to capture and ship the session's logs and video.
 # `idle_offset` is the log size at the last idle tick; a session's slice starts there (not at the tick
-# that first saw it busy) so the session's own opening lines aren't missed.
+# that first saw it busy) so the session's own opening lines aren't missed. The per-session opt-ins
+# (`capture`/`recording`) are resolved LAZILY on each busy tick, not only at the busy edge: on a Grid the
+# session's capabilities can land in /status a tick after its slot becomes busy, so an edge-only check
+# would read the opt-in as false and skip the whole session's logs/video.
 prev_busy=false
 capture=false
 recording=false
@@ -254,18 +257,23 @@ while true; do
     busy=$(node_busy)
     report "{\"busy\":${busy}}" || true
 
-    if [ "${busy}" = "true" ] && [ "${prev_busy}" = "false" ]; then
-        if session_wants_logs; then capture=true; else capture=false; fi
-        log_offset="${idle_offset}"
-        if session_wants_video && start_recording; then recording=true; else recording=false; fi
-    elif [ "${busy}" = "false" ] && [ "${prev_busy}" = "true" ]; then
-        if [ "${capture}" = "true" ]; then ship_session_logs "${log_offset}"; fi
-        capture=false
-        if [ "${recording}" = "true" ]; then stop_recording_and_ship; fi
-        recording=false
+    if [ "${busy}" = "true" ]; then
+        if [ "${prev_busy}" = "false" ]; then
+            log_offset="${idle_offset}"
+            capture=false
+            recording=false
+        fi
+        if [ "${capture}" = "false" ] && session_wants_logs; then capture=true; fi
+        if [ "${recording}" = "false" ] && session_wants_video && start_recording; then recording=true; fi
+    else
+        if [ "${prev_busy}" = "true" ]; then
+            if [ "${capture}" = "true" ]; then ship_session_logs "${log_offset}"; fi
+            if [ "${recording}" = "true" ]; then stop_recording_and_ship; fi
+            capture=false
+            recording=false
+        fi
+        idle_offset=$(log_size)
     fi
-
-    if [ "${busy}" = "false" ]; then idle_offset=$(log_size); fi
 
     prev_busy="${busy}"
 done
