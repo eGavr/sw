@@ -22,11 +22,12 @@ INTERVAL="${SW_HEARTBEAT_INTERVAL_SECONDS:-3}"
 : "${SW_ENDPOINT:?SW_ENDPOINT is required}"
 
 heartbeat_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:heartbeat"
-session_logs_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/sessionLogs"
+session_logs_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:uploadSessionLogs"
 
-# The node writes one continuous log stream (not a file per session), so a session's logs are the slice
-# appended between its start and end. Capped to the last max_log_bytes (session end + errors) if larger.
-session_log_glob="${SW_SESSION_LOG_GLOB:-/var/log/supervisor/*.log}"
+# The startup bootstrap redirects the container's whole stdout/stderr into one file (stock selenium logs
+# to stdout, not a per-session file), so a session's logs are the slice appended between its start and
+# end. Capped to the last max_log_bytes (session end + errors) if larger.
+session_log_glob="${SW_SESSION_LOG_GLOB:-/tmp/sw-session.log}"
 max_log_bytes="${SW_MAX_LOG_BYTES:-10485760}"
 
 log() { echo "[heartbeat-agent] $*"; }
