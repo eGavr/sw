@@ -1,6 +1,10 @@
 import { Injectable } from "@nestjs/common";
 
-import { ObjectStorageGateway, StoredObject } from "../../../application/interfaces/gateways/object-storage-gateway";
+import {
+    ObjectStorageGateway,
+    StoredObject,
+    StoredStream,
+} from "../../../application/interfaces/gateways/object-storage-gateway";
 import { StorageDestination } from "../../../domain/entities/storage/storage-destination";
 
 // Separates the bucket from the object key in the map key. An S3 bucket name cannot contain a space, so
@@ -19,6 +23,16 @@ export class InMemoryObjectStorageGateway extends ObjectStorageGateway {
         this.objects.set(this.locate(destination, key), object);
 
         return Promise.resolve();
+    }
+
+    async putStream(destination: StorageDestination, key: string, object: StoredStream): Promise<void> {
+        const chunks: Array<Buffer> = [];
+
+        for await (const chunk of object.body) {
+            chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : Buffer.from(chunk as Uint8Array));
+        }
+
+        this.objects.set(this.locate(destination, key), { body: Buffer.concat(chunks), contentType: object.contentType });
     }
 
     get(destination: StorageDestination, key: string): Promise<StoredObject | null> {
