@@ -127,8 +127,11 @@ done
 log "registered"
 
 # Heartbeat loop, tracking session start/end transitions to capture and ship the session's logs.
+# `idle_offset` is the log size at the last idle tick; a session's slice starts there (not at the tick
+# that first saw it busy) so the session's own opening lines aren't missed.
 prev_busy=false
 capture=false
+idle_offset=0
 log_offset=0
 
 while true; do
@@ -139,11 +142,13 @@ while true; do
 
     if [ "${busy}" = "true" ] && [ "${prev_busy}" = "false" ]; then
         if session_wants_logs; then capture=true; else capture=false; fi
-        log_offset=$(log_size)
+        log_offset="${idle_offset}"
     elif [ "${busy}" = "false" ] && [ "${prev_busy}" = "true" ]; then
         if [ "${capture}" = "true" ]; then ship_session_logs "${log_offset}"; fi
         capture=false
     fi
+
+    if [ "${busy}" = "false" ]; then idle_offset=$(log_size); fi
 
     prev_busy="${busy}"
 done
