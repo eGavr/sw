@@ -95,21 +95,32 @@ describe("/sessions", () => {
         test("allocates a free matching environment and returns an id routed to its node", async () => {
             const { owner, accountId, environmentId } = await seedExecutingEnvironment();
 
-            const { body } = await createSession(accountId, owner).expect(HttpStatus.CREATED);
+            // W3C New Session-shaped response: { value: { sessionId, capabilities } }.
+            const { body } = await createSession(accountId, owner).expect(HttpStatus.OK);
+            const caps = body.value.capabilities;
 
-            expect(body.environmentId).toBe(environmentId);
-            expect(body.application).toEqual({ name: "chrome", version: "latest" });
-            expect(SessionRoute.decode(body.id)).toEqual({ endpoint: nodeEndpoint, webDriverSessionId: wdSessionId });
-            const bidiSuffix = `/sessions/${body.id}/se/bidi`;
-            expect(body.webSocketUrls.bidi.startsWith("ws://")).toBe(true);
-            expect(body.webSocketUrls.bidi.endsWith(bidiSuffix)).toBe(true);
-            const base = body.webSocketUrls.bidi.slice(0, -bidiSuffix.length);
-            expect(body.webSocketUrls).toEqual({
-                bidi: `${base}/sessions/${body.id}/se/bidi`,
-                cdp: `${base}/sessions/${body.id}/se/cdp`,
-                vnc: `${base}/sessions/${body.id}/se/vnc`,
-            });
+            expect(caps["sw:environmentId"]).toBe(environmentId);
+            expect(caps.browserName).toBe("chrome");
+            expect(caps.browserVersion).toBe("latest");
+            expect(SessionRoute.decode(body.value.sessionId))
+                .toEqual({ endpoint: nodeEndpoint, webDriverSessionId: wdSessionId });
+
+            // The stateless protocols are vendor extension capabilities (sw:*), routed through this wd host.
+            const vncSuffix = `/sessions/${body.value.sessionId}/se/vnc`;
+            expect(caps["sw:vnc"].startsWith("ws://")).toBe(true);
+            expect(caps["sw:vnc"].endsWith(vncSuffix)).toBe(true);
+            const base = caps["sw:vnc"].slice(0, -vncSuffix.length);
+            expect(caps["sw:bidi"]).toBe(`${base}/sessions/${body.value.sessionId}/se/bidi`);
+            expect(caps["sw:cdp"]).toBe(`${base}/sessions/${body.value.sessionId}/se/cdp`);
             expect(createSessionOnNode).toHaveBeenCalledTimes(1);
+        });
+
+        test("serves the hosted noVNC viewer page and the noVNC engine it loads", async () => {
+            const viewer = await request(app.getHttpServer()).get("/interactive").expect(HttpStatus.OK);
+            expect(viewer.text).toContain("/novnc/core/rfb.js");
+
+            const engine = await request(app.getHttpServer()).get("/novnc/core/rfb.js").expect(HttpStatus.OK);
+            expect(engine.text).toContain("class RFB");
         });
 
         test("threads the logging opt-in through to the node session", async () => {
@@ -119,7 +130,7 @@ describe("/sessions", () => {
                 .post("/sessions")
                 .set(owner)
                 .send({ accountId, application: chrome, logging: true })
-                .expect(HttpStatus.CREATED);
+                .expect(HttpStatus.OK);
 
             expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: true, video: false });
         });
@@ -131,7 +142,7 @@ describe("/sessions", () => {
                 .post("/sessions")
                 .set(owner)
                 .send({ accountId, application: chrome, video: true })
-                .expect(HttpStatus.CREATED);
+                .expect(HttpStatus.OK);
 
             expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: false, video: true });
         });
@@ -139,7 +150,7 @@ describe("/sessions", () => {
         test("defaults the logging and video opt-ins to false when omitted", async () => {
             const { owner, accountId } = await seedExecutingEnvironment();
 
-            await createSession(accountId, owner).expect(HttpStatus.CREATED);
+            await createSession(accountId, owner).expect(HttpStatus.OK);
 
             expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: false, video: false });
         });
