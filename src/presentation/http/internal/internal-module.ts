@@ -1,0 +1,101 @@
+import { BadRequestException, MiddlewareConsumer, Module, NestModule, RequestMethod, ValidationPipe } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
+import { raw } from "express";
+
+import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
+import {
+    StorageDestinationRepository,
+} from "../../../application/interfaces/repositories/storage-destination-repository";
+import {
+    RecordEnvironmentHeartbeatUseCase,
+} from "../../../application/use-cases/environments/record-environment-heartbeat-use-case";
+import {
+    UploadSessionLogsUseCase,
+} from "../../../application/use-cases/environments/upload-session-logs-use-case";
+import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
+import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
+import {
+    StorageDestinationDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/storage-destination-data-source";
+import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
+import {
+    ObjectStorageGatewayProvider,
+} from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
+import { LoggerModule } from "../../../infrastructure/logging/logger-module";
+import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
+import {
+    StorageDestinationRepositoryImpl,
+} from "../../../infrastructure/repositories/storage-destination-repository-impl";
+import { AipExceptionFilter } from "../filters/aip-exception-filter";
+import { ResponseInterceptor } from "../interceptors/response-interceptor";
+import { ContextMiddleware } from "../middlewares/contex-middleware";
+import { LoggingMiddleware } from "../middlewares/logging-middleware";
+
+import { InternalAgentController } from "./controllers/agent/agent-controller";
+import { InternalEnvironmentsController } from "./controllers/environments/environments-controller";
+import { InternalSecretGuard } from "./guards/internal-secret-guard";
+
+@Module({
+    imports: [
+        ConfigModule.forRoot({
+            envFilePath: [".env", `env/.env.${process.env.NODE_ENV || "development"}`],
+        }),
+        PostgresModule,
+        LoggerModule,
+    ],
+    controllers: [
+        InternalEnvironmentsController,
+        InternalAgentController,
+    ],
+    providers: [
+        RecordEnvironmentHeartbeatUseCase,
+        UploadSessionLogsUseCase,
+
+        { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
+        { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
+        ObjectStorageGatewayProvider,
+
+        EnvironmentDataSource,
+        StorageDestinationDataSource,
+
+        {
+            provide: APP_GUARD,
+            useClass: InternalSecretGuard,
+        },
+        {
+            provide: APP_FILTER,
+            useClass: AipExceptionFilter,
+        },
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: ResponseInterceptor,
+        },
+        {
+            provide: APP_PIPE,
+            useValue: new ValidationPipe(
+                {
+                    whitelist: true,
+                    forbidNonWhitelisted: true,
+                    exceptionFactory: (errors): BadRequestException =>
+                        new BadRequestException(ClassValidatorError.stringifyConstraints(errors[0])),
+                },
+            ),
+        },
+    ],
+})
+export class InternalModule implements NestModule {
+    configure(consumer: MiddlewareConsumer): void {
+        consumer
+            .apply(ContextMiddleware, LoggingMiddleware)
+            .forRoutes("*");
+
+        // Session logs (the :uploadSessionLogs custom method) arrive as raw bytes (text/plain or
+        // octet-stream), not JSON, and can be multi-MB — so a dedicated raw body parser with its own limit
+        // is applied to the environments custom-method route. It skips :heartbeat, whose body is JSON, by
+        // content-type, so the default JSON parser still handles heartbeats.
+        consumer
+            .apply(raw({ type: ["application/octet-stream", "text/plain"], limit: "16mb" }))
+            .forRoutes({ path: "internal/environments/:resource", method: RequestMethod.POST });
+    }
+}

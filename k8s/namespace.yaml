@@ -1,0 +1,11 @@
+# Two namespaces: the control plane (api/wd/internal/worker) and the environment pods it provisions,
+# kept apart so RBAC can grant the worker rights only over the environments namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sw
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sw-environments

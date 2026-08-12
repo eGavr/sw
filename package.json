@@ -22,17 +22,22 @@
     "docker:compose:down": "docker compose down",
     "lint": "eslint .",
     "lint:fix": "npm run lint -- --fix",
-    "pg:migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data/data-sources/database/postgres/migration/index.ts src/data/data-sources/database/postgres/migration/migrations/$PG_MIGRATION_NAME",
+    "pg:migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/infrastructure/data-sources/database/postgres/typeorm/migration/index.ts src/infrastructure/data-sources/database/postgres/typeorm/migration/migrations/$PG_MIGRATION_NAME",
     "pg:migration:generate:dev": "NODE_ENV=development npm run pg:migration:generate",
-    "pg:migration:run": "typeorm-ts-node-commonjs migration:run -d src/data/data-sources/database/postgres/migration/index.ts",
+    "pg:migration:run": "typeorm-ts-node-commonjs migration:run -d src/infrastructure/data-sources/database/postgres/typeorm/migration/index.ts",
     "pg:migration:run:dev": "FORCE_COLOR=1 APP_ENV=development npm run --silent pg:migration:run",
-    "pg:migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/data/data-sources/database/postgres/migration/index.ts",
+    "pg:migration:run:built": "typeorm migration:run -d build/src/infrastructure/data-sources/database/postgres/typeorm/migration/index.js",
+    "pg:migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/infrastructure/data-sources/database/postgres/typeorm/migration/index.ts",
     "pg:migration:revert:dev": "FORCE_COLOR=1 APP_ENV=development npm run --silent pg:migration:revert",
-    "start:api": "node build/presentation/api/index.js",
-    "start:api:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/server/nestjs/modules/api/index.ts",
+    "start:api": "node build/src/presentation/http/api/index.js",
+    "start:api:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/http/api/index.ts",
     "start:api:dev:with:tracing": "OTEL_ENABLED=true OTEL_SERVICE_NAME=sw:api npm run start:api:dev",
-    "start:wd": "node build/presentation/wd/index.js",
-    "start:wd:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/server/nestjs/modules/wd/index.ts",
+    "start:wd": "node build/src/presentation/http/wd/index.js",
+    "start:wd:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/http/wd/index.ts",
+    "start:worker": "node build/src/presentation/worker/index.js",
+    "start:worker:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/worker/index.ts",
+    "start:internal": "node build/src/presentation/http/internal/index.js",
+    "start:internal:dev": "NODE_ENV=development nodemon --exec ts-node src/presentation/http/internal/index.ts",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "jest --config ./test/unit/jest.unit.js",
     "test:integration": "NODE_ENV=integration_test jest --config ./test/integration/jest.integration.js"
@@ -46,6 +51,7 @@
     "@types/lodash": "^4.17.23",
     "@types/node": "^24.10.8",
     "@types/supertest": "^6.0.3",
+    "@types/ws": "^8.18.1",
     "eslint-plugin-import": "^2.32.0",
     "jest": "^30.2.0",
     "nodemon": "^3.1.11",
@@ -57,6 +63,7 @@
     "typescript-eslint": "^8.53.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1107.0",
     "@nestjs/common": "^11.1.12",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.12",
@@ -74,6 +81,7 @@
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.28",
     "typeorm-naming-strategies": "^4.1.0",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "ws": "^8.21.2"
   }
 }

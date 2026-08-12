@@ -1,0 +1,41 @@
+# Non-secret config shared by all control-plane processes. Environment pods are Pods in the same
+# cluster (cluster-dns networking); the agent calls back on the internal service's cluster DNS name.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sw-config
+  namespace: sw
+data:
+  LOG_LEVEL: "log,error,fatal"
+  AUTH_STRATEGY: "local"
+  API_PORT: "3000"
+  WD_PORT: "3001"
+  INTERNAL_PORT: "3002"
+  # Managed PostgreSQL (same VPC). Replace the host with the cluster FQDN, e.g.
+  # c-<cluster_id>.rw.mdb.yandexcloud.net; 6432 is the pooler; TLS is required.
+  POSTGRES_HOST: "REPLACE_ME.rw.mdb.yandexcloud.net"
+  POSTGRES_PORT: "6432"
+  POSTGRES_USER: "sw"
+  POSTGRES_DATABASE: "sw"
+  POSTGRES_SSL: "true"
+  POSTGRES_SSL_CA: "/etc/ssl/yandex/root.crt"
+  # Kubernetes compute adapter: provision env pods here, reached by cluster DNS (no NodePort). No
+  # COMPUTE_K8S_CONTEXT — in-cluster the worker uses its ServiceAccount.
+  COMPUTE_K8S_NETWORKING: "cluster-dns"
+  COMPUTE_K8S_NAMESPACE: "sw-environments"
+  # amd64 nodes → real Chrome; the agent is fetched at startup, so any stock tag works.
+  COMPUTE_K8S_IMAGE: "selenium/standalone-chrome:latest"
+  COMPUTE_K8S_INTERNAL_URL: "http://sw-internal.sw.svc.cluster.local:3002"
+---
+# Secrets — REPLACE the values (or create this Secret out-of-band / via a secret manager; do not commit
+# real secrets). INTERNAL_API_SECRET: `openssl rand -hex 32`. See PLAN item 12: prod needs TLS + per-pod
+# identity instead of this shared secret.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sw-secrets
+  namespace: sw
+type: Opaque
+stringData:
+  INTERNAL_API_SECRET: "REPLACE_ME"
+  POSTGRES_PASSWORD: "REPLACE_ME"

@@ -1,0 +1,32 @@
+# Least-privilege access for the worker: its ServiceAccount lives in the control-plane namespace (sw)
+# and may only manage environment pods and their services in the sw-environments namespace
+# (get/list/create/delete). The RoleBinding lives in sw-environments and references the SA cross-namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sw-worker
+  namespace: sw
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sw-environment-manager
+  namespace: sw-environments
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sw-worker-environment-manager
+  namespace: sw-environments
+subjects:
+  - kind: ServiceAccount
+    name: sw-worker
+    namespace: sw
+roleRef:
+  kind: Role
+  name: sw-environment-manager
+  apiGroup: rbac.authorization.k8s.io

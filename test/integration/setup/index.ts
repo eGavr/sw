@@ -1,5 +1,4 @@
-import { PostgresConnection as Connection } from "../../../src/data/data-sources/database/postgres/postgres-connection";
-import { UserCollection } from "../../../src/data/data-sources/resource-provider/local/enties/user-collection";
+import { PostgresConnection as Connection } from "../../../src/infrastructure/data-sources/database/postgres/typeorm/postgres-connection";
 
 import { PgConnection } from "./postgres-connection";
 
@@ -13,12 +12,12 @@ beforeAll(async () => {
     await pgConnection.destroy();
 });
 
+// Local auth is stateless (any `Bearer <id>` is a user), so only Postgres state needs resetting
+// between cases — permissions/accounts live there.
 beforeEach(async () => {
     await pgConnection.initialize();
 
     await pgConnection.unseed();
 
     await pgConnection.destroy();
-
-    UserCollection.getInstance().clear();
 });

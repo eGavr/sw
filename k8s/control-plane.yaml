@@ -1,0 +1,111 @@
+# Control plane: one image (sw/service, retag to cr.yandex/<registry-id>/sw-service for Yandex Cloud),
+# four Deployments selecting their process via `command`. Only the worker gets the sw-worker
+# ServiceAccount (it provisions env pods); api/wd/internal use the default SA (no cluster API access).
+# All connect to Postgres, so all mount the (optional) CA bundle used when POSTGRES_SSL=true.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: sw-api, namespace: sw }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: sw-api } }
+  template:
+    metadata: { labels: { app: sw-api } }
+    spec:
+      containers:
+        - name: sw-api
+          image: sw/service:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "build/src/presentation/http/api/index.js"]
+          envFrom: [{ configMapRef: { name: sw-config } }, { secretRef: { name: sw-secrets } }]
+          ports: [{ containerPort: 3000 }]
+          readinessProbe: { tcpSocket: { port: 3000 }, initialDelaySeconds: 5, periodSeconds: 10 }
+          livenessProbe: { tcpSocket: { port: 3000 }, initialDelaySeconds: 15, periodSeconds: 20 }
+          resources: { requests: { cpu: 100m, memory: 192Mi }, limits: { cpu: "1", memory: 512Mi } }
+          volumeMounts: [{ name: postgres-ca, mountPath: /etc/ssl/yandex, readOnly: true }]
+      volumes: [{ name: postgres-ca, configMap: { name: sw-postgres-ca, optional: true } }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: sw-api, namespace: sw }
+spec:
+  selector: { app: sw-api }
+  ports: [{ port: 3000, targetPort: 3000 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: sw-wd, namespace: sw }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: sw-wd } }
+  template:
+    metadata: { labels: { app: sw-wd } }
+    spec:
+      containers:
+        - name: sw-wd
+          image: sw/service:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "build/src/presentation/http/wd/index.js"]
+          envFrom: [{ configMapRef: { name: sw-config } }, { secretRef: { name: sw-secrets } }]
+          ports: [{ containerPort: 3001 }]
+          readinessProbe: { tcpSocket: { port: 3001 }, initialDelaySeconds: 5, periodSeconds: 10 }
+          livenessProbe: { tcpSocket: { port: 3001 }, initialDelaySeconds: 15, periodSeconds: 20 }
+          resources: { requests: { cpu: 100m, memory: 192Mi }, limits: { cpu: "1", memory: 512Mi } }
+          volumeMounts: [{ name: postgres-ca, mountPath: /etc/ssl/yandex, readOnly: true }]
+      volumes: [{ name: postgres-ca, configMap: { name: sw-postgres-ca, optional: true } }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: sw-wd, namespace: sw }
+spec:
+  selector: { app: sw-wd }
+  ports: [{ port: 3001, targetPort: 3001 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: sw-internal, namespace: sw }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: sw-internal } }
+  template:
+    metadata: { labels: { app: sw-internal } }
+    spec:
+      containers:
+        - name: sw-internal
+          image: sw/service:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "build/src/presentation/http/internal/index.js"]
+          envFrom: [{ configMapRef: { name: sw-config } }, { secretRef: { name: sw-secrets } }]
+          ports: [{ containerPort: 3002 }]
+          readinessProbe: { tcpSocket: { port: 3002 }, initialDelaySeconds: 5, periodSeconds: 10 }
+          livenessProbe: { tcpSocket: { port: 3002 }, initialDelaySeconds: 15, periodSeconds: 20 }
+          resources: { requests: { cpu: 100m, memory: 192Mi }, limits: { cpu: "1", memory: 512Mi } }
+          volumeMounts: [{ name: postgres-ca, mountPath: /etc/ssl/yandex, readOnly: true }]
+      volumes: [{ name: postgres-ca, configMap: { name: sw-postgres-ca, optional: true } }]
+---
+# Reached by the in-pod agents (SW_INTERNAL_URL) and by env pods across namespaces via cluster DNS.
+apiVersion: v1
+kind: Service
+metadata: { name: sw-internal, namespace: sw }
+spec:
+  selector: { app: sw-internal }
+  ports: [{ port: 3002, targetPort: 3002 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: sw-worker, namespace: sw }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: sw-worker } }
+  template:
+    metadata: { labels: { app: sw-worker } }
+    spec:
+      serviceAccountName: sw-worker
+      containers:
+        - name: sw-worker
+          image: sw/service:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "build/src/presentation/worker/index.js"]
+          envFrom: [{ configMapRef: { name: sw-config } }, { secretRef: { name: sw-secrets } }]
+          resources: { requests: { cpu: 100m, memory: 192Mi }, limits: { cpu: "1", memory: 512Mi } }
+          volumeMounts: [{ name: postgres-ca, mountPath: /etc/ssl/yandex, readOnly: true }]
+      volumes: [{ name: postgres-ca, configMap: { name: sw-postgres-ca, optional: true } }]
