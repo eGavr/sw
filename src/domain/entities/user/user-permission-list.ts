@@ -6,8 +6,9 @@ export class UserPermissionList {
         const account = Object.values(UserPermissionName.Account);
         const environment = Object.values(UserPermissionName.Environment);
         const session = Object.values(UserPermissionName.Session);
+        const storageDestination = Object.values(UserPermissionName.StorageDestination);
 
-        return UserPermissionList.create({ permissions: [...account, ...environment, ...session] });
+        return UserPermissionList.create({ permissions: [...account, ...environment, ...session, ...storageDestination] });
     }
 
     static create({ permissions }: { permissions: Array<UserPermissionName> }): UserPermissionList {

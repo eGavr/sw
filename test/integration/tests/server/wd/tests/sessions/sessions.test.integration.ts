@@ -112,6 +112,26 @@ describe("/sessions", () => {
             expect(createSessionOnNode).toHaveBeenCalledTimes(1);
         });
 
+        test("threads the logging opt-in through to the node session", async () => {
+            const { owner, accountId } = await seedExecutingEnvironment();
+
+            await request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send({ accountId, application: chrome, logging: true })
+                .expect(HttpStatus.CREATED);
+
+            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: true });
+        });
+
+        test("defaults the logging opt-in to false when omitted", async () => {
+            const { owner, accountId } = await seedExecutingEnvironment();
+
+            await createSession(accountId, owner).expect(HttpStatus.CREATED);
+
+            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: false });
+        });
+
         test("responds UNAUTHORIZED for an unauthenticated request", () => {
             return request(app.getHttpServer())
                 .post("/sessions")

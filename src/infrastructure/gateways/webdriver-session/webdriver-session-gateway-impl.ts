@@ -1,6 +1,9 @@
 import { Injectable } from "@nestjs/common";
 
-import { WebDriverSessionGateway } from "../../../application/interfaces/gateways/webdriver-session-gateway";
+import {
+    WebDriverSessionGateway,
+    WebDriverSessionOptions,
+} from "../../../application/interfaces/gateways/webdriver-session-gateway";
 import { Application } from "../../../domain/entities/environment/application/application";
 
 import { WebDriverClient } from "./webdriver-client";
@@ -11,7 +14,7 @@ export class WebDriverSessionGatewayImpl extends WebDriverSessionGateway {
         super();
     }
 
-    async create(endpoint: string, application: Application): Promise<string> {
-        return this.webDriverClient.createSession(endpoint, application.name);
+    async create(endpoint: string, application: Application, options?: WebDriverSessionOptions): Promise<string> {
+        return this.webDriverClient.createSession(endpoint, application.name, options);
     }
 }

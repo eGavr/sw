@@ -4,6 +4,10 @@
 # carries that endpoint — it is the registration that flips the environment preparing -> executing;
 # every later heartbeat keeps liveness fresh and reports whether the node currently holds a session.
 #
+# On session end the agent also ships that session's logs to the control-plane, which uploads them to
+# the user's storage (the agent holds no cloud credentials). Logging is opt-in per session via the
+# sw:logging capability; the upload is best effort and never brings the environment down.
+#
 # Self-fencing: if the backend replies 404 the environment is unknown to it (its row is gone), so this
 # container is an orphan — it shuts the whole environment down. Any other failure (network, 5xx, a
 # transient state conflict) is retried, so a brief backend blip never tears live environments down.
@@ -18,6 +22,12 @@ INTERVAL="${SW_HEARTBEAT_INTERVAL_SECONDS:-3}"
 : "${SW_ENDPOINT:?SW_ENDPOINT is required}"
 
 heartbeat_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:heartbeat"
+session_logs_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/sessionLogs"
+
+# The node writes one continuous log stream (not a file per session), so a session's logs are the slice
+# appended between its start and end. Capped to the last max_log_bytes (session end + errors) if larger.
+session_log_glob="${SW_SESSION_LOG_GLOB:-/var/log/supervisor/*.log}"
+max_log_bytes="${SW_MAX_LOG_BYTES:-10485760}"
 
 log() { echo "[heartbeat-agent] $*"; }
 
@@ -32,6 +42,49 @@ node_busy() {
     count=$(curl -sf "${NODE_URL}/status" \
         | jq '[.. | objects | select(has("session")) | .session | select(. != null)] | length' 2>/dev/null)
     if [ "${count:-0}" -gt 0 ]; then echo true; else echo false; fi
+}
+
+# Whether the current session opted into logging, read from the sw:logging vendor capability on the
+# active node session. If the node status does not expose session capabilities this reads false (the
+# fallback — a pod-local proxy that parses session creation — is tracked separately in the plan).
+session_wants_logs() {
+    curl -sf "${NODE_URL}/status" \
+        | jq -e 'first(.. | objects | select(has("session")) | .session | select(. != null))
+                 | .capabilities["sw:logging"] == true' >/dev/null 2>&1
+}
+
+# Total bytes currently in the node log files (0 if none exist yet). The glob is intentionally unquoted
+# so the shell expands it; a non-matching glob reads as 0 bytes.
+log_size() {
+    cat ${session_log_glob} 2>/dev/null | wc -c | tr -d '[:space:]'
+}
+
+# Ship the bytes appended since start_offset (this session's slice) to the control-plane. Best effort:
+# any non-2xx is logged and ignored — it must never bring the environment down (only heartbeat 404 does).
+ship_session_logs() {
+    local start_offset="$1" total available tail_start code
+    total=$(log_size)
+
+    if [ "${total:-0}" -le "${start_offset}" ]; then
+        return 0
+    fi
+
+    available=$((total - start_offset))
+    tail_start=$((start_offset + 1))
+    if [ "${available}" -gt "${max_log_bytes}" ]; then
+        tail_start=$((total - max_log_bytes + 1))
+    fi
+
+    code=$(cat ${session_log_glob} 2>/dev/null | tail -c "+${tail_start}" \
+        | curl -s -o /dev/null -w "%{http_code}" -X POST "${session_logs_url}" \
+            -H "x-internal-secret: ${SW_INTERNAL_SECRET}" \
+            -H "content-type: application/octet-stream" \
+            --max-time 20 --data-binary @-)
+
+    case "${code}" in
+        2*) log "shipped session logs (${available} bytes)" ;;
+        *) log "session log upload failed (${code}); dropping" ;;
+    esac
 }
 
 # POST a heartbeat and echo the HTTP status code (000 if the backend was unreachable).
@@ -72,7 +125,24 @@ until report "{\"endpoint\":\"${SW_ENDPOINT}\",\"busy\":$(node_busy)}"; do
 done
 log "registered"
 
+# Heartbeat loop, tracking session start/end transitions to capture and ship the session's logs.
+prev_busy=false
+capture=false
+log_offset=0
+
 while true; do
     sleep "${INTERVAL}"
-    report "{\"busy\":$(node_busy)}" || true
+
+    busy=$(node_busy)
+    report "{\"busy\":${busy}}" || true
+
+    if [ "${busy}" = "true" ] && [ "${prev_busy}" = "false" ]; then
+        if session_wants_logs; then capture=true; else capture=false; fi
+        log_offset=$(log_size)
+    elif [ "${busy}" = "false" ] && [ "${prev_busy}" = "true" ]; then
+        if [ "${capture}" = "true" ]; then ship_session_logs "${log_offset}"; fi
+        capture=false
+    fi
+
+    prev_busy="${busy}"
 done

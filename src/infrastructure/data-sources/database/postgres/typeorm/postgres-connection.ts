@@ -12,6 +12,7 @@ import { AccountIamBinding } from "./entities/account/account-iam-binding";
 import { Environment } from "./entities/environment/environment";
 import { EnvironmentApplication } from "./entities/environment/environment-application";
 import { ProviderAccount } from "./entities/provider-account/provider-account";
+import { StorageDestination } from "./entities/storage-destination/storage-destination";
 import { User } from "./entities/user/user";
 
 export class PostgresConnection {
@@ -45,6 +46,7 @@ export class PostgresConnection {
                 Environment,
                 EnvironmentApplication,
                 ProviderAccount,
+                StorageDestination,
             ],
         })
     }

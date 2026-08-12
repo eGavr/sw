@@ -1,0 +1,24 @@
+import { Injectable } from "@nestjs/common";
+import { DataSource } from "typeorm";
+
+import {
+    StorageDestination as StorageDestinationEntity,
+    StorageDestinationData,
+} from "../../../../domain/entities/storage/storage-destination";
+
+import { StorageDestination } from "./typeorm/entities/storage-destination/storage-destination";
+
+@Injectable()
+export class StorageDestinationDataSource {
+    constructor(private readonly dataSource: DataSource) {}
+
+    async save(accountId: string, destination: StorageDestinationEntity): Promise<void> {
+        await this.dataSource.getRepository(StorageDestination).save(StorageDestination.from(accountId, destination));
+    }
+
+    async findOne(accountId: string): Promise<StorageDestinationData | null> {
+        const row = await this.dataSource.getRepository(StorageDestination).findOne({ where: { accountId } });
+
+        return row?.toObject() ?? null;
+    }
+}

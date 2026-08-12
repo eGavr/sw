@@ -24,6 +24,7 @@ type CreateSessionInput = {
             name: string;
             version: string;
         };
+        logging?: boolean;
     },
 }
 
@@ -53,12 +54,12 @@ export class CreateSessionUseCase {
         const criteria = SessionAllocationCriteria.from(new Date(), defaultHeartbeatFreshnessMs, application);
         const candidates = await this.environmentRepository.findAllocatable(accountId, criteria);
 
-        return this.allocate(candidates, application);
+        return this.allocate(candidates, application, params.logging ?? false);
     }
 
-    private async allocate(candidates: Array<Environment>, application: Application): Promise<Session> {
+    private async allocate(candidates: Array<Environment>, application: Application, logging: boolean): Promise<Session> {
         for (const candidate of candidates) {
-            const session = await this.tryAllocate(candidate, application);
+            const session = await this.tryAllocate(candidate, application, logging);
 
             if (session) {
                 return session;
@@ -68,13 +69,13 @@ export class CreateSessionUseCase {
         throw new NoAllocatableEnvironmentError(application.name, application.version);
     }
 
-    private async tryAllocate(environment: Environment, application: Application): Promise<Session | null> {
+    private async tryAllocate(environment: Environment, application: Application, logging: boolean): Promise<Session | null> {
         if (!environment.endpoint) {
             return null;
         }
 
         try {
-            const webDriverSessionId = await this.webDriverSessionGateway.create(environment.endpoint, application);
+            const webDriverSessionId = await this.webDriverSessionGateway.create(environment.endpoint, application, { logging });
 
             return Session.create({
                 environmentId: EnvironmentId.fromString(environment.id),

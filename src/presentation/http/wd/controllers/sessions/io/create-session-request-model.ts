@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsDefined, IsOptional, IsString, ValidateNested } from "class-validator";
+import { IsBoolean, IsDefined, IsOptional, IsString, ValidateNested } from "class-validator";
 
 class ApplicationModel {
     @IsString()
@@ -21,4 +21,9 @@ export class CreateSessionRequestModel {
     @ValidateNested()
     @Type(() => ApplicationModel)
     application: ApplicationModel;
+
+    // Opt-in: capture this session's logs and upload them to the account's storage destination.
+    @IsOptional()
+    @IsBoolean()
+    logging?: boolean;
 }

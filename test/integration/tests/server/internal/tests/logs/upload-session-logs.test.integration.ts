@@ -2,6 +2,7 @@ import { BadRequestException, INestApplication, ValidationPipe } from "@nestjs/c
 import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
+import { raw } from "express";
 import request from "supertest";
 import { v4 as uuidv4 } from "uuid";
 
@@ -24,12 +25,9 @@ import {
 } from "../../../../../../../src/application/use-cases/environments/upload-session-logs-use-case";
 import { AccountId } from "../../../../../../../src/domain/entities/account/account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
-import { Environment } from "../../../../../../../src/domain/entities/environment/environment";
-import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
-import { EnvironmentState } from "../../../../../../../src/domain/entities/environment/environment-state";
-import { EnvironmentStatus } from "../../../../../../../src/domain/entities/environment/environment-status";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
+import { StorageDestination } from "../../../../../../../src/domain/entities/storage/storage-destination";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
 import { AccountDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/account-data-source";
@@ -65,17 +63,23 @@ import {
 import { InternalSecretGuard } from "../../../../../../../src/presentation/http/internal/guards/internal-secret-guard";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 
-const endpoint = "http://127.0.0.1:44444";
 const secret = "test-internal-secret";
+const destination = StorageDestination.create({ bucket: "test-logs", prefix: "logs" });
 
-describe("/internal/environments/:id:heartbeat", () => {
+describe("/internal/environments/:id:uploadSessionLogs", () => {
     let app: INestApplication;
-    let environmentRepository: EnvironmentRepository;
+    let objectStorage: InMemoryObjectStorageGateway;
 
     let accountRepository: AccountRepository;
     let providerAccountRepository: ProviderAccountRepository;
+    let environmentRepository: EnvironmentRepository;
+    let storageDestinationRepository: StorageDestinationRepository;
 
     beforeEach(async () => {
+        // Stateful in-memory storage shared between the use-case (which writes) and the test (which reads
+        // back). Bound by value so there is exactly one instance.
+        objectStorage = new InMemoryObjectStorageGateway();
+
         const moduleRef = await Test.createTestingModule({
             imports: [
                 ConfigModule.forRoot({ envFilePath: [".env", `env/.env.${process.env.NODE_ENV || "development"}`] }),
@@ -94,7 +98,7 @@ describe("/internal/environments/:id:heartbeat", () => {
                 { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
-                { provide: ObjectStorageGateway, useClass: InMemoryObjectStorageGateway },
+                { provide: ObjectStorageGateway, useValue: objectStorage },
                 { provide: APP_GUARD, useClass: InternalSecretGuard },
                 { provide: APP_FILTER, useClass: AipExceptionFilter },
                 { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
@@ -111,18 +115,20 @@ describe("/internal/environments/:id:heartbeat", () => {
         }).compile();
 
         app = moduleRef.createNestApplication();
+        app.use(raw({ type: ["application/octet-stream", "text/plain"], limit: "16mb" }));
         await app.init();
 
-        environmentRepository = app.get(EnvironmentRepository);
         accountRepository = app.get(AccountRepository);
         providerAccountRepository = app.get(ProviderAccountRepository);
+        environmentRepository = app.get(EnvironmentRepository);
+        storageDestinationRepository = app.get(StorageDestinationRepository);
     });
 
     afterEach(async () => {
         await app.close();
     });
 
-    const seedEnvironment = async (): Promise<string> => {
+    const seedEnvironment = async (withDestination: boolean): Promise<string> => {
         const externalId = UserFactory.createId();
         const account = await accountRepository.create({
             name: `team-${externalId}`,
@@ -142,98 +148,57 @@ describe("/internal/environments/:id:heartbeat", () => {
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
 
+        if (withDestination) {
+            await storageDestinationRepository.save(AccountId.fromString(account.id), destination);
+        }
+
         return environment.id;
     };
 
-    // enqueued -> starting -> preparing (what the worker leaves before the agent registers).
-    const seedPreparingEnvironment = async (): Promise<string> => {
-        await seedEnvironment();
-
-        const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());
-
-        if (!claimed) {
-            throw new Error("expected an enqueued environment to claim");
-        }
-
-        claimed.markDispatched();
-        await environmentRepository.save(claimed);
-
-        return claimed.id;
-    };
-
-    const heartbeat = (id: string, body: object): request.Test =>
-        request(app.getHttpServer()).post(`/internal/environments/${id}:heartbeat`).set("x-internal-secret", secret).send(body);
-
-    const reload = (id: string): Promise<Environment> => environmentRepository.get(EnvironmentId.fromString(id));
-
-    test("responds UNAUTHENTICATED without the internal secret", () => {
-        return request(app.getHttpServer())
-            .post(`/internal/environments/${uuidv4()}:heartbeat`)
-            .send({ endpoint, busy: false })
-            .expect(401);
-    });
-
-    test("responds UNAUTHENTICATED with a wrong internal secret", () => {
-        return request(app.getHttpServer())
-            .post(`/internal/environments/${uuidv4()}:heartbeat`)
-            .set("x-internal-secret", "wrong")
-            .send({ endpoint, busy: false })
-            .expect(401);
-    });
-
-    test("registers on the first heartbeat: preparing -> executing with the endpoint", async () => {
-        const id = await seedPreparingEnvironment();
-
-        const { body } = await heartbeat(id, { endpoint, busy: false }).expect(200);
-
-        expect(body).toEqual({ uid: id, state: EnvironmentStatus.Active });
-
-        const environment = await reload(id);
-        expect(environment.state).toBe(EnvironmentState.Executing);
-        expect(environment.endpoint).toBe(endpoint);
-        expect(environment.busy).toBe(false);
-    });
-
-    test("a later heartbeat updates busy and refreshes liveness", async () => {
-        const id = await seedPreparingEnvironment();
-        await heartbeat(id, { endpoint, busy: false }).expect(200);
-
-        await heartbeat(id, { busy: true }).expect(200);
-
-        expect((await reload(id)).busy).toBe(true);
-    });
-
-    test("responds INVALID_ARGUMENT when the registration heartbeat omits the endpoint", async () => {
-        const id = await seedPreparingEnvironment();
-
-        return heartbeat(id, { busy: false })
-            .expect(400)
-            .expect((response) => expect(response.body.error.status).toBe("INVALID_ARGUMENT"));
-    });
-
-    test("responds ABORTED for a heartbeat on an environment that is not provisioning", async () => {
-        const id = await seedEnvironment(); // still enqueued
-
-        return heartbeat(id, { endpoint, busy: false })
-            .expect(409)
-            .expect((response) => expect(response.body.error.status).toBe("ABORTED"));
-    });
-
-    test("responds NOT_FOUND for a non-existent environment", () => {
-        return heartbeat(uuidv4(), { endpoint, busy: false }).expect(404);
-    });
-
-    test("responds INVALID_ARGUMENT for a malformed environment id", () => {
-        return heartbeat("not-a-uuid", { endpoint, busy: false }).expect(400);
-    });
-
-    test("responds NOT_FOUND for an unknown custom verb", async () => {
-        const id = await seedPreparingEnvironment();
-
-        return request(app.getHttpServer())
-            .post(`/internal/environments/${id}:frobnicate`)
+    const upload = (id: string, body: string): request.Test =>
+        request(app.getHttpServer())
+            .post(`/internal/environments/${id}:uploadSessionLogs`)
             .set("x-internal-secret", secret)
-            .send({ busy: false })
-            .expect(404);
+            .set("content-type", "text/plain")
+            .send(body);
+
+    test("stores the logs under the account's destination and they read back", async () => {
+        const id = await seedEnvironment(true);
+        const logs = "session started\nGET /url 200\nsession ended\n";
+
+        const { body } = await upload(id, logs).expect(200);
+
+        expect(body).toEqual({ uid: id, stored: true });
+
+        const keys = await objectStorage.list(destination, destination.keyFor(`sessions/${id}`));
+        expect(keys).toHaveLength(1);
+
+        const stored = await objectStorage.get(destination, keys[0]);
+        expect(stored?.body.toString("utf8")).toBe(logs);
+    });
+
+    test("no-ops when the account has no destination configured", async () => {
+        const id = await seedEnvironment(false);
+
+        const { body } = await upload(id, "some logs").expect(200);
+
+        expect(body).toEqual({ uid: id, stored: false });
+        expect(await objectStorage.list(destination, destination.keyFor(`sessions/${id}`))).toHaveLength(0);
+    });
+
+    test("responds UNAUTHENTICATED without the internal secret", async () => {
+        const id = await seedEnvironment(true);
+
+        return request(app.getHttpServer())
+            .post(`/internal/environments/${id}:uploadSessionLogs`)
+            .set("content-type", "text/plain")
+            .send("logs")
+            .expect(401);
+    });
+
+    test("responds NOT_FOUND for an unknown environment", () => {
+        return upload(uuidv4(), "logs")
+            .expect(404)
+            .expect((response) => expect(response.body.error.status).toBe("NOT_FOUND"));
     });
 });
