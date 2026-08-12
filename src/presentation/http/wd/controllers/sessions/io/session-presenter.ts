@@ -2,6 +2,11 @@ import { Session } from "../../../../../../domain/entities/session/session";
 import { Presenter } from "../../../../presenters/presenter";
 import { SessionRoute } from "../../../session-route";
 
+// W3C WebDriver "New Session"-shaped response: { value: { sessionId, capabilities } }. The stateless
+// WebSocket protocols (BiDi / DevTools / VNC) are advertised as vendor extension capabilities in our
+// `sw:` namespace — the way Selenium Grid exposes `se:vnc` / `se:cdp` — rather than as ad-hoc top-level
+// fields. `sw:vnc` is the raw RFB-over-WS URL a VNC viewer connects to (the hosted /interactive page, or
+// the client's own noVNC).
 export class SessionPresenter implements Presenter {
     constructor(
         private readonly session: Session,
@@ -9,19 +14,20 @@ export class SessionPresenter implements Presenter {
     ) {}
 
     present(): object {
-        const id = SessionRoute.encode(this.session.endpoint, this.session.webDriverSessionId);
+        const sessionId = SessionRoute.encode(this.session.endpoint, this.session.webDriverSessionId);
+        const proxy = `${this.webSocketBaseUrl}/sessions/${sessionId}/se`;
 
         return {
-            id,
-            environmentId: this.session.environmentId.getValue(),
-            application: this.session.application.toObject(),
-            webDriverSessionId: this.session.webDriverSessionId,
-            // The proxy routes `/sessions/{id}/se/{protocol}` by decoding the endpoint from the id, so
-            // these are advertised outright instead of leaving clients to build them by convention.
-            webSocketUrls: {
-                bidi: `${this.webSocketBaseUrl}/sessions/${id}/se/bidi`,
-                cdp: `${this.webSocketBaseUrl}/sessions/${id}/se/cdp`,
-                vnc: `${this.webSocketBaseUrl}/sessions/${id}/se/vnc`,
+            value: {
+                sessionId,
+                capabilities: {
+                    browserName: this.session.application.name,
+                    browserVersion: this.session.application.version,
+                    "sw:environmentId": this.session.environmentId.getValue(),
+                    "sw:bidi": `${proxy}/bidi`,
+                    "sw:cdp": `${proxy}/cdp`,
+                    "sw:vnc": `${proxy}/vnc`,
+                },
             },
         };
     }

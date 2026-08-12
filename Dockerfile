@@ -16,9 +16,12 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
-# tsc emits only .js; copy the agent bootstrap script the internal controller serves at runtime.
+# tsc emits only .js; copy the static assets the controllers serve at runtime (agent bootstrap script,
+# interactive noVNC viewer page).
 RUN cp src/presentation/http/internal/controllers/agent/heartbeat-agent.sh \
-       build/src/presentation/http/internal/controllers/agent/heartbeat-agent.sh
+       build/src/presentation/http/internal/controllers/agent/heartbeat-agent.sh \
+    && cp src/presentation/http/wd/controllers/interactive/interactive.html \
+       build/src/presentation/http/wd/controllers/interactive/interactive.html
 
 FROM ${NODE_IMAGE} AS runtime
 ARG KUBECTL_VERSION

@@ -1,4 +1,4 @@
-import { All, Body, Controller, Post, Req, Res } from "@nestjs/common";
+import { All, Body, Controller, HttpCode, HttpStatus, Post, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 
 import { CreateSessionUseCase } from "../../../../../application/use-cases/sessions/create-session-use-case";
@@ -18,7 +18,9 @@ export class SessionsController {
         private readonly webDriverProxy: WebDriverProxy,
     ) {}
 
+    // W3C New Session returns 200 (not 201); the response is shaped to match (see SessionPresenter).
     @Post()
+    @HttpCode(HttpStatus.OK)
     async createSession(
         @Body() params: CreateSessionRequestModel,
         @BearerToken() token: string,

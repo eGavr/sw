@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>sw · interactive session</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1b1b1b; overflow: hidden; }
+    #screen { width: 100vw; height: 100vh; }
+    #status {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+      font: 13px/1.6 -apple-system, system-ui, sans-serif; color: #eee;
+      background: rgba(0, 0, 0, .75); padding: 6px 12px;
+    }
+    #status.ok { transition: opacity .5s .8s; opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="status">connecting…</div>
+  <div id="screen"></div>
+  <script type="module">
+    // Hosted noVNC viewer. The session to attach to is passed as ?path=sessions/{id}/se/vnc — the value of
+    // the session's `sw:vnc` capability without the ws origin; the page opens a WebSocket to that path on
+    // THIS host, which the wd WS proxy routes to the environment's VNC (websockify → x11vnc → display :99).
+    // noVNC's RFB engine is served from /novnc/ (the @novnc/novnc package root) so its relative imports
+    // (./util, ../vendor/pako) resolve.
+    import RFB from '/novnc/core/rfb.js';
+
+    const params = new URLSearchParams(location.search);
+    const path = (params.get('path') || '').replace(/^\/+/, '');
+    const status = document.getElementById('status');
+
+    if (!path) {
+      status.textContent = 'missing ?path';
+    } else {
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      const rfb = new RFB(document.getElementById('screen'), scheme + '://' + location.host + '/' + path, {});
+      rfb.scaleViewport = true;
+      rfb.resizeSession = false;
+      rfb.background = '#1b1b1b';
+
+      // The selenium node's VNC uses the image's well-known default password unless it is disabled; send it
+      // if the server asks. Access is already gated by possession of the unguessable session id in the path.
+      rfb.addEventListener('credentialsrequired', () => rfb.sendCredentials({ password: 'secret' }));
+      rfb.addEventListener('connect', () => {
+        status.textContent = 'connected · you have control';
+        status.className = 'ok';
+      });
+      rfb.addEventListener('disconnect', (event) => {
+        status.className = '';
+        status.textContent = event.detail && event.detail.clean ? 'session ended' : 'disconnected';
+      });
+      rfb.addEventListener('securityfailure', (event) => {
+        status.className = '';
+        status.textContent = 'security failure: ' + ((event.detail && event.detail.reason) || 'unknown');
+      });
+    }
+  </script>
+</body>
+</html>
