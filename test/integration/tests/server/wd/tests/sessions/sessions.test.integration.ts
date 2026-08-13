@@ -88,8 +88,30 @@ describe("/sessions", () => {
         return { owner, accountId, environmentId: claimed.id };
     };
 
-    const createSession = (accountId: string, auth: AuthHeader, application: object = chrome): request.Test =>
-        request(app.getHttpServer()).post("/sessions").set(auth).send({ accountId, application });
+    type SessionOpts = { logging?: boolean, video?: boolean };
+    type ApplicationCaps = { name: string, version: string };
+
+    // W3C "New Session" request: the requested application is the standard browserName/browserVersion,
+    // our per-session opt-ins ride as vendor sw:* capabilities, and the account is sw:accountId.
+    const capabilities = (accountId: string, application: ApplicationCaps, opts: SessionOpts = {}): object => ({
+        capabilities: {
+            alwaysMatch: {
+                browserName: application.name,
+                browserVersion: application.version,
+                "sw:accountId": accountId,
+                ...(opts.logging === undefined ? {} : { "sw:logging": opts.logging }),
+                ...(opts.video === undefined ? {} : { "sw:video": opts.video }),
+            },
+        },
+    });
+
+    const createSession = (
+        accountId: string,
+        auth: AuthHeader,
+        application: ApplicationCaps = chrome,
+        opts: SessionOpts = {},
+    ): request.Test =>
+        request(app.getHttpServer()).post("/sessions").set(auth).send(capabilities(accountId, application, opts));
 
     describe("POST /sessions (allocate)", () => {
         test("allocates a free matching environment and returns an id routed to its node", async () => {
@@ -126,11 +148,7 @@ describe("/sessions", () => {
         test("threads the logging opt-in through to the node session", async () => {
             const { owner, accountId } = await seedExecutingEnvironment();
 
-            await request(app.getHttpServer())
-                .post("/sessions")
-                .set(owner)
-                .send({ accountId, application: chrome, logging: true })
-                .expect(HttpStatus.OK);
+            await createSession(accountId, owner, chrome, { logging: true }).expect(HttpStatus.OK);
 
             expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: true, video: false });
         });
@@ -138,11 +156,7 @@ describe("/sessions", () => {
         test("threads the video opt-in through to the node session", async () => {
             const { owner, accountId } = await seedExecutingEnvironment();
 
-            await request(app.getHttpServer())
-                .post("/sessions")
-                .set(owner)
-                .send({ accountId, application: chrome, video: true })
-                .expect(HttpStatus.OK);
+            await createSession(accountId, owner, chrome, { video: true }).expect(HttpStatus.OK);
 
             expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: false, video: true });
         });
@@ -158,7 +172,7 @@ describe("/sessions", () => {
         test("responds UNAUTHORIZED for an unauthenticated request", () => {
             return request(app.getHttpServer())
                 .post("/sessions")
-                .send({ accountId: uuidv4(), application: chrome })
+                .send(capabilities(uuidv4(), chrome))
                 .expect(HttpStatus.UNAUTHORIZED);
         });
 
@@ -166,7 +180,7 @@ describe("/sessions", () => {
             return request(app.getHttpServer())
                 .post("/sessions")
                 .set(Authorization.invalidToken)
-                .send({ accountId: uuidv4(), application: chrome })
+                .send(capabilities(uuidv4(), chrome))
                 .expect(HttpStatus.UNAUTHORIZED);
         });
 
@@ -198,6 +212,26 @@ describe("/sessions", () => {
             createSessionOnNode.mockRejectedValue(new Error("node full"));
 
             return createSession(accountId, owner).expect(HttpStatus.CONFLICT);
+        });
+
+        test("responds BAD_REQUEST for a non-W3C request body (no capabilities envelope)", async () => {
+            const { owner, accountId } = await seedExecutingEnvironment();
+
+            return request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send({ accountId, application: chrome })
+                .expect(HttpStatus.BAD_REQUEST);
+        });
+
+        test("responds BAD_REQUEST when a required capability is missing (no sw:accountId)", async () => {
+            const { owner } = await seedExecutingEnvironment();
+
+            return request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send({ capabilities: { alwaysMatch: { browserName: "chrome", browserVersion: "latest" } } })
+                .expect(HttpStatus.BAD_REQUEST);
         });
     });
 

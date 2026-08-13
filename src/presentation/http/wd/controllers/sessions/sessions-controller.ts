@@ -7,6 +7,7 @@ import { SessionRoute } from "../../session-route";
 import { WebDriverProxy } from "../../webdriver-proxy";
 
 import { CreateSessionRequestModel } from "./io/create-session-request-model";
+import { resolveSessionRequest } from "./io/session-capabilities";
 import { SessionPresenter } from "./io/session-presenter";
 
 // Auth is required only to CREATE a session; subsequent commands and teardown are authorized by
@@ -22,10 +23,11 @@ export class SessionsController {
     @Post()
     @HttpCode(HttpStatus.OK)
     async createSession(
-        @Body() params: CreateSessionRequestModel,
+        @Body() body: CreateSessionRequestModel,
         @BearerToken() token: string,
         @Req() request: Request,
     ): Promise<SessionPresenter> {
+        const params = resolveSessionRequest(body.capabilities);
         const session = await this.createSessionUseCase.execute({ creds: { token }, params });
 
         return new SessionPresenter(session, this.webSocketBaseUrl(request));
