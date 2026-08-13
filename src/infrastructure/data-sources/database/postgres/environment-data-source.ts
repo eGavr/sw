@@ -143,6 +143,7 @@ export class EnvironmentDataSource {
             state: string;
             busy: boolean;
             heartbeatCutoff: Date;
+            execution: string;
             applicationName: string;
             applicationVersion: string;
         },
@@ -153,6 +154,7 @@ export class EnvironmentDataSource {
             .where("environment.accountId = :accountId", { accountId })
             .andWhere("environment.state = :state", { state: predicate.state })
             .andWhere("environment.busy = :busy", { busy: predicate.busy })
+            .andWhere("environment.execution = :execution", { execution: predicate.execution })
             .andWhere("environment.lastHeartbeatAt > :cutoff", { cutoff: predicate.heartbeatCutoff })
             .andWhere(
                 "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"

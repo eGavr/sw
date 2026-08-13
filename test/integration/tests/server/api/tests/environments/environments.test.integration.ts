@@ -50,9 +50,32 @@ describe("/accounts/:account/environments", () => {
                 uid: expect.any(String),
                 state: "ENQUEUED",
                 platform: { name: "linux", version: "latest", deviceModel: "desktop" },
+                execution: "container",
                 applications: [{ name: "chrome", version: "latest" }],
                 createTime: expect.any(String),
             });
+        });
+
+        test("defaults the execution substrate to container and echoes an explicit one", async () => {
+            const { owner, accountId } = await createAccount();
+
+            const { body: emulated } = await request(app.getHttpServer())
+                .post(`/accounts/${accountId}/environments`)
+                .set(owner)
+                .send({ ...validEnvironmentBody, execution: "emulator" })
+                .expect(HttpStatus.CREATED);
+
+            expect(emulated.execution).toBe("emulator");
+        });
+
+        test("responds INVALID_ARGUMENT for an unknown execution substrate", async () => {
+            const { owner, accountId } = await createAccount();
+
+            return request(app.getHttpServer())
+                .post(`/accounts/${accountId}/environments`)
+                .set(owner)
+                .send({ ...validEnvironmentBody, execution: "bare-metal" })
+                .expect(HttpStatus.BAD_REQUEST);
         });
 
         test("responds UNAUTHENTICATED for an unauthenticated request", () => {

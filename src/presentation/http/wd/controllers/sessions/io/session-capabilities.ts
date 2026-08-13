@@ -1,5 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 
+import { defaultExecution, Execution } from "../../../../../../domain/entities/environment/execution";
+
 export type Capabilities = Record<string, unknown>;
 
 export type CapabilitiesEnvelope = {
@@ -9,6 +11,7 @@ export type CapabilitiesEnvelope = {
 
 export type SessionRequestParams = {
     accountId: string;
+    execution: string;
     application: {
         name: string;
         version: string;
@@ -18,6 +21,7 @@ export type SessionRequestParams = {
 };
 
 const accountIdCapability = "sw:accountId";
+const executionCapability = "sw:execution";
 const loggingCapability = "sw:logging";
 const videoCapability = "sw:video";
 
@@ -31,6 +35,7 @@ export function resolveSessionRequest(envelope: CapabilitiesEnvelope): SessionRe
 
     return {
         accountId: requireString(capabilities, accountIdCapability),
+        execution: optionalExecution(capabilities),
         application: {
             name: requireString(capabilities, "browserName"),
             version: requireString(capabilities, "browserVersion"),
@@ -38,6 +43,22 @@ export function resolveSessionRequest(envelope: CapabilitiesEnvelope): SessionRe
         logging: optionalBoolean(capabilities, loggingCapability),
         video: optionalBoolean(capabilities, videoCapability),
     };
+}
+
+// Which execution substrate the session must land on; omitted means the default (container), so a plain
+// browser request needs no sw:execution. Validated against the domain enum here at the transport edge.
+function optionalExecution(capabilities: Capabilities): string {
+    const value = capabilities[executionCapability];
+
+    if (value === undefined) {
+        return defaultExecution;
+    }
+
+    if (typeof value !== "string" || !Object.values(Execution).some((candidate) => candidate === value)) {
+        throw invalid(`capability "${executionCapability}" must be one of: ${Object.values(Execution).join(", ")}`);
+    }
+
+    return value;
 }
 
 // W3C capability processing, reduced to a single effective set: `alwaysMatch` applies to every session,

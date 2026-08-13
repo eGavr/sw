@@ -10,10 +10,27 @@ describe("resolveSessionRequest", () => {
     test("resolves the application and account from a W3C alwaysMatch envelope", () => {
         expect(resolveSessionRequest({ alwaysMatch })).toEqual({
             accountId: "acc-1",
+            execution: "container",
             application: { name: "chrome", version: "120" },
             logging: undefined,
             video: undefined,
         });
+    });
+
+    test("defaults the execution substrate to container when sw:execution is omitted", () => {
+        expect(resolveSessionRequest({ alwaysMatch }).execution).toBe("container");
+    });
+
+    test("reads the requested execution substrate from sw:execution", () => {
+        const params = resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, "sw:execution": "emulator" } });
+
+        expect(params.execution).toBe("emulator");
+    });
+
+    test("rejects an unknown execution substrate", () => {
+        expect(() => resolveSessionRequest({
+            alwaysMatch: { ...alwaysMatch, "sw:execution": "bare-metal" },
+        })).toThrow(/sw:execution/);
     });
 
     test("reads the sw:* opt-ins as booleans", () => {

@@ -1,6 +1,7 @@
 import { Column, Entity, ManyToOne, OneToMany, PrimaryColumn } from "typeorm";
 
 import { Environment as EnvironmentEntity, EnvironmentData } from "../../../../../../../domain/entities/environment/environment";
+import { defaultExecution } from "../../../../../../../domain/entities/environment/execution";
 import { DateColumn } from "../../columns-extra/date-column";
 import { Account } from "../account/account";
 import { ProviderAccount } from "../provider-account/provider-account";
@@ -22,6 +23,7 @@ export class Environment {
         environment.platformName = data.platform.name;
         environment.platformVersion = data.platform.version;
         environment.deviceName = data.platform.deviceModel;
+        environment.execution = data.execution ?? defaultExecution;
         environment.endpoint = data.endpoint ?? null;
         environment.busy = data.busy;
         environment.lastHeartbeatAt = data.lastHeartbeatAt ?? null;
@@ -65,6 +67,9 @@ export class Environment {
     @Column()
     deviceName: string;
 
+    @Column({ default: "container" })
+    execution: string;
+
     @Column({ type: "varchar", nullable: true })
     endpoint: string | null;
 
@@ -102,6 +107,7 @@ export class Environment {
                 version: this.platformVersion,
                 deviceModel: this.deviceName,
             },
+            execution: this.execution,
             applications: (this.applications ?? []).map((application) => ({
                 name: application.applicationName,
                 version: application.applicationVersion,
