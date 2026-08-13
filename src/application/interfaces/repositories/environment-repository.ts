@@ -4,6 +4,7 @@ import { CrashedExecutionCriteria } from "../../../domain/entities/environment/c
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../../domain/entities/environment/environment-state";
+import { Execution } from "../../../domain/entities/environment/execution";
 import { GarbageCollectionCriteria } from "../../../domain/entities/environment/garbage-collection-criteria";
 import { Platform } from "../../../domain/entities/environment/platform/platform";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
@@ -15,6 +16,7 @@ export type CreateEnvironmentParams = {
     providerAccountId?: ProviderAccountId | null;
     provider?: string | null;
     platform: Platform;
+    execution?: Execution;
     applications: ApplicationList;
 };
 

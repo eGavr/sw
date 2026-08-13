@@ -63,6 +63,7 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
                 state: predicate.state,
                 busy: predicate.busy,
                 heartbeatCutoff: predicate.heartbeatCutoff,
+                execution: predicate.execution,
                 applicationName: predicate.applicationName,
                 applicationVersion: predicate.applicationVersion,
             },

@@ -4,6 +4,7 @@ import { AccountId } from "../../../domain/entities/account/account-id";
 import { Application } from "../../../domain/entities/environment/application/application";
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
 import { Environment } from "../../../domain/entities/environment/environment";
+import { toExecution } from "../../../domain/entities/environment/execution";
 import { Platform } from "../../../domain/entities/environment/platform/platform";
 import { NoActiveProviderAccountError } from "../../../domain/entities/provider-account/error/no-active-provider-account-error";
 import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
@@ -24,6 +25,7 @@ type CreateEnvironmentInput = {
             version: string;
             deviceModel?: string;
         };
+        execution?: string;
         applications: Array<{
             name: string;
             version: string;
@@ -64,6 +66,7 @@ export class CreateEnvironmentUseCase {
             providerAccountId: ProviderAccountId.fromString(providerAccount.id),
             provider: providerAccount.provider,
             platform: Platform.fromObject(params.platform),
+            execution: params.execution ? toExecution(params.execution) : undefined,
             applications,
         });
     }

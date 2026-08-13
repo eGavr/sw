@@ -10,6 +10,7 @@ import { EnvironmentState } from "./environment-state";
 import { EnvironmentStateReason } from "./environment-state-reason";
 import { EnvironmentStatus } from "./environment-status";
 import { InvalidEnvironmentStateTransitionError } from "./error/invalid-environment-state-transition-error";
+import { defaultExecution, Execution, toExecution } from "./execution";
 import { Platform, PlatformData } from "./platform/platform";
 
 export type EnvironmentData = {
@@ -20,6 +21,7 @@ export type EnvironmentData = {
     state: string;
     stateReason?: string | null;
     platform: PlatformData;
+    execution?: string;
     applications: Array<ApplicationData>;
     endpoint?: string | null;
     busy: boolean;
@@ -34,6 +36,7 @@ export type EnvironmentCreateParams = {
     providerAccountId?: ProviderAccountId | null;
     provider?: string | null;
     platform: Platform;
+    execution?: Execution;
     applications: ApplicationList;
 };
 
@@ -45,6 +48,7 @@ type EnvironmentConstructorParams = {
     state?: EnvironmentState;
     stateReason?: EnvironmentStateReason | null;
     platform: Platform;
+    execution?: Execution;
     applications: ApplicationList;
     endpoint?: EnvironmentEndpoint | null;
     busy?: boolean;
@@ -68,6 +72,7 @@ export class Environment {
             state: Environment.toState(data.state),
             stateReason: data.stateReason ? Environment.toStateReason(data.stateReason) : null,
             platform: Platform.fromObject(data.platform),
+            execution: data.execution ? toExecution(data.execution) : defaultExecution,
             applications: ApplicationList.fromObject(data.applications),
             endpoint: data.endpoint ? new EnvironmentEndpoint(data.endpoint) : null,
             busy: data.busy,
@@ -99,6 +104,7 @@ export class Environment {
     }
 
     readonly platform: Platform;
+    readonly execution: Execution;
     readonly applications: ApplicationList;
     readonly createdAt: Date;
 
@@ -122,6 +128,7 @@ export class Environment {
         this._state = params.state ?? EnvironmentState.Enqueued;
         this._stateReason = params.stateReason ?? null;
         this.platform = params.platform;
+        this.execution = params.execution ?? defaultExecution;
         this.applications = params.applications;
         this._endpoint = params.endpoint ?? null;
         this._busy = params.busy ?? false;
@@ -276,6 +283,7 @@ export class Environment {
             state: this._state,
             stateReason: this._stateReason,
             platform: this.platform.toObject(),
+            execution: this.execution,
             applications: this.applications.toArray(),
             endpoint: this.endpoint,
             busy: this._busy,

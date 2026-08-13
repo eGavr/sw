@@ -16,6 +16,7 @@ import {
 import { AccountId } from "../../../../../../../src/domain/entities/account/account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { EnvironmentEndpoint } from "../../../../../../../src/domain/entities/environment/environment-endpoint";
+import { Execution } from "../../../../../../../src/domain/entities/environment/execution";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { SessionRoute } from "../../../../../../../src/presentation/http/wd/session-route";
@@ -65,13 +66,16 @@ describe("/sessions", () => {
     };
 
     // enqueued -> starting -> preparing -> executing (endpoint + fresh heartbeat), so it is allocatable.
-    const seedExecutingEnvironment = async (): Promise<{ owner: AuthHeader, accountId: string, environmentId: string }> => {
+    const seedExecutingEnvironment = async (
+        execution: Execution = Execution.Container,
+    ): Promise<{ owner: AuthHeader, accountId: string, environmentId: string }> => {
         const { owner, accountId } = await seedAccount();
         const environmentRepository = app.get(EnvironmentRepository);
 
         await environmentRepository.create({
             accountId: AccountId.fromString(accountId),
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
+            execution,
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
 
@@ -88,7 +92,7 @@ describe("/sessions", () => {
         return { owner, accountId, environmentId: claimed.id };
     };
 
-    type SessionOpts = { logging?: boolean, video?: boolean };
+    type SessionOpts = { logging?: boolean, video?: boolean, execution?: Execution };
     type ApplicationCaps = { name: string, version: string };
 
     // W3C "New Session" request: the requested application is the standard browserName/browserVersion,
@@ -99,6 +103,7 @@ describe("/sessions", () => {
                 browserName: application.name,
                 browserVersion: application.version,
                 "sw:accountId": accountId,
+                ...(opts.execution === undefined ? {} : { "sw:execution": opts.execution }),
                 ...(opts.logging === undefined ? {} : { "sw:logging": opts.logging }),
                 ...(opts.video === undefined ? {} : { "sw:video": opts.video }),
             },
@@ -205,6 +210,21 @@ describe("/sessions", () => {
             const { owner, accountId } = await seedExecutingEnvironment();
 
             return createSession(accountId, owner, { name: "firefox", version: "latest" }).expect(HttpStatus.CONFLICT);
+        });
+
+        test("allocates an environment on the requested execution substrate (sw:execution)", async () => {
+            const { owner, accountId } = await seedExecutingEnvironment(Execution.Emulator);
+
+            await createSession(accountId, owner, chrome, { execution: Execution.Emulator }).expect(HttpStatus.OK);
+
+            expect(createSessionOnNode).toHaveBeenCalledTimes(1);
+        });
+
+        test("responds CONFLICT when the free environment is on a different execution substrate", async () => {
+            const { owner, accountId } = await seedExecutingEnvironment(Execution.Emulator);
+
+            // No sw:execution -> defaults to container, but the only free environment is an emulator.
+            return createSession(accountId, owner).expect(HttpStatus.CONFLICT);
         });
 
         test("responds CONFLICT when the node rejects the session (busy)", async () => {

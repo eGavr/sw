@@ -14,6 +14,7 @@ export class EnvironmentPresenter implements Presenter {
             state: this.environment.effectiveStatus(new Date(), defaultHeartbeatFreshnessMs),
             ...(reason ? { stateReason: reason } : {}),
             platform: this.environment.platform.toObject(),
+            execution: this.environment.execution,
             applications: this.environment.applications.toArray(),
             createTime: this.environment.createdAt.toISOString(),
         };

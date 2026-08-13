@@ -4,6 +4,7 @@ import { AccountId } from "../../../domain/entities/account/account-id";
 import { Application } from "../../../domain/entities/environment/application/application";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
+import { toExecution } from "../../../domain/entities/environment/execution";
 import { defaultHeartbeatFreshnessMs } from "../../../domain/entities/environment/heartbeat-freshness";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
 import { NoAllocatableEnvironmentError } from "../../../domain/entities/session/error/no-allocatable-environment-error";
@@ -20,6 +21,7 @@ type CreateSessionInput = {
     },
     params: {
         accountId: string;
+        execution: string;
         application: {
             name: string;
             version: string;
@@ -52,7 +54,12 @@ export class CreateSessionUseCase {
         await this.accessControl.authorize(user, account, this.permissionName);
 
         const application = Application.fromObject(params.application);
-        const criteria = SessionAllocationCriteria.from(new Date(), defaultHeartbeatFreshnessMs, application);
+        const criteria = SessionAllocationCriteria.from({
+            now: new Date(),
+            freshnessMs: defaultHeartbeatFreshnessMs,
+            execution: toExecution(params.execution),
+            application,
+        });
         const candidates = await this.environmentRepository.findAllocatable(accountId, criteria);
 
         return this.allocate(candidates, application, { logging: params.logging ?? false, video: params.video ?? false });
