@@ -1,34 +1,12 @@
-import { Type } from "class-transformer";
-import { IsBoolean, IsDefined, IsOptional, IsString, ValidateNested } from "class-validator";
+import { IsDefined, IsObject } from "class-validator";
 
-class ApplicationModel {
-    @IsString()
-    name: string;
+import type { CapabilitiesEnvelope } from "./session-capabilities";
 
-    @IsString()
-    version: string;
-
-    @IsOptional()
-    @IsString()
-    kind?: string;
-}
-
+// W3C WebDriver "New Session" request: { capabilities: { alwaysMatch, firstMatch } }. Only the envelope
+// shape is validated here as a transport concern; the arbitrary capability keys inside (standard
+// `browserName` / vendor `sw:*`) are resolved into allocation params by resolveSessionRequest.
 export class CreateSessionRequestModel {
-    @IsString()
-    accountId: string;
-
     @IsDefined()
-    @ValidateNested()
-    @Type(() => ApplicationModel)
-    application: ApplicationModel;
-
-    // Opt-in: capture this session's logs and upload them to the account's storage destination.
-    @IsOptional()
-    @IsBoolean()
-    logging?: boolean;
-
-    // Opt-in: record this session's video and upload it to the account's storage destination.
-    @IsOptional()
-    @IsBoolean()
-    video?: boolean;
+    @IsObject()
+    capabilities: CapabilitiesEnvelope;
 }
