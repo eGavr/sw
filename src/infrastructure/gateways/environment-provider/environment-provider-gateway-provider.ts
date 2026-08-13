@@ -3,6 +3,19 @@ import { ConfigService } from "@nestjs/config";
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
 
 import { defaultAgentEntrypoint } from "./agent-bootstrap";
+import {
+    AndroidRedroidEnvironmentConfig,
+    buildAndroidRedroidEnvironmentConfig,
+    defaultAndroidNodeEntrypoint,
+    defaultAndroidNodeImage,
+    defaultAndroidNodePort,
+    defaultAndroidScreen,
+    defaultRedroidImage,
+} from "./android-redroid/android-redroid-environment-config";
+import {
+    AndroidRedroidEnvironmentProviderGateway,
+    androidRedroidProviderValue,
+} from "./android-redroid/android-redroid-environment-provider-gateway";
 import { DockerClient } from "./docker/docker-client";
 import {
     buildDockerEnvironmentConfig,
@@ -47,6 +60,10 @@ export const EnvironmentProviderGatewayProvider = {
                 ),
                 kubernetesConfig(configService),
             )],
+            [androidRedroidProviderValue, new AndroidRedroidEnvironmentProviderGateway(
+                new DockerClient(),
+                androidRedroidConfig(configService),
+            )],
         ]);
 
         return new RoutingEnvironmentProviderGateway(gateways);
@@ -72,6 +89,25 @@ function dockerConfig(configService: ConfigService): DockerEnvironmentConfig {
         // From inside the container the host's internal callback API is reached via host.docker.internal.
         internalUrl:
             configService.get<string>("COMPUTE_DOCKER_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,
+        internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
+    });
+}
+
+function androidRedroidConfig(configService: ConfigService): AndroidRedroidEnvironmentConfig {
+    const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
+
+    return buildAndroidRedroidEnvironmentConfig({
+        redroidImage: configService.get<string>("COMPUTE_ANDROID_REDROID_IMAGE") ?? defaultRedroidImage,
+        nodeImage: configService.get<string>("COMPUTE_ANDROID_NODE_IMAGE") ?? defaultAndroidNodeImage,
+        nodePort: Number(configService.get<string>("COMPUTE_ANDROID_NODE_PORT") ?? String(defaultAndroidNodePort)),
+        screenWidth: Number(configService.get<string>("COMPUTE_ANDROID_SCREEN_WIDTH") ?? String(defaultAndroidScreen.width)),
+        screenHeight: Number(configService.get<string>("COMPUTE_ANDROID_SCREEN_HEIGHT") ?? String(defaultAndroidScreen.height)),
+        dpi: Number(configService.get<string>("COMPUTE_ANDROID_SCREEN_DPI") ?? String(defaultAndroidScreen.dpi)),
+        entrypoint: configService.get<string>("COMPUTE_ANDROID_ENTRYPOINT") ?? defaultAndroidNodeEntrypoint,
+        advertiseHost: configService.get<string>("COMPUTE_ANDROID_ADVERTISE_HOST") ?? "127.0.0.1",
+        // The companion shares redroid's netns, which carries the host-gateway alias for the callback.
+        internalUrl:
+            configService.get<string>("COMPUTE_ANDROID_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,
         internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
     });
 }

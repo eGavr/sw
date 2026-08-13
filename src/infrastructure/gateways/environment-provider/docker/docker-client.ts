@@ -13,7 +13,13 @@ export type DockerPortMapping = {
 export type DockerRunOptions = {
     image: string;
     labels: Record<string, string>;
-    publish: DockerPortMapping;
+    // Optional: a container sharing another container's network namespace publishes no port of its own.
+    publish?: DockerPortMapping;
+    name?: string;
+    // e.g. `container:<name>` to share another container's network namespace (the Android node sidecar).
+    network?: string;
+    privileged?: boolean;
+    addHost?: Record<string, string>;
     entrypoint?: string;
     command?: Array<string>;
     shmSize?: string;
@@ -30,8 +36,24 @@ export class DockerClient {
         // backend no longer knows the environment) removes itself, with no control-plane cleanup.
         const args = ["run", "-d", "--rm"];
 
+        if (options.name) {
+            args.push("--name", options.name);
+        }
+
+        if (options.network) {
+            args.push("--network", options.network);
+        }
+
+        if (options.privileged) {
+            args.push("--privileged");
+        }
+
         if (options.platform) {
             args.push("--platform", options.platform);
+        }
+
+        for (const [host, ip] of Object.entries(options.addHost ?? {})) {
+            args.push("--add-host", `${host}:${ip}`);
         }
 
         for (const [key, value] of Object.entries(options.labels)) {
@@ -50,7 +72,11 @@ export class DockerClient {
             args.push("--entrypoint", options.entrypoint);
         }
 
-        args.push("--publish", `${options.publish.host}:${options.publish.container}`, options.image);
+        if (options.publish) {
+            args.push("--publish", `${options.publish.host}:${options.publish.container}`);
+        }
+
+        args.push(options.image);
 
         if (options.command) {
             args.push(...options.command);

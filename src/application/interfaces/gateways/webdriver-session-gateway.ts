@@ -11,7 +11,14 @@ export type WebDriverSessionOptions = {
 
 // Driven port over a running WebDriver node: creates a session on the node at `endpoint` and returns
 // its (secret) WebDriver session id. Calling the node is an external-system action, so it is a gateway,
-// not a repository. The node itself arbitrates the 1:1 occupancy, rejecting a second session.
+// not a repository. The node itself arbitrates the 1:1 occupancy, rejecting a second session. The
+// platform selects the capability dialect — a browser (browserName) vs an Appium device (platformName +
+// appium:* on an Android node).
 export abstract class WebDriverSessionGateway {
-    abstract create(endpoint: string, application: Application, options?: WebDriverSessionOptions): Promise<string>;
+    abstract create(
+        endpoint: string,
+        application: Application,
+        platformName: string,
+        options?: WebDriverSessionOptions,
+    ): Promise<string>;
 }
