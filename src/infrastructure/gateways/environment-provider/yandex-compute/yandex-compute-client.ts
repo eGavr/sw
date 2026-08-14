@@ -102,6 +102,14 @@ export class YandexComputeClient {
     }
 
     private isAlreadyExists(error: unknown): boolean {
-        return error instanceof Error && /already exists/i.test(error.message);
+        if (!(error instanceof Error)) {
+            return false;
+        }
+
+        // execFile puts the CLI's stderr on `.stderr`, not `.message` (which is just "Command failed: …"),
+        // so the "already exists" text lives there.
+        const stderr = (error as { stderr?: string }).stderr ?? "";
+
+        return /already exists/i.test(error.message) || /already exists/i.test(stderr);
     }
 }
