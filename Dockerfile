@@ -1,6 +1,6 @@
 # One image for all four service processes (api / wd / internal / worker); each Deployment picks its
-# entrypoint via `command`. kubectl is bundled for the worker's Kubernetes compute adapter; the other
-# processes never invoke it.
+# entrypoint via `command`. kubectl is bundled for the worker's Kubernetes compute adapter and yc for its
+# Android (YC Compute VM) adapter; the other processes never invoke them.
 ARG NODE_IMAGE=node:22-slim
 ARG KUBECTL_VERSION=v1.31.1
 
@@ -27,12 +27,15 @@ FROM ${NODE_IMAGE} AS runtime
 ARG KUBECTL_VERSION
 WORKDIR /app
 ENV NODE_ENV=production
-# ca-certificates for outbound TLS (Postgres SSL, registry); kubectl for the k8s compute adapter.
+# ca-certificates for outbound TLS (Postgres SSL, registry); kubectl for the k8s compute adapter; the yc
+# CLI for the Android (YC Compute VM) adapter (installed from YC object storage, no rc/PATH changes).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && curl -fsSL -o /usr/local/bin/kubectl \
        "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/$(dpkg --print-architecture)/kubectl" \
     && chmod +x /usr/local/bin/kubectl \
+    && curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /opt/yc -n \
+    && ln -s /opt/yc/bin/yc /usr/local/bin/yc \
     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force

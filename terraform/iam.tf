@@ -24,3 +24,17 @@ resource "yandex_resourcemanager_folder_iam_member" "nodes_puller" {
   role      = "container-registry.images.puller"
   member    = "serviceAccount:${yandex_iam_service_account.nodes.id}"
 }
+
+# The worker (a pod on a node) creates/deletes the on-demand Android Compute VMs via the yc CLI, using this
+# node service account's IAM token from the instance metadata service. compute.editor to manage the VMs,
+# vpc.user to attach them to the subnet/security group.
+locals {
+  nodes_compute_roles = ["compute.editor", "vpc.user"]
+}
+
+resource "yandex_resourcemanager_folder_iam_member" "nodes_compute" {
+  for_each  = toset(local.nodes_compute_roles)
+  folder_id = var.folder_id
+  role      = each.value
+  member    = "serviceAccount:${yandex_iam_service_account.nodes.id}"
+}

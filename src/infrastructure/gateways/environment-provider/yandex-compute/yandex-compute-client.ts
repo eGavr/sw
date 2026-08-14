@@ -5,6 +5,9 @@ import { Injectable } from "@nestjs/common";
 
 const execFileAsync = promisify(execFile);
 
+const metadataTokenUrl =
+    "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token";
+
 export type YandexComputeInstanceOptions = {
     name: string;
     imageId: string;
@@ -19,10 +22,13 @@ export type YandexComputeInstanceOptions = {
 
 // Thin wrapper around the `yc` CLI (the same shell-out pattern as DockerClient/KubernetesClient). It runs
 // the operational verbs against YC Compute; the environment data the control plane needs comes back via the
-// agent, not from here. Auth is ambient: `yc` uses the profile / the instance service account of whatever
-// runs the worker.
+// agent, not from here. Auth: in-cluster it takes the node service account's IAM token from the instance
+// metadata service and passes it as YC_TOKEN (kept out of argv/ps); locally it falls back to the ambient
+// `yc` profile. The folder is passed explicitly because a token-authenticated call has no profile default.
 @Injectable()
 export class YandexComputeClient {
+    constructor(private readonly folderId?: string) {}
+
     async createInstance(options: YandexComputeInstanceOptions): Promise<void> {
         const metadata = Object.entries(options.metadata).map(([key, value]) => `${key}=${value}`).join(",");
         const networkInterface = options.securityGroupId
@@ -52,18 +58,47 @@ export class YandexComputeClient {
         }
     }
 
-    private isAlreadyExists(error: unknown): boolean {
-        return error instanceof Error && /already exists/i.test(error.message);
-    }
-
     async deleteInstance(name: string): Promise<void> {
         // Idempotent: a missing instance (already gone / never created) is not an error for deprovision.
         await this.exec(["compute", "instance", "delete", "--name", name, "--async"]).catch(() => undefined);
     }
 
     private async exec(args: Array<string>): Promise<string> {
-        const { stdout } = await execFileAsync("yc", args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+        const folderArgs = this.folderId ? ["--folder-id", this.folderId] : [];
+        const token = await this.metadataToken();
+        const env = token ? { ...process.env, YC_TOKEN: token } : process.env;
+
+        const { stdout } = await execFileAsync("yc", [...folderArgs, ...args], {
+            env,
+            encoding: "utf8",
+            maxBuffer: 16 * 1024 * 1024,
+        });
 
         return stdout;
+    }
+
+    // The node service account's IAM token from the instance metadata service; null off-cluster (where the
+    // ambient `yc` profile authenticates instead).
+    private async metadataToken(): Promise<string | null> {
+        try {
+            const response = await fetch(metadataTokenUrl, {
+                headers: { "Metadata-Flavor": "Google" },
+                signal: AbortSignal.timeout(3000),
+            });
+
+            if (!response.ok) {
+                return null;
+            }
+
+            const body = await response.json() as { access_token?: string };
+
+            return body.access_token ?? null;
+        } catch {
+            return null;
+        }
+    }
+
+    private isAlreadyExists(error: unknown): boolean {
+        return error instanceof Error && /already exists/i.test(error.message);
     }
 }

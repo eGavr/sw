@@ -61,7 +61,7 @@ export const EnvironmentProviderGatewayProvider = {
                 kubernetesConfig(configService),
             )],
             [androidRedroidProviderValue, new AndroidRedroidEnvironmentProviderGateway(
-                new YandexComputeClient(),
+                new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_FOLDER_ID")),
                 androidRedroidConfig(configService),
             )],
         ]);

@@ -62,6 +62,37 @@ resource "yandex_vpc_security_group" "k8s" {
   }
 }
 
+# On-demand Android environment VMs: the wd proxy (a cluster pod) reaches the node surface on 4444; the
+# in-VM agent reaches the control plane's internal API by egress (via the internal load balancer). No
+# external ingress — the VM is only used from inside the VPC.
+resource "yandex_vpc_security_group" "android_env" {
+  name       = "sw-android-env"
+  network_id = yandex_vpc_network.sw.id
+
+  ingress {
+    description       = "Node surface (Appium + VNC) from the cluster."
+    protocol          = "TCP"
+    security_group_id = yandex_vpc_security_group.k8s.id
+    port              = 4444
+  }
+
+  ingress {
+    description       = "Within the group."
+    protocol          = "ANY"
+    predefined_target = "self_security_group"
+    from_port         = 0
+    to_port           = 65535
+  }
+
+  egress {
+    description    = "Allow all egress (control-plane callback, image layers already baked)."
+    protocol       = "ANY"
+    v4_cidr_blocks = ["0.0.0.0/0"]
+    from_port      = 0
+    to_port        = 65535
+  }
+}
+
 # Postgres reachable on the pooler port from the k8s workloads.
 resource "yandex_vpc_security_group" "pg" {
   name       = "sw-pg"
