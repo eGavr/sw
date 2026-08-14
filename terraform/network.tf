@@ -1,19 +1,18 @@
-resource "yandex_vpc_network" "sw" {
-  name = "sw"
+# Reuse the folder's existing network/subnet (the VPC network quota is 1). Everything — the cluster, its
+# nodes and the on-demand Android env VMs — shares this one VPC so they can reach each other.
+data "yandex_vpc_network" "sw" {
+  network_id = var.network_id
 }
 
-resource "yandex_vpc_subnet" "sw" {
-  name           = "sw-${var.zone}"
-  zone           = var.zone
-  network_id     = yandex_vpc_network.sw.id
-  v4_cidr_blocks = [var.subnet_cidr]
+data "yandex_vpc_subnet" "sw" {
+  subnet_id = var.subnet_id
 }
 
 # Security group for the cluster + nodes. Rules follow the Managed Kubernetes reference set; review
 # against the current docs before production. Empty groups deny all, so egress must be opened explicitly.
 resource "yandex_vpc_security_group" "k8s" {
   name       = "sw-k8s"
-  network_id = yandex_vpc_network.sw.id
+  network_id = data.yandex_vpc_network.sw.id
 
   ingress {
     description       = "Node-to-node and master-to-node within the group."
@@ -67,7 +66,7 @@ resource "yandex_vpc_security_group" "k8s" {
 # external ingress — the VM is only used from inside the VPC.
 resource "yandex_vpc_security_group" "android_env" {
   name       = "sw-android-env"
-  network_id = yandex_vpc_network.sw.id
+  network_id = data.yandex_vpc_network.sw.id
 
   ingress {
     description       = "Node surface (Appium + VNC) from the cluster."
@@ -96,7 +95,7 @@ resource "yandex_vpc_security_group" "android_env" {
 # Postgres reachable on the pooler port from the k8s workloads.
 resource "yandex_vpc_security_group" "pg" {
   name       = "sw-pg"
-  network_id = yandex_vpc_network.sw.id
+  network_id = data.yandex_vpc_network.sw.id
 
   ingress {
     description       = "Postgres pooler from the cluster."

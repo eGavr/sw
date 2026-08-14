@@ -1,7 +1,7 @@
 resource "yandex_mdb_postgresql_cluster" "sw" {
   name        = "sw"
   environment = "PRODUCTION"
-  network_id  = yandex_vpc_network.sw.id
+  network_id  = data.yandex_vpc_network.sw.id
 
   config {
     version = var.pg_version
@@ -15,7 +15,7 @@ resource "yandex_mdb_postgresql_cluster" "sw" {
 
   host {
     zone             = var.zone
-    subnet_id        = yandex_vpc_subnet.sw.id
+    subnet_id        = data.yandex_vpc_subnet.sw.id
     assign_public_ip = false
   }
 

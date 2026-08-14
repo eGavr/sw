@@ -23,7 +23,7 @@ output "node_service_account_id" {
 
 output "subnet_id" {
   description = "Set as COMPUTE_ANDROID_SUBNET_ID — the Android env VMs must share the cluster's subnet/VPC."
-  value       = yandex_vpc_subnet.sw.id
+  value       = data.yandex_vpc_subnet.sw.id
 }
 
 output "android_env_security_group_id" {

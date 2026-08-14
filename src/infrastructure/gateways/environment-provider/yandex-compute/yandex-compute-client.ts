@@ -31,9 +31,12 @@ export class YandexComputeClient {
 
     async createInstance(options: YandexComputeInstanceOptions): Promise<void> {
         const metadata = Object.entries(options.metadata).map(([key, value]) => `${key}=${value}`).join(",");
+        // Internal-only: no NAT/public IP. The env VM is reached by wd within the VPC and calls the control
+        // plane back via the internal load balancer, so a public IP is unnecessary (and would need
+        // vpc.publicAdmin plus a scarce external address).
         const networkInterface = options.securityGroupId
-            ? `subnet-id=${options.subnetId},nat-ip-version=ipv4,security-group-ids=${options.securityGroupId}`
-            : `subnet-id=${options.subnetId},nat-ip-version=ipv4`;
+            ? `subnet-id=${options.subnetId},security-group-ids=${options.securityGroupId}`
+            : `subnet-id=${options.subnetId}`;
 
         // --async: our lifecycle is async — provision returns as soon as YC accepts the create; the VM boots
         // itself and the agent flips the environment to executing on its first heartbeat. An instance already
