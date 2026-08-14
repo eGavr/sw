@@ -1,0 +1,36 @@
+# sw-config for the YC MK8s deployment. deploy.sh fills the __PLACEHOLDERS__ from `tofu output` and the
+# golden image / callback discovered at deploy time. Non-secret only (secrets go in the sw-secrets Secret).
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: sw-config, namespace: sw }
+data:
+  LOG_LEVEL: "log,error,fatal,warn"
+  AUTH_STRATEGY: "local"
+  API_PORT: "3000"
+  WD_PORT: "3001"
+  INTERNAL_PORT: "3002"
+  POSTGRES_HOST: "__PG_HOST__"
+  POSTGRES_PORT: "6432"
+  POSTGRES_USER: "sw"
+  POSTGRES_DATABASE: "sw"
+  POSTGRES_SSL: "true"
+  POSTGRES_SSL_CA: "/etc/ssl/yandex/root.crt"
+  # Browser envs — k8s Pods in-cluster.
+  COMPUTE_K8S_NETWORKING: "cluster-dns"
+  COMPUTE_K8S_NAMESPACE: "sw-environments"
+  COMPUTE_K8S_IMAGE: "selenium/standalone-chrome:latest"
+  COMPUTE_K8S_INTERNAL_URL: "http://sw-internal.sw.svc.cluster.local:3002"
+  # Android envs — on-demand YC Compute VMs from the golden image.
+  COMPUTE_ANDROID_IMAGE_ID: "__GOLDEN_IMAGE_ID__"
+  COMPUTE_ANDROID_ZONE: "__ZONE__"
+  COMPUTE_ANDROID_SUBNET_ID: "__SUBNET_ID__"
+  COMPUTE_ANDROID_SECURITY_GROUP_ID: "__ANDROID_SG_ID__"
+  COMPUTE_ANDROID_FOLDER_ID: "__FOLDER_ID__"
+  COMPUTE_ANDROID_DEFAULT_VERSION: "13"
+  COMPUTE_ANDROID_DISK_GB: "40"
+  COMPUTE_ANDROID_MEMORY_GB: "16"
+  WORKER_PREPARING_TIMEOUT_MS: "360000"
+  HEARTBEAT_FRESHNESS_MS: "120000"
+  # The in-VM agent's callback — sw-internal NodePort on its pod's node (NLB quota is 2 = api+wd, no room for
+  # an internal NLB). deploy.sh discovers and sets this after the pods are up.
+  COMPUTE_ANDROID_INTERNAL_URL: "__CALLBACK_URL__"

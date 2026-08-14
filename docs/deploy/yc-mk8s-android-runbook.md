@@ -64,22 +64,17 @@ Deploy overlay with real values lives in `/tmp/sw-deploy/` (ephemeral — the re
 
 Use the existing one (`fd8opcrg042a3lu6u90e`) or rebake per §4.
 
-### 1d. Deploy the control plane
+### 1d. Deploy the control plane — ONE command (`k8s/yc/deploy.sh`)
 
     yc managed-kubernetes cluster get-credentials sw --external --force
-    kubectl apply -f k8s/namespace.yaml -f k8s/rbac.yaml
-    kubectl create configmap sw-postgres-ca -n sw --from-file=root.crt=<CA.pem>   # storage.yandexcloud.net/cloud-certs/CA.pem
-    # secrets: INTERNAL_API_SECRET=$(openssl rand -hex 32), POSTGRES_PASSWORD=...
-    kubectl apply -f /tmp/sw-deploy/secrets.yaml
-    # config: the ConfigMap in §3 (real PG host + COMPUTE_ANDROID_* + callback URL)
-    kubectl apply -f /tmp/sw-deploy/config.yaml
-    kubectl apply -f /tmp/sw-deploy/migrate-job.yaml           # image retagged to cr.yandex/.../sw-service:v4
-    kubectl apply -f /tmp/sw-deploy/control-plane.yaml         # 4 Deployments, image retagged
-    # expose api + wd (NLB count quota is 2 — that's exactly api + wd; the internal callback uses NodePort, §2)
-    kubectl apply -f /tmp/sw-deploy/external-lb.yaml
-    # internal callback = sw-internal as NodePort, pinned to the pod's node:
-    kubectl patch svc sw-internal -n sw -p '{"spec":{"type":"NodePort","externalTrafficPolicy":"Local"}}'
-    #   COMPUTE_ANDROID_INTERNAL_URL = http://<node-ip-of-sw-internal-pod>:<nodePort>
+    POSTGRES_PASSWORD=<same as terraform pg_password> \
+      GOLDEN_IMAGE_ID=fd8opcrg042a3lu6u90e IMAGE_TAG=v4 \
+      bash k8s/yc/deploy.sh
+    # It reads `tofu output`, creates ns/rbac/secrets/PG-CA, fills k8s/yc/config.template.yaml, runs the
+    # migrate Job, deploys the 4 Deployments (image from the registry), creates the api/wd NLBs, wires the
+    # sw-internal NodePort callback (pinned Local to its pod's node), and prints the api/wd external IPs.
+    # Idempotent — safe to re-run. Manifests: k8s/{namespace,rbac,migrate-job,control-plane}.yaml +
+    # k8s/yc/{config.template,lb}.yaml. Config keys reference: §3.
 
 ### 1e. Smoke test (the whole point)
 
@@ -158,17 +153,13 @@ Use the existing one (`fd8opcrg042a3lu6u90e`) or rebake per §4.
 
 ---
 
-## 5. Tear it DOWN
+## 5. Tear it DOWN — ONE command (`k8s/yc/teardown.sh`)
 
-    # env VMs are the worker's; delete any leftovers first:
-    for v in $(yc compute instance list | awk -F'|' '/sw-env/{print $3}'); do yc compute instance delete --name "$(echo $v)" --async; done
-    # LB Services FIRST (so the cloud controller reaps the NLBs — avoids orphaned load balancers):
-    kubectl delete svc sw-api-lb sw-wd-lb -n sw
-    # then the whole stack:
-    TF_CLI_CONFIG_FILE=$HOME/.terraformrc YC_TOKEN=$(yc iam create-token) /tmp/tfbin/tofu -chdir=terraform destroy -auto-approve
-    # tofu destroy removes the cluster/PG/CR/SG/SA/IAM. It does NOT touch: the reused network (data source),
-    # the golden image, or leftover env/build VMs — delete those by hand:
-    #   yc compute image delete --name sw-android-golden-v4     (only if you don't want to keep it)
+    bash k8s/yc/teardown.sh
+    # Deletes env/build VMs, then the LB Services FIRST (so the cloud controller reaps the NLBs — avoids
+    # orphaned load balancers), then `tofu destroy` (cluster / PG / CR / SG / SA / IAM). It KEEPS the reused
+    # VPC network (a data source) and the golden image (so the next deploy is fast). Delete the image by hand
+    # only if you truly want it gone:  yc compute image delete --name sw-android-golden-v4
 
 **Cost note:** stopping the MK8s cluster isn't a thing (managed); `tofu destroy` is the off switch. The golden
 image + reused network cost ~nothing to keep for a fast re-`apply`.
