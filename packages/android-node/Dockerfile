@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive ANDROID_HOME=/opt/android-sdk
 RUN (sed -i "s|deb.debian.org|mirror.yandex.ru|g; s|security.debian.org|mirror.yandex.ru|g" \
         /etc/apt/sources.list.d/debian.sources 2>/dev/null || true) \
     && apt-get update \
-    && apt-get install -y --no-install-recommends android-tools-adb nginx curl ca-certificates procps \
+    && apt-get install -y --no-install-recommends android-tools-adb nginx curl ca-certificates procps jq \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p "$ANDROID_HOME/platform-tools" && ln -sf "$(command -v adb)" "$ANDROID_HOME/platform-tools/adb"
