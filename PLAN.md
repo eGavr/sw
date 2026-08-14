@@ -74,6 +74,13 @@ service-identity), мы грузим под своей identity; включен�
     маленькая Ubuntu Compute VM → `apt install linux-modules-extra-$(uname -r)` + `modprobe binder_linux` (есть ли binder) → `docker run
     redroid` → `adb connect` (загрузился ли Android) → Appium-команда. Минусы Redroid: AOSP без GApps/Play по умолчанию; «Android-в-контейнере»,
     не полный девайс; часть приложений, проверяющих GMS/эмулятор/root, капризничает.
+    **Доставка (решено): on-demand Compute VM из прешитого golden-image.** sw в MK8s, адаптер под запрос `yc compute instance create` из
+    образа, где ЗАПЕЧЕНЫ docker + `sw/android-node` (companion, версионно-независим) + **несколько популярных redroid-тегов** (=версий Android;
+    напр. 11/13/14) + binder-модули + startup-юнит (metadata VM → modprobe binder → redroid нужного тега + companion + агент). Печём образ из
+    лаб-VM (снапшот диска). **FOLLOW-UP (важно, на будущее):** запечь ВСЕ версии Android в один образ НЕ выйдет — каждая redroid-версия ~3 ГБ
+    на диске (11=2.98GB, 13=2.87GB), образ растёт линейно и это тупо долго качать/хранить. Нужен **параметризованный выбор образа**: тянуть/
+    выбирать per-версию образ по запросу (pull-on-demand с кэшем, либо per-версия golden-image, либо отдельный слой-том с redroid-тегами). Пока
+    печём фикс-набор популярных версий; масштабирование на все версии — отдельная задача.
   - **D2 (потом): `runtime=emulator` — официальный QEMU-эмулятор через KVM.** Нужен `/dev/kvm` (полное ускорение; без него single-digit FPS
     / загрузка в минуты — непригодно). YC MK8s/Compute VM **KVM НЕ дают** (nested virt не отдают). Субстраты: **YC Bare Metal** (KVM есть, но
     минимум — целый двухсокетник ~52c/128GB/~1.6TB SSD, ~76k₽/мес, аренда суточно, только RU → только как ПЛОТНАЯ ФЕРМА: пакуем ~15–25
