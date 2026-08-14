@@ -15,11 +15,11 @@ environment_id=$(attribute sw-environment-id)
 redroid_tag=$(attribute sw-redroid-tag); redroid_tag=${redroid_tag:-11.0.0-latest}
 internal_url=$(attribute sw-internal-url)
 internal_secret=$(attribute sw-internal-secret)
-endpoint=$(attribute sw-endpoint)
-if [ -z "${endpoint}" ]; then
-    internal_ip=$(curl -s -H "${header}" "http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/ip")
-    endpoint="http://${internal_ip}:4444"
-fi
+# The endpoint the control plane routes WebDriver traffic to is this VM's own private IP — always derived
+# here, since the adapter cannot know the IP before the VM exists (a missing sw-endpoint attribute comes
+# back as the literal "Not Found" from the metadata service, so it can't be used as an override).
+internal_ip=$(curl -s -H "${header}" "http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/ip")
+endpoint="http://${internal_ip}:4444"
 
 modprobe binder_linux devices="binder,hwbinder,vndbinder" || modprobe binder_linux
 
