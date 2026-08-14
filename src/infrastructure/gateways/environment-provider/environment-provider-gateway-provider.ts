@@ -6,11 +6,10 @@ import { defaultAgentEntrypoint } from "./agent-bootstrap";
 import {
     AndroidRedroidEnvironmentConfig,
     buildAndroidRedroidEnvironmentConfig,
-    defaultAndroidNodeEntrypoint,
-    defaultAndroidNodeImage,
-    defaultAndroidNodePort,
-    defaultAndroidScreen,
-    defaultRedroidImage,
+    defaultAndroidCores,
+    defaultAndroidDiskGb,
+    defaultAndroidMemoryGb,
+    defaultAndroidVersion,
 } from "./android-redroid/android-redroid-environment-config";
 import {
     AndroidRedroidEnvironmentProviderGateway,
@@ -40,6 +39,7 @@ import {
 } from "./kubernetes/kubernetes-environment-provider-gateway";
 import { LocalEnvironmentProviderGateway } from "./local-environment-provider-gateway";
 import { RoutingEnvironmentProviderGateway } from "./routing-environment-provider-gateway";
+import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 
 // Fallback callback-API port when INTERNAL_PORT is unset; the env files always set it to 3002.
 const defaultInternalCallbackPort = 3002;
@@ -61,7 +61,7 @@ export const EnvironmentProviderGatewayProvider = {
                 kubernetesConfig(configService),
             )],
             [androidRedroidProviderValue, new AndroidRedroidEnvironmentProviderGateway(
-                new DockerClient(),
+                new YandexComputeClient(),
                 androidRedroidConfig(configService),
             )],
         ]);
@@ -97,17 +97,17 @@ function androidRedroidConfig(configService: ConfigService): AndroidRedroidEnvir
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
     return buildAndroidRedroidEnvironmentConfig({
-        redroidImage: configService.get<string>("COMPUTE_ANDROID_REDROID_IMAGE") ?? defaultRedroidImage,
-        nodeImage: configService.get<string>("COMPUTE_ANDROID_NODE_IMAGE") ?? defaultAndroidNodeImage,
-        nodePort: Number(configService.get<string>("COMPUTE_ANDROID_NODE_PORT") ?? String(defaultAndroidNodePort)),
-        screenWidth: Number(configService.get<string>("COMPUTE_ANDROID_SCREEN_WIDTH") ?? String(defaultAndroidScreen.width)),
-        screenHeight: Number(configService.get<string>("COMPUTE_ANDROID_SCREEN_HEIGHT") ?? String(defaultAndroidScreen.height)),
-        dpi: Number(configService.get<string>("COMPUTE_ANDROID_SCREEN_DPI") ?? String(defaultAndroidScreen.dpi)),
-        entrypoint: configService.get<string>("COMPUTE_ANDROID_ENTRYPOINT") ?? defaultAndroidNodeEntrypoint,
-        advertiseHost: configService.get<string>("COMPUTE_ANDROID_ADVERTISE_HOST") ?? "127.0.0.1",
-        // The companion shares redroid's netns, which carries the host-gateway alias for the callback.
-        internalUrl:
-            configService.get<string>("COMPUTE_ANDROID_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,
+        imageId: configService.get<string>("COMPUTE_ANDROID_IMAGE_ID") ?? "",
+        zone: configService.get<string>("COMPUTE_ANDROID_ZONE") ?? "ru-central1-a",
+        subnetId: configService.get<string>("COMPUTE_ANDROID_SUBNET_ID") ?? "",
+        securityGroupId: configService.get<string>("COMPUTE_ANDROID_SECURITY_GROUP_ID"),
+        cores: Number(configService.get<string>("COMPUTE_ANDROID_CORES") ?? String(defaultAndroidCores)),
+        memoryGb: Number(configService.get<string>("COMPUTE_ANDROID_MEMORY_GB") ?? String(defaultAndroidMemoryGb)),
+        diskSizeGb: Number(configService.get<string>("COMPUTE_ANDROID_DISK_GB") ?? String(defaultAndroidDiskGb)),
+        defaultAndroidVersion: configService.get<string>("COMPUTE_ANDROID_DEFAULT_VERSION") ?? defaultAndroidVersion,
+        // The in-VM agent reaches the control plane's internal API here — a VPC-internal address (internal LB
+        // in front of the internal service) reachable from the Compute VM.
+        internalUrl: configService.get<string>("COMPUTE_ANDROID_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
         internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
     });
 }
