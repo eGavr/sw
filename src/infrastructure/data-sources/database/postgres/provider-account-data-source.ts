@@ -26,9 +26,9 @@ export class ProviderAccountDataSource {
         return providerAccount?.toObject() ?? null;
     }
 
-    async findOneByAccountAndState(accountId: string, state: string): Promise<ProviderAccountData | null> {
-        const providerAccount = await this.dataSource.getRepository(ProviderAccount).findOne({ where: { accountId, state } });
+    async listByAccountAndState(accountId: string, state: string): Promise<Array<ProviderAccountData>> {
+        const providerAccounts = await this.dataSource.getRepository(ProviderAccount).find({ where: { accountId, state } });
 
-        return providerAccount?.toObject() ?? null;
+        return providerAccounts.map((providerAccount) => providerAccount.toObject());
     }
 }

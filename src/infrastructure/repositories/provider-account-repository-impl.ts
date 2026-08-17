@@ -32,13 +32,13 @@ export class ProviderAccountRepositoryImpl extends ProviderAccountRepository {
         return ProviderAccount.fromObject(data);
     }
 
-    async findActiveByAccount(accountId: AccountId): Promise<ProviderAccount | null> {
-        const data = await this.providerAccountDataSource.findOneByAccountAndState(
+    async listActiveByAccount(accountId: AccountId): Promise<Array<ProviderAccount>> {
+        const data = await this.providerAccountDataSource.listByAccountAndState(
             accountId.getValue(),
             ProviderAccountState.Active,
         );
 
-        return data ? ProviderAccount.fromObject(data) : null;
+        return data.map(ProviderAccount.fromObject);
     }
 
     async save(providerAccount: ProviderAccount): Promise<void> {

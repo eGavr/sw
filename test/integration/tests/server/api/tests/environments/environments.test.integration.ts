@@ -57,10 +57,21 @@ describe("/accounts/:account/environments", () => {
         });
 
         test("defaults the execution substrate to container and echoes an explicit one", async () => {
-            const { owner, accountId } = await createAccount();
+            const owner = Authorization.forUser(UserFactory.createId());
+            const { body: account } = await request(app.getHttpServer())
+                .post("/accounts")
+                .set(owner)
+                .send({
+                    displayName: "exec",
+                    compute: [
+                        { provider: "local", externalRef: "p", platform: "linux", execution: "container" },
+                        { provider: "local-emulator", externalRef: "p", platform: "linux", execution: "emulator" },
+                    ],
+                })
+                .expect(HttpStatus.CREATED);
 
             const { body: emulated } = await request(app.getHttpServer())
-                .post(`/accounts/${accountId}/environments`)
+                .post(`/accounts/${account.uid}/environments`)
                 .set(owner)
                 .send({ ...validEnvironmentBody, execution: "emulator" })
                 .expect(HttpStatus.CREATED);
@@ -169,6 +180,46 @@ describe("/accounts/:account/environments", () => {
                 .set(owner)
                 .expect(HttpStatus.OK)
                 .expect((response) => expect(response.body.state).toBe("DELETED"));
+        });
+    });
+
+    describe("provider resolution by (platform, execution)", () => {
+        const androidEnvironment = {
+            platform: { name: "android", version: "13" },
+            applications: [{ name: "settings", version: "13" }],
+        };
+
+        const createAccountWith = async (compute: Array<object>): Promise<{ owner: { authorization: string }, accountId: string }> => {
+            const owner = Authorization.forUser(UserFactory.createId());
+            const { body } = await request(app.getHttpServer())
+                .post("/accounts")
+                .set(owner)
+                .send({ displayName: "multi", compute })
+                .expect(HttpStatus.CREATED);
+
+            return { owner, accountId: body.uid };
+        };
+
+        const createEnvironmentBody = (accountId: string, owner: { authorization: string }, body: object): request.Test =>
+            request(app.getHttpServer()).post(`/accounts/${accountId}/environments`).set(owner).send(body);
+
+        test("routes each environment to the provider serving its substrate", async () => {
+            const { owner, accountId } = await createAccountWith([
+                { provider: "kubernetes", externalRef: "k", platform: "linux", execution: "container" },
+                { provider: "android-redroid", externalRef: "a", platform: "android", execution: "container" },
+            ]);
+
+            await createEnvironmentBody(accountId, owner, validEnvironmentBody).expect(HttpStatus.CREATED);
+            await createEnvironmentBody(accountId, owner, androidEnvironment).expect(HttpStatus.CREATED);
+        });
+
+        test("rejects an environment no active provider serves (platform/execution mismatch)", async () => {
+            const { owner, accountId } = await createAccountWith([
+                { provider: "android-redroid", externalRef: "a", platform: "android", execution: "container" },
+            ]);
+
+            await createEnvironmentBody(accountId, owner, androidEnvironment).expect(HttpStatus.CREATED);
+            await createEnvironmentBody(accountId, owner, validEnvironmentBody).expect(HttpStatus.CONFLICT);
         });
     });
 

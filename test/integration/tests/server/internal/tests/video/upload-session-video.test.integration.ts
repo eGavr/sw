@@ -28,6 +28,7 @@ import {
 } from "../../../../../../../src/application/use-cases/environments/upload-session-video-use-case";
 import { AccountId } from "../../../../../../../src/domain/entities/account/account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
+import { Execution } from "../../../../../../../src/domain/entities/environment/execution";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
 import { StorageDestination } from "../../../../../../../src/domain/entities/storage/storage-destination";
@@ -145,6 +146,8 @@ describe("/internal/environments/:id:uploadSessionVideo", () => {
         const providerAccount = await providerAccountRepository.create({
             accountId: AccountId.fromString(account.id),
             provider: "local",
+            platformName: "linux",
+            execution: Execution.Container,
         });
 
         const environment = await environmentRepository.create({
