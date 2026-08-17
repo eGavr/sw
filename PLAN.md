@@ -385,7 +385,11 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
       `k8s/config.yaml` (PG FQDN из output) + `sw-secrets` + `sw-postgres-ca` (CA.pem); `kubectl apply -f k8s/`; expose api+wd
       (LB/Ingress). Прод-безопасность internal-канала (п.12) — обязательна до боевого запуска.
 
-15. **`DELETE environment` — вернуть ресурс со `state=DELETING` вместо `{}` (AIP-135) — НЕ сделано.** Сейчас
+15. **`DELETE environment` — вернуть ресурс со `state=DELETING` вместо `{}` (AIP-135) — СДЕЛАНО (ветка `fix.api-correctness-sweep`).**
+    `DeleteEnvironmentUseCase` уже возвращал `Environment`; контроллер теперь отдаёт `EnvironmentPresenter` (ресурс со `state`)
+    вместо `EmptyPresenter` (`{}` убран с этого пути). Тело delete = сам ресурс с текущим lifecycle-состоянием (`DELETING`, либо
+    `DELETED` если хартбит уже протух). Интеграционный тест обновлён. См. п.28 про идемпотентность/404. tsc/eslint/unit 104/integration 87.
+    *(Историческая формулировка ниже.)* Сейчас
     `EnvironmentsController.deleteEnvironment` возвращает `EmptyPresenter` -> `{}` (валидный `google.protobuf.Empty`).
     Но наш delete **асинхронный/soft**: ручка не удаляет мгновенно, а переводит окружение в `deleting` (физически
     гасит воркер `deprovision`, строку сносит GC) — на момент ответа ресурс ещё существует. По AIP-135 для такого
@@ -397,7 +401,13 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     обновить интеграционный тест delete (ждать тело со `state=deleting`, а не пустой объект). Мелкий рефактор,
     поведение сноса не меняется — меняется только форма ответа.
 
-16. **Операционное логирование воркера — НЕ сделано (дырка в наблюдаемости).** Сейчас процесс воркера пишет
+16. **Операционное логирование воркера — СДЕЛАНО (базово, ветка `fix.api-correctness-sweep`).** Введён application-порт
+    логирования `application/interfaces/logger.ts` (абстрактный класс = DI-токен, как остальные порты; application больше не
+    импортирует infra напрямую), в `WorkerModule` привязан к infra-`Logger` через `useExisting`. `PrepareNextEnvironmentUseCase`
+    логирует `provisioning`/`dispatched`/`provision failed` (убран `console.error`); `EnvironmentWorker` (presentation) логирует
+    старт «listening on …» и «shutting down» infra-логгером напрямую (как middleware). **Осталось (follow-up):** по-событийные
+    счётчики reaper/GC/deprovision (сейчас эти use-case'ы возвращают `void` — для «reclaimed N/gc removed N» нужно менять их
+    сигнатуры), структурные поля (`environmentId`/`action`/`outcome`). *(Историческая формулировка ниже.)* Сейчас процесс воркера пишет
     ТОЛЬКО bootstrap-строки Nest (`…dependencies initialized`) и дальше молчит: его `LISTEN/NOTIFY`-насос и
     use-case'ы (`PrepareNextEnvironment`, `DeprovisionDeletingEnvironments`, `ReclaimStuck…`, GC-тик) не логируют
     ничего. В итоге в консоли (напр. YC) не видно, что воркер реально делает, — provision/deprovision/reclaim/GC
@@ -475,7 +485,13 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     (AIP-ресурс `accounts/{a}/providerAccounts` — create/list/delete, или расширить create-account до массива). Матч сессии по `execution`
     уже готов (ось `execution`, п. D). Это ПРЯМОЕ продолжение D — без него «redroid+emulator на одном аккаунте» не выбираемы.
 
-23. **Версия приложения окружения обязана быть КОНКРЕТНОЙ; `latest` — только capability сессии, не значение env — НЕ сделано.** Сейчас
+23. **Версия приложения окружения обязана быть КОНКРЕТНОЙ; `latest` — только capability сессии — ЧАСТЬ 1 СДЕЛАНА (ветка `fix.api-correctness-sweep`).**
+    Сделано (часть «а»): `Application.create` отвергает зарезервированную версию `latest` (новая доменная ошибка `NonConcreteApplicationVersionError`);
+    `CreateEnvironmentUseCase` переведён с `Application.fromObject` (реконституция, толерантна) на `Application.create` (создание с инвариантом),
+    поэтому создать окружение с `version:"latest"` теперь `400`; в ответе окружения `latest` больше не появится. Unit + integration покрыто.
+    **Осталось (часть «б», отдельно):** `latest`/отсутствие версии как капа СЕССИИ = «выбрать самую свежую среди поднятых окружений» — требует
+    порядка версий в `SessionAllocationCriteria`/матче (semver vs числовой vs строковый — доменное решение), сейчас матч строго по равенству.
+    *(Историческая формулировка ниже.)* Сейчас
     create-environment принимает любую строку версии (в т.ч. `latest`) и хранит/возвращает её как есть — окружение с `version:"latest"`
     семантически неверно (у поднятого ресурса всегда есть конкретная версия). Правило: (а) домен требует у `application.version`
     конкретную версию (валидатор/VO отвергает `latest`/пустое/диапазоны при СОЗДАНИИ окружения); (б) `latest` живёт ТОЛЬКО как капа
@@ -515,7 +531,13 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     (консистентно с google.iam.v1, рекомендуется), либо осознанно зафиксировать AWS-стиль и не путать. Правка затрагивает enum
     `UserPermissionName`, каталог ролей, `:testIamPermissions` вход/выход, знание prod-клиентов.
 
-28. **`DELETE environment` — статус/идемпотентность по AIP-135 — НЕ сделано (расширяет п.15).** Две проблемы: (1) сейчас возвращаем `{}`
+28. **`DELETE environment` — статус/идемпотентность по AIP-135 — СДЕЛАНО (ветка `fix.api-correctness-sweep`).** Принятое решение (уточнено
+    в обсуждении с юзером): DELETE **идемпотентен и возвращает ресурс с текущим lifecycle-состоянием, ПОКА строка физически существует**
+    (`DELETING`, либо `DELETED` когда хартбит протух), а `404 NOT_FOUND` отдаётся ТОЛЬКО когда строка физически удалена GC (это уже делает
+    `repository.get`). Так `GET` и `DELETE` согласованы (оба видят ресурс, пока он есть; оба `404` после GC), и это ровно AIP-135 soft/LRO-модель.
+    Ранний вариант «404 как только `effectiveStatus==DELETED`» ОТВЕРГНУТ — он рассинхронил бы `GET`(200/DELETED) и `DELETE`(404). Мы НЕ делаем
+    полноценный AIP-164 (нет undelete/expire_time/show_deleted). Покрыто интеграцией (delete возвращает ресурс; повторный delete идемпотентен).
+    *(Историческая формулировка ниже — «две проблемы».)* Две проблемы: (1) сейчас возвращаем `{}`
     вместо ресурса со `state=DELETING` (это уже п.15); (2) **повторный DELETE уже удаляемого/удалённого окружения отдаёт `200`** —
     `Environment.startDeletion()` идемпотентно no-op'ит, если уже `deleting`. По AIP-135 удаление НЕсуществующего (уже собранного GC)
     ресурса → `NOT_FOUND (404)`; для ресурса «в процессе длительного удаления» строгий вариант — вернуть текущую delete-операцию/`state`,
