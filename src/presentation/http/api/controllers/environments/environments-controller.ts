@@ -7,7 +7,6 @@ import { ListEnvironmentsUseCase } from "../../../../../application/use-cases/en
 import { BearerToken } from "../../../decorators/param/bearer-token";
 import { paginate } from "../../../pagination/page";
 import { PageRequestModel } from "../../../pagination/page-request-model";
-import { EmptyPresenter } from "../../../presenters/empty-presenter";
 
 import { CreateEnvironmentRequestModel } from "./io/create-environment-request-model";
 import { EnvironmentPresenter } from "./io/environment-presenter";
@@ -58,10 +57,11 @@ export class EnvironmentsController {
         );
     }
 
+    // AIP-135 soft delete: return the resource with its (now deleting/deleted) state, not an empty body.
     @Delete(":environment")
-    async deleteEnvironment(@Param("environment") environment: string, @BearerToken() token: string): Promise<EmptyPresenter> {
-        await this.deleteEnvironmentUseCase.execute({ creds: { token }, params: { environmentId: environment } });
-
-        return new EmptyPresenter();
+    async deleteEnvironment(@Param("environment") environment: string, @BearerToken() token: string): Promise<EnvironmentPresenter> {
+        return new EnvironmentPresenter(
+            await this.deleteEnvironmentUseCase.execute({ creds: { token }, params: { environmentId: environment } }),
+        );
     }
 }

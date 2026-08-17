@@ -1,4 +1,5 @@
 import { InvalidArgumentError } from "../../error/invalid-argument-error";
+import { NonConcreteApplicationVersionError } from "../error/non-concrete-application-version-error";
 
 import { Application } from "./application";
 import { ApplicationList } from "./application-list";
@@ -9,6 +10,26 @@ describe("Application", () => {
             const create = (): Application => Application.create({ name: "Chrome!", version: "100" });
 
             expect(create).toThrow(InvalidArgumentError);
+        });
+
+        test("should reject a non-concrete version (an installed application needs an exact version)", () => {
+            const create = (): Application => Application.create({ name: "chrome", version: "latest" });
+
+            expect(create).toThrow(NonConcreteApplicationVersionError);
+        });
+
+        test("should reject the non-concrete version regardless of case", () => {
+            const create = (): Application => Application.create({ name: "chrome", version: "LATEST" });
+
+            expect(create).toThrow(NonConcreteApplicationVersionError);
+        });
+    });
+
+    describe(".fromObject", () => {
+        test("should tolerate the reserved version (a request/stored value may carry it)", () => {
+            const reconstitute = (): Application => Application.fromObject({ name: "chrome", version: "latest" });
+
+            expect(reconstitute).not.toThrow();
         });
     });
 

@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 
+import { Logger as ApplicationLogger } from "../../application/interfaces/logger";
 import { EnvironmentRepository } from "../../application/interfaces/repositories/environment-repository";
 import {
     CollectGarbageEnvironmentsUseCase,
@@ -22,6 +23,7 @@ import { PostgresModule } from "../../infrastructure/data-sources/database/postg
 import {
     EnvironmentProviderGatewayProvider,
 } from "../../infrastructure/gateways/environment-provider/environment-provider-gateway-provider";
+import { Logger } from "../../infrastructure/logging/logger";
 import { LoggerModule } from "../../infrastructure/logging/logger-module";
 import { EnvironmentRepositoryImpl } from "../../infrastructure/repositories/environment-repository-impl";
 
@@ -43,6 +45,7 @@ import { EnvironmentWorker } from "./environment-worker";
         ReclaimCrashedEnvironmentsUseCase,
         CollectGarbageEnvironmentsUseCase,
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
+        { provide: ApplicationLogger, useExisting: Logger },
         EnvironmentDataSource,
         EnvironmentProviderGatewayProvider,
     ],

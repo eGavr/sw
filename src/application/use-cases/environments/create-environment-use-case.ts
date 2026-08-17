@@ -58,7 +58,7 @@ export class CreateEnvironmentUseCase {
         }
 
         const applications = ApplicationList.create({
-            applications: params.applications.map((application) => Application.fromObject(application)),
+            applications: params.applications.map((application) => Application.create(application)),
         });
 
         return this.environmentRepository.create({

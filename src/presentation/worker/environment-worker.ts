@@ -18,6 +18,7 @@ import {
     ReclaimStuckEnvironmentsUseCase,
 } from "../../application/use-cases/environments/reclaim-stuck-environments-use-case";
 import { defaultHeartbeatFreshnessMs } from "../../domain/entities/environment/heartbeat-freshness";
+import { Logger } from "../../infrastructure/logging/logger";
 
 const channel = "environment_work";
 
@@ -54,6 +55,7 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
 
     constructor(
         private readonly configService: ConfigService,
+        private readonly logger: Logger,
         private readonly prepareNextEnvironment: PrepareNextEnvironmentUseCase,
         private readonly deprovisionDeletingEnvironments: DeprovisionDeletingEnvironmentsUseCase,
         private readonly reclaimStuckEnvironments: ReclaimStuckEnvironmentsUseCase,
@@ -85,6 +87,7 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         await this.client.connect();
         this.client.on("notification", () => void this.pump());
         await this.client.query(`LISTEN ${channel}`);
+        this.logger.log(`worker: listening on "${channel}"`);
 
         // A timeout has no event, and an in-memory timer dies with the worker, so the reaper is a
         // periodic tick: it reclaims stuck rows back to `enqueued`, which re-fires the work NOTIFY,
@@ -102,6 +105,8 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     }
 
     async onApplicationShutdown(): Promise<void> {
+        this.logger.log("worker: shutting down");
+
         if (this.reaperTimer) {
             clearInterval(this.reaperTimer);
             this.reaperTimer = null;
