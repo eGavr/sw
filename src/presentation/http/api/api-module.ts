@@ -44,6 +44,9 @@ import {
 } from "../../../infrastructure/data-sources/database/postgres/storage-destination-data-source";
 import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../infrastructure/data-sources/database/postgres/user-data-source";
+import {
+    ProviderCatalogProvider,
+} from "../../../infrastructure/gateways/environment-provider/environment-provider-gateway-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
@@ -99,6 +102,7 @@ import {
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
         { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
+        ProviderCatalogProvider,
 
         ProjectDataSource,
         EnvironmentDataSource,

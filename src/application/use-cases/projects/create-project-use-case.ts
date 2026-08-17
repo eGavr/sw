@@ -1,8 +1,10 @@
 import { Injectable } from "@nestjs/common";
 
 import { toExecution } from "../../../domain/entities/environment/execution";
+import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { Project } from "../../../domain/entities/project/project";
 import { ProjectId } from "../../../domain/entities/project/project-id";
+import { ProviderCatalog } from "../../interfaces/provider-catalog";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { ProviderAccountRepository } from "../../interfaces/repositories/provider-account-repository";
 import { AccessControl } from "../../services/access-control";
@@ -30,12 +32,23 @@ export class CreateProjectUseCase {
         private readonly accessControl: AccessControl,
         private readonly projectRepository: ProjectRepository,
         private readonly providerAccountRepository: ProviderAccountRepository,
+        private readonly providerCatalog: ProviderCatalog,
     ) {}
 
     async execute({ creds, params }: CreateProjectInput): Promise<Project> {
         const user = await this.accessControl.authenticate(creds);
 
-        // Self-service: any authenticated user may create an project and becomes its owner with all
+        // Fail fast before creating anything: every requested provider must have a registered adapter,
+        // else it could never be provisioned.
+        for (const compute of params.compute) {
+            if (!this.providerCatalog.supports(compute.provider)) {
+                throw new InvalidArgumentError(
+                    `compute provider: ${compute.provider}: unknown (supported: ${this.providerCatalog.list().join(", ")})`,
+                );
+            }
+        }
+
+        // Self-service: any authenticated user may create a project and becomes its owner with all
         // permissions (granted inside Project.create and persisted by save). No prior permission is
         // required — that was the bootstrap deadlock (needing Project.Create before any project exists).
         const project = await this.projectRepository.create({ name: params.name, createdBy: user });
