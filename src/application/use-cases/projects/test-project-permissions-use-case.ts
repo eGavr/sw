@@ -6,7 +6,7 @@ import { UserPermissionName } from "../../../domain/entities/user/user-permissio
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
 
-type TestAccountPermissionsInput = {
+type TestProjectPermissionsInput = {
     creds: {
         token: string;
     },
@@ -20,13 +20,13 @@ type TestAccountPermissionsInput = {
 // caller holds on the project. Any authenticated caller may test their own permissions, so no
 // permission is required to call it. A non-existent project yields an empty set (not NOT_FOUND).
 @Injectable()
-export class TestAccountPermissionsUseCase {
+export class TestProjectPermissionsUseCase {
     constructor(
         private readonly accessControl: AccessControl,
         private readonly projectRepository: ProjectRepository,
     ) {}
 
-    async execute({ creds, params }: TestAccountPermissionsInput): Promise<Array<UserPermissionName>> {
+    async execute({ creds, params }: TestProjectPermissionsInput): Promise<Array<UserPermissionName>> {
         const user = await this.accessControl.authenticate(creds);
         const requested = params.permissions.map((permission) => UserPermissionName.fromString(permission));
 

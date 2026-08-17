@@ -19,7 +19,7 @@ class ComputeModel {
     execution: Execution;
 }
 
-export class CreateAccountRequestModel {
+export class CreateProjectRequestModel {
     @IsString()
     displayName: string;
 

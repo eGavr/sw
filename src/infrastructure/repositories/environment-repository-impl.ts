@@ -42,8 +42,8 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         return Environment.fromObject(data);
     }
 
-    async listByAccount(projectId: ProjectId): Promise<Array<Environment>> {
-        const data = await this.environmentDataSource.findAllByAccount(projectId.getValue());
+    async listByProject(projectId: ProjectId): Promise<Array<Environment>> {
+        const data = await this.environmentDataSource.findAllByProject(projectId.getValue());
 
         return data.map(Environment.fromObject);
     }

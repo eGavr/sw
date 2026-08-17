@@ -7,7 +7,7 @@ export abstract class ProviderAccountRepository {
 
     abstract get(providerAccountId: ProviderAccountId): Promise<ProviderAccount>;
 
-    abstract listActiveByAccount(projectId: ProjectId): Promise<Array<ProviderAccount>>;
+    abstract listActiveByProject(projectId: ProjectId): Promise<Array<ProviderAccount>>;
 
     abstract save(providerAccount: ProviderAccount): Promise<void>;
 }

@@ -9,7 +9,7 @@ import { UserPermissionName } from "../../../domain/entities/user/user-permissio
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
 
-type SetAccountIamPolicyInput = {
+type SetProjectIamPolicyInput = {
     creds: {
         token: string;
     },
@@ -26,7 +26,7 @@ type SetAccountIamPolicyInput = {
 // Requires the setIamPolicy permission (held by the admin role). Unknown roles or malformed members
 // are rejected as invalid arguments by the domain value objects.
 @Injectable()
-export class SetAccountIamPolicyUseCase {
+export class SetProjectIamPolicyUseCase {
     private readonly permissionName = UserPermissionName.Project.SetIamPolicy;
 
     constructor(
@@ -34,7 +34,7 @@ export class SetAccountIamPolicyUseCase {
         private readonly projectRepository: ProjectRepository,
     ) {}
 
-    async execute({ creds, params }: SetAccountIamPolicyInput): Promise<IamPolicy> {
+    async execute({ creds, params }: SetProjectIamPolicyInput): Promise<IamPolicy> {
         const user = await this.accessControl.authenticate(creds);
         const project = await this.projectRepository.get(ProjectId.fromString(params.projectId));
 
@@ -46,7 +46,7 @@ export class SetAccountIamPolicyUseCase {
         return project.iamPolicy();
     }
 
-    private toPolicy(bindings: SetAccountIamPolicyInput["params"]["bindings"]): IamPolicy {
+    private toPolicy(bindings: SetProjectIamPolicyInput["params"]["bindings"]): IamPolicy {
         return IamPolicy.fromBindings(bindings.map((binding) => IamBinding.create(
             Role.fromName(binding.role).name,
             binding.members.map((member) => Member.fromString(member)),

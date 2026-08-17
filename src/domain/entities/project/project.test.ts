@@ -44,17 +44,17 @@ describe("Project", () => {
 
     describe("#create", () => {
         test("should throw InvalidArgumentError for an invalid name", () => {
-            const createAccount = (): Project => Project.create({ ...createDefaults, name: "<invalid-name>" });
+            const createProject = (): Project => Project.create({ ...createDefaults, name: "<invalid-name>" });
 
-            expect(createAccount).toThrow(InvalidArgumentError);
-            expect(createAccount).toThrow(/project name: value must match .+ regular expression/);
+            expect(createProject).toThrow(InvalidArgumentError);
+            expect(createProject).toThrow(/project name: value must match .+ regular expression/);
         });
 
         test("should throw InvalidArgumentError when name exceeds the limit", () => {
-            const createAccount = (): Project => Project.create({ ...createDefaults, name: new Array(65).fill("a").join("") });
+            const createProject = (): Project => Project.create({ ...createDefaults, name: new Array(65).fill("a").join("") });
 
-            expect(createAccount).toThrow(InvalidArgumentError);
-            expect(createAccount).toThrow("project name: value must be shorter than or equal to 64 characters");
+            expect(createProject).toThrow(InvalidArgumentError);
+            expect(createProject).toThrow("project name: value must be shorter than or equal to 64 characters");
         });
 
         test("should grant the creator the admin role (every permission)", () => {

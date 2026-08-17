@@ -7,7 +7,7 @@ import { ProjectRepository } from "../../interfaces/repositories/project-reposit
 import { StorageDestinationRepository } from "../../interfaces/repositories/storage-destination-repository";
 import { AccessControl } from "../../services/access-control";
 
-type SetAccountStorageDestinationInput = {
+type SetProjectStorageDestinationInput = {
     creds: {
         token: string;
     };
@@ -21,7 +21,7 @@ type SetAccountStorageDestinationInput = {
 };
 
 @Injectable()
-export class SetAccountStorageDestinationUseCase {
+export class SetProjectStorageDestinationUseCase {
     private readonly permissionName = UserPermissionName.StorageDestination.Set;
 
     constructor(
@@ -30,7 +30,7 @@ export class SetAccountStorageDestinationUseCase {
         private readonly storageDestinationRepository: StorageDestinationRepository,
     ) {}
 
-    async execute({ creds, params }: SetAccountStorageDestinationInput): Promise<StorageDestination> {
+    async execute({ creds, params }: SetProjectStorageDestinationInput): Promise<StorageDestination> {
         const user = await this.accessControl.authenticate(creds);
         const projectId = ProjectId.fromString(params.projectId);
         const project = await this.projectRepository.get(projectId);

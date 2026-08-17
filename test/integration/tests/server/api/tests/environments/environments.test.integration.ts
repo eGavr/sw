@@ -6,7 +6,7 @@ import { ApiModule } from "../../../../../../../src/presentation/http/api/api-mo
 import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { Authorization } from "../../../utils/request/headers/authorization";
-import { CreateAccountBody } from "../../utils/request/body/create-project-body";
+import { CreateProjectBody } from "../../utils/request/body/create-project-body";
 
 const validEnvironmentBody = {
     platform: { name: "linux", version: "latest" },
@@ -25,12 +25,12 @@ describe("/projects/:project/environments", () => {
     });
 
     // The owner of a fresh project holds every environment permission (grant-all on creation).
-    const createAccount = async (): Promise<{ owner: { authorization: string }, projectId: string }> => {
+    const createProject = async (): Promise<{ owner: { authorization: string }, projectId: string }> => {
         const owner = Authorization.forUser(UserFactory.createId());
         const { body } = await request(app.getHttpServer())
             .post("/projects")
             .set(owner)
-            .send(CreateAccountBody.create())
+            .send(CreateProjectBody.create())
             .expect(HttpStatus.CREATED);
 
         return { owner, projectId: body.uid };
@@ -41,7 +41,7 @@ describe("/projects/:project/environments", () => {
 
     describe("POST (create)", () => {
         test("lets the owner create a Local environment as an AIP resource", async () => {
-            const { owner, projectId } = await createAccount();
+            const { owner, projectId } = await createProject();
 
             const { body } = await createEnvironment(projectId, owner).expect(HttpStatus.CREATED);
 
@@ -80,7 +80,7 @@ describe("/projects/:project/environments", () => {
         });
 
         test("responds INVALID_ARGUMENT for an unknown execution substrate", async () => {
-            const { owner, projectId } = await createAccount();
+            const { owner, projectId } = await createProject();
 
             return request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
@@ -97,7 +97,7 @@ describe("/projects/:project/environments", () => {
         });
 
         test("responds PERMISSION_DENIED for a non-owner", async () => {
-            const { projectId } = await createAccount();
+            const { projectId } = await createProject();
             const stranger = Authorization.forUser(UserFactory.createId());
 
             return createEnvironment(projectId, stranger)
@@ -106,7 +106,7 @@ describe("/projects/:project/environments", () => {
         });
 
         test("responds INVALID_ARGUMENT for an invalid body", async () => {
-            const { owner, projectId } = await createAccount();
+            const { owner, projectId } = await createProject();
 
             return request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
@@ -124,7 +124,7 @@ describe("/projects/:project/environments", () => {
         });
 
         test("responds INVALID_ARGUMENT for a non-concrete application version", async () => {
-            const { owner, projectId } = await createAccount();
+            const { owner, projectId } = await createProject();
 
             return request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
@@ -136,7 +136,7 @@ describe("/projects/:project/environments", () => {
 
     describe("lifecycle (create -> get -> list -> delete)", () => {
         test("creates enqueued, reads, lists and deletes an environment (state-based)", async () => {
-            const { owner, projectId } = await createAccount();
+            const { owner, projectId } = await createProject();
 
             const { body: environment } = await createEnvironment(projectId, owner).expect(HttpStatus.CREATED);
 
@@ -189,7 +189,7 @@ describe("/projects/:project/environments", () => {
             applications: [{ name: "settings", version: "13" }],
         };
 
-        const createAccountWith = async (compute: Array<object>): Promise<{ owner: { authorization: string }, projectId: string }> => {
+        const createProjectWith = async (compute: Array<object>): Promise<{ owner: { authorization: string }, projectId: string }> => {
             const owner = Authorization.forUser(UserFactory.createId());
             const { body } = await request(app.getHttpServer())
                 .post("/projects")
@@ -204,7 +204,7 @@ describe("/projects/:project/environments", () => {
             request(app.getHttpServer()).post(`/projects/${projectId}/environments`).set(owner).send(body);
 
         test("routes each environment to the provider serving its substrate", async () => {
-            const { owner, projectId } = await createAccountWith([
+            const { owner, projectId } = await createProjectWith([
                 { provider: "kubernetes", externalRef: "k", platform: "linux", execution: "container" },
                 { provider: "android-redroid", externalRef: "a", platform: "android", execution: "container" },
             ]);
@@ -214,7 +214,7 @@ describe("/projects/:project/environments", () => {
         });
 
         test("rejects an environment no active provider serves (platform/execution mismatch)", async () => {
-            const { owner, projectId } = await createAccountWith([
+            const { owner, projectId } = await createProjectWith([
                 { provider: "android-redroid", externalRef: "a", platform: "android", execution: "container" },
             ]);
 

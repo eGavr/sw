@@ -7,7 +7,7 @@ import { ApiModule } from "../../../../../../../src/presentation/http/api/api-mo
 import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { Authorization } from "../../../utils/request/headers/authorization";
-import { CreateAccountBody } from "../../utils/request/body/create-project-body";
+import { CreateProjectBody } from "../../utils/request/body/create-project-body";
 
 type AuthHeader = { authorization: string };
 
@@ -22,13 +22,13 @@ describe("/projects", () => {
         await app.close();
     });
 
-    const createAccount = async (
+    const createProject = async (
         owner: AuthHeader = Authorization.forUser(UserFactory.createId()),
     ): Promise<{ owner: AuthHeader, uid: string }> => {
         const { body } = await request(app.getHttpServer())
             .post("/projects")
             .set(owner)
-            .send(CreateAccountBody.create())
+            .send(CreateProjectBody.create())
             .expect(HttpStatus.CREATED);
 
         return { owner, uid: body.uid };
@@ -38,7 +38,7 @@ describe("/projects", () => {
         test("responds UNAUTHENTICATED for an unauthenticated request", () => {
             return request(app.getHttpServer())
                 .post("/projects")
-                .send(CreateAccountBody.create())
+                .send(CreateProjectBody.create())
                 .expect(HttpStatus.UNAUTHORIZED)
                 .expect((response) => expect(response.body.error.status).toBe("UNAUTHENTICATED"));
         });
@@ -47,7 +47,7 @@ describe("/projects", () => {
             return request(app.getHttpServer())
                 .post("/projects")
                 .set(Authorization.invalidToken)
-                .send(CreateAccountBody.create())
+                .send(CreateProjectBody.create())
                 .expect(HttpStatus.UNAUTHORIZED);
         });
 
@@ -55,7 +55,7 @@ describe("/projects", () => {
             return request(app.getHttpServer())
                 .post("/projects")
                 .set(Authorization.forUser(UserFactory.createId()))
-                .send(CreateAccountBody.create({ displayName: 12345 }))
+                .send(CreateProjectBody.create({ displayName: 12345 }))
                 .expect(HttpStatus.BAD_REQUEST)
                 .expect((response) => expect(response.body.error.status).toBe("INVALID_ARGUMENT"));
         });
@@ -64,7 +64,7 @@ describe("/projects", () => {
             return request(app.getHttpServer())
                 .post("/projects")
                 .set(Authorization.forUser(UserFactory.createId()))
-                .send(CreateAccountBody.create({ displayName: "not a valid name!" }))
+                .send(CreateProjectBody.create({ displayName: "not a valid name!" }))
                 .expect(HttpStatus.BAD_REQUEST)
                 .expect((response) => expect(response.body.error.message).toMatch(/project name/));
         });
@@ -89,8 +89,8 @@ describe("/projects", () => {
         test("supports creating multiple projects for one user", async () => {
             const owner = Authorization.forUser(UserFactory.createId());
 
-            await request(app.getHttpServer()).post("/projects").set(owner).send(CreateAccountBody.create()).expect(HttpStatus.CREATED);
-            await request(app.getHttpServer()).post("/projects").set(owner).send(CreateAccountBody.create()).expect(HttpStatus.CREATED);
+            await request(app.getHttpServer()).post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
+            await request(app.getHttpServer()).post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
         });
     });
 
@@ -99,9 +99,9 @@ describe("/projects", () => {
             const alice = Authorization.forUser(UserFactory.createId());
             const bob = Authorization.forUser(UserFactory.createId());
 
-            await request(app.getHttpServer()).post("/projects").set(alice).send(CreateAccountBody.create()).expect(HttpStatus.CREATED);
-            await request(app.getHttpServer()).post("/projects").set(alice).send(CreateAccountBody.create()).expect(HttpStatus.CREATED);
-            await request(app.getHttpServer()).post("/projects").set(bob).send(CreateAccountBody.create()).expect(HttpStatus.CREATED);
+            await request(app.getHttpServer()).post("/projects").set(alice).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
+            await request(app.getHttpServer()).post("/projects").set(alice).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
+            await request(app.getHttpServer()).post("/projects").set(bob).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
 
             const { body } = await request(app.getHttpServer()).get("/projects").set(alice).expect(HttpStatus.OK);
 
@@ -111,8 +111,8 @@ describe("/projects", () => {
         test("paginates with pageSize and an opaque nextPageToken", async () => {
             const alice = Authorization.forUser(UserFactory.createId());
 
-            await request(app.getHttpServer()).post("/projects").set(alice).send(CreateAccountBody.create()).expect(HttpStatus.CREATED);
-            await request(app.getHttpServer()).post("/projects").set(alice).send(CreateAccountBody.create()).expect(HttpStatus.CREATED);
+            await request(app.getHttpServer()).post("/projects").set(alice).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
+            await request(app.getHttpServer()).post("/projects").set(alice).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
 
             const first = await request(app.getHttpServer()).get("/projects?pageSize=1").set(alice).expect(HttpStatus.OK);
 
@@ -131,7 +131,7 @@ describe("/projects", () => {
 
     describe("GET /projects/:project", () => {
         test("lets the owner read the project", async () => {
-            const { owner, uid } = await createAccount();
+            const { owner, uid } = await createProject();
 
             const { body } = await request(app.getHttpServer()).get(`/projects/${uid}`).set(owner).expect(HttpStatus.OK);
 
@@ -140,7 +140,7 @@ describe("/projects", () => {
         });
 
         test("responds PERMISSION_DENIED for a non-owner", async () => {
-            const { uid } = await createAccount();
+            const { uid } = await createProject();
             const stranger = Authorization.forUser(UserFactory.createId());
 
             return request(app.getHttpServer())
@@ -167,7 +167,7 @@ describe("/projects", () => {
 
     describe("POST /projects/:project:testIamPermissions", () => {
         test("returns the held subset of the requested permissions for the owner", async () => {
-            const { owner, uid } = await createAccount();
+            const { owner, uid } = await createProject();
 
             const { body } = await request(app.getHttpServer())
                 .post(`/projects/${uid}:testIamPermissions`)
@@ -179,7 +179,7 @@ describe("/projects", () => {
         });
 
         test("grants the owner every permission after project creation", async () => {
-            const { owner, uid } = await createAccount();
+            const { owner, uid } = await createProject();
             const permissions = UserPermissionList.getAll().toArray().map((permission) => permission.name);
 
             const { body } = await request(app.getHttpServer())
@@ -192,7 +192,7 @@ describe("/projects", () => {
         });
 
         test("returns an empty set for a user who holds none", async () => {
-            const { uid } = await createAccount();
+            const { uid } = await createProject();
             const stranger = Authorization.forUser(UserFactory.createId());
 
             return request(app.getHttpServer())
@@ -203,7 +203,7 @@ describe("/projects", () => {
         });
 
         test("responds INVALID_ARGUMENT for an unknown permission", async () => {
-            const { owner, uid } = await createAccount();
+            const { owner, uid } = await createProject();
 
             return request(app.getHttpServer())
                 .post(`/projects/${uid}:testIamPermissions`)
@@ -214,7 +214,7 @@ describe("/projects", () => {
         });
 
         test("responds NOT_FOUND for an unknown custom verb", async () => {
-            const { owner, uid } = await createAccount();
+            const { owner, uid } = await createProject();
 
             return request(app.getHttpServer())
                 .post(`/projects/${uid}:doSomethingElse`)
@@ -224,11 +224,11 @@ describe("/projects", () => {
         });
     });
 
-    const createAccountFor = async (externalId: string): Promise<string> => {
+    const createProjectFor = async (externalId: string): Promise<string> => {
         const { body } = await request(app.getHttpServer())
             .post("/projects")
             .set(Authorization.forUser(externalId))
-            .send(CreateAccountBody.create())
+            .send(CreateProjectBody.create())
             .expect(HttpStatus.CREATED);
 
         return body.uid;
@@ -237,7 +237,7 @@ describe("/projects", () => {
     describe("POST /projects/:project:getIamPolicy", () => {
         test("returns the policy with the owner bound to roles/admin", async () => {
             const ownerId = UserFactory.createId();
-            const uid = await createAccountFor(ownerId);
+            const uid = await createProjectFor(ownerId);
 
             const { body } = await request(app.getHttpServer())
                 .post(`/projects/${uid}:getIamPolicy`)
@@ -249,7 +249,7 @@ describe("/projects", () => {
         });
 
         test("responds PERMISSION_DENIED for a non-owner", async () => {
-            const uid = await createAccountFor(UserFactory.createId());
+            const uid = await createProjectFor(UserFactory.createId());
 
             return request(app.getHttpServer())
                 .post(`/projects/${uid}:getIamPolicy`)
@@ -266,7 +266,7 @@ describe("/projects", () => {
         test("lets the owner grant another user a role that then takes effect", async () => {
             const ownerId = UserFactory.createId();
             const developerId = UserFactory.createId();
-            const uid = await createAccountFor(ownerId);
+            const uid = await createProjectFor(ownerId);
             const developer = Authorization.forUser(developerId);
 
             await testPermissions(uid, developer, ["environment:create"]).expect(HttpStatus.OK, { permissions: [] });
@@ -294,7 +294,7 @@ describe("/projects", () => {
         test("responds PERMISSION_DENIED for a member without setIamPolicy", async () => {
             const ownerId = UserFactory.createId();
             const developerId = UserFactory.createId();
-            const uid = await createAccountFor(ownerId);
+            const uid = await createProjectFor(ownerId);
 
             await request(app.getHttpServer())
                 .post(`/projects/${uid}:setIamPolicy`)
@@ -318,7 +318,7 @@ describe("/projects", () => {
 
         test("responds INVALID_ARGUMENT for an unknown role", async () => {
             const ownerId = UserFactory.createId();
-            const uid = await createAccountFor(ownerId);
+            const uid = await createProjectFor(ownerId);
 
             return request(app.getHttpServer())
                 .post(`/projects/${uid}:setIamPolicy`)

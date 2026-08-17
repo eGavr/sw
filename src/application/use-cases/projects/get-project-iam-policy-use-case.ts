@@ -6,7 +6,7 @@ import { UserPermissionName } from "../../../domain/entities/user/user-permissio
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
 
-type GetAccountIamPolicyInput = {
+type GetProjectIamPolicyInput = {
     creds: {
         token: string;
     },
@@ -18,7 +18,7 @@ type GetAccountIamPolicyInput = {
 // google.iam.v1 GetIamPolicy: read the project's access policy. Requires the getIamPolicy permission
 // (held by the admin role), consistent with Google IAM guarding policy reads.
 @Injectable()
-export class GetAccountIamPolicyUseCase {
+export class GetProjectIamPolicyUseCase {
     private readonly permissionName = UserPermissionName.Project.GetIamPolicy;
 
     constructor(
@@ -26,7 +26,7 @@ export class GetAccountIamPolicyUseCase {
         private readonly projectRepository: ProjectRepository,
     ) {}
 
-    async execute({ creds, params }: GetAccountIamPolicyInput): Promise<IamPolicy> {
+    async execute({ creds, params }: GetProjectIamPolicyInput): Promise<IamPolicy> {
         const user = await this.accessControl.authenticate(creds);
         const project = await this.projectRepository.get(ProjectId.fromString(params.projectId));
 

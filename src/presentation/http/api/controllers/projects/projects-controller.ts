@@ -2,25 +2,25 @@ import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, NotFo
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 
-import { CreateAccountUseCase } from "../../../../../application/use-cases/projects/create-project-use-case";
+import { CreateProjectUseCase } from "../../../../../application/use-cases/projects/create-project-use-case";
 import {
-    GetAccountIamPolicyUseCase,
+    GetProjectIamPolicyUseCase,
 } from "../../../../../application/use-cases/projects/get-project-iam-policy-use-case";
-import { GetAccountUseCase } from "../../../../../application/use-cases/projects/get-project-use-case";
-import { ListAccountsUseCase } from "../../../../../application/use-cases/projects/list-projects-use-case";
+import { GetProjectUseCase } from "../../../../../application/use-cases/projects/get-project-use-case";
+import { ListProjectsUseCase } from "../../../../../application/use-cases/projects/list-projects-use-case";
 import {
-    SetAccountIamPolicyUseCase,
+    SetProjectIamPolicyUseCase,
 } from "../../../../../application/use-cases/projects/set-project-iam-policy-use-case";
-import { TestAccountPermissionsUseCase } from "../../../../../application/use-cases/projects/test-project-permissions-use-case";
+import { TestProjectPermissionsUseCase } from "../../../../../application/use-cases/projects/test-project-permissions-use-case";
 import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
 import { BearerToken } from "../../../decorators/param/bearer-token";
 import { paginate } from "../../../pagination/page";
 import { PageRequestModel } from "../../../pagination/page-request-model";
 import { Presenter } from "../../../presenters/presenter";
 
-import { CreateAccountRequestModel } from "./io/create-project-request-model";
+import { CreateProjectRequestModel } from "./io/create-project-request-model";
 import { IamPolicyPresenter } from "./io/iam-policy-presenter";
-import { ListAccountsPresenter } from "./io/list-projects-presenter";
+import { ListProjectsPresenter } from "./io/list-projects-presenter";
 import { ProjectPresenter } from "./io/project-presenter";
 import { SetIamPolicyRequestModel } from "./io/set-iam-policy-request-model";
 import { TestIamPermissionsPresenter } from "./io/test-iam-permissions-presenter";
@@ -29,33 +29,33 @@ import { TestIamPermissionsRequestModel } from "./io/test-iam-permissions-reques
 @Controller("projects")
 export class ProjectsController {
     constructor(
-        private readonly createAccountUseCase: CreateAccountUseCase,
-        private readonly getAccountUseCase: GetAccountUseCase,
-        private readonly listAccountsUseCase: ListAccountsUseCase,
-        private readonly testAccountPermissionsUseCase: TestAccountPermissionsUseCase,
-        private readonly getAccountIamPolicyUseCase: GetAccountIamPolicyUseCase,
-        private readonly setAccountIamPolicyUseCase: SetAccountIamPolicyUseCase,
+        private readonly createProjectUseCase: CreateProjectUseCase,
+        private readonly getProjectUseCase: GetProjectUseCase,
+        private readonly listProjectsUseCase: ListProjectsUseCase,
+        private readonly testProjectPermissionsUseCase: TestProjectPermissionsUseCase,
+        private readonly getProjectIamPolicyUseCase: GetProjectIamPolicyUseCase,
+        private readonly setProjectIamPolicyUseCase: SetProjectIamPolicyUseCase,
     ) {}
 
     @Post()
-    async createAccount(@Body() body: CreateAccountRequestModel, @BearerToken() token: string): Promise<ProjectPresenter> {
-        return new ProjectPresenter(await this.createAccountUseCase.execute({
+    async createProject(@Body() body: CreateProjectRequestModel, @BearerToken() token: string): Promise<ProjectPresenter> {
+        return new ProjectPresenter(await this.createProjectUseCase.execute({
             creds: { token },
             params: { name: body.displayName, compute: body.compute },
         }));
     }
 
     @Get()
-    async listAccounts(@Query() query: PageRequestModel, @BearerToken() token: string): Promise<ListAccountsPresenter> {
-        const projects = await this.listAccountsUseCase.execute({ creds: { token } });
+    async listProjects(@Query() query: PageRequestModel, @BearerToken() token: string): Promise<ListProjectsPresenter> {
+        const projects = await this.listProjectsUseCase.execute({ creds: { token } });
         const page = paginate(projects, query.pageSize, query.pageToken);
 
-        return new ListAccountsPresenter(page.items, page.nextPageToken);
+        return new ListProjectsPresenter(page.items, page.nextPageToken);
     }
 
     @Get(":project")
-    async getAccount(@Param("project") project: string, @BearerToken() token: string): Promise<ProjectPresenter> {
-        return new ProjectPresenter(await this.getAccountUseCase.execute({ creds: { token }, params: { projectId: project } }));
+    async getProject(@Param("project") project: string, @BearerToken() token: string): Promise<ProjectPresenter> {
+        return new ProjectPresenter(await this.getProjectUseCase.execute({ creds: { token }, params: { projectId: project } }));
     }
 
     // Custom methods (AIP-136 / google.iam.v1): POST /v1/projects/{project}:{verb}. express matches
@@ -88,7 +88,7 @@ export class ProjectsController {
     private async testIamPermissions(projectId: string, body: object, token: string): Promise<TestIamPermissionsPresenter> {
         const request = this.parse(TestIamPermissionsRequestModel, body);
 
-        const permissions = await this.testAccountPermissionsUseCase.execute({
+        const permissions = await this.testProjectPermissionsUseCase.execute({
             creds: { token },
             params: { projectId, permissions: request.permissions },
         });
@@ -97,13 +97,13 @@ export class ProjectsController {
     }
 
     private async getIamPolicy(projectId: string, token: string): Promise<IamPolicyPresenter> {
-        return new IamPolicyPresenter(await this.getAccountIamPolicyUseCase.execute({ creds: { token }, params: { projectId } }));
+        return new IamPolicyPresenter(await this.getProjectIamPolicyUseCase.execute({ creds: { token }, params: { projectId } }));
     }
 
     private async setIamPolicy(projectId: string, body: object, token: string): Promise<IamPolicyPresenter> {
         const request = this.parse(SetIamPolicyRequestModel, body);
 
-        const policy = await this.setAccountIamPolicyUseCase.execute({
+        const policy = await this.setProjectIamPolicyUseCase.execute({
             creds: { token },
             params: { projectId, bindings: request.policy.bindings },
         });

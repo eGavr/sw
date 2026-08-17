@@ -16,21 +16,21 @@ import { CreateEnvironmentUseCase } from "../../../application/use-cases/environ
 import { DeleteEnvironmentUseCase } from "../../../application/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../application/use-cases/environments/get-environment-use-case";
 import { ListEnvironmentsUseCase } from "../../../application/use-cases/environments/list-environments-use-case";
-import { CreateAccountUseCase } from "../../../application/use-cases/projects/create-project-use-case";
+import { CreateProjectUseCase } from "../../../application/use-cases/projects/create-project-use-case";
 import {
-    GetAccountIamPolicyUseCase,
+    GetProjectIamPolicyUseCase,
 } from "../../../application/use-cases/projects/get-project-iam-policy-use-case";
-import { GetAccountUseCase } from "../../../application/use-cases/projects/get-project-use-case";
-import { ListAccountsUseCase } from "../../../application/use-cases/projects/list-projects-use-case";
+import { GetProjectUseCase } from "../../../application/use-cases/projects/get-project-use-case";
+import { ListProjectsUseCase } from "../../../application/use-cases/projects/list-projects-use-case";
 import {
-    SetAccountIamPolicyUseCase,
+    SetProjectIamPolicyUseCase,
 } from "../../../application/use-cases/projects/set-project-iam-policy-use-case";
-import { TestAccountPermissionsUseCase } from "../../../application/use-cases/projects/test-project-permissions-use-case";
+import { TestProjectPermissionsUseCase } from "../../../application/use-cases/projects/test-project-permissions-use-case";
 import {
-    GetAccountStorageDestinationUseCase,
+    GetProjectStorageDestinationUseCase,
 } from "../../../application/use-cases/storage-destinations/get-project-storage-destination-use-case";
 import {
-    SetAccountStorageDestinationUseCase,
+    SetProjectStorageDestinationUseCase,
 } from "../../../application/use-cases/storage-destinations/set-project-storage-destination-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import {
@@ -82,15 +82,15 @@ import {
         ListEnvironmentsUseCase,
         DeleteEnvironmentUseCase,
 
-        GetAccountUseCase,
-        CreateAccountUseCase,
-        ListAccountsUseCase,
-        TestAccountPermissionsUseCase,
-        GetAccountIamPolicyUseCase,
-        SetAccountIamPolicyUseCase,
+        GetProjectUseCase,
+        CreateProjectUseCase,
+        ListProjectsUseCase,
+        TestProjectPermissionsUseCase,
+        GetProjectIamPolicyUseCase,
+        SetProjectIamPolicyUseCase,
 
-        GetAccountStorageDestinationUseCase,
-        SetAccountStorageDestinationUseCase,
+        GetProjectStorageDestinationUseCase,
+        SetProjectStorageDestinationUseCase,
 
         AccessControl,
 

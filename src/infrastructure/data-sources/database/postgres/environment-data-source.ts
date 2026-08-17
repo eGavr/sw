@@ -174,7 +174,7 @@ export class EnvironmentDataSource {
         return environment?.toObject() ?? null;
     }
 
-    async findAllByAccount(projectId: string): Promise<Array<EnvironmentData>> {
+    async findAllByProject(projectId: string): Promise<Array<EnvironmentData>> {
         const environments = await this.dataSource.getRepository(Environment).find({ where: { projectId } });
 
         return environments.map((environment) => environment.toObject());

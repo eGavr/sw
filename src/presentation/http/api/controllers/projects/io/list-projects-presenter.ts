@@ -3,7 +3,7 @@ import { Presenter } from "../../../../presenters/presenter";
 
 import { ProjectPresenter } from "./project-presenter";
 
-export class ListAccountsPresenter implements Presenter {
+export class ListProjectsPresenter implements Presenter {
     constructor(
         private readonly projects: Array<Project>,
         private readonly nextPageToken?: string,

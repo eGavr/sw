@@ -32,8 +32,8 @@ export class ProviderAccountRepositoryImpl extends ProviderAccountRepository {
         return ProviderAccount.fromObject(data);
     }
 
-    async listActiveByAccount(projectId: ProjectId): Promise<Array<ProviderAccount>> {
-        const data = await this.providerAccountDataSource.listByAccountAndState(
+    async listActiveByProject(projectId: ProjectId): Promise<Array<ProviderAccount>> {
+        const data = await this.providerAccountDataSource.listByProjectAndState(
             projectId.getValue(),
             ProviderAccountState.Active,
         );

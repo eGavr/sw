@@ -25,7 +25,7 @@ export abstract class EnvironmentRepository {
 
     abstract get(environmentId: EnvironmentId): Promise<Environment>;
 
-    abstract listByAccount(projectId: ProjectId): Promise<Array<Environment>>;
+    abstract listByProject(projectId: ProjectId): Promise<Array<Environment>>;
 
     abstract listByState(state: EnvironmentState): Promise<Array<Environment>>;
 

@@ -52,7 +52,7 @@ describe("/sessions", () => {
     });
 
     // A fresh project's owner holds every permission (grant-all on creation), so it may create sessions.
-    const seedAccount = async (): Promise<{ owner: AuthHeader, projectId: string }> => {
+    const seedProject = async (): Promise<{ owner: AuthHeader, projectId: string }> => {
         const externalId = UserFactory.createId();
         const projectRepository = app.get(ProjectRepository);
 
@@ -69,7 +69,7 @@ describe("/sessions", () => {
     const seedExecutingEnvironment = async (
         execution: Execution = Execution.Container,
     ): Promise<{ owner: AuthHeader, projectId: string, environmentId: string }> => {
-        const { owner, projectId } = await seedAccount();
+        const { owner, projectId } = await seedProject();
         const environmentRepository = app.get(EnvironmentRepository);
 
         await environmentRepository.create({
@@ -201,7 +201,7 @@ describe("/sessions", () => {
         });
 
         test("responds CONFLICT when the project has no free matching environment", async () => {
-            const { owner, projectId } = await seedAccount();
+            const { owner, projectId } = await seedProject();
 
             return createSession(projectId, owner).expect(HttpStatus.CONFLICT);
         });

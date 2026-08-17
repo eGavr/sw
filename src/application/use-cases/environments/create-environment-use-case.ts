@@ -53,7 +53,7 @@ export class CreateEnvironmentUseCase {
         await this.accessControl.authorize(user, project, this.permissionName);
 
         const execution = params.execution ? toExecution(params.execution) : defaultExecution;
-        const providerAccounts = await this.providerAccountRepository.listActiveByAccount(projectId);
+        const providerAccounts = await this.providerAccountRepository.listActiveByProject(projectId);
         const providerAccount = ProviderAccountList.of(providerAccounts).resolveFor(params.platform.name, execution);
 
         if (!providerAccount) {

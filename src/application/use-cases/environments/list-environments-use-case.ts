@@ -33,6 +33,6 @@ export class ListEnvironmentsUseCase {
 
         await this.accessControl.authorize(user, project, this.permissionName);
 
-        return this.environmentRepository.listByAccount(projectId);
+        return this.environmentRepository.listByProject(projectId);
     }
 }

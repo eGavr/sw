@@ -7,7 +7,7 @@ import { Project } from "./typeorm/entities/project/project";
 import { ProjectIamBinding } from "./typeorm/entities/project/project-iam-binding";
 import { User } from "./typeorm/entities/user/user";
 
-type FindOneAccountParams = {
+type FindOneProjectParams = {
     id: string;
 }
 
@@ -15,16 +15,16 @@ type FindOneAccountParams = {
 export class ProjectDataSource {
     constructor(private readonly dataSource: DataSource) {}
 
-    async findOne(params: FindOneAccountParams): Promise<ProjectData | null> {
+    async findOne(params: FindOneProjectParams): Promise<ProjectData | null> {
         const project = await this.dataSource.getRepository(Project).findOne({ where: params });
 
         if (!project) {
             return null;
         }
 
-        const bindings = await this.bindingsByAccount([project.id]);
+        const bindings = await this.bindingsByProject([project.id]);
 
-        return this.toAccountData(project, bindings.get(project.id) ?? []);
+        return this.toProjectData(project, bindings.get(project.id) ?? []);
     }
 
     async findAllByMember(member: string): Promise<Array<ProjectData>> {
@@ -36,9 +36,9 @@ export class ProjectDataSource {
         }
 
         const projects = await this.dataSource.getRepository(Project).find({ where: { id: In(ids) } });
-        const bindings = await this.bindingsByAccount(ids);
+        const bindings = await this.bindingsByProject(ids);
 
-        return projects.map((project) => this.toAccountData(project, bindings.get(project.id) ?? []));
+        return projects.map((project) => this.toProjectData(project, bindings.get(project.id) ?? []));
     }
 
     async saveOne(project: ProjectEntity): Promise<void> {
@@ -61,7 +61,7 @@ export class ProjectDataSource {
     }
 
     // Group the flat (role, member) rows of the given projects back into `{role, members[]}` bindings.
-    private async bindingsByAccount(projectIds: Array<string>): Promise<Map<string, Array<IamBindingData>>> {
+    private async bindingsByProject(projectIds: Array<string>): Promise<Map<string, Array<IamBindingData>>> {
         const rows = await this.dataSource.getRepository(ProjectIamBinding).find({ where: { projectId: In(projectIds) } });
         const grouped = new Map<string, Map<string, Array<string>>>();
 
@@ -80,7 +80,7 @@ export class ProjectDataSource {
         return result;
     }
 
-    private toAccountData(project: Project, bindings: Array<IamBindingData>): ProjectData {
+    private toProjectData(project: Project, bindings: Array<IamBindingData>): ProjectData {
         return {
             id: project.id,
             name: project.name,

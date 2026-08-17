@@ -5,7 +5,7 @@ import { ApiModule } from "../../../../../../../src/presentation/http/api/api-mo
 import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { Authorization } from "../../../utils/request/headers/authorization";
-import { CreateAccountBody } from "../../utils/request/body/create-project-body";
+import { CreateProjectBody } from "../../utils/request/body/create-project-body";
 
 type AuthHeader = { authorization: string };
 
@@ -28,11 +28,11 @@ describe("/projects/:project/storageDestination", () => {
         await app.close();
     });
 
-    const createAccount = async (owner: AuthHeader): Promise<string> => {
+    const createProject = async (owner: AuthHeader): Promise<string> => {
         const { body } = await request(app.getHttpServer())
             .post("/projects")
             .set(owner)
-            .send(CreateAccountBody.create())
+            .send(CreateProjectBody.create())
             .expect(HttpStatus.CREATED);
 
         return body.uid;
@@ -42,7 +42,7 @@ describe("/projects/:project/storageDestination", () => {
 
     test("responds NOT_FOUND before it is configured", async () => {
         const owner = Authorization.forUser(UserFactory.createId());
-        const project = await createAccount(owner);
+        const project = await createProject(owner);
 
         return request(app.getHttpServer())
             .get(path(project))
@@ -53,7 +53,7 @@ describe("/projects/:project/storageDestination", () => {
 
     test("PATCH registers the location and Get returns it", async () => {
         const owner = Authorization.forUser(UserFactory.createId());
-        const project = await createAccount(owner);
+        const project = await createProject(owner);
 
         const set = await request(app.getHttpServer())
             .patch(path(project))
@@ -76,7 +76,7 @@ describe("/projects/:project/storageDestination", () => {
 
     test("PATCH replaces an existing destination", async () => {
         const owner = Authorization.forUser(UserFactory.createId());
-        const project = await createAccount(owner);
+        const project = await createProject(owner);
 
         await request(app.getHttpServer()).patch(path(project)).set(owner).send(destinationBody()).expect(HttpStatus.OK);
         await request(app.getHttpServer())
@@ -92,7 +92,7 @@ describe("/projects/:project/storageDestination", () => {
 
     test("responds INVALID_ARGUMENT when bucket is missing", async () => {
         const owner = Authorization.forUser(UserFactory.createId());
-        const project = await createAccount(owner);
+        const project = await createProject(owner);
 
         return request(app.getHttpServer())
             .patch(path(project))
@@ -104,7 +104,7 @@ describe("/projects/:project/storageDestination", () => {
 
     test("responds UNAUTHENTICATED without a token", async () => {
         const owner = Authorization.forUser(UserFactory.createId());
-        const project = await createAccount(owner);
+        const project = await createProject(owner);
 
         return request(app.getHttpServer()).get(path(project)).expect(HttpStatus.UNAUTHORIZED);
     });
@@ -112,7 +112,7 @@ describe("/projects/:project/storageDestination", () => {
     test("responds PERMISSION_DENIED to a non-owner", async () => {
         const owner = Authorization.forUser(UserFactory.createId());
         const stranger = Authorization.forUser(UserFactory.createId());
-        const project = await createAccount(owner);
+        const project = await createProject(owner);
 
         await request(app.getHttpServer())
             .patch(path(project))

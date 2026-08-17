@@ -14,7 +14,7 @@ type ComputeProvider = {
     execution: string;
 };
 
-type CreateAccountInput = {
+type CreateProjectInput = {
     creds: {
         token: string;
     },
@@ -25,14 +25,14 @@ type CreateAccountInput = {
 }
 
 @Injectable()
-export class CreateAccountUseCase {
+export class CreateProjectUseCase {
     constructor(
         private readonly accessControl: AccessControl,
         private readonly projectRepository: ProjectRepository,
         private readonly providerAccountRepository: ProviderAccountRepository,
     ) {}
 
-    async execute({ creds, params }: CreateAccountInput): Promise<Project> {
+    async execute({ creds, params }: CreateProjectInput): Promise<Project> {
         const user = await this.accessControl.authenticate(creds);
 
         // Self-service: any authenticated user may create an project and becomes its owner with all

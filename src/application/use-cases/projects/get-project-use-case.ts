@@ -6,7 +6,7 @@ import { UserPermissionName } from "../../../domain/entities/user/user-permissio
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
 
-type GetAccountInput = {
+type GetProjectInput = {
     creds: {
         token: string;
     },
@@ -16,7 +16,7 @@ type GetAccountInput = {
 }
 
 @Injectable()
-export class GetAccountUseCase {
+export class GetProjectUseCase {
     private readonly permissionName = UserPermissionName.Project.Read;
 
     constructor(
@@ -24,7 +24,7 @@ export class GetAccountUseCase {
         private readonly projectRepository: ProjectRepository,
     ) {}
 
-    async execute({ creds, params }: GetAccountInput): Promise<Project> {
+    async execute({ creds, params }: GetProjectInput): Promise<Project> {
         const user = await this.accessControl.authenticate(creds);
         const project = await this.projectRepository.get(ProjectId.fromString(params.projectId));
 

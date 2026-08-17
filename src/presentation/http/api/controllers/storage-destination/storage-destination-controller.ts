@@ -1,10 +1,10 @@
 import { Body, Controller, Get, Param, Patch } from "@nestjs/common";
 
 import {
-    GetAccountStorageDestinationUseCase,
+    GetProjectStorageDestinationUseCase,
 } from "../../../../../application/use-cases/storage-destinations/get-project-storage-destination-use-case";
 import {
-    SetAccountStorageDestinationUseCase,
+    SetProjectStorageDestinationUseCase,
 } from "../../../../../application/use-cases/storage-destinations/set-project-storage-destination-use-case";
 import { BearerToken } from "../../../decorators/param/bearer-token";
 
@@ -16,8 +16,8 @@ import { StorageDestinationPresenter } from "./io/storage-destination-presenter"
 @Controller("projects/:project/storageDestination")
 export class StorageDestinationController {
     constructor(
-        private readonly getUseCase: GetAccountStorageDestinationUseCase,
-        private readonly setUseCase: SetAccountStorageDestinationUseCase,
+        private readonly getUseCase: GetProjectStorageDestinationUseCase,
+        private readonly setUseCase: SetProjectStorageDestinationUseCase,
     ) {}
 
     @Get()
