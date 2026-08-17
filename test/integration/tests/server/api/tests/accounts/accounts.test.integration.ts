@@ -70,10 +70,11 @@ describe("/accounts", () => {
         });
 
         test("is self-service: any authenticated user creates an account and gets an AIP resource", async () => {
+            const compute = [{ provider: "local", externalRef: "p", platform: "linux", execution: "container" }];
             const { body } = await request(app.getHttpServer())
                 .post("/accounts")
                 .set(Authorization.forUser(UserFactory.createId()))
-                .send({ displayName: "team-a", compute: { provider: "local", externalRef: "p" } })
+                .send({ displayName: "team-a", compute })
                 .expect(HttpStatus.CREATED);
 
             expect(body).toEqual({

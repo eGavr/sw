@@ -1,4 +1,5 @@
 import { AccountId } from "../account/account-id";
+import { Execution, toExecution } from "../environment/execution";
 import { InvalidArgumentError } from "../error/invalid-argument-error";
 
 import { ProviderAccountId } from "./provider-account-id";
@@ -8,6 +9,8 @@ export type ProviderAccountData = {
     id: string;
     accountId: string;
     provider: string;
+    platformName: string;
+    execution: string;
     externalRef?: string | null;
     credentialRef?: string | null;
     state: string;
@@ -18,6 +21,8 @@ export type ProviderAccountData = {
 export type ProviderAccountCreateParams = {
     accountId: AccountId;
     provider: string;
+    platformName: string;
+    execution: Execution;
     externalRef?: string | null;
     credentialRef?: string | null;
 };
@@ -26,6 +31,8 @@ type ProviderAccountConstructorParams = {
     id?: ProviderAccountId;
     accountId: AccountId;
     provider: string;
+    platformName: string;
+    execution: Execution;
     externalRef?: string | null;
     credentialRef?: string | null;
     state?: ProviderAccountState;
@@ -43,6 +50,8 @@ export class ProviderAccount {
             id: ProviderAccountId.fromString(data.id),
             accountId: AccountId.fromString(data.accountId),
             provider: data.provider,
+            platformName: data.platformName,
+            execution: toExecution(data.execution),
             externalRef: data.externalRef ?? null,
             credentialRef: data.credentialRef ?? null,
             state: ProviderAccount.toState(data.state),
@@ -62,6 +71,8 @@ export class ProviderAccount {
     }
 
     readonly provider: string;
+    readonly platformName: string;
+    readonly execution: Execution;
     readonly externalRef: string | null;
     readonly credentialRef: string | null;
     readonly createdAt: Date;
@@ -75,6 +86,8 @@ export class ProviderAccount {
         this._id = params.id ?? ProviderAccountId.create();
         this._accountId = params.accountId;
         this.provider = params.provider;
+        this.platformName = params.platformName;
+        this.execution = params.execution;
         this.externalRef = params.externalRef ?? null;
         this.credentialRef = params.credentialRef ?? null;
         this._state = params.state ?? ProviderAccountState.Active;
@@ -102,6 +115,12 @@ export class ProviderAccount {
         return this._state === ProviderAccountState.Active;
     }
 
+    // Whether this connection provisions the requested substrate — the routing key that lets one account
+    // hold several providers (redroid for android/container, kubernetes for linux/container, …).
+    serves(platformName: string, execution: Execution): boolean {
+        return this.platformName === platformName && this.execution === execution;
+    }
+
     markInvalid(): void {
         this._state = ProviderAccountState.Invalid;
         this.touch();
@@ -117,6 +136,8 @@ export class ProviderAccount {
             id: this.id,
             accountId: this._accountId.getValue(),
             provider: this.provider,
+            platformName: this.platformName,
+            execution: this.execution,
             externalRef: this.externalRef,
             credentialRef: this.credentialRef,
             state: this._state,

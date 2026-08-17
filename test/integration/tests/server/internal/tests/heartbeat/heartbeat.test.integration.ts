@@ -31,6 +31,7 @@ import { Environment } from "../../../../../../../src/domain/entities/environmen
 import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../../../../../../src/domain/entities/environment/environment-state";
 import { EnvironmentStatus } from "../../../../../../../src/domain/entities/environment/environment-status";
+import { Execution } from "../../../../../../../src/domain/entities/environment/execution";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
 import { User } from "../../../../../../../src/domain/entities/user/user";
@@ -137,6 +138,8 @@ describe("/internal/environments/:id:heartbeat", () => {
         const providerAccount = await providerAccountRepository.create({
             accountId: AccountId.fromString(account.id),
             provider: "local",
+            platformName: "linux",
+            execution: Execution.Container,
         });
 
         const environment = await environmentRepository.create({

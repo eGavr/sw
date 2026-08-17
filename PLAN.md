@@ -476,7 +476,16 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     версионированием; internal-ручка тогда просто отдаёт собранный артефакт. Связано с тем же вопросом доставки статических ассетов из
     backend (см. п.20) — сейчас и агент, и ffmpeg, и vnc-html доставляются через internal/wd-контроллеры; стоит консолидировать подход.
 
-22. **Несколько compute-провайдеров на ОДИН аккаунт — резолв `ProviderAccount` по `(platform, execution)` — НЕ сделано.** Агрегат
+22. **Несколько compute-провайдеров на ОДИН аккаунт — резолв `ProviderAccount` по `(platform, execution)` — СДЕЛАНО (ветка `feat.multi-provider-per-account`).**
+    `ProviderAccount` теперь хранит субстрат, который обслуживает (`platformName` + `execution`, миграция `1786500000000` с бэкофиллом
+    существующих строк по типу провайдера); доменная коллекция `ProviderAccountList.resolveFor(platformName, execution)` выбирает активный
+    провайдер точным совпадением субстрата (unit-покрыто); `create-environment` резолвит через неё (`listActiveByAccount` + resolveFor),
+    нет подходящего активного → `NoActiveProviderAccountError` (409). **`create-account` `compute` → МАССИВ** `[{provider, externalRef,
+    platform, execution}]` (ломающее изменение — no users yet): один вызов заводит все провайдеры аккаунта с их субстратами. Интеграция
+    подтверждает роутинг (linux→kubernetes / android→redroid) и 409 на непокрытый субстрат. Runbook обновлён. tsc 0 · eslint 0 · unit 108 ·
+    integration 89. **Осталось (PR-2, follow-up):** динамическое добавление/удаление провайдеров после создания аккаунта — AIP-ресурс
+    `POST/GET/DELETE /v1/accounts/{a}/providerAccounts` + права `providerAccount:*` (сейчас провайдеры задаются только при создании аккаунта
+    через массив `compute`). *(Историческая формулировка ниже.)* Агрегат
     `ProviderAccount` уже N-на-аккаунт (заложено в дизайне D), НО `CreateEnvironmentUseCase` сейчас берёт **единственный активный**
     провайдер аккаунта (при одном — неявно верно; при нескольких — недетерминированно/неверно). Нужно: (а) create-environment выбирает
     `ProviderAccount` по паре `(platform, execution)` окружения (напр. `android`+`container`→`android-redroid`, `android`+`emulator`→

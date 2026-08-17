@@ -1,11 +1,18 @@
 import { AccountId } from "../account/account-id";
+import { Execution } from "../environment/execution";
 
 import { ProviderAccount } from "./provider-account";
 import { ProviderAccountState } from "./provider-account-state";
 
 describe("ProviderAccount", () => {
     const build = (): ProviderAccount =>
-        ProviderAccount.create({ accountId: AccountId.create(), provider: "docker", externalRef: "project-1" });
+        ProviderAccount.create({
+            accountId: AccountId.create(),
+            provider: "docker",
+            platformName: "linux",
+            execution: Execution.Container,
+            externalRef: "project-1",
+        });
 
     describe(".create", () => {
         test("should start active", () => {

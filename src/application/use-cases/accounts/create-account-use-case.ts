@@ -2,9 +2,17 @@ import { Injectable } from "@nestjs/common";
 
 import { Account } from "../../../domain/entities/account/account";
 import { AccountId } from "../../../domain/entities/account/account-id";
+import { toExecution } from "../../../domain/entities/environment/execution";
 import { AccountRepository } from "../../interfaces/repositories/account-repository";
 import { ProviderAccountRepository } from "../../interfaces/repositories/provider-account-repository";
 import { AccessControl } from "../../services/access-control";
+
+type ComputeProvider = {
+    provider: string;
+    externalRef: string;
+    platform: string;
+    execution: string;
+};
 
 type CreateAccountInput = {
     creds: {
@@ -12,10 +20,7 @@ type CreateAccountInput = {
     },
     params: {
         name: string;
-        compute: {
-            provider: string;
-            externalRef: string;
-        }
+        compute: Array<ComputeProvider>;
     }
 }
 
@@ -36,11 +41,17 @@ export class CreateAccountUseCase {
         const account = await this.accountRepository.create({ name: params.name, createdBy: user });
         await this.accountRepository.save(account);
 
-        await this.providerAccountRepository.create({
-            accountId: AccountId.fromString(account.id),
-            provider: params.compute.provider,
-            externalRef: params.compute.externalRef,
-        });
+        const accountId = AccountId.fromString(account.id);
+
+        for (const compute of params.compute) {
+            await this.providerAccountRepository.create({
+                accountId,
+                provider: compute.provider,
+                platformName: compute.platform,
+                execution: toExecution(compute.execution),
+                externalRef: compute.externalRef,
+            });
+        }
 
         return account;
     }

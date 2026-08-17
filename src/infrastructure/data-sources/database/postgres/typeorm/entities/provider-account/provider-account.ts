@@ -16,6 +16,8 @@ export class ProviderAccount {
         providerAccount.id = data.id;
         providerAccount.accountId = data.accountId;
         providerAccount.provider = data.provider;
+        providerAccount.platformName = data.platformName;
+        providerAccount.execution = data.execution;
         providerAccount.externalRef = data.externalRef ?? null;
         providerAccount.credentialRef = data.credentialRef ?? null;
         providerAccount.state = data.state;
@@ -36,6 +38,12 @@ export class ProviderAccount {
 
     @Column()
     provider: string;
+
+    @Column()
+    platformName: string;
+
+    @Column()
+    execution: string;
 
     @Column({ type: "varchar", nullable: true })
     externalRef: string | null;
@@ -59,6 +67,8 @@ export class ProviderAccount {
             id: this.id,
             accountId: this.accountId,
             provider: this.provider,
+            platformName: this.platformName,
+            execution: this.execution,
             externalRef: this.externalRef,
             credentialRef: this.credentialRef,
             state: this.state,
