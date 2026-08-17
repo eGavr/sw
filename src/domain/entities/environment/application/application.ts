@@ -1,3 +1,5 @@
+import { NonConcreteApplicationVersionError } from "../error/non-concrete-application-version-error";
+
 import { ApplicationName } from "./application-name";
 import { ApplicationVersion } from "./application-version";
 
@@ -11,8 +13,16 @@ export type ApplicationCreateParams = {
     version: string;
 };
 
+// The reserved version a session may request to mean "allocate the newest running environment" — a match
+// capability, never an installed version. An environment's application must name an exact version.
+const latestVersion = "latest";
+
 export class Application {
     static create(params: ApplicationCreateParams): Application {
+        if (params.version.toLowerCase() === latestVersion) {
+            throw new NonConcreteApplicationVersionError(params.version);
+        }
+
         return new Application(new ApplicationName(params.name), new ApplicationVersion(params.version));
     }
 

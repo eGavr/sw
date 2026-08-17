@@ -10,7 +10,7 @@ import { CreateAccountBody } from "../../utils/request/body/create-account-body"
 
 const validEnvironmentBody = {
     platform: { name: "linux", version: "latest" },
-    applications: [{ name: "chrome", version: "latest" }],
+    applications: [{ name: "chrome", version: "126" }],
 };
 
 describe("/accounts/:account/environments", () => {
@@ -51,7 +51,7 @@ describe("/accounts/:account/environments", () => {
                 state: "ENQUEUED",
                 platform: { name: "linux", version: "latest", deviceModel: "desktop" },
                 execution: "container",
-                applications: [{ name: "chrome", version: "latest" }],
+                applications: [{ name: "chrome", version: "126" }],
                 createTime: expect.any(String),
             });
         });
@@ -111,6 +111,16 @@ describe("/accounts/:account/environments", () => {
                 .send(validEnvironmentBody)
                 .expect(HttpStatus.NOT_FOUND);
         });
+
+        test("responds INVALID_ARGUMENT for a non-concrete application version", async () => {
+            const { owner, accountId } = await createAccount();
+
+            return request(app.getHttpServer())
+                .post(`/accounts/${accountId}/environments`)
+                .set(owner)
+                .send({ ...validEnvironmentBody, applications: [{ name: "chrome", version: "latest" }] })
+                .expect(HttpStatus.BAD_REQUEST);
+        });
     });
 
     describe("lifecycle (create -> get -> list -> delete)", () => {
@@ -136,12 +146,24 @@ describe("/accounts/:account/environments", () => {
             expect(list.body.environments).toHaveLength(1);
             expect(list.body.environments[0].uid).toBe(environment.uid);
 
+            const deleted = await request(app.getHttpServer())
+                .delete(`/accounts/${accountId}/environments/${environment.uid}`)
+                .set(owner)
+                .expect(HttpStatus.OK);
+
+            // AIP-135 soft delete returns the resource with its lifecycle state, not an empty body. This
+            // environment never heartbeated, so it reads as DELETED immediately (nothing to deprovision).
+            expect(deleted.body.uid).toBe(environment.uid);
+            expect(deleted.body.state).toBe("DELETED");
+
+            // Idempotent while the row survives (GC removes it later): a repeated delete returns it again.
             await request(app.getHttpServer())
                 .delete(`/accounts/${accountId}/environments/${environment.uid}`)
                 .set(owner)
-                .expect(HttpStatus.OK, {});
+                .expect(HttpStatus.OK)
+                .expect((response) => expect(response.body.state).toBe("DELETED"));
 
-            // Delete is async/state-based: the row survives (GC removes it later); GET derives DELETED.
+            // GET keeps deriving DELETED until GC removes the row.
             await request(app.getHttpServer())
                 .get(`/accounts/${accountId}/environments/${environment.uid}`)
                 .set(owner)

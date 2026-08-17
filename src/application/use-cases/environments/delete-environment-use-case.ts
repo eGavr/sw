@@ -34,6 +34,9 @@ export class DeleteEnvironmentUseCase {
 
         await this.accessControl.authorize(user, account, this.permissionName);
 
+        // Idempotent, AIP-135 soft delete: while the row exists it is returned with its lifecycle state
+        // (DELETING, or DELETED once the heartbeat lapses); once GC removes the row `get` above raises
+        // NOT_FOUND. `startDeletion` is a no-op if already deleting.
         environment.startDeletion();
         await this.environmentRepository.save(environment);
 
