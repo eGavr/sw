@@ -580,6 +580,52 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     **Осознанно вне скоупа:** собственное управление членством групп (директория — не наша зона), IAM conditions. Связано с п.26 (etag) и
     п.27 (единый стиль принципалов/имён).
 
+30. **Нейминг: тенант `Account` → `Project`; `ProviderAccount` остаётся — РЕШЕНО, переименование НЕ сделано.** Валидировано против
+    Crossplane (`Provider` vs `ProviderConfig`) / Terraform (`provider`+`alias`) / Cluster API (identity). Тенант переименовать в **`Project`**
+    (Google=Project, Azure=Subscription; «Account» был слабым и давал тавтологию `accounts/{account}/providerAccounts`), URL → `/v1/projects/{project}/…`;
+    `ProviderAccount` СОХРАНИТЬ (честный «внешний аккаунт у провайдера», живёт под проектом). Слои: поле `provider` (тип-адаптер) vs сущность
+    `ProviderAccount` (именованная конфигурация-привязка) — как Crossplane Provider/ProviderConfig. Правка: доменные имена `Account*`→`Project*`,
+    таблица/миграция, presenter/URL `accounts`→`projects`, тесты, runbook. Юзеров нет — ломаем свободно.
+
+31. **Нейминг значений `provider` (реестр адаптеров) — принцип «имя по бэкенду», часть РЕШЕНА.** Принцип: `provider` = имя ЗАРЕГИСТРИРОВАННОГО
+    бэкенда (как Terraform/Crossplane), субстрат (`platform`/`execution`) и `config` определяют что на нём крутится. **Имя поля — оставляем `provider`**
+    (РЕШЕНО): рассматривали `backend`/`providerType` из-за повтора `providerAccount.provider`, но повтор мягкий и осмысленный (ср. `bankAccount.bank`),
+    а `provider` — индустриальный термин. `provider` = «каким адаптером/бэкендом поднимается окружение» (ортогонально `platform`/`execution`).
+    - **`local` → `noop` — РЕШЕНО.** `LocalEnvironmentProviderGateway` ничего не поднимает (provision/deprovision = no-op); имя «local» путает (docker
+      как раз про локальную машину). Честное имя — `noop` (null-object; провижн-в-никуда для интеграционных тестов/dry-run). Переименовать значение
+      в реестре + сиды тестов (`provider: "local"` → `"noop"`).
+    - **`docker` — ОСТАВИТЬ.** Это бэкенд Docker Engine (демон может быть и удалённым — `DOCKER_HOST`), а не «локальная машина»; «для локалки» было
+      лишь usage-примечанием. Имя честное и индустриальное (у Terraform есть провайдер `docker`).
+    - **`kubernetes` — ОСТАВИТЬ.**
+    - **`android-redroid` → `yandex-compute` (ПРЕДЛОЖЕНО).** Реальный бэкенд — YC Compute VM; «redroid/android» это СУБСТРАТ (platform=android,
+      execution=container) + `config` (golden image), а не бэкенд → имя не должно дублировать субстрат. Влечёт follow-up: обобщить адаптер (образ/субстрат
+      из `config`, а не хардкод redroid), тогда `yandex-compute` сможет обслуживать и linux-VM. Пока — как минимум переименование значения.
+
+32. **Модель данных `ProviderAccount` — пересматриваем поля (в обсуждении).** Итоговый состав: `provider` (бэкенд), `platformName`+`execution`
+    (субстрат — СДЕЛАНО), `externalRef`+`config` (в обсуждении), `credentialRef`, `state`, `displayName`+`labels` (предложено).
+    - **`credentialRef` — РЕШЕНО (смысл уточнён, код без изменений):** это **опциональный** указатель на **ОДНУ** запись секрет-стора, содержимое
+      которой — **провайдер-специфичный бандл** (файл / JSON / несколько ключей: docker-TLS = ca+cert+key, AWS = key+secret, kubeconfig = документ,
+      YC/GCP = ключ SA-JSON), а НЕ «одна строка-пароль». `credentialRef = null` = аутентификация ambient-identity воркера (in-cluster SA-токен,
+      IAM-токен из metadata, instance profile) — первоклассный и самый частый кейс для «нашей» инфры. Проверено по всем провайдерам — укладывается.
+      Не-секретные параметры аутентификации (режим ambient/explicit, `roleArn` для AssumeRole, `audience` для WIF, region, endpoint) в credentialRef
+      НЕ кладём — они в `config`. Follow-up (не сейчас, все текущие пути = null): **резолвер секрет-стора** (gateway `credentialRef → материал`).
+    - **`externalRef` → убрать; ввести `config` — РЕШЕНО.** Одна строка `externalRef` не вмещает провайдер-специфичный набор (YC:
+      folder/zone/subnet/SG/image/cpu/mem/disk; k8s: context/namespace/networking/image/limits; docker: dockerHost/image/platform) — сейчас всё
+      это в install-конфиге `COMPUTE_*`. Решение: **`externalRef` удаляем** (внешний аккаунт/пространство = просто ключ конфига: `folderId`/`context`/
+      `dockerHost`), вводим **`config` — непрозрачный JSON-блоб (ОДИН, не два)**, провайдер-специфичный, **не-секретный**. Домен хранит/передаёт как
+      `Record<string, unknown>`, НЕ интерпретирует; парсит и **валидирует адаптер** на `create`/add-provider (кривой конфиг → `400`, fail-fast, как и
+      валидация `provider` против реестра). Не-секретные параметры аутентификации (режим, roleArn, audience, region, endpoint) — тоже в `config`.
+      **Follow-up (заметный рефактор):** перенести `COMPUTE_*` из `configService` в адаптерах на переданный `config` (docker/k8s/yandex-compute) —
+      это и «выключает» install-конфиг, разблокируя per-project роутинг + BYO. Сайзинг (cpu/mem/image) пока фиксирован на providerAccount; пер-окруженческий
+      сайзинг — будущая капа create-environment.
+    - **`state`/`displayName`/`labels` — вводим вместе с потребляющей фичей (YAGNI):** `disabled`-состояние (+`stateReason`) и `displayName`
+      приезжают с **PR-2 (management-API providerAccounts)** — сейчас их некому ставить/читать; `state` пока `active|invalid`. `labels`
+      (+ `providerSelector` в create-environment) — с **PR-3 (placement)**, когда появляется выбор по меткам. Целевая форма задокументирована,
+      но поля добавляем по мере надобности.
+    - **Целевая форма `ProviderAccount`:** `id, projectId, provider, platformName, execution, config(JSON), credentialRef?, state
+      (active|disabled|invalid), stateReason?, displayName, labels(map), createdAt, updatedAt`. Сейчас-релевантно: `config` (замена `externalRef`)
+      + валидация `provider` по реестру; остальное — по фичам (PR-2/PR-3).
+
 ---
 
 ## Permissions по IAM (`:testIamPermissions`) — СДЕЛАНО
