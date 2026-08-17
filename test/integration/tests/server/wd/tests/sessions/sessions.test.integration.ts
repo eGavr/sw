@@ -155,7 +155,7 @@ describe("/sessions", () => {
 
             await createSession(accountId, owner, chrome, { logging: true }).expect(HttpStatus.OK);
 
-            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: true, video: false });
+            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), "linux", { logging: true, video: false });
         });
 
         test("threads the video opt-in through to the node session", async () => {
@@ -163,7 +163,7 @@ describe("/sessions", () => {
 
             await createSession(accountId, owner, chrome, { video: true }).expect(HttpStatus.OK);
 
-            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: false, video: true });
+            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), "linux", { logging: false, video: true });
         });
 
         test("defaults the logging and video opt-ins to false when omitted", async () => {
@@ -171,7 +171,7 @@ describe("/sessions", () => {
 
             await createSession(accountId, owner).expect(HttpStatus.OK);
 
-            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), { logging: false, video: false });
+            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), "linux", { logging: false, video: false });
         });
 
         test("responds UNAUTHORIZED for an unauthenticated request", () => {

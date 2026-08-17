@@ -91,7 +91,12 @@ export class CreateSessionUseCase {
         }
 
         try {
-            const webDriverSessionId = await this.webDriverSessionGateway.create(environment.endpoint, application, options);
+            const webDriverSessionId = await this.webDriverSessionGateway.create(
+                environment.endpoint,
+                application,
+                environment.platform.name,
+                options,
+            );
 
             return Session.create({
                 environmentId: EnvironmentId.fromString(environment.id),

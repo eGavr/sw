@@ -3,6 +3,18 @@ import { ConfigService } from "@nestjs/config";
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
 
 import { defaultAgentEntrypoint } from "./agent-bootstrap";
+import {
+    AndroidRedroidEnvironmentConfig,
+    buildAndroidRedroidEnvironmentConfig,
+    defaultAndroidCores,
+    defaultAndroidDiskGb,
+    defaultAndroidMemoryGb,
+    defaultAndroidVersion,
+} from "./android-redroid/android-redroid-environment-config";
+import {
+    AndroidRedroidEnvironmentProviderGateway,
+    androidRedroidProviderValue,
+} from "./android-redroid/android-redroid-environment-provider-gateway";
 import { DockerClient } from "./docker/docker-client";
 import {
     buildDockerEnvironmentConfig,
@@ -27,6 +39,7 @@ import {
 } from "./kubernetes/kubernetes-environment-provider-gateway";
 import { LocalEnvironmentProviderGateway } from "./local-environment-provider-gateway";
 import { RoutingEnvironmentProviderGateway } from "./routing-environment-provider-gateway";
+import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 
 // Fallback callback-API port when INTERNAL_PORT is unset; the env files always set it to 3002.
 const defaultInternalCallbackPort = 3002;
@@ -46,6 +59,10 @@ export const EnvironmentProviderGatewayProvider = {
                     configService.get<string>("COMPUTE_K8S_CONTEXT"),
                 ),
                 kubernetesConfig(configService),
+            )],
+            [androidRedroidProviderValue, new AndroidRedroidEnvironmentProviderGateway(
+                new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_FOLDER_ID")),
+                androidRedroidConfig(configService),
             )],
         ]);
 
@@ -72,6 +89,25 @@ function dockerConfig(configService: ConfigService): DockerEnvironmentConfig {
         // From inside the container the host's internal callback API is reached via host.docker.internal.
         internalUrl:
             configService.get<string>("COMPUTE_DOCKER_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,
+        internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
+    });
+}
+
+function androidRedroidConfig(configService: ConfigService): AndroidRedroidEnvironmentConfig {
+    const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
+
+    return buildAndroidRedroidEnvironmentConfig({
+        imageId: configService.get<string>("COMPUTE_ANDROID_IMAGE_ID") ?? "",
+        zone: configService.get<string>("COMPUTE_ANDROID_ZONE") ?? "ru-central1-a",
+        subnetId: configService.get<string>("COMPUTE_ANDROID_SUBNET_ID") ?? "",
+        securityGroupId: configService.get<string>("COMPUTE_ANDROID_SECURITY_GROUP_ID"),
+        cores: Number(configService.get<string>("COMPUTE_ANDROID_CORES") ?? String(defaultAndroidCores)),
+        memoryGb: Number(configService.get<string>("COMPUTE_ANDROID_MEMORY_GB") ?? String(defaultAndroidMemoryGb)),
+        diskSizeGb: Number(configService.get<string>("COMPUTE_ANDROID_DISK_GB") ?? String(defaultAndroidDiskGb)),
+        defaultAndroidVersion: configService.get<string>("COMPUTE_ANDROID_DEFAULT_VERSION") ?? defaultAndroidVersion,
+        // The in-VM agent reaches the control plane's internal API here — a VPC-internal address (internal LB
+        // in front of the internal service) reachable from the Compute VM.
+        internalUrl: configService.get<string>("COMPUTE_ANDROID_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
         internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
     });
 }

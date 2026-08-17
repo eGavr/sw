@@ -14,7 +14,16 @@ export class WebDriverSessionGatewayImpl extends WebDriverSessionGateway {
         super();
     }
 
-    async create(endpoint: string, application: Application, options?: WebDriverSessionOptions): Promise<string> {
-        return this.webDriverClient.createSession(endpoint, application.name, options);
+    async create(
+        endpoint: string,
+        application: Application,
+        platformName: string,
+        options?: WebDriverSessionOptions,
+    ): Promise<string> {
+        return this.webDriverClient.createSession(
+            endpoint,
+            { name: application.name, version: application.version, platformName },
+            options,
+        );
     }
 }

@@ -1,0 +1,19 @@
+# External Network Load Balancers for the two public entrypoints. NOTE: the folder's NLB quota is 2 — these
+# are exactly it. The agent->control-plane callback must NOT be a third (internal) NLB; it uses a NodePort
+# on sw-internal instead (deploy.sh wires it). Delete these Services FIRST on teardown so the cloud
+# controller reaps the NLBs (avoids orphans), then tofu destroy.
+apiVersion: v1
+kind: Service
+metadata: { name: sw-api-lb, namespace: sw }
+spec:
+  type: LoadBalancer
+  selector: { app: sw-api }
+  ports: [{ port: 3000, targetPort: 3000 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: sw-wd-lb, namespace: sw }
+spec:
+  type: LoadBalancer
+  selector: { app: sw-wd }
+  ports: [{ port: 3001, targetPort: 3001 }]

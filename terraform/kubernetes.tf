@@ -2,7 +2,7 @@
 # before the cluster is created, hence depends_on.
 resource "yandex_kubernetes_cluster" "sw" {
   name        = "sw"
-  network_id  = yandex_vpc_network.sw.id
+  network_id  = data.yandex_vpc_network.sw.id
   description = "sw control plane + environment pods"
 
   master {
@@ -11,7 +11,7 @@ resource "yandex_kubernetes_cluster" "sw" {
 
     zonal {
       zone      = var.zone
-      subnet_id = yandex_vpc_subnet.sw.id
+      subnet_id = data.yandex_vpc_subnet.sw.id
     }
 
     security_group_ids = [yandex_vpc_security_group.k8s.id]
@@ -46,7 +46,7 @@ resource "yandex_kubernetes_node_group" "sw" {
     }
 
     network_interface {
-      subnet_ids         = [yandex_vpc_subnet.sw.id]
+      subnet_ids         = [data.yandex_vpc_subnet.sw.id]
       nat                = true
       security_group_ids = [yandex_vpc_security_group.k8s.id]
     }

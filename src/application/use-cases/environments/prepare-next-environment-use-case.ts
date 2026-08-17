@@ -26,7 +26,8 @@ export class PrepareNextEnvironmentUseCase {
             await this.environmentProviderGateway.provision(environment);
             environment.markDispatched();
             await this.environmentRepository.save(environment);
-        } catch {
+        } catch (error) {
+            console.error(`[prepare] provision failed for ${environment.id}:`, error instanceof Error ? error.stack : error);
             environment.failProvisioning(EnvironmentStateReason.ProviderError);
             await this.environmentRepository.save(environment);
             // Best-effort cleanup; a leaked container is caught later by env-id on the next provision/GC.

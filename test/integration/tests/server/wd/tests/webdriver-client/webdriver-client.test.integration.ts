@@ -33,29 +33,41 @@ describe("WebDriverClient", () => {
     const alwaysMatch = (): Record<string, unknown> =>
         (JSON.parse(lastBody) as { capabilities: { alwaysMatch: Record<string, unknown> } }).capabilities.alwaysMatch;
 
+    const chrome = { name: "chrome", version: "latest", platformName: "linux" };
+    const android = { name: "com.android.settings", version: "11", platformName: "android" };
+
     test("adds the sw:logging capability when logging is opted in", async () => {
-        await new WebDriverClient().createSession(endpoint, "chrome", { logging: true });
+        await new WebDriverClient().createSession(endpoint, chrome, { logging: true });
 
         expect(alwaysMatch()["sw:logging"]).toBe(true);
         expect(alwaysMatch().browserName).toBe("chrome");
     });
 
     test("omits the sw:logging capability by default", async () => {
-        await new WebDriverClient().createSession(endpoint, "chrome");
+        await new WebDriverClient().createSession(endpoint, chrome);
 
         expect(alwaysMatch()).not.toHaveProperty("sw:logging");
     });
 
     test("adds the sw:video capability when video is opted in", async () => {
-        await new WebDriverClient().createSession(endpoint, "chrome", { video: true });
+        await new WebDriverClient().createSession(endpoint, chrome, { video: true });
 
         expect(alwaysMatch()["sw:video"]).toBe(true);
         expect(alwaysMatch().browserName).toBe("chrome");
     });
 
     test("omits the sw:video capability by default", async () => {
-        await new WebDriverClient().createSession(endpoint, "chrome");
+        await new WebDriverClient().createSession(endpoint, chrome);
 
         expect(alwaysMatch()).not.toHaveProperty("sw:video");
+    });
+
+    test("uses Appium capabilities for an Android platform", async () => {
+        await new WebDriverClient().createSession(endpoint, android, { video: true });
+
+        expect(alwaysMatch().platformName).toBe("Android");
+        expect(alwaysMatch()["appium:automationName"]).toBe("UiAutomator2");
+        expect(alwaysMatch()).not.toHaveProperty("browserName");
+        expect(alwaysMatch()["sw:video"]).toBe(true);
     });
 });

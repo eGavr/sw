@@ -1,0 +1,13 @@
+[Unit]
+Description=sw Android environment boot (redroid + companion node)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/android-node/vm-boot.sh
+
+[Install]
+WantedBy=multi-user.target

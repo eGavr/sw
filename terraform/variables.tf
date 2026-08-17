@@ -69,3 +69,13 @@ variable "pg_password" {
   sensitive   = true
   description = "Password for the Postgres user (also put it in the k8s Secret sw-secrets)."
 }
+
+variable "network_id" {
+  type        = string
+  description = "Existing VPC network to reuse (the folder's network quota is 1)."
+}
+
+variable "subnet_id" {
+  type        = string
+  description = "Existing subnet in that network; must be in var.zone."
+}

@@ -8,14 +8,22 @@ type NewSessionResponse = {
     };
 };
 
+type SessionTarget = {
+    name: string;
+    version: string;
+    platformName: string;
+};
+
+const androidPlatformName = "android";
+const androidNewCommandTimeoutSeconds = 600;
+
 @Injectable()
 export class WebDriverClient {
-    async createSession(endpoint: string, browserName: string, options?: WebDriverSessionOptions): Promise<string> {
-        const alwaysMatch: Record<string, unknown> = { browserName, webSocketUrl: true };
+    async createSession(endpoint: string, target: SessionTarget, options?: WebDriverSessionOptions): Promise<string> {
+        const alwaysMatch = this.alwaysMatch(target);
 
-        // Vendor capabilities the in-pod agent reads back from the node to decide whether to ship this
-        // session's logs / record its video. W3C requires the node to preserve unknown `prefix:name`
-        // capabilities.
+        // Vendor capabilities the in-node agent reads back to decide whether to ship this session's logs /
+        // record its video. W3C requires the node to preserve unknown `prefix:name` capabilities.
         if (options?.logging) {
             alwaysMatch["sw:logging"] = true;
         }
@@ -46,5 +54,19 @@ export class WebDriverClient {
 
     async deleteSession(endpoint: string, webDriverSessionId: string): Promise<void> {
         await fetch(`${endpoint}/session/${webDriverSessionId}`, { method: "DELETE" });
+    }
+
+    // Capability dialect by platform: an Android environment is driven by Appium (platformName +
+    // appium:*), a browser by its browserName. The vendor sw:* opt-ins are added on top for both.
+    private alwaysMatch(target: SessionTarget): Record<string, unknown> {
+        if (target.platformName === androidPlatformName) {
+            return {
+                platformName: "Android",
+                "appium:automationName": "UiAutomator2",
+                "appium:newCommandTimeout": androidNewCommandTimeoutSeconds,
+            };
+        }
+
+        return { browserName: target.name, webSocketUrl: true };
     }
 }
