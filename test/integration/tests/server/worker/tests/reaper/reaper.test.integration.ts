@@ -84,7 +84,7 @@ describe("environment reaper", () => {
 
         await environmentRepository.create({
             accountId: AccountId.fromString(account.id),
-            provider: "local",
+            provider: "noop",
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });

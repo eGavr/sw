@@ -64,7 +64,7 @@ describe("/accounts/:account/environments", () => {
                 .send({
                     displayName: "exec",
                     compute: [
-                        { provider: "local", externalRef: "p", platform: "linux", execution: "container" },
+                        { provider: "noop", externalRef: "p", platform: "linux", execution: "container" },
                         { provider: "local-emulator", externalRef: "p", platform: "linux", execution: "emulator" },
                     ],
                 })

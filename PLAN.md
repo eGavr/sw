@@ -591,9 +591,9 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     бэкенда (как Terraform/Crossplane), субстрат (`platform`/`execution`) и `config` определяют что на нём крутится. **Имя поля — оставляем `provider`**
     (РЕШЕНО): рассматривали `backend`/`providerType` из-за повтора `providerAccount.provider`, но повтор мягкий и осмысленный (ср. `bankAccount.bank`),
     а `provider` — индустриальный термин. `provider` = «каким адаптером/бэкендом поднимается окружение» (ортогонально `platform`/`execution`).
-    - **`local` → `noop` — РЕШЕНО.** `LocalEnvironmentProviderGateway` ничего не поднимает (provision/deprovision = no-op); имя «local» путает (docker
-      как раз про локальную машину). Честное имя — `noop` (null-object; провижн-в-никуда для интеграционных тестов/dry-run). Переименовать значение
-      в реестре + сиды тестов (`provider: "local"` → `"noop"`).
+    - **`local` → `noop` — СДЕЛАНО (ветка `refactor.rename-local-provider-to-noop`).** `NoopEnvironmentProviderGateway` (был `Local…`) ничего не
+      поднимает (null-object); ключ реестра `"local"`→`"noop"`, сиды тестов `provider:"local"`→`"noop"`, мёртвый `COMPUTE_PROVIDER=local`→`noop`.
+      **NB:** auth-`local` (`AUTH_STRATEGY`, `User.providerType:"local"`, local user data source) — ЭТО ДРУГОЙ `local`, НЕ трогали. tsc/eslint/unit 108/integration 89.
     - **`docker` — ОСТАВИТЬ.** Это бэкенд Docker Engine (демон может быть и удалённым — `DOCKER_HOST`), а не «локальная машина»; «для локалки» было
       лишь usage-примечанием. Имя честное и индустриальное (у Terraform есть провайдер `docker`).
     - **`kubernetes` — ОСТАВИТЬ.**

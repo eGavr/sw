@@ -143,7 +143,7 @@ describe("/internal/environments/:id:uploadSessionLogs", () => {
 
         const providerAccount = await providerAccountRepository.create({
             accountId: AccountId.fromString(account.id),
-            provider: "local",
+            provider: "noop",
             platformName: "linux",
             execution: Execution.Container,
         });

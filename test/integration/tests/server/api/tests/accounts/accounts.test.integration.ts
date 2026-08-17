@@ -70,7 +70,7 @@ describe("/accounts", () => {
         });
 
         test("is self-service: any authenticated user creates an account and gets an AIP resource", async () => {
-            const compute = [{ provider: "local", externalRef: "p", platform: "linux", execution: "container" }];
+            const compute = [{ provider: "noop", externalRef: "p", platform: "linux", execution: "container" }];
             const { body } = await request(app.getHttpServer())
                 .post("/accounts")
                 .set(Authorization.forUser(UserFactory.createId()))
