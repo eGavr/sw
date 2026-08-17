@@ -3,8 +3,8 @@ import { Injectable } from "@nestjs/common";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
-import { AccountRepository } from "../../interfaces/repositories/account-repository";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
+import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
 
 type DeleteEnvironmentInput = {
@@ -22,7 +22,7 @@ export class DeleteEnvironmentUseCase {
 
     constructor(
         private readonly accessControl: AccessControl,
-        private readonly accountRepository: AccountRepository,
+        private readonly projectRepository: ProjectRepository,
         private readonly environmentRepository: EnvironmentRepository,
     ) {}
 
@@ -30,9 +30,9 @@ export class DeleteEnvironmentUseCase {
         const user = await this.accessControl.authenticate(creds);
         const environmentId = EnvironmentId.fromString(params.environmentId);
         const environment = await this.environmentRepository.get(environmentId);
-        const account = await this.accountRepository.get(environment.accountId);
+        const project = await this.projectRepository.get(environment.projectId);
 
-        await this.accessControl.authorize(user, account, this.permissionName);
+        await this.accessControl.authorize(user, project, this.permissionName);
 
         // Idempotent, AIP-135 soft delete: while the row exists it is returned with its lifecycle state
         // (DELETING, or DELETED once the heartbeat lapses); once GC removes the row `get` above raises

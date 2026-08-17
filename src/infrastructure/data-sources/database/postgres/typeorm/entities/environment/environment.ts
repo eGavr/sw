@@ -3,7 +3,7 @@ import { Column, Entity, ManyToOne, OneToMany, PrimaryColumn } from "typeorm";
 import { Environment as EnvironmentEntity, EnvironmentData } from "../../../../../../../domain/entities/environment/environment";
 import { defaultExecution } from "../../../../../../../domain/entities/environment/execution";
 import { DateColumn } from "../../columns-extra/date-column";
-import { Account } from "../account/account";
+import { Project } from "../project/project";
 import { ProviderAccount } from "../provider-account/provider-account";
 
 import { EnvironmentApplication } from "./environment-application";
@@ -15,7 +15,7 @@ export class Environment {
         const environment = new Environment();
 
         environment.id = data.id;
-        environment.accountId = data.accountId;
+        environment.projectId = data.projectId;
         environment.providerAccountId = data.providerAccountId ?? null;
         environment.provider = data.provider ?? null;
         environment.state = data.state;
@@ -37,11 +37,11 @@ export class Environment {
     @PrimaryColumn("uuid")
     id: string;
 
-    @ManyToOne(() => Account, account => account.id)
-    account: Account;
+    @ManyToOne(() => Project, project => project.id)
+    project: Project;
 
     @Column()
-    accountId: string;
+    projectId: string;
 
     @ManyToOne(() => ProviderAccount, providerAccount => providerAccount.id)
     providerAccount: ProviderAccount;
@@ -97,7 +97,7 @@ export class Environment {
     toObject(): EnvironmentData {
         return {
             id: this.id,
-            accountId: this.accountId,
+            projectId: this.projectId,
             providerAccountId: this.providerAccountId,
             provider: this.provider,
             state: this.state,

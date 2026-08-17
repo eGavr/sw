@@ -8,7 +8,7 @@ import { KubernetesEnvironmentConfig } from "./kubernetes-environment-config";
 const labels = {
     provider: "sw.provider",
     environmentId: "sw.environment.id",
-    accountId: "sw.account.id",
+    projectId: "sw.project.id",
 };
 
 const providerValue = "kubernetes";
@@ -88,7 +88,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         const metadataLabels = {
             [labels.provider]: providerValue,
             [labels.environmentId]: environment.id,
-            [labels.accountId]: environment.accountId.getValue(),
+            [labels.projectId]: environment.projectId.getValue(),
         };
 
         const namespace = this.config.namespace;

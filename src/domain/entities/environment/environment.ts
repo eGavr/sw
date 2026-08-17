@@ -1,5 +1,5 @@
-import { AccountId } from "../account/account-id";
 import { InvalidArgumentError } from "../error/invalid-argument-error";
+import { ProjectId } from "../project/project-id";
 import { ProviderAccountId } from "../provider-account/provider-account-id";
 
 import { Application, ApplicationData } from "./application/application";
@@ -15,7 +15,7 @@ import { Platform, PlatformData } from "./platform/platform";
 
 export type EnvironmentData = {
     id: string;
-    accountId: string;
+    projectId: string;
     providerAccountId?: string | null;
     provider?: string | null;
     state: string;
@@ -32,7 +32,7 @@ export type EnvironmentData = {
 };
 
 export type EnvironmentCreateParams = {
-    accountId: AccountId;
+    projectId: ProjectId;
     providerAccountId?: ProviderAccountId | null;
     provider?: string | null;
     platform: Platform;
@@ -42,7 +42,7 @@ export type EnvironmentCreateParams = {
 
 type EnvironmentConstructorParams = {
     id?: EnvironmentId;
-    accountId: AccountId;
+    projectId: ProjectId;
     providerAccountId?: ProviderAccountId | null;
     provider?: string | null;
     state?: EnvironmentState;
@@ -66,7 +66,7 @@ export class Environment {
     static fromObject(data: EnvironmentData): Environment {
         return new Environment({
             id: EnvironmentId.fromString(data.id),
-            accountId: AccountId.fromString(data.accountId),
+            projectId: ProjectId.fromString(data.projectId),
             providerAccountId: data.providerAccountId ? ProviderAccountId.fromString(data.providerAccountId) : null,
             provider: data.provider ?? null,
             state: Environment.toState(data.state),
@@ -109,7 +109,7 @@ export class Environment {
     readonly createdAt: Date;
 
     private readonly _id: EnvironmentId;
-    private readonly _accountId: AccountId;
+    private readonly _projectId: ProjectId;
     private readonly _providerAccountId: ProviderAccountId | null;
     private readonly _provider: string | null;
     private _state: EnvironmentState;
@@ -122,7 +122,7 @@ export class Environment {
 
     private constructor(params: EnvironmentConstructorParams) {
         this._id = params.id ?? EnvironmentId.create();
-        this._accountId = params.accountId;
+        this._projectId = params.projectId;
         this._providerAccountId = params.providerAccountId ?? null;
         this._provider = params.provider ?? null;
         this._state = params.state ?? EnvironmentState.Enqueued;
@@ -142,8 +142,8 @@ export class Environment {
         return this._id.getValue();
     }
 
-    get accountId(): AccountId {
-        return this._accountId;
+    get projectId(): ProjectId {
+        return this._projectId;
     }
 
     get providerAccountId(): string | null {
@@ -277,7 +277,7 @@ export class Environment {
     toObject(): EnvironmentData {
         return {
             id: this.id,
-            accountId: this._accountId.getValue(),
+            projectId: this._projectId.getValue(),
             providerAccountId: this.providerAccountId,
             provider: this._provider,
             state: this._state,

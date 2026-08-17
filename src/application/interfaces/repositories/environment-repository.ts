@@ -1,4 +1,3 @@
-import { AccountId } from "../../../domain/entities/account/account-id";
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
 import { CrashedExecutionCriteria } from "../../../domain/entities/environment/crashed-execution-criteria";
 import { Environment } from "../../../domain/entities/environment/environment";
@@ -9,10 +8,11 @@ import { GarbageCollectionCriteria } from "../../../domain/entities/environment/
 import { Platform } from "../../../domain/entities/environment/platform/platform";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
 import { StuckProvisioningCriteria } from "../../../domain/entities/environment/stuck-provisioning-criteria";
+import { ProjectId } from "../../../domain/entities/project/project-id";
 import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
 
 export type CreateEnvironmentParams = {
-    accountId: AccountId;
+    projectId: ProjectId;
     providerAccountId?: ProviderAccountId | null;
     provider?: string | null;
     platform: Platform;
@@ -25,7 +25,7 @@ export abstract class EnvironmentRepository {
 
     abstract get(environmentId: EnvironmentId): Promise<Environment>;
 
-    abstract listByAccount(accountId: AccountId): Promise<Array<Environment>>;
+    abstract listByAccount(projectId: ProjectId): Promise<Array<Environment>>;
 
     abstract listByState(state: EnvironmentState): Promise<Array<Environment>>;
 
@@ -33,7 +33,7 @@ export abstract class EnvironmentRepository {
 
     abstract listCrashed(criteria: CrashedExecutionCriteria): Promise<Array<Environment>>;
 
-    abstract findAllocatable(accountId: AccountId, criteria: SessionAllocationCriteria): Promise<Array<Environment>>;
+    abstract findAllocatable(projectId: ProjectId, criteria: SessionAllocationCriteria): Promise<Array<Environment>>;
 
     abstract collectGarbage(criteria: GarbageCollectionCriteria): Promise<void>;
 

@@ -4,7 +4,7 @@ import { InternalError } from "../../../domain/entities/error/internal-error";
 
 // One EnvironmentProviderGateway over many backend adapters: each action is routed to the adapter of
 // the environment's provider type (captured on the environment at creation), so the worker use cases
-// stay unaware of per-account routing and never load the provider account just to pick an adapter.
+// stay unaware of per-project routing and never load the provider project just to pick an adapter.
 export class RoutingEnvironmentProviderGateway extends EnvironmentProviderGateway {
     constructor(private readonly gatewaysByProviderType: Map<string, EnvironmentProviderGateway>) {
         super();

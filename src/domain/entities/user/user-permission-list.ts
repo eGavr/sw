@@ -3,12 +3,12 @@ import { UserPermissionName } from "./user-permission-name";
 
 export class UserPermissionList {
     static getAll(): UserPermissionList {
-        const account = Object.values(UserPermissionName.Account);
+        const project = Object.values(UserPermissionName.Project);
         const environment = Object.values(UserPermissionName.Environment);
         const session = Object.values(UserPermissionName.Session);
         const storageDestination = Object.values(UserPermissionName.StorageDestination);
 
-        return UserPermissionList.create({ permissions: [...account, ...environment, ...session, ...storageDestination] });
+        return UserPermissionList.create({ permissions: [...project, ...environment, ...session, ...storageDestination] });
     }
 
     static create({ permissions }: { permissions: Array<UserPermissionName> }): UserPermissionList {

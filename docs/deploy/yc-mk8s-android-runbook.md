@@ -79,13 +79,13 @@ Use the existing one (`fd8opcrg042a3lu6u90e`) or rebake per §4.
 ### 1e. Smoke test (the whole point)
 
     API=http://<api-lb>:3000 ; WD=http://<wd-lb>:3001 ; AUTH='Authorization: Bearer <user1>'   # angle brackets are literal
-    ACC=$(curl -s -X POST $API/v1/accounts -H "$AUTH" -H 'content-type: application/json' \
+    PROJECT=$(curl -s -X POST $API/v1/projects -H "$AUTH" -H 'content-type: application/json' \
       -d '{"displayName":"android","compute":[{"provider":"android-redroid","externalRef":"yc","platform":"android","execution":"container"}]}' | jq -r .uid)
-    ENV=$(curl -s -X POST $API/v1/accounts/$ACC/environments -H "$AUTH" -H 'content-type: application/json' \
+    ENV=$(curl -s -X POST $API/v1/projects/$PROJECT/environments -H "$AUTH" -H 'content-type: application/json' \
       -d '{"platform":{"name":"android","version":"13"},"execution":"container","applications":[{"name":"settings","version":"13"}]}' | jq -r .uid)
     # poll GET .../environments/$ENV until state=ACTIVE (~3-4 min: VM boot + Android boot + Appium)
     SID=$(curl -s -X POST $WD/sessions -H "$AUTH" -H 'content-type: application/json' \
-      -d "{\"capabilities\":{\"alwaysMatch\":{\"browserName\":\"settings\",\"browserVersion\":\"13\",\"sw:accountId\":\"$ACC\",\"sw:execution\":\"container\"}}}" | jq -r .value.sessionId)
+      -d "{\"capabilities\":{\"alwaysMatch\":{\"browserName\":\"settings\",\"browserVersion\":\"13\",\"sw:projectId\":\"$PROJECT\",\"sw:execution\":\"container\"}}}" | jq -r .value.sessionId)
     curl -s $WD/sessions/$SID/appium/device/current_package -H "$AUTH"     # -> com.android.launcher3
 
 ---
@@ -93,7 +93,9 @@ Use the existing one (`fd8opcrg042a3lu6u90e`) or rebake per §4.
 ## 2. Gotchas (every one cost real time)
 
 - **Local auth token is `Bearer <external-id>` — the angle brackets are literal** (`User.from` matches `/<…>/`).
-- **create-account body** is `{displayName, compute:[{provider, externalRef, platform, execution}]}` — `compute` is an
+- **The tenant resource is `project`** (`POST /v1/projects`, `/v1/projects/{project}/environments`); the session capability is
+  `sw:projectId`. (Renamed from `account`.)
+- **create-project body** is `{displayName, compute:[{provider, externalRef, platform, execution}]}` — `compute` is an
   ARRAY of provider bindings, each declaring the substrate it serves (`platform` name + `execution`); create-environment
   routes to the provider matching the environment's `(platform.name, execution)`. Android → `platform:"android"`.
 - **Application name** must match `^[a-z0-9][a-z0-9-]*$` — no dots (use `settings`, not `com.android.settings`).

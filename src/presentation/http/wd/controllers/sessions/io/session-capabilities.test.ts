@@ -4,12 +4,12 @@ describe("resolveSessionRequest", () => {
     const alwaysMatch = {
         browserName: "chrome",
         browserVersion: "120",
-        "sw:accountId": "acc-1",
+        "sw:projectId": "acc-1",
     };
 
-    test("resolves the application and account from a W3C alwaysMatch envelope", () => {
+    test("resolves the application and project from a W3C alwaysMatch envelope", () => {
         expect(resolveSessionRequest({ alwaysMatch })).toEqual({
-            accountId: "acc-1",
+            projectId: "acc-1",
             execution: "container",
             application: { name: "chrome", version: "120" },
             logging: undefined,
@@ -44,7 +44,7 @@ describe("resolveSessionRequest", () => {
 
     test("merges the first firstMatch entry on top of alwaysMatch", () => {
         const params = resolveSessionRequest({
-            alwaysMatch: { "sw:accountId": "acc-1", browserName: "chrome" },
+            alwaysMatch: { "sw:projectId": "acc-1", browserName: "chrome" },
             firstMatch: [{ browserVersion: "120" }, { browserVersion: "121" }],
         });
 
@@ -58,15 +58,15 @@ describe("resolveSessionRequest", () => {
         })).toThrow(/both alwaysMatch and firstMatch/);
     });
 
-    test("requires sw:accountId", () => {
+    test("requires sw:projectId", () => {
         expect(() => resolveSessionRequest({
             alwaysMatch: { browserName: "chrome", browserVersion: "120" },
-        })).toThrow(/sw:accountId/);
+        })).toThrow(/sw:projectId/);
     });
 
     test("requires browserName", () => {
         expect(() => resolveSessionRequest({
-            alwaysMatch: { browserVersion: "120", "sw:accountId": "acc-1" },
+            alwaysMatch: { browserVersion: "120", "sw:projectId": "acc-1" },
         })).toThrow(/browserName/);
     });
 

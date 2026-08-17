@@ -1,10 +1,10 @@
 import { InvalidArgumentError } from "../error/invalid-argument-error";
 
-export enum AccountPermission {
-    Read = "account:read",
-    Create = "account:create",
-    GetIamPolicy = "account:getIamPolicy",
-    SetIamPolicy = "account:setIamPolicy",
+export enum ProjectPermission {
+    Read = "project:read",
+    Create = "project:create",
+    GetIamPolicy = "project:getIamPolicy",
+    SetIamPolicy = "project:setIamPolicy",
 }
 
 export enum EnvironmentPermission {
@@ -23,7 +23,7 @@ export enum StorageDestinationPermission {
 }
 
 export class UserPermissionName {
-    static readonly Account = AccountPermission;
+    static readonly Project = ProjectPermission;
 
     static readonly Environment = EnvironmentPermission;
 
@@ -32,7 +32,7 @@ export class UserPermissionName {
     static readonly StorageDestination = StorageDestinationPermission;
 
     private static readonly knownNames: ReadonlySet<string> = new Set<string>([
-        ...Object.values(AccountPermission),
+        ...Object.values(ProjectPermission),
         ...Object.values(EnvironmentPermission),
         ...Object.values(SessionPermission),
         ...Object.values(StorageDestinationPermission),

@@ -18,7 +18,7 @@ export type UploadSessionLogsResult = {
 };
 
 // Internal scenario: the in-pod agent ships a finished session's logs. The upload is delegated to our
-// own identity here in the control-plane (the agent never gets cloud credentials). If the account has
+// own identity here in the control-plane (the agent never gets cloud credentials). If the project has
 // not configured a storage destination we quietly no-op (`stored: false`) so the agent drops the logs.
 @Injectable()
 export class UploadSessionLogsUseCase {
@@ -30,7 +30,7 @@ export class UploadSessionLogsUseCase {
 
     async execute(params: UploadSessionLogsParams): Promise<UploadSessionLogsResult> {
         const environment = await this.environmentRepository.get(EnvironmentId.fromString(params.environmentId));
-        const destination = await this.storageDestinationRepository.find(environment.accountId);
+        const destination = await this.storageDestinationRepository.find(environment.projectId);
 
         if (!destination) {
             return { environmentId: environment.id, stored: false };

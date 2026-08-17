@@ -5,7 +5,7 @@ import {
     ProviderAccountData,
 } from "../../../../../../../domain/entities/provider-account/provider-account";
 import { DateColumn } from "../../columns-extra/date-column";
-import { Account } from "../account/account";
+import { Project } from "../project/project";
 
 @Entity()
 export class ProviderAccount {
@@ -14,7 +14,7 @@ export class ProviderAccount {
         const providerAccount = new ProviderAccount();
 
         providerAccount.id = data.id;
-        providerAccount.accountId = data.accountId;
+        providerAccount.projectId = data.projectId;
         providerAccount.provider = data.provider;
         providerAccount.platformName = data.platformName;
         providerAccount.execution = data.execution;
@@ -30,11 +30,11 @@ export class ProviderAccount {
     @PrimaryColumn("uuid")
     id: string;
 
-    @ManyToOne(() => Account, account => account.id)
-    account: Account;
+    @ManyToOne(() => Project, project => project.id)
+    project: Project;
 
     @Column()
-    accountId: string;
+    projectId: string;
 
     @Column()
     provider: string;
@@ -65,7 +65,7 @@ export class ProviderAccount {
     toObject(): ProviderAccountData {
         return {
             id: this.id,
-            accountId: this.accountId,
+            projectId: this.projectId,
             provider: this.provider,
             platformName: this.platformName,
             execution: this.execution,

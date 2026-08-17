@@ -81,7 +81,7 @@ export class InternalEnvironmentsController {
     }
 
     // The mp4 body is not buffered anywhere: `request` is the raw request stream, piped straight to the
-    // account's storage as an S3 multipart upload, so an arbitrarily large recording never sits in memory.
+    // project's storage as an S3 multipart upload, so an arbitrarily large recording never sits in memory.
     private async uploadSessionVideo(environmentId: string, request: Request): Promise<UploadSessionVideoPresenter> {
         const result = await this.uploadSessionVideoUseCase.execute({
             environmentId,

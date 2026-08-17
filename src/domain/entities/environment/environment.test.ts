@@ -1,4 +1,4 @@
-import { AccountId } from "../account/account-id";
+import { ProjectId } from "../project/project-id";
 
 import { Application } from "./application/application";
 import { ApplicationList } from "./application/application-list";
@@ -14,7 +14,7 @@ const freshnessMs = 6_000;
 
 function makeEnvironment(): Environment {
     return Environment.create({
-        accountId: AccountId.create(),
+        projectId: ProjectId.create(),
         platform: Platform.fromObject({ name: "linux", version: "6" }),
         applications: ApplicationList.create({ applications: [Application.create({ name: "chrome", version: "100" })] }),
     });
@@ -30,11 +30,11 @@ function makePreparing(): Environment {
 }
 
 function makeStuck(state: EnvironmentState, attempts: number): Environment {
-    const id = AccountId.create().getValue();
+    const id = ProjectId.create().getValue();
 
     return Environment.fromObject({
         id,
-        accountId: AccountId.create().getValue(),
+        projectId: ProjectId.create().getValue(),
         state,
         platform: { name: "linux", version: "6", deviceModel: "desktop" },
         applications: [{ name: "chrome", version: "100" }],

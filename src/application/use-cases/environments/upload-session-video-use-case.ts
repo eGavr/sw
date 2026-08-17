@@ -22,7 +22,7 @@ export type UploadSessionVideoResult = {
 // Internal scenario: the in-pod agent ships a finished session's video recording. The upload is delegated
 // to our own identity here in the control-plane (the agent never gets cloud credentials). The body is a
 // stream piped straight to storage, so an arbitrarily large recording is never buffered in memory. If the
-// account has not configured a storage destination we quietly no-op (`stored: false`) so the agent drops
+// project has not configured a storage destination we quietly no-op (`stored: false`) so the agent drops
 // the video.
 @Injectable()
 export class UploadSessionVideoUseCase {
@@ -34,7 +34,7 @@ export class UploadSessionVideoUseCase {
 
     async execute(params: UploadSessionVideoParams): Promise<UploadSessionVideoResult> {
         const environment = await this.environmentRepository.get(EnvironmentId.fromString(params.environmentId));
-        const destination = await this.storageDestinationRepository.find(environment.accountId);
+        const destination = await this.storageDestinationRepository.find(environment.projectId);
 
         if (!destination) {
             return { environmentId: environment.id, stored: false };

@@ -1,10 +1,10 @@
 import { Injectable } from "@nestjs/common";
 
-import { AccountId } from "../../../domain/entities/account/account-id";
 import { Environment } from "../../../domain/entities/environment/environment";
+import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
-import { AccountRepository } from "../../interfaces/repositories/account-repository";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
+import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
 
 type ListEnvironmentsInput = {
@@ -12,7 +12,7 @@ type ListEnvironmentsInput = {
         token: string;
     },
     params: {
-        accountId: string;
+        projectId: string;
     },
 }
 
@@ -22,17 +22,17 @@ export class ListEnvironmentsUseCase {
 
     constructor(
         private readonly accessControl: AccessControl,
-        private readonly accountRepository: AccountRepository,
+        private readonly projectRepository: ProjectRepository,
         private readonly environmentRepository: EnvironmentRepository,
     ) {}
 
     async execute({ creds, params }: ListEnvironmentsInput): Promise<Array<Environment>> {
         const user = await this.accessControl.authenticate(creds);
-        const accountId = AccountId.fromString(params.accountId);
-        const account = await this.accountRepository.get(accountId);
+        const projectId = ProjectId.fromString(params.projectId);
+        const project = await this.projectRepository.get(projectId);
 
-        await this.accessControl.authorize(user, account, this.permissionName);
+        await this.accessControl.authorize(user, project, this.permissionName);
 
-        return this.environmentRepository.listByAccount(accountId);
+        return this.environmentRepository.listByAccount(projectId);
     }
 }
