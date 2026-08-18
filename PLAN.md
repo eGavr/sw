@@ -515,7 +515,17 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     заработает 1-в-1 как у Chrome (де-риск на лаб-VM это подтвердил). Скриншот (`GET /session/{id}/screenshot` через Appium/UiAutomator2)
     работает уже сейчас — от VNC не зависит. Видео Android (`adb screenrecord`) — тем же заходом, follow-up к этому пункту.
 
-25. **Ревизия пагинации по всем list-ручкам — ЧАСТИЧНО (форма есть, реализация in-memory) — НЕ доделано.** Аудит текущего состояния:
+25. **Настоящая keyset (курсорная) БД-пагинация — СДЕЛАНО (ветка `feat.keyset-pagination`).** Заменили in-memory offset-`paginate()` на
+    **keyset** по `(created_at, id)` на уровне data-source: `application/pagination.ts` (`PageCursor`/`PageRequest`/`Page`/`clampPageSize`),
+    infra-хелпер `keysetPage` (order by `(created_at, id)`, `take(limit+1)` для детекта следующей страницы, БЕЗ OFFSET — старт сразу после курсора),
+    `ProjectDataSource.pageByMember` (keyset + `IN`-подзапрос по member + `leftJoinAndSelect createdBy`) и `EnvironmentDataSource.pageByProject`
+    (keyset + `leftJoinAndSelect applications`, `take()` корректно лимитит корни при OneToMany). Репозитории/use-case'ы отдают `Page<T>` c
+    `nextCursor`; presentation кодирует его в **opaque `nextPageToken`** (AIP-158, `page-token`/`next-page-token`, URL-safe, не парсибельный),
+    декодирует `pageToken`→курсор. Индексы `1786800000000` под keyset (environment(project_id,created_at,id), project(created_at,id),
+    project_iam_binding(member)). Интеграция гоняет обход по токену + end-of-collection. tsc 0 · eslint 0 · unit 108 · integration 90.
+    **Нейминг (сверено с AIP-158):** wire = `nextPageToken` (opaque), внутренний `nextCursor` = декодированная keyset-позиция (createdAt,id),
+    из которой токен кодируется — разные вещи (cursor ≠ token, как в Relay `cursor`/`endCursor`).
+    *(Историческая формулировка ниже.)* Аудит текущего состояния:
     list-ручек ровно две — `GET /v1/accounts` и `GET /v1/accounts/{a}/environments`; **обе** пагинируются единообразно (общий
     `PageRequestModel` `pageSize/pageToken` + `paginate()` + `nextPageToken` в презентере, AIP-158). НО `paginate()` режет **уже
     полностью загруженный список в памяти** (комментарий в `page.ts`: «Real backends would paginate at the data source») → на больших

@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, NotFo
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 
+import { clampPageSize } from "../../../../../application/pagination";
 import { CreateProjectUseCase } from "../../../../../application/use-cases/projects/create-project-use-case";
 import {
     GetProjectIamPolicyUseCase,
@@ -14,7 +15,7 @@ import {
 import { TestProjectPermissionsUseCase } from "../../../../../application/use-cases/projects/test-project-permissions-use-case";
 import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
 import { BearerToken } from "../../../decorators/param/bearer-token";
-import { paginate } from "../../../pagination/page";
+import { decodePageToken, encodePageToken } from "../../../pagination/page";
 import { PageRequestModel } from "../../../pagination/page-request-model";
 import { Presenter } from "../../../presenters/presenter";
 
@@ -47,10 +48,12 @@ export class ProjectsController {
 
     @Get()
     async listProjects(@Query() query: PageRequestModel, @BearerToken() token: string): Promise<ListProjectsPresenter> {
-        const projects = await this.listProjectsUseCase.execute({ creds: { token } });
-        const page = paginate(projects, query.pageSize, query.pageToken);
+        const page = await this.listProjectsUseCase.execute({
+            creds: { token },
+            params: { page: { limit: clampPageSize(query.pageSize), after: decodePageToken(query.pageToken) } },
+        });
 
-        return new ListProjectsPresenter(page.items, page.nextPageToken);
+        return new ListProjectsPresenter(page.items, page.nextCursor ? encodePageToken(page.nextCursor) : undefined);
     }
 
     @Get(":project")

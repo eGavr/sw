@@ -1,11 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from "@nestjs/common";
 
+import { clampPageSize } from "../../../../../application/pagination";
 import { CreateEnvironmentUseCase } from "../../../../../application/use-cases/environments/create-environment-use-case";
 import { DeleteEnvironmentUseCase } from "../../../../../application/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../../../application/use-cases/environments/get-environment-use-case";
 import { ListEnvironmentsUseCase } from "../../../../../application/use-cases/environments/list-environments-use-case";
 import { BearerToken } from "../../../decorators/param/bearer-token";
-import { paginate } from "../../../pagination/page";
+import { decodePageToken, encodePageToken } from "../../../pagination/page";
 import { PageRequestModel } from "../../../pagination/page-request-model";
 
 import { CreateEnvironmentRequestModel } from "./io/create-environment-request-model";
@@ -44,10 +45,15 @@ export class EnvironmentsController {
         @Query() query: PageRequestModel,
         @BearerToken() token: string,
     ): Promise<ListEnvironmentsPresenter> {
-        const environments = await this.listEnvironmentsUseCase.execute({ creds: { token }, params: { projectId: project } });
-        const page = paginate(environments, query.pageSize, query.pageToken);
+        const page = await this.listEnvironmentsUseCase.execute({
+            creds: { token },
+            params: {
+                projectId: project,
+                page: { limit: clampPageSize(query.pageSize), after: decodePageToken(query.pageToken) },
+            },
+        });
 
-        return new ListEnvironmentsPresenter(page.items, page.nextPageToken);
+        return new ListEnvironmentsPresenter(page.items, page.nextCursor ? encodePageToken(page.nextCursor) : undefined);
     }
 
     @Get(":environment")

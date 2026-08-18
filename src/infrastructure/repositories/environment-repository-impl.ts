@@ -4,6 +4,7 @@ import {
     CreateEnvironmentParams,
     EnvironmentRepository,
 } from "../../application/interfaces/repositories/environment-repository";
+import { Page, PageRequest } from "../../application/pagination";
 import { CrashedExecutionCriteria } from "../../domain/entities/environment/crashed-execution-criteria";
 import { Environment } from "../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../domain/entities/environment/environment-id";
@@ -42,10 +43,10 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         return Environment.fromObject(data);
     }
 
-    async listByProject(projectId: ProjectId): Promise<Array<Environment>> {
-        const data = await this.environmentDataSource.findAllByProject(projectId.getValue());
+    async listByProject(projectId: ProjectId, page: PageRequest): Promise<Page<Environment>> {
+        const result = await this.environmentDataSource.pageByProject(projectId.getValue(), page);
 
-        return data.map(Environment.fromObject);
+        return { items: result.items.map(Environment.fromObject), nextCursor: result.nextCursor };
     }
 
     async listByState(state: EnvironmentState): Promise<Array<Environment>> {

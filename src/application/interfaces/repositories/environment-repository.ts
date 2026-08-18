@@ -10,6 +10,7 @@ import { SessionAllocationCriteria } from "../../../domain/entities/environment/
 import { StuckProvisioningCriteria } from "../../../domain/entities/environment/stuck-provisioning-criteria";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
+import { Page, PageRequest } from "../../pagination";
 
 export type CreateEnvironmentParams = {
     projectId: ProjectId;
@@ -25,7 +26,7 @@ export abstract class EnvironmentRepository {
 
     abstract get(environmentId: EnvironmentId): Promise<Environment>;
 
-    abstract listByProject(projectId: ProjectId): Promise<Array<Environment>>;
+    abstract listByProject(projectId: ProjectId, page: PageRequest): Promise<Page<Environment>>;
 
     abstract listByState(state: EnvironmentState): Promise<Array<Environment>>;
 
