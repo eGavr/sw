@@ -11,7 +11,7 @@ describe("ProviderAccount", () => {
             provider: "docker",
             platformName: "linux",
             execution: Execution.Container,
-            externalRef: "project-1",
+            config: { host: "unix:///var/run/docker.sock" },
         });
 
     describe(".create", () => {

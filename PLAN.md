@@ -630,8 +630,16 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     - **Валидация `provider` по реестру — СДЕЛАНО (ветка `feat.provider-config`, слайс 1 PR-B).** Порт `application/interfaces/provider-catalog.ts`
       (`supports`/`list`), impl `RegisteredProviderCatalog` из `registeredProviderTypes` (единый источник рядом с реестром адаптеров),
       провайдится в `ApiModule`. `CreateProjectUseCase` валидирует каждый `compute.provider` ДО создания проекта → неизвестный = `400
-      INVALID_ARGUMENT` (fail-fast, без orphan-проекта). Интеграция покрывает. tsc 0 · eslint 0 · unit 108 · integration 90. **Осталось (слайс 2):**
-      `externalRef → config` + чтение адаптерами + воркер грузит PA + `COMPUTE_* → config` + `android-redroid → yandex-compute`.
+      INVALID_ARGUMENT` (fail-fast, без orphan-проекта). Интеграция покрывает. tsc 0 · eslint 0 · unit 108 · integration 90.
+    - **`externalRef → config` — СДЕЛАНО (ветка `feat.provider-account-config`, слайс 2 шаг 1, коммит `3672005`).** Доменный `ProviderConfig`
+      (`Record<string,unknown>`) + поле `config` вместо `externalRef`; миграция `1786700000000` (add `config` jsonb / drop `external_ref`); typeorm-entity
+      (jsonb); `create-project` compute-запись принимает `config` вместо `externalRef` (`@IsOptional @IsObject`); тесты. Пока `config` ХРАНИТСЯ, но
+      адаптеры его НЕ читают (используют install `COMPUTE_*`). tsc 0 · eslint 0 · unit 108 · integration 90.
+    - **Слайс 2 шаг 2 — ОТЛОЖЕНО ДО ЖИВОЙ ИНФРЫ:** порт `provision(env, providerAccount?)` + воркер грузит PA и отдаёт в provision/deprovision +
+      **адаптеры docker/k8s/yandex читают `config` вместо `COMPUTE_*`** + `android-redroid → yandex-compute`. Это переписывание 3 облачных адаптеров;
+      integration идёт через `noop` (config игнорит), поэтому реальное поведение docker/k8s/YC нельзя проверить, пока инфра погашена — делать вслепую
+      рискованно (сломанный провижн всплывёт только вживую). Делать этот шаг при поднятой инфре. Порт/воркер-плюмбинг можно сделать раньше (тестируемо), а
+      консумпцию адаптерами — под живую проверку.
 
 ---
 

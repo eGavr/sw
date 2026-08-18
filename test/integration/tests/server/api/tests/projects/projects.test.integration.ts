@@ -70,7 +70,7 @@ describe("/projects", () => {
         });
 
         test("is self-service: any authenticated user creates an project and gets an AIP resource", async () => {
-            const compute = [{ provider: "noop", externalRef: "p", platform: "linux", execution: "container" }];
+            const compute = [{ provider: "noop", platform: "linux", execution: "container" }];
             const { body } = await request(app.getHttpServer())
                 .post("/projects")
                 .set(Authorization.forUser(UserFactory.createId()))
@@ -94,7 +94,7 @@ describe("/projects", () => {
         });
 
         test("responds INVALID_ARGUMENT for a compute provider with no registered adapter", async () => {
-            const compute = [{ provider: "there-is-no-such-provider", externalRef: "p", platform: "linux", execution: "container" }];
+            const compute = [{ provider: "there-is-no-such-provider", platform: "linux", execution: "container" }];
 
             return request(app.getHttpServer())
                 .post("/projects")

@@ -6,7 +6,7 @@ export class CreateProjectBody {
     static create(overrides: object = {}): Record<string, unknown> {
         return defaultsDeep({}, overrides, {
             displayName: `team-${uuidv4().substring(0, 8)}`,
-            compute: [{ provider: "noop", externalRef: "provider-id", platform: "linux", execution: "container" }],
+            compute: [{ provider: "noop", platform: "linux", execution: "container" }],
         });
     }
 }
