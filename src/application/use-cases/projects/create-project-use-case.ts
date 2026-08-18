@@ -11,9 +11,9 @@ import { AccessControl } from "../../services/access-control";
 
 type ComputeProvider = {
     provider: string;
-    externalRef: string;
     platform: string;
     execution: string;
+    config?: Record<string, unknown>;
 };
 
 type CreateProjectInput = {
@@ -62,7 +62,7 @@ export class CreateProjectUseCase {
                 provider: compute.provider,
                 platformName: compute.platform,
                 execution: toExecution(compute.execution),
-                externalRef: compute.externalRef,
+                config: compute.config,
             });
         }
 

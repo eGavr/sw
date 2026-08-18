@@ -5,13 +5,17 @@ import { ProjectId } from "../project/project-id";
 import { ProviderAccountId } from "./provider-account-id";
 import { ProviderAccountState } from "./provider-account-state";
 
+// Provider-specific, non-secret settings the adapter needs to provision (which cluster/folder/host,
+// image, sizing, …). Opaque to the domain — only the adapter interprets it. Secrets go in credentialRef.
+export type ProviderConfig = Record<string, unknown>;
+
 export type ProviderAccountData = {
     id: string;
     projectId: string;
     provider: string;
     platformName: string;
     execution: string;
-    externalRef?: string | null;
+    config: ProviderConfig;
     credentialRef?: string | null;
     state: string;
     createdAt: Date;
@@ -23,7 +27,7 @@ export type ProviderAccountCreateParams = {
     provider: string;
     platformName: string;
     execution: Execution;
-    externalRef?: string | null;
+    config?: ProviderConfig;
     credentialRef?: string | null;
 };
 
@@ -33,7 +37,7 @@ type ProviderAccountConstructorParams = {
     provider: string;
     platformName: string;
     execution: Execution;
-    externalRef?: string | null;
+    config?: ProviderConfig;
     credentialRef?: string | null;
     state?: ProviderAccountState;
     createdAt?: Date;
@@ -52,7 +56,7 @@ export class ProviderAccount {
             provider: data.provider,
             platformName: data.platformName,
             execution: toExecution(data.execution),
-            externalRef: data.externalRef ?? null,
+            config: data.config ?? {},
             credentialRef: data.credentialRef ?? null,
             state: ProviderAccount.toState(data.state),
             createdAt: data.createdAt,
@@ -64,7 +68,7 @@ export class ProviderAccount {
         const state = Object.values(ProviderAccountState).find((candidate) => candidate === value);
 
         if (!state) {
-            throw new InvalidArgumentError(`provider project state: ${value}: unknown`);
+            throw new InvalidArgumentError(`provider account state: ${value}: unknown`);
         }
 
         return state;
@@ -73,7 +77,7 @@ export class ProviderAccount {
     readonly provider: string;
     readonly platformName: string;
     readonly execution: Execution;
-    readonly externalRef: string | null;
+    readonly config: ProviderConfig;
     readonly credentialRef: string | null;
     readonly createdAt: Date;
 
@@ -88,7 +92,7 @@ export class ProviderAccount {
         this.provider = params.provider;
         this.platformName = params.platformName;
         this.execution = params.execution;
-        this.externalRef = params.externalRef ?? null;
+        this.config = params.config ?? {};
         this.credentialRef = params.credentialRef ?? null;
         this._state = params.state ?? ProviderAccountState.Active;
         this.createdAt = params.createdAt ?? new Date();
@@ -138,7 +142,7 @@ export class ProviderAccount {
             provider: this.provider,
             platformName: this.platformName,
             execution: this.execution,
-            externalRef: this.externalRef,
+            config: this.config,
             credentialRef: this.credentialRef,
             state: this._state,
             createdAt: this.createdAt,

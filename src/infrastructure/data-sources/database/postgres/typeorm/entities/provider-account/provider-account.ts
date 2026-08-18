@@ -18,7 +18,7 @@ export class ProviderAccount {
         providerAccount.provider = data.provider;
         providerAccount.platformName = data.platformName;
         providerAccount.execution = data.execution;
-        providerAccount.externalRef = data.externalRef ?? null;
+        providerAccount.config = data.config ?? {};
         providerAccount.credentialRef = data.credentialRef ?? null;
         providerAccount.state = data.state;
         providerAccount.createdAt = data.createdAt;
@@ -45,8 +45,8 @@ export class ProviderAccount {
     @Column()
     execution: string;
 
-    @Column({ type: "varchar", nullable: true })
-    externalRef: string | null;
+    @Column({ type: "jsonb", default: {} })
+    config: Record<string, unknown>;
 
     @Column({ type: "varchar", nullable: true })
     credentialRef: string | null;
@@ -69,7 +69,7 @@ export class ProviderAccount {
             provider: this.provider,
             platformName: this.platformName,
             execution: this.execution,
-            externalRef: this.externalRef,
+            config: this.config,
             credentialRef: this.credentialRef,
             state: this.state,
             createdAt: this.createdAt,

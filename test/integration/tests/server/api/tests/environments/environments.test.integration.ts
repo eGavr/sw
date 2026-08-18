@@ -64,8 +64,8 @@ describe("/projects/:project/environments", () => {
                 .send({
                     displayName: "exec",
                     compute: [
-                        { provider: "noop", externalRef: "p", platform: "linux", execution: "container" },
-                        { provider: "noop", externalRef: "p", platform: "linux", execution: "emulator" },
+                        { provider: "noop", platform: "linux", execution: "container" },
+                        { provider: "noop", platform: "linux", execution: "emulator" },
                     ],
                 })
                 .expect(HttpStatus.CREATED);
@@ -205,8 +205,8 @@ describe("/projects/:project/environments", () => {
 
         test("routes each environment to the provider serving its substrate", async () => {
             const { owner, projectId } = await createProjectWith([
-                { provider: "kubernetes", externalRef: "k", platform: "linux", execution: "container" },
-                { provider: "android-redroid", externalRef: "a", platform: "android", execution: "container" },
+                { provider: "kubernetes", platform: "linux", execution: "container" },
+                { provider: "android-redroid", platform: "android", execution: "container" },
             ]);
 
             await createEnvironmentBody(projectId, owner, validEnvironmentBody).expect(HttpStatus.CREATED);
@@ -215,7 +215,7 @@ describe("/projects/:project/environments", () => {
 
         test("rejects an environment no active provider serves (platform/execution mismatch)", async () => {
             const { owner, projectId } = await createProjectWith([
-                { provider: "android-redroid", externalRef: "a", platform: "android", execution: "container" },
+                { provider: "android-redroid", platform: "android", execution: "container" },
             ]);
 
             await createEnvironmentBody(projectId, owner, androidEnvironment).expect(HttpStatus.CREATED);
