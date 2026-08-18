@@ -183,10 +183,10 @@ describe("/projects", () => {
             const { body } = await request(app.getHttpServer())
                 .post(`/projects/${uid}:testIamPermissions`)
                 .set(owner)
-                .send({ permissions: ["environment:create", "project:read"] })
+                .send({ permissions: ["sw.environments.create", "sw.projects.read"] })
                 .expect(HttpStatus.OK);
 
-            expect(body).toEqual({ permissions: ["environment:create", "project:read"] });
+            expect(body).toEqual({ permissions: ["sw.environments.create", "sw.projects.read"] });
         });
 
         test("grants the owner every permission after project creation", async () => {
@@ -209,7 +209,7 @@ describe("/projects", () => {
             return request(app.getHttpServer())
                 .post(`/projects/${uid}:testIamPermissions`)
                 .set(stranger)
-                .send({ permissions: ["environment:create", "project:read"] })
+                .send({ permissions: ["sw.environments.create", "sw.projects.read"] })
                 .expect(HttpStatus.OK, { permissions: [] });
         });
 
@@ -219,7 +219,7 @@ describe("/projects", () => {
             return request(app.getHttpServer())
                 .post(`/projects/${uid}:testIamPermissions`)
                 .set(owner)
-                .send({ permissions: ["environment:teleport"] })
+                .send({ permissions: ["sw.environments.teleport"] })
                 .expect(HttpStatus.BAD_REQUEST)
                 .expect((response) => expect(response.body.error.status).toBe("INVALID_ARGUMENT"));
         });
@@ -230,7 +230,7 @@ describe("/projects", () => {
             return request(app.getHttpServer())
                 .post(`/projects/${uid}:doSomethingElse`)
                 .set(owner)
-                .send({ permissions: ["project:read"] })
+                .send({ permissions: ["sw.projects.read"] })
                 .expect(HttpStatus.NOT_FOUND);
         });
     });
@@ -280,7 +280,7 @@ describe("/projects", () => {
             const uid = await createProjectFor(ownerId);
             const developer = Authorization.forUser(developerId);
 
-            await testPermissions(uid, developer, ["environment:create"]).expect(HttpStatus.OK, { permissions: [] });
+            await testPermissions(uid, developer, ["sw.environments.create"]).expect(HttpStatus.OK, { permissions: [] });
 
             const { body } = await request(app.getHttpServer())
                 .post(`/projects/${uid}:setIamPolicy`)
@@ -299,7 +299,8 @@ describe("/projects", () => {
                 { role: "roles/developer", members: [`user:${developerId}`] },
             ]));
 
-            await testPermissions(uid, developer, ["environment:create"]).expect(HttpStatus.OK, { permissions: ["environment:create"] });
+            await testPermissions(uid, developer, ["sw.environments.create"])
+                .expect(HttpStatus.OK, { permissions: ["sw.environments.create"] });
         });
 
         test("responds PERMISSION_DENIED for a member without setIamPolicy", async () => {
