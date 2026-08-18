@@ -13,7 +13,7 @@ describe("IamPolicy", () => {
         const policy = IamPolicy.withOwner(alice);
 
         expect(policy.rolesFor(alice)).toEqual([RoleName.Admin]);
-        expect(policy.grants(alice, UserPermissionName.Project.SetIamPolicy)).toBe(true);
+        expect(policy.grants([alice], UserPermissionName.Project.SetIamPolicy)).toBe(true);
     });
 
     test("resolves a member's permissions as the union of their roles", () => {
@@ -22,26 +22,49 @@ describe("IamPolicy", () => {
             IamBinding.create(RoleName.Developer, [bob]),
         ]);
 
-        expect(policy.grants(bob, UserPermissionName.Environment.Create)).toBe(true);
+        expect(policy.grants([bob], UserPermissionName.Environment.Create)).toBe(true);
     });
 
     test("a member without a binding holds nothing", () => {
         const policy = IamPolicy.withOwner(alice);
 
-        expect(policy.grants(bob, UserPermissionName.Environment.Get)).toBe(false);
-        expect(policy.test(bob, [UserPermissionName.Project.Get])).toEqual([]);
+        expect(policy.grants([bob], UserPermissionName.Environment.Get)).toBe(false);
+        expect(policy.test([bob], [UserPermissionName.Project.Get])).toEqual([]);
     });
 
     test("test returns the held subset preserving request order", () => {
         const policy = IamPolicy.fromBindings([IamBinding.create(RoleName.Viewer, [bob])]);
 
-        const held = policy.test(bob, [
+        const held = policy.test([bob], [
             UserPermissionName.Environment.Create,
             UserPermissionName.Environment.Get,
             UserPermissionName.Project.Get,
         ]);
 
         expect(held).toEqual([UserPermissionName.Environment.Get, UserPermissionName.Project.Get]);
+    });
+
+    describe("group principals", () => {
+        const carol = Member.user("carol");
+        const eng = Member.group("eng");
+        const sre = Member.group("sre");
+
+        test("a role granted to a group reaches a caller who presents that group", () => {
+            const policy = IamPolicy.fromBindings([IamBinding.create(RoleName.Developer, [eng])]);
+
+            expect(policy.grants([carol], UserPermissionName.Environment.Create)).toBe(false);
+            expect(policy.grants([carol, eng], UserPermissionName.Environment.Create)).toBe(true);
+        });
+
+        test("effective permissions union the user and every group they belong to", () => {
+            const policy = IamPolicy.fromBindings([
+                IamBinding.create(RoleName.Viewer, [eng]),
+                IamBinding.create(RoleName.Developer, [sre]),
+            ]);
+
+            expect(policy.grants([carol, eng], UserPermissionName.Environment.Create)).toBe(false);
+            expect(policy.grants([carol, eng, sre], UserPermissionName.Environment.Create)).toBe(true);
+        });
     });
 
     describe("#etag", () => {

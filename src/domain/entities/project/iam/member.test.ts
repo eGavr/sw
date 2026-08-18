@@ -11,11 +11,23 @@ describe("Member", () => {
         expect(Member.fromString("user:alice").equals(Member.user("alice"))).toBe(true);
     });
 
-    test("rejects a member without the user prefix", () => {
+    test("formats a group member", () => {
+        expect(Member.group("eng").getValue()).toBe("group:eng");
+    });
+
+    test("parses a group member back to an equal value", () => {
+        expect(Member.fromString("group:eng").equals(Member.group("eng"))).toBe(true);
+    });
+
+    test("rejects a member without a known prefix", () => {
         expect(() => Member.fromString("alice")).toThrow(InvalidArgumentError);
     });
 
     test("rejects an empty user id", () => {
         expect(() => Member.fromString("user:")).toThrow(InvalidArgumentError);
+    });
+
+    test("rejects an empty group id", () => {
+        expect(() => Member.fromString("group:")).toThrow(InvalidArgumentError);
     });
 });

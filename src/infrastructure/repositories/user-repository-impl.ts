@@ -21,13 +21,15 @@ export class UserRepositoryImpl extends UserRepository {
             return null;
         }
 
+        // The persistent row carries the identity; the groups come from the provider (IdP/token) each
+        // request, so they are overlaid here rather than read from our database.
         const data = await this.userDataSource.findOne({ externalId: user.id, providerType: user.providerType });
 
         if (data) {
-            return User.fromObject(data);
+            return User.fromObject({ ...data, groups: user.groups });
         }
 
-        return data === null ? User.create({ externalId: user.id, providerType: user.providerType }) : User.fromObject(data);
+        return User.create({ externalId: user.id, providerType: user.providerType, groups: user.groups });
     }
 
     async save(user: User): Promise<User> {

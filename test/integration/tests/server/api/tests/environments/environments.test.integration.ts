@@ -105,6 +105,30 @@ describe("/projects/:project/environments", () => {
                 .expect((response) => expect(response.body.error.status).toBe("PERMISSION_DENIED"));
         });
 
+        test("lets a caller create an environment through a group role", async () => {
+            const ownerId = UserFactory.createId();
+            const owner = Authorization.forUser(ownerId);
+            const { body: project } = await request(app.getHttpServer())
+                .post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
+
+            await request(app.getHttpServer())
+                .post(`/projects/${project.uid}:setIamPolicy`)
+                .set(owner)
+                .send({
+                    policy: {
+                        bindings: [
+                            { role: "roles/admin", members: [`user:${ownerId}`] },
+                            { role: "roles/developer", members: ["group:eng"] },
+                        ], 
+                    }, 
+                })
+                .expect(HttpStatus.OK);
+
+            // A caller the IdP puts in group eng — not bound directly — may create an environment.
+            return createEnvironment(project.uid, Authorization.forUser(UserFactory.createId(), ["eng"]))
+                .expect(HttpStatus.CREATED);
+        });
+
         test("responds INVALID_ARGUMENT for an invalid body", async () => {
             const { owner, projectId } = await createProject();
 

@@ -585,7 +585,19 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     а не «пустой ОК». Нужно: определить контракт — (а) повторный DELETE в `deleting` → вернуть ресурс со `state=DELETING` (тот же LRO), (б)
     DELETE уже-`DELETED`/отсутствующего → `404` (если не вводим `allow_missing`). Согласовать с моделью soft-delete (строка живёт до GC).
 
-29. **Группы как тип принципала в IAM (масштаб доступа по людям без раздувания политики) — НЕ сделано.** Сейчас `member` — только
+29. **Группы как тип принципала в IAM (федеративная модель) — СДЕЛАНО (ветка `feat.iam-groups`).** Реализовано ровно по Google: IAM только
+    **ссылается** на группы, членством НЕ управляет (свою директорию не строим — ни `Group`-агрегата, ни `create`/`addMember`-ручек). Домен
+    `Member` учится в `group:<id>` рядом с `user:<id>` (`Member.group`, `fromString` принимает оба). Резолв прав раскрывает группы: `IamPolicy`
+    (`grants`/`test`/`permissionsFor`) принимает **НАБОР** принципалов и возвращает **объединение** ролей; `Project.grants`/`testPermissions` —
+    тоже по набору. Членство приходит из identity (транзиентно, per-request): `User.groups` наполняется из провайдера в `UserRepositoryImpl`
+    (наложение поверх персистентной строки, в БД группы НЕ храним); `AccessControl.principalsOf(user)` = `{user:<id>} ∪ {group:<gid>}`, его
+    используют и `authorize`, и `testIamPermissions`-use-case. `setIamPolicy` принимает `group:` в members, `getIamPolicy` отдаёт `group:`
+    дословно (без разворачивания в людей). `local`-auth токен расширен до `<id#group1,group2>` для тестов (реальный OIDC-адаптер валидировал бы
+    JWT и читал `groups`-claim — та же форма). Малые команды без IdP живут на `user:`-биндингах (группы не обязательны). Покрыто: domain-unit
+    (`Member` group, `IamPolicy` union по user+groups), integration (участник через `group:eng` получает права/создаёт окружение — путь
+    `authorize()`; `getIamPolicy` verbatim `group:`). tsc 0 · eslint 0 · unit 133 · integration 99. **Осознанно вне скоупа (как и планировали):**
+    свой group-directory, вложенность групп (её раскрывает IdP), `domain:`/`allAuthenticatedUsers`, IAM conditions, реальный OIDC-адаптер (когда
+    поднимем прод-IdP — новый auth-data-source за тем же портом). *(Историческая формулировка ниже.)* Сейчас `member` — только
     `user:<external_id>`; чтобы дать доступ N людям, надо N биндингов, а политика google.iam.v1 не пагинируется и ограничена по числу
     принципалов (см. обсуждение ~1500/политику). Стандартный ответ Google — **группы**: `group:` считается за ОДИН принципал, но
     представляет сколько угодно людей → роль выдаётся группе, люди кладутся в группу, размер политики не растёт. Ввести это у нас.
