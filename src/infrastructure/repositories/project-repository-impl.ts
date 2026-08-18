@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { ProjectRepository } from "../../application/interfaces/repositories/project-repository";
+import { Page, PageRequest } from "../../application/pagination";
 import { NotFoundResourceError } from "../../domain/entities/error/not-found/not-found-resource-error";
 import { Member } from "../../domain/entities/project/iam/member";
 import { Project, ProjectCreateParams } from "../../domain/entities/project/project";
@@ -30,10 +31,10 @@ export class ProjectRepositoryImpl extends ProjectRepository {
         return data ? Project.fromObject(data) : null;
     }
 
-    async listByUser(user: User): Promise<Array<Project>> {
-        const data = await this.projectDataSource.findAllByMember(Member.user(user.externalId).getValue());
+    async listByUser(user: User, page: PageRequest): Promise<Page<Project>> {
+        const result = await this.projectDataSource.pageByMember(Member.user(user.externalId).getValue(), page);
 
-        return data.map(Project.fromObject);
+        return { items: result.items.map(Project.fromObject), nextCursor: result.nextCursor };
     }
 
     async create(params: ProjectCreateParams): Promise<Project> {

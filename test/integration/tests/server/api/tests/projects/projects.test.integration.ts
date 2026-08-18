@@ -137,6 +137,8 @@ describe("/projects", () => {
 
             expect(second.body.projects).toHaveLength(1);
             expect(second.body.projects[0].uid).not.toBe(first.body.projects[0].uid);
+            // End of the collection — AIP-158 signals it by an absent next_page_token.
+            expect(second.body.nextPageToken).toBeUndefined();
         });
     });
 

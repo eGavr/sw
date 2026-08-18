@@ -1,10 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { DataSource } from "typeorm";
 
+import { Page, PageRequest } from "../../../../application/pagination";
 import { Environment as EnvironmentEntity, EnvironmentData } from "../../../../domain/entities/environment/environment";
 
 import { Environment } from "./typeorm/entities/environment/environment";
 import { EnvironmentApplication } from "./typeorm/entities/environment/environment-application";
+import { keysetPage } from "./typeorm/keyset-page";
 
 @Injectable()
 export class EnvironmentDataSource {
@@ -174,9 +176,14 @@ export class EnvironmentDataSource {
         return environment?.toObject() ?? null;
     }
 
-    async findAllByProject(projectId: string): Promise<Array<EnvironmentData>> {
-        const environments = await this.dataSource.getRepository(Environment).find({ where: { projectId } });
+    async pageByProject(projectId: string, page: PageRequest): Promise<Page<EnvironmentData>> {
+        const query = this.dataSource.getRepository(Environment)
+            .createQueryBuilder("environment")
+            .leftJoinAndSelect("environment.applications", "applications")
+            .where("environment.projectId = :projectId", { projectId });
 
-        return environments.map((environment) => environment.toObject());
+        const { items, nextCursor } = await keysetPage(query, "environment", page);
+
+        return { items: items.map((environment) => environment.toObject()), nextCursor };
     }
 }

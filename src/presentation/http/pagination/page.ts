@@ -1,34 +1,27 @@
-export type Page<T> = {
-    items: Array<T>;
-    nextPageToken?: string;
-};
+import { PageCursor } from "../../../application/pagination";
 
-const defaultPageSize = 50;
-const maxPageSize = 1000;
-
-// Opaque, URL-safe page tokens over an offset (AIP-158). Real backends would paginate at the data
-// source; ours returns the full list, so a page is sliced here.
-export function paginate<T>(items: Array<T>, pageSize?: number, pageToken?: string): Page<T> {
-    const size = Math.min(Math.max(pageSize ?? defaultPageSize, 1), maxPageSize);
-    const offset = decodeOffset(pageToken);
-    const nextOffset = offset + size;
-
-    return {
-        items: items.slice(offset, nextOffset),
-        nextPageToken: nextOffset < items.length ? encodeOffset(nextOffset) : undefined,
-    };
+// Opaque, URL-safe page token (AIP-158) over a keyset cursor — the (createdAt, id) of the last row on
+// the page. Encodes to base64url; a malformed/absent token means "from the beginning".
+export function encodePageToken(cursor: PageCursor): string {
+    return Buffer.from(JSON.stringify({ c: cursor.createdAt.toISOString(), i: cursor.id })).toString("base64url");
 }
 
-function encodeOffset(offset: number): string {
-    return Buffer.from(String(offset)).toString("base64url");
-}
-
-function decodeOffset(pageToken?: string): number {
-    if (!pageToken) {
-        return 0;
+export function decodePageToken(token?: string): PageCursor | undefined {
+    if (!token) {
+        return undefined;
     }
 
-    const offset = Number(Buffer.from(pageToken, "base64url").toString("utf8"));
+    try {
+        const decoded = JSON.parse(Buffer.from(token, "base64url").toString("utf8")) as { c?: unknown; i?: unknown };
 
-    return Number.isInteger(offset) && offset >= 0 ? offset : 0;
+        if (typeof decoded.c !== "string" || typeof decoded.i !== "string") {
+            return undefined;
+        }
+
+        const createdAt = new Date(decoded.c);
+
+        return Number.isNaN(createdAt.getTime()) ? undefined : { createdAt, id: decoded.i };
+    } catch {
+        return undefined;
+    }
 }

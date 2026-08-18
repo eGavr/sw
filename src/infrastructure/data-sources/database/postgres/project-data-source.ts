@@ -1,11 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { DataSource, EntityManager, In } from "typeorm";
 
+import { Page, PageRequest } from "../../../../application/pagination";
 import { Project as ProjectEntity, ProjectData, IamBindingData } from "../../../../domain/entities/project/project";
 
 import { Project } from "./typeorm/entities/project/project";
 import { ProjectIamBinding } from "./typeorm/entities/project/project-iam-binding";
 import { User } from "./typeorm/entities/user/user";
+import { keysetPage } from "./typeorm/keyset-page";
 
 type FindOneProjectParams = {
     id: string;
@@ -27,18 +29,24 @@ export class ProjectDataSource {
         return this.toProjectData(project, bindings.get(project.id) ?? []);
     }
 
-    async findAllByMember(member: string): Promise<Array<ProjectData>> {
-        const rows = await this.dataSource.getRepository(ProjectIamBinding).find({ where: { member } });
-        const ids = [...new Set(rows.map((row) => row.projectId))];
+    async pageByMember(member: string, page: PageRequest): Promise<Page<ProjectData>> {
+        const query = this.dataSource.getRepository(Project)
+            .createQueryBuilder("project")
+            .leftJoinAndSelect("project.createdBy", "createdBy")
+            .where("project.id IN (SELECT b.project_id FROM project_iam_binding b WHERE b.member = :member)", { member });
 
-        if (ids.length === 0) {
-            return [];
+        const { items, nextCursor } = await keysetPage(query, "project", page);
+
+        if (items.length === 0) {
+            return { items: [], nextCursor };
         }
 
-        const projects = await this.dataSource.getRepository(Project).find({ where: { id: In(ids) } });
-        const bindings = await this.bindingsByProject(ids);
+        const bindings = await this.bindingsByProject(items.map((project) => project.id));
 
-        return projects.map((project) => this.toProjectData(project, bindings.get(project.id) ?? []));
+        return {
+            items: items.map((project) => this.toProjectData(project, bindings.get(project.id) ?? [])),
+            nextCursor,
+        };
     }
 
     async saveOne(project: ProjectEntity): Promise<void> {
