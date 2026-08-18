@@ -186,6 +186,12 @@ export class Environment {
         return this.applications.has(application);
     }
 
+    // The installed application offering the given name, if any — the concrete version a session opened
+    // here will run, and what "latest" ranks environments by.
+    applicationFor(name: string): Application | null {
+        return this.applications.find(name);
+    }
+
     // Whether the compute backend should be running a container for this environment right now.
     // The compute data source only reconciles to this flag; it does not decide it.
     shouldBeRunning(): boolean {
