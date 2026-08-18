@@ -1,25 +1,27 @@
 import { InvalidArgumentError } from "../error/invalid-argument-error";
 
+// Permission names follow the Google IAM style `service.resourcePlural.verb` (e.g. `sw.projects.read`),
+// consistent with the google.iam.v1 policy model we adopted — not the AWS-style `service:Action`.
 export enum ProjectPermission {
-    Read = "project:read",
-    Create = "project:create",
-    GetIamPolicy = "project:getIamPolicy",
-    SetIamPolicy = "project:setIamPolicy",
+    Read = "sw.projects.read",
+    Create = "sw.projects.create",
+    GetIamPolicy = "sw.projects.getIamPolicy",
+    SetIamPolicy = "sw.projects.setIamPolicy",
 }
 
 export enum EnvironmentPermission {
-    Read = "environment:read",
-    Create = "environment:create",
-    Delete = "environment:delete",
+    Read = "sw.environments.read",
+    Create = "sw.environments.create",
+    Delete = "sw.environments.delete",
 }
 
 export enum SessionPermission {
-    Create = "session:create",
+    Create = "sw.sessions.create",
 }
 
 export enum StorageDestinationPermission {
-    Get = "storageDestination:get",
-    Set = "storageDestination:set",
+    Get = "sw.storageDestinations.get",
+    Set = "sw.storageDestinations.set",
 }
 
 export class UserPermissionName {

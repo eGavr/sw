@@ -532,7 +532,12 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     всю политику руками. NB: политика **на один аккаунт** (per-resource), setIamPolicy не трогает «все аккаунты»; масштаб — это много
     биндингов/членов в ОДНОЙ политике, что google решает лимитами (напр. ~1500 принципалов на политику), а не пагинацией.
 
-27. **Именование permission'ов: двоеточие (AWS-стиль) vs точка (Google-стиль) — рассинхрон с принятой моделью — НЕ решено.** Мы приняли
+27. **Именование permission'ов: двоеточие→точка (Google-стиль) — СДЕЛАНО (ветка `refactor.dotted-permission-names`).** Перешли на dotted
+    **`sw.<resourcePlural>.<verb>`** (напр. `sw.environments.create`, `sw.projects.setIamPolicy`, `sw.storageDestinations.get`) — консистентно с
+    принятой google.iam.v1-моделью. Изменены ЗНАЧЕНИЯ enum `UserPermissionName` (члены `Read`/`Create`/… не тронуты, каталог ролей ссылается на них,
+    не на строки); `testIamPermissions` known-names автоматически dotted; тест-строки обновлены. Verb'ы оставлены текущие (`read`/`create`/`delete`/
+    `getIamPolicy`/`setIamPolicy`/`get`/`set`) — декомпозиция `read→get/list` под Google — возможный follow-up. Design-doc (историч.) не трогали.
+    tsc 0 · eslint 0 · unit 108 · integration 90. *(Историческая формулировка ниже.)* Мы приняли
     **google.iam.v1** для политики (`bindings`/`members`/roles/`testIamPermissions`), но сами permission-строки у нас в **AWS-стиле**
     `account:read`/`environment:create`/`session:create` (двоеточие = `service:Action`, как в AWS IAM). Google IAM использует **точку**
     `service.resource.verb` (напр. `resourcemanager.projects.get` → у нас было бы `sw.environments.create`, `sw.accounts.setIamPolicy`).
