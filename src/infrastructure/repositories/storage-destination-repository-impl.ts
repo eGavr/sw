@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { StorageDestinationRepository } from "../../application/interfaces/repositories/storage-destination-repository";
-import { AccountId } from "../../domain/entities/account/account-id";
+import { ProjectId } from "../../domain/entities/project/project-id";
 import { StorageDestination } from "../../domain/entities/storage/storage-destination";
 import { StorageDestinationDataSource } from "../data-sources/database/postgres/storage-destination-data-source";
 
@@ -11,8 +11,8 @@ export class StorageDestinationRepositoryImpl extends StorageDestinationReposito
         super();
     }
 
-    async find(accountId: AccountId): Promise<StorageDestination | null> {
-        const data = await this.storageDestinationDataSource.findOne(accountId.getValue());
+    async find(projectId: ProjectId): Promise<StorageDestination | null> {
+        const data = await this.storageDestinationDataSource.findOne(projectId.getValue());
 
         if (!data) {
             return null;
@@ -26,7 +26,7 @@ export class StorageDestinationRepositoryImpl extends StorageDestinationReposito
         });
     }
 
-    async save(accountId: AccountId, destination: StorageDestination): Promise<void> {
-        await this.storageDestinationDataSource.save(accountId.getValue(), destination);
+    async save(projectId: ProjectId, destination: StorageDestination): Promise<void> {
+        await this.storageDestinationDataSource.save(projectId.getValue(), destination);
     }
 }

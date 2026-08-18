@@ -1,5 +1,5 @@
-import { AccountId } from "../account/account-id";
 import { Execution } from "../environment/execution";
+import { ProjectId } from "../project/project-id";
 
 import { ProviderAccount } from "./provider-account";
 import { ProviderAccountState } from "./provider-account-state";
@@ -7,7 +7,7 @@ import { ProviderAccountState } from "./provider-account-state";
 describe("ProviderAccount", () => {
     const build = (): ProviderAccount =>
         ProviderAccount.create({
-            accountId: AccountId.create(),
+            projectId: ProjectId.create(),
             provider: "docker",
             platformName: "linux",
             execution: Execution.Container,

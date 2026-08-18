@@ -10,7 +10,7 @@ export type CapabilitiesEnvelope = {
 };
 
 export type SessionRequestParams = {
-    accountId: string;
+    projectId: string;
     execution: string;
     application: {
         name: string;
@@ -20,7 +20,7 @@ export type SessionRequestParams = {
     video?: boolean;
 };
 
-const accountIdCapability = "sw:accountId";
+const projectIdCapability = "sw:projectId";
 const executionCapability = "sw:execution";
 const loggingCapability = "sw:logging";
 const videoCapability = "sw:video";
@@ -34,7 +34,7 @@ export function resolveSessionRequest(envelope: CapabilitiesEnvelope): SessionRe
     const capabilities = matchedCapabilities(envelope);
 
     return {
-        accountId: requireString(capabilities, accountIdCapability),
+        projectId: requireString(capabilities, projectIdCapability),
         execution: optionalExecution(capabilities),
         application: {
             name: requireString(capabilities, "browserName"),

@@ -6,14 +6,14 @@ import { ApiModule } from "../../../../../../../src/presentation/http/api/api-mo
 import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { Authorization } from "../../../utils/request/headers/authorization";
-import { CreateAccountBody } from "../../utils/request/body/create-account-body";
+import { CreateProjectBody } from "../../utils/request/body/create-project-body";
 
 const validEnvironmentBody = {
     platform: { name: "linux", version: "latest" },
     applications: [{ name: "chrome", version: "126" }],
 };
 
-describe("/accounts/:account/environments", () => {
+describe("/projects/:project/environments", () => {
     let app: TestingApp;
 
     beforeEach(async () => {
@@ -24,29 +24,29 @@ describe("/accounts/:account/environments", () => {
         await app.close();
     });
 
-    // The owner of a fresh account holds every environment permission (grant-all on creation).
-    const createAccount = async (): Promise<{ owner: { authorization: string }, accountId: string }> => {
+    // The owner of a fresh project holds every environment permission (grant-all on creation).
+    const createProject = async (): Promise<{ owner: { authorization: string }, projectId: string }> => {
         const owner = Authorization.forUser(UserFactory.createId());
         const { body } = await request(app.getHttpServer())
-            .post("/accounts")
+            .post("/projects")
             .set(owner)
-            .send(CreateAccountBody.create())
+            .send(CreateProjectBody.create())
             .expect(HttpStatus.CREATED);
 
-        return { owner, accountId: body.uid };
+        return { owner, projectId: body.uid };
     };
 
-    const createEnvironment = (accountId: string, owner: { authorization: string }): request.Test =>
-        request(app.getHttpServer()).post(`/accounts/${accountId}/environments`).set(owner).send(validEnvironmentBody);
+    const createEnvironment = (projectId: string, owner: { authorization: string }): request.Test =>
+        request(app.getHttpServer()).post(`/projects/${projectId}/environments`).set(owner).send(validEnvironmentBody);
 
     describe("POST (create)", () => {
         test("lets the owner create a Local environment as an AIP resource", async () => {
-            const { owner, accountId } = await createAccount();
+            const { owner, projectId } = await createProject();
 
-            const { body } = await createEnvironment(accountId, owner).expect(HttpStatus.CREATED);
+            const { body } = await createEnvironment(projectId, owner).expect(HttpStatus.CREATED);
 
             expect(body).toEqual({
-                name: `accounts/${accountId}/environments/${body.uid}`,
+                name: `projects/${projectId}/environments/${body.uid}`,
                 uid: expect.any(String),
                 state: "ENQUEUED",
                 platform: { name: "linux", version: "latest", deviceModel: "desktop" },
@@ -58,20 +58,20 @@ describe("/accounts/:account/environments", () => {
 
         test("defaults the execution substrate to container and echoes an explicit one", async () => {
             const owner = Authorization.forUser(UserFactory.createId());
-            const { body: account } = await request(app.getHttpServer())
-                .post("/accounts")
+            const { body: project } = await request(app.getHttpServer())
+                .post("/projects")
                 .set(owner)
                 .send({
                     displayName: "exec",
                     compute: [
-                        { provider: "local", externalRef: "p", platform: "linux", execution: "container" },
+                        { provider: "noop", externalRef: "p", platform: "linux", execution: "container" },
                         { provider: "local-emulator", externalRef: "p", platform: "linux", execution: "emulator" },
                     ],
                 })
                 .expect(HttpStatus.CREATED);
 
             const { body: emulated } = await request(app.getHttpServer())
-                .post(`/accounts/${account.uid}/environments`)
+                .post(`/projects/${project.uid}/environments`)
                 .set(owner)
                 .send({ ...validEnvironmentBody, execution: "emulator" })
                 .expect(HttpStatus.CREATED);
@@ -80,10 +80,10 @@ describe("/accounts/:account/environments", () => {
         });
 
         test("responds INVALID_ARGUMENT for an unknown execution substrate", async () => {
-            const { owner, accountId } = await createAccount();
+            const { owner, projectId } = await createProject();
 
             return request(app.getHttpServer())
-                .post(`/accounts/${accountId}/environments`)
+                .post(`/projects/${projectId}/environments`)
                 .set(owner)
                 .send({ ...validEnvironmentBody, execution: "bare-metal" })
                 .expect(HttpStatus.BAD_REQUEST);
@@ -91,43 +91,43 @@ describe("/accounts/:account/environments", () => {
 
         test("responds UNAUTHENTICATED for an unauthenticated request", () => {
             return request(app.getHttpServer())
-                .post(`/accounts/${uuidv4()}/environments`)
+                .post(`/projects/${uuidv4()}/environments`)
                 .send(validEnvironmentBody)
                 .expect(HttpStatus.UNAUTHORIZED);
         });
 
         test("responds PERMISSION_DENIED for a non-owner", async () => {
-            const { accountId } = await createAccount();
+            const { projectId } = await createProject();
             const stranger = Authorization.forUser(UserFactory.createId());
 
-            return createEnvironment(accountId, stranger)
+            return createEnvironment(projectId, stranger)
                 .expect(HttpStatus.FORBIDDEN)
                 .expect((response) => expect(response.body.error.status).toBe("PERMISSION_DENIED"));
         });
 
         test("responds INVALID_ARGUMENT for an invalid body", async () => {
-            const { owner, accountId } = await createAccount();
+            const { owner, projectId } = await createProject();
 
             return request(app.getHttpServer())
-                .post(`/accounts/${accountId}/environments`)
+                .post(`/projects/${projectId}/environments`)
                 .set(owner)
                 .send({})
                 .expect(HttpStatus.BAD_REQUEST);
         });
 
-        test("responds NOT_FOUND for a non-existent account", () => {
+        test("responds NOT_FOUND for a non-existent project", () => {
             return request(app.getHttpServer())
-                .post(`/accounts/${uuidv4()}/environments`)
+                .post(`/projects/${uuidv4()}/environments`)
                 .set(Authorization.forUser(UserFactory.createId()))
                 .send(validEnvironmentBody)
                 .expect(HttpStatus.NOT_FOUND);
         });
 
         test("responds INVALID_ARGUMENT for a non-concrete application version", async () => {
-            const { owner, accountId } = await createAccount();
+            const { owner, projectId } = await createProject();
 
             return request(app.getHttpServer())
-                .post(`/accounts/${accountId}/environments`)
+                .post(`/projects/${projectId}/environments`)
                 .set(owner)
                 .send({ ...validEnvironmentBody, applications: [{ name: "chrome", version: "latest" }] })
                 .expect(HttpStatus.BAD_REQUEST);
@@ -136,12 +136,12 @@ describe("/accounts/:account/environments", () => {
 
     describe("lifecycle (create -> get -> list -> delete)", () => {
         test("creates enqueued, reads, lists and deletes an environment (state-based)", async () => {
-            const { owner, accountId } = await createAccount();
+            const { owner, projectId } = await createProject();
 
-            const { body: environment } = await createEnvironment(accountId, owner).expect(HttpStatus.CREATED);
+            const { body: environment } = await createEnvironment(projectId, owner).expect(HttpStatus.CREATED);
 
             await request(app.getHttpServer())
-                .get(`/accounts/${accountId}/environments/${environment.uid}`)
+                .get(`/projects/${projectId}/environments/${environment.uid}`)
                 .set(owner)
                 .expect(HttpStatus.OK)
                 .expect((response) => {
@@ -150,7 +150,7 @@ describe("/accounts/:account/environments", () => {
                 });
 
             const list = await request(app.getHttpServer())
-                .get(`/accounts/${accountId}/environments`)
+                .get(`/projects/${projectId}/environments`)
                 .set(owner)
                 .expect(HttpStatus.OK);
 
@@ -158,7 +158,7 @@ describe("/accounts/:account/environments", () => {
             expect(list.body.environments[0].uid).toBe(environment.uid);
 
             const deleted = await request(app.getHttpServer())
-                .delete(`/accounts/${accountId}/environments/${environment.uid}`)
+                .delete(`/projects/${projectId}/environments/${environment.uid}`)
                 .set(owner)
                 .expect(HttpStatus.OK);
 
@@ -169,14 +169,14 @@ describe("/accounts/:account/environments", () => {
 
             // Idempotent while the row survives (GC removes it later): a repeated delete returns it again.
             await request(app.getHttpServer())
-                .delete(`/accounts/${accountId}/environments/${environment.uid}`)
+                .delete(`/projects/${projectId}/environments/${environment.uid}`)
                 .set(owner)
                 .expect(HttpStatus.OK)
                 .expect((response) => expect(response.body.state).toBe("DELETED"));
 
             // GET keeps deriving DELETED until GC removes the row.
             await request(app.getHttpServer())
-                .get(`/accounts/${accountId}/environments/${environment.uid}`)
+                .get(`/projects/${projectId}/environments/${environment.uid}`)
                 .set(owner)
                 .expect(HttpStatus.OK)
                 .expect((response) => expect(response.body.state).toBe("DELETED"));
@@ -189,65 +189,65 @@ describe("/accounts/:account/environments", () => {
             applications: [{ name: "settings", version: "13" }],
         };
 
-        const createAccountWith = async (compute: Array<object>): Promise<{ owner: { authorization: string }, accountId: string }> => {
+        const createProjectWith = async (compute: Array<object>): Promise<{ owner: { authorization: string }, projectId: string }> => {
             const owner = Authorization.forUser(UserFactory.createId());
             const { body } = await request(app.getHttpServer())
-                .post("/accounts")
+                .post("/projects")
                 .set(owner)
                 .send({ displayName: "multi", compute })
                 .expect(HttpStatus.CREATED);
 
-            return { owner, accountId: body.uid };
+            return { owner, projectId: body.uid };
         };
 
-        const createEnvironmentBody = (accountId: string, owner: { authorization: string }, body: object): request.Test =>
-            request(app.getHttpServer()).post(`/accounts/${accountId}/environments`).set(owner).send(body);
+        const createEnvironmentBody = (projectId: string, owner: { authorization: string }, body: object): request.Test =>
+            request(app.getHttpServer()).post(`/projects/${projectId}/environments`).set(owner).send(body);
 
         test("routes each environment to the provider serving its substrate", async () => {
-            const { owner, accountId } = await createAccountWith([
+            const { owner, projectId } = await createProjectWith([
                 { provider: "kubernetes", externalRef: "k", platform: "linux", execution: "container" },
                 { provider: "android-redroid", externalRef: "a", platform: "android", execution: "container" },
             ]);
 
-            await createEnvironmentBody(accountId, owner, validEnvironmentBody).expect(HttpStatus.CREATED);
-            await createEnvironmentBody(accountId, owner, androidEnvironment).expect(HttpStatus.CREATED);
+            await createEnvironmentBody(projectId, owner, validEnvironmentBody).expect(HttpStatus.CREATED);
+            await createEnvironmentBody(projectId, owner, androidEnvironment).expect(HttpStatus.CREATED);
         });
 
         test("rejects an environment no active provider serves (platform/execution mismatch)", async () => {
-            const { owner, accountId } = await createAccountWith([
+            const { owner, projectId } = await createProjectWith([
                 { provider: "android-redroid", externalRef: "a", platform: "android", execution: "container" },
             ]);
 
-            await createEnvironmentBody(accountId, owner, androidEnvironment).expect(HttpStatus.CREATED);
-            await createEnvironmentBody(accountId, owner, validEnvironmentBody).expect(HttpStatus.CONFLICT);
+            await createEnvironmentBody(projectId, owner, androidEnvironment).expect(HttpStatus.CREATED);
+            await createEnvironmentBody(projectId, owner, validEnvironmentBody).expect(HttpStatus.CONFLICT);
         });
     });
 
-    // get/delete look the environment up before touching the account, so id/existence errors precede authz.
+    // get/delete look the environment up before touching the project, so id/existence errors precede authz.
     describe("GET /:environment (errors)", () => {
         test("responds UNAUTHENTICATED for an unauthenticated request", () => {
             return request(app.getHttpServer())
-                .get(`/accounts/${uuidv4()}/environments/${uuidv4()}`)
+                .get(`/projects/${uuidv4()}/environments/${uuidv4()}`)
                 .expect(HttpStatus.UNAUTHORIZED);
         });
 
         test("responds UNAUTHENTICATED for an invalid token", () => {
             return request(app.getHttpServer())
-                .get(`/accounts/${uuidv4()}/environments/${uuidv4()}`)
+                .get(`/projects/${uuidv4()}/environments/${uuidv4()}`)
                 .set(Authorization.invalidToken)
                 .expect(HttpStatus.UNAUTHORIZED);
         });
 
         test("responds INVALID_ARGUMENT for a malformed environment id", () => {
             return request(app.getHttpServer())
-                .get(`/accounts/${uuidv4()}/environments/not-a-uuid`)
+                .get(`/projects/${uuidv4()}/environments/not-a-uuid`)
                 .set(Authorization.forUser(UserFactory.createId()))
                 .expect(HttpStatus.BAD_REQUEST);
         });
 
         test("responds NOT_FOUND for a non-existent environment", () => {
             return request(app.getHttpServer())
-                .get(`/accounts/${uuidv4()}/environments/${uuidv4()}`)
+                .get(`/projects/${uuidv4()}/environments/${uuidv4()}`)
                 .set(Authorization.forUser(UserFactory.createId()))
                 .expect(HttpStatus.NOT_FOUND);
         });

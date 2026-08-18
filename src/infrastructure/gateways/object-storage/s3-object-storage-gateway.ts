@@ -13,7 +13,7 @@ const defaultRegion = "us-east-1";
 
 // Real adapter over any S3-compatible backend (AWS, Yandex Object Storage). Access is DELEGATED: we
 // authenticate as our own service identity (the SDK's default credential provider chain — instance role
-// / service-account token / env), and the user grants that identity write access to their bucket via a
+// / service-project token / env), and the user grants that identity write access to their bucket via a
 // bucket policy. We never hold the user's credentials. `forcePathStyle` keeps non-AWS endpoints happy.
 @Injectable()
 export class S3ObjectStorageGateway extends ObjectStorageGateway {

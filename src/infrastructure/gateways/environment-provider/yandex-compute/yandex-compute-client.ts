@@ -6,7 +6,7 @@ import { Injectable } from "@nestjs/common";
 const execFileAsync = promisify(execFile);
 
 const metadataTokenUrl =
-    "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token";
+    "http://169.254.169.254/computeMetadata/v1/instance/service-projects/default/token";
 
 export type YandexComputeInstanceOptions = {
     name: string;
@@ -22,7 +22,7 @@ export type YandexComputeInstanceOptions = {
 
 // Thin wrapper around the `yc` CLI (the same shell-out pattern as DockerClient/KubernetesClient). It runs
 // the operational verbs against YC Compute; the environment data the control plane needs comes back via the
-// agent, not from here. Auth: in-cluster it takes the node service account's IAM token from the instance
+// agent, not from here. Auth: in-cluster it takes the node service project's IAM token from the instance
 // metadata service and passes it as YC_TOKEN (kept out of argv/ps); locally it falls back to the ambient
 // `yc` profile. The folder is passed explicitly because a token-authenticated call has no profile default.
 @Injectable()
@@ -80,7 +80,7 @@ export class YandexComputeClient {
         return stdout;
     }
 
-    // The node service account's IAM token from the instance metadata service; null off-cluster (where the
+    // The node service project's IAM token from the instance metadata service; null off-cluster (where the
     // ambient `yc` profile authenticates instead).
     private async metadataToken(): Promise<string | null> {
         try {

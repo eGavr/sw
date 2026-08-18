@@ -12,12 +12,12 @@ import { StorageDestination } from "./typeorm/entities/storage-destination/stora
 export class StorageDestinationDataSource {
     constructor(private readonly dataSource: DataSource) {}
 
-    async save(accountId: string, destination: StorageDestinationEntity): Promise<void> {
-        await this.dataSource.getRepository(StorageDestination).save(StorageDestination.from(accountId, destination));
+    async save(projectId: string, destination: StorageDestinationEntity): Promise<void> {
+        await this.dataSource.getRepository(StorageDestination).save(StorageDestination.from(projectId, destination));
     }
 
-    async findOne(accountId: string): Promise<StorageDestinationData | null> {
-        const row = await this.dataSource.getRepository(StorageDestination).findOne({ where: { accountId } });
+    async findOne(projectId: string): Promise<StorageDestinationData | null> {
+        const row = await this.dataSource.getRepository(StorageDestination).findOne({ where: { projectId } });
 
         return row?.toObject() ?? null;
     }

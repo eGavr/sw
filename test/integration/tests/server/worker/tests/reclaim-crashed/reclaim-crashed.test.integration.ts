@@ -4,29 +4,29 @@ import { Test } from "@nestjs/testing";
 import { DataSource } from "typeorm";
 
 import { EnvironmentProviderGateway } from "../../../../../../../src/application/interfaces/gateways/environment-provider-gateway";
-import { AccountRepository } from "../../../../../../../src/application/interfaces/repositories/account-repository";
 import {
     EnvironmentRepository,
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
+import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
 import {
     ReclaimCrashedEnvironmentsUseCase,
 } from "../../../../../../../src/application/use-cases/environments/reclaim-crashed-environments-use-case";
-import { AccountId } from "../../../../../../../src/domain/entities/account/account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { EnvironmentEndpoint } from "../../../../../../../src/domain/entities/environment/environment-endpoint";
 import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../../../../../../src/domain/entities/environment/environment-state";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
+import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
 import { User } from "../../../../../../../src/domain/entities/user/user";
-import { AccountDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/account-data-source";
 import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
+import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
 import { PostgresModule } from "../../../../../../../src/infrastructure/data-sources/database/postgres/typeorm/postgres-module";
-import { AccountRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/account-repository-impl";
 import {
     EnvironmentRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/environment-repository-impl";
+import { ProjectRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 
 const freshnessMs = 6_000;
@@ -37,7 +37,7 @@ const freshnessMs = 6_000;
 describe("crashed-executing reclaim", () => {
     let app: INestApplication;
     let dataSource: DataSource;
-    let accountRepository: AccountRepository;
+    let projectRepository: ProjectRepository;
     let environmentRepository: EnvironmentRepository;
     let deprovision: jest.Mock;
 
@@ -50,9 +50,9 @@ describe("crashed-executing reclaim", () => {
                 PostgresModule,
             ],
             providers: [
-                AccountDataSource,
+                ProjectDataSource,
                 EnvironmentDataSource,
-                { provide: AccountRepository, useClass: AccountRepositoryImpl },
+                { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 {
                     provide: EnvironmentProviderGateway,
@@ -66,7 +66,7 @@ describe("crashed-executing reclaim", () => {
         await app.init();
 
         dataSource = app.get(DataSource);
-        accountRepository = app.get(AccountRepository);
+        projectRepository = app.get(ProjectRepository);
         environmentRepository = app.get(EnvironmentRepository);
     });
 
@@ -74,18 +74,18 @@ describe("crashed-executing reclaim", () => {
         await app.close();
     });
 
-    // Drive an environment enqueued -> starting -> preparing -> executing under a real account.
+    // Drive an environment enqueued -> starting -> preparing -> executing under a real project.
     const seedExecuting = async (): Promise<string> => {
         const externalId = UserFactory.createId();
-        const account = await accountRepository.create({
+        const project = await projectRepository.create({
             name: `team-${externalId}`,
             createdBy: User.create({ externalId, providerType: "local" }),
         });
-        await accountRepository.save(account);
+        await projectRepository.save(project);
 
         await environmentRepository.create({
-            accountId: AccountId.fromString(account.id),
-            provider: "local",
+            projectId: ProjectId.fromString(project.id),
+            provider: "noop",
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });

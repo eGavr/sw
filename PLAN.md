@@ -580,20 +580,22 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     **Осознанно вне скоупа:** собственное управление членством групп (директория — не наша зона), IAM conditions. Связано с п.26 (etag) и
     п.27 (единый стиль принципалов/имён).
 
-30. **Нейминг: тенант `Account` → `Project`; `ProviderAccount` остаётся — РЕШЕНО, переименование НЕ сделано.** Валидировано против
-    Crossplane (`Provider` vs `ProviderConfig`) / Terraform (`provider`+`alias`) / Cluster API (identity). Тенант переименовать в **`Project`**
-    (Google=Project, Azure=Subscription; «Account» был слабым и давал тавтологию `accounts/{account}/providerAccounts`), URL → `/v1/projects/{project}/…`;
-    `ProviderAccount` СОХРАНИТЬ (честный «внешний аккаунт у провайдера», живёт под проектом). Слои: поле `provider` (тип-адаптер) vs сущность
-    `ProviderAccount` (именованная конфигурация-привязка) — как Crossplane Provider/ProviderConfig. Правка: доменные имена `Account*`→`Project*`,
-    таблица/миграция, presenter/URL `accounts`→`projects`, тесты, runbook. Юзеров нет — ломаем свободно.
+30. **Нейминг: тенант `Account` → `Project`; `ProviderAccount` остаётся — СДЕЛАНО (ветка `refactor.rename-local-provider-to-noop`, стек-коммит).**
+    Валидировано против Crossplane (`Provider` vs `ProviderConfig`) / Terraform (`provider`+`alias`) / Cluster API (identity). Переименовано: доменные
+    `Account*`→`Project*` (`Account`/`AccountId`/`AccountName`/`AccountRepository`/…, файлы+папки), URL `/v1/accounts`→`/v1/projects`, вложенный роут
+    `projects/:project/environments`, IAM-права `account:*`→`project:*` (+ роли/`testIamPermissions`), капа сессии `sw:accountId`→`sw:projectId`,
+    presenter/`name`=`projects/{id}`, миграция `1786600000000` (таблицы `account`→`project`, `account_iam_binding`→`project_iam_binding`, колонки
+    `account_id`→`project_id` в environment/provider_account/storage_destination), тесты, runbook. **`ProviderAccount` СОХРАНЁН** (защищён при
+    ренейме word-boundary + сентинелом для kebab). Historical-миграции не тронуты (создают `account`, новая переименовывает). auth-`local` — другой
+    концепт, не тронут. tsc 0 · eslint 0 · unit 108 · integration 89.
 
 31. **Нейминг значений `provider` (реестр адаптеров) — принцип «имя по бэкенду», часть РЕШЕНА.** Принцип: `provider` = имя ЗАРЕГИСТРИРОВАННОГО
     бэкенда (как Terraform/Crossplane), субстрат (`platform`/`execution`) и `config` определяют что на нём крутится. **Имя поля — оставляем `provider`**
     (РЕШЕНО): рассматривали `backend`/`providerType` из-за повтора `providerAccount.provider`, но повтор мягкий и осмысленный (ср. `bankAccount.bank`),
     а `provider` — индустриальный термин. `provider` = «каким адаптером/бэкендом поднимается окружение» (ортогонально `platform`/`execution`).
-    - **`local` → `noop` — РЕШЕНО.** `LocalEnvironmentProviderGateway` ничего не поднимает (provision/deprovision = no-op); имя «local» путает (docker
-      как раз про локальную машину). Честное имя — `noop` (null-object; провижн-в-никуда для интеграционных тестов/dry-run). Переименовать значение
-      в реестре + сиды тестов (`provider: "local"` → `"noop"`).
+    - **`local` → `noop` — СДЕЛАНО (ветка `refactor.rename-local-provider-to-noop`).** `NoopEnvironmentProviderGateway` (был `Local…`) ничего не
+      поднимает (null-object); ключ реестра `"local"`→`"noop"`, сиды тестов `provider:"local"`→`"noop"`, мёртвый `COMPUTE_PROVIDER=local`→`noop`.
+      **NB:** auth-`local` (`AUTH_STRATEGY`, `User.providerType:"local"`, local user data source) — ЭТО ДРУГОЙ `local`, НЕ трогали. tsc/eslint/unit 108/integration 89.
     - **`docker` — ОСТАВИТЬ.** Это бэкенд Docker Engine (демон может быть и удалённым — `DOCKER_HOST`), а не «локальная машина»; «для локалки» было
       лишь usage-примечанием. Имя честное и индустриальное (у Terraform есть провайдер `docker`).
     - **`kubernetes` — ОСТАВИТЬ.**

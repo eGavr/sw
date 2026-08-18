@@ -3,14 +3,13 @@ import { ConfigModule } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { DataSource } from "typeorm";
 
-import { AccountRepository } from "../../../../../../../src/application/interfaces/repositories/account-repository";
 import {
     EnvironmentRepository,
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
+import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
 import {
     CollectGarbageEnvironmentsUseCase,
 } from "../../../../../../../src/application/use-cases/environments/collect-garbage-environments-use-case";
-import { AccountId } from "../../../../../../../src/domain/entities/account/account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { Environment } from "../../../../../../../src/domain/entities/environment/environment";
 import { EnvironmentEndpoint } from "../../../../../../../src/domain/entities/environment/environment-endpoint";
@@ -19,16 +18,17 @@ import { EnvironmentState } from "../../../../../../../src/domain/entities/envir
 import { EnvironmentStateReason } from "../../../../../../../src/domain/entities/environment/environment-state-reason";
 import { EnvironmentNotFoundError } from "../../../../../../../src/domain/entities/environment/error/environment-not-found-error";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
+import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
 import { User } from "../../../../../../../src/domain/entities/user/user";
-import { AccountDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/account-data-source";
 import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
+import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
 import { PostgresModule } from "../../../../../../../src/infrastructure/data-sources/database/postgres/typeorm/postgres-module";
-import { AccountRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/account-repository-impl";
 import {
     EnvironmentRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/environment-repository-impl";
+import { ProjectRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 
 // GC has no HTTP surface, so it is exercised through its use case against a real Postgres: this
@@ -38,7 +38,7 @@ describe("environment garbage collection", () => {
     let dataSource: DataSource;
     let environmentRepository: EnvironmentRepository;
 
-    let accountRepository: AccountRepository;
+    let projectRepository: ProjectRepository;
 
     beforeEach(async () => {
         const moduleRef = await Test.createTestingModule({
@@ -47,9 +47,9 @@ describe("environment garbage collection", () => {
                 PostgresModule,
             ],
             providers: [
-                AccountDataSource,
+                ProjectDataSource,
                 EnvironmentDataSource,
-                { provide: AccountRepository, useClass: AccountRepositoryImpl },
+                { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 CollectGarbageEnvironmentsUseCase,
             ],
@@ -60,7 +60,7 @@ describe("environment garbage collection", () => {
 
         dataSource = app.get(DataSource);
         environmentRepository = app.get(EnvironmentRepository);
-        accountRepository = app.get(AccountRepository);
+        projectRepository = app.get(ProjectRepository);
     });
 
     afterEach(async () => {
@@ -69,15 +69,15 @@ describe("environment garbage collection", () => {
 
     const create = async (): Promise<Environment> => {
         const externalId = UserFactory.createId();
-        const account = await accountRepository.create({
+        const project = await projectRepository.create({
             name: `team-${externalId}`,
             createdBy: User.create({ externalId, providerType: "local" }),
         });
-        await accountRepository.save(account);
+        await projectRepository.save(project);
 
         return environmentRepository.create({
-            accountId: AccountId.fromString(account.id),
-            provider: "local",
+            projectId: ProjectId.fromString(project.id),
+            provider: "noop",
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });

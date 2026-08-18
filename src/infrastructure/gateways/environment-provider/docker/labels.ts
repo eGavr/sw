@@ -1,7 +1,7 @@
 export const dockerLabels = {
     provider: "sw.provider",
     environmentId: "sw.environment.id",
-    accountId: "sw.account.id",
+    projectId: "sw.project.id",
 };
 
 export const dockerProviderValue = "docker";

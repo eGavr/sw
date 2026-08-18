@@ -1,13 +1,13 @@
-import { AccountId } from "../account/account-id";
 import { Execution, toExecution } from "../environment/execution";
 import { InvalidArgumentError } from "../error/invalid-argument-error";
+import { ProjectId } from "../project/project-id";
 
 import { ProviderAccountId } from "./provider-account-id";
 import { ProviderAccountState } from "./provider-account-state";
 
 export type ProviderAccountData = {
     id: string;
-    accountId: string;
+    projectId: string;
     provider: string;
     platformName: string;
     execution: string;
@@ -19,7 +19,7 @@ export type ProviderAccountData = {
 };
 
 export type ProviderAccountCreateParams = {
-    accountId: AccountId;
+    projectId: ProjectId;
     provider: string;
     platformName: string;
     execution: Execution;
@@ -29,7 +29,7 @@ export type ProviderAccountCreateParams = {
 
 type ProviderAccountConstructorParams = {
     id?: ProviderAccountId;
-    accountId: AccountId;
+    projectId: ProjectId;
     provider: string;
     platformName: string;
     execution: Execution;
@@ -48,7 +48,7 @@ export class ProviderAccount {
     static fromObject(data: ProviderAccountData): ProviderAccount {
         return new ProviderAccount({
             id: ProviderAccountId.fromString(data.id),
-            accountId: AccountId.fromString(data.accountId),
+            projectId: ProjectId.fromString(data.projectId),
             provider: data.provider,
             platformName: data.platformName,
             execution: toExecution(data.execution),
@@ -64,7 +64,7 @@ export class ProviderAccount {
         const state = Object.values(ProviderAccountState).find((candidate) => candidate === value);
 
         if (!state) {
-            throw new InvalidArgumentError(`provider account state: ${value}: unknown`);
+            throw new InvalidArgumentError(`provider project state: ${value}: unknown`);
         }
 
         return state;
@@ -78,13 +78,13 @@ export class ProviderAccount {
     readonly createdAt: Date;
 
     private readonly _id: ProviderAccountId;
-    private readonly _accountId: AccountId;
+    private readonly _projectId: ProjectId;
     private _state: ProviderAccountState;
     private _updatedAt: Date;
 
     private constructor(params: ProviderAccountConstructorParams) {
         this._id = params.id ?? ProviderAccountId.create();
-        this._accountId = params.accountId;
+        this._projectId = params.projectId;
         this.provider = params.provider;
         this.platformName = params.platformName;
         this.execution = params.execution;
@@ -99,8 +99,8 @@ export class ProviderAccount {
         return this._id.getValue();
     }
 
-    get accountId(): AccountId {
-        return this._accountId;
+    get projectId(): ProjectId {
+        return this._projectId;
     }
 
     get state(): ProviderAccountState {
@@ -115,7 +115,7 @@ export class ProviderAccount {
         return this._state === ProviderAccountState.Active;
     }
 
-    // Whether this connection provisions the requested substrate — the routing key that lets one account
+    // Whether this connection provisions the requested substrate — the routing key that lets one project
     // hold several providers (redroid for android/container, kubernetes for linux/container, …).
     serves(platformName: string, execution: Execution): boolean {
         return this.platformName === platformName && this.execution === execution;
@@ -134,7 +134,7 @@ export class ProviderAccount {
     toObject(): ProviderAccountData {
         return {
             id: this.id,
-            accountId: this._accountId.getValue(),
+            projectId: this._projectId.getValue(),
             provider: this.provider,
             platformName: this.platformName,
             execution: this.execution,

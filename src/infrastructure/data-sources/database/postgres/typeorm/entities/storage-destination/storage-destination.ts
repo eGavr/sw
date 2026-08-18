@@ -5,15 +5,15 @@ import {
     StorageDestinationData,
 } from "../../../../../../../domain/entities/storage/storage-destination";
 
-// One row per account (account_id is the primary key): the singleton storage destination. Access is
+// One row per project (project_id is the primary key): the singleton storage destination. Access is
 // delegated to our service identity via a bucket policy, so no credentials are stored here.
 @Entity()
 export class StorageDestination {
-    static from(accountId: string, destination: StorageDestinationEntity): StorageDestination {
+    static from(projectId: string, destination: StorageDestinationEntity): StorageDestination {
         const data = destination.toObject();
         const row = new StorageDestination();
 
-        row.accountId = accountId;
+        row.projectId = projectId;
         row.endpoint = data.endpoint ?? null;
         row.region = data.region ?? null;
         row.bucket = data.bucket;
@@ -23,7 +23,7 @@ export class StorageDestination {
     }
 
     @PrimaryColumn("uuid")
-    accountId: string;
+    projectId: string;
 
     @Column({ type: "varchar", nullable: true })
     endpoint: string | null;

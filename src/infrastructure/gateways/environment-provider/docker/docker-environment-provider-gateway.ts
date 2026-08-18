@@ -59,7 +59,7 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
             labels: {
                 [dockerLabels.provider]: dockerProviderValue,
                 [dockerLabels.environmentId]: environment.id,
-                [dockerLabels.accountId]: environment.accountId.getValue(),
+                [dockerLabels.projectId]: environment.projectId.getValue(),
             },
         });
     }

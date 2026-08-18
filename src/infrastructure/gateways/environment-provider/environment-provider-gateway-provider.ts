@@ -37,7 +37,7 @@ import {
 import {
     KubernetesEnvironmentProviderGateway,
 } from "./kubernetes/kubernetes-environment-provider-gateway";
-import { LocalEnvironmentProviderGateway } from "./local-environment-provider-gateway";
+import { NoopEnvironmentProviderGateway } from "./noop-environment-provider-gateway";
 import { RoutingEnvironmentProviderGateway } from "./routing-environment-provider-gateway";
 import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 
@@ -51,7 +51,7 @@ export const EnvironmentProviderGatewayProvider = {
     provide: EnvironmentProviderGateway,
     useFactory: (configService: ConfigService): EnvironmentProviderGateway => {
         const gateways = new Map<string, EnvironmentProviderGateway>([
-            ["local", new LocalEnvironmentProviderGateway()],
+            ["noop", new NoopEnvironmentProviderGateway()],
             ["docker", new DockerEnvironmentProviderGateway(new DockerClient(), dockerConfig(configService))],
             ["kubernetes", new KubernetesEnvironmentProviderGateway(
                 new KubernetesClient(

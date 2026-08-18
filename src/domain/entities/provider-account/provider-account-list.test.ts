@@ -1,12 +1,12 @@
-import { AccountId } from "../account/account-id";
 import { Execution } from "../environment/execution";
+import { ProjectId } from "../project/project-id";
 
 import { ProviderAccount } from "./provider-account";
 import { ProviderAccountList } from "./provider-account-list";
 import { ProviderAccountState } from "./provider-account-state";
 
 describe("ProviderAccountList", () => {
-    const accountId = AccountId.create();
+    const projectId = ProjectId.create();
 
     const providerAccount = (
         provider: string,
@@ -16,7 +16,7 @@ describe("ProviderAccountList", () => {
     ): ProviderAccount =>
         ProviderAccount.fromObject({
             id: "00000000-0000-0000-0000-000000000000",
-            accountId: accountId.getValue(),
+            projectId: projectId.getValue(),
             provider,
             platformName,
             execution,

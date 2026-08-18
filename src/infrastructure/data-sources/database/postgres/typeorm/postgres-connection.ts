@@ -7,10 +7,10 @@ import { config } from "dotenv";
 import { DataSource } from "typeorm";
 import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
-import { Account } from "./entities/account/account";
-import { AccountIamBinding } from "./entities/account/account-iam-binding";
 import { Environment } from "./entities/environment/environment";
 import { EnvironmentApplication } from "./entities/environment/environment-application";
+import { Project } from "./entities/project/project";
+import { ProjectIamBinding } from "./entities/project/project-iam-binding";
 import { ProviderAccount } from "./entities/provider-account/provider-account";
 import { StorageDestination } from "./entities/storage-destination/storage-destination";
 import { User } from "./entities/user/user";
@@ -40,8 +40,8 @@ export class PostgresConnection {
             migrationsTableName: "__migrations",
             namingStrategy: new SnakeNamingStrategy(),
             entities: [
-                AccountIamBinding,
-                Account,
+                ProjectIamBinding,
+                Project,
                 User,
                 Environment,
                 EnvironmentApplication,

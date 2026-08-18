@@ -1,10 +1,10 @@
-import { AccountId } from "../../../domain/entities/account/account-id";
+import { ProjectId } from "../../../domain/entities/project/project-id";
 import { StorageDestination } from "../../../domain/entities/storage/storage-destination";
 
-// A single object-storage destination per account (a singleton): where the account's session artifacts
-// (logs, later video) are written. `find` returns null when the account has not configured one yet.
+// A single object-storage destination per project (a singleton): where the project's session artifacts
+// (logs, later video) are written. `find` returns null when the project has not configured one yet.
 export abstract class StorageDestinationRepository {
-    abstract find(accountId: AccountId): Promise<StorageDestination | null>;
+    abstract find(projectId: ProjectId): Promise<StorageDestination | null>;
 
-    abstract save(accountId: AccountId, destination: StorageDestination): Promise<void>;
+    abstract save(projectId: ProjectId, destination: StorageDestination): Promise<void>;
 }

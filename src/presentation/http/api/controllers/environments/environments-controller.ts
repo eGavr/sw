@@ -12,7 +12,7 @@ import { CreateEnvironmentRequestModel } from "./io/create-environment-request-m
 import { EnvironmentPresenter } from "./io/environment-presenter";
 import { ListEnvironmentsPresenter } from "./io/list-environments-presenter";
 
-@Controller("accounts/:account/environments")
+@Controller("projects/:project/environments")
 export class EnvironmentsController {
     constructor(
         private readonly createEnvironmentUseCase: CreateEnvironmentUseCase,
@@ -23,14 +23,14 @@ export class EnvironmentsController {
 
     @Post()
     async createEnvironment(
-        @Param("account") account: string,
+        @Param("project") project: string,
         @Body() body: CreateEnvironmentRequestModel,
         @BearerToken() token: string,
     ): Promise<EnvironmentPresenter> {
         return new EnvironmentPresenter(await this.createEnvironmentUseCase.execute({
             creds: { token },
             params: {
-                accountId: account,
+                projectId: project,
                 platform: body.platform,
                 execution: body.execution,
                 applications: body.applications,
@@ -40,11 +40,11 @@ export class EnvironmentsController {
 
     @Get()
     async listEnvironments(
-        @Param("account") account: string,
+        @Param("project") project: string,
         @Query() query: PageRequestModel,
         @BearerToken() token: string,
     ): Promise<ListEnvironmentsPresenter> {
-        const environments = await this.listEnvironmentsUseCase.execute({ creds: { token }, params: { accountId: account } });
+        const environments = await this.listEnvironmentsUseCase.execute({ creds: { token }, params: { projectId: project } });
         const page = paginate(environments, query.pageSize, query.pageToken);
 
         return new ListEnvironmentsPresenter(page.items, page.nextPageToken);

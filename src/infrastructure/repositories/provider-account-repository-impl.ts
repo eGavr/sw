@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
 import { ProviderAccountRepository } from "../../application/interfaces/repositories/provider-account-repository";
-import { AccountId } from "../../domain/entities/account/account-id";
 import { NotFoundResourceError } from "../../domain/entities/error/not-found/not-found-resource-error";
+import { ProjectId } from "../../domain/entities/project/project-id";
 import { ProviderAccount, ProviderAccountCreateParams } from "../../domain/entities/provider-account/provider-account";
 import { ProviderAccountId } from "../../domain/entities/provider-account/provider-account-id";
 import { ProviderAccountState } from "../../domain/entities/provider-account/provider-account-state";
@@ -32,9 +32,9 @@ export class ProviderAccountRepositoryImpl extends ProviderAccountRepository {
         return ProviderAccount.fromObject(data);
     }
 
-    async listActiveByAccount(accountId: AccountId): Promise<Array<ProviderAccount>> {
-        const data = await this.providerAccountDataSource.listByAccountAndState(
-            accountId.getValue(),
+    async listActiveByProject(projectId: ProjectId): Promise<Array<ProviderAccount>> {
+        const data = await this.providerAccountDataSource.listByProjectAndState(
+            projectId.getValue(),
             ProviderAccountState.Active,
         );
 

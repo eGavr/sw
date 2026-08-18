@@ -6,10 +6,10 @@ import request from "supertest";
 import { v4 as uuidv4 } from "uuid";
 
 import { ObjectStorageGateway } from "../../../../../../../src/application/interfaces/gateways/object-storage-gateway";
-import { AccountRepository } from "../../../../../../../src/application/interfaces/repositories/account-repository";
 import {
     EnvironmentRepository,
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
+import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
 import {
     ProviderAccountRepository,
 } from "../../../../../../../src/application/interfaces/repositories/provider-account-repository";
@@ -25,7 +25,6 @@ import {
 import {
     UploadSessionVideoUseCase,
 } from "../../../../../../../src/application/use-cases/environments/upload-session-video-use-case";
-import { AccountId } from "../../../../../../../src/domain/entities/account/account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { Environment } from "../../../../../../../src/domain/entities/environment/environment";
 import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
@@ -33,13 +32,14 @@ import { EnvironmentState } from "../../../../../../../src/domain/entities/envir
 import { EnvironmentStatus } from "../../../../../../../src/domain/entities/environment/environment-status";
 import { Execution } from "../../../../../../../src/domain/entities/environment/execution";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
+import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
 import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
-import { AccountDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/account-data-source";
 import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
+import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
 import {
     ProviderAccountDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/provider-account-data-source";
@@ -51,10 +51,10 @@ import {
     InMemoryObjectStorageGateway,
 } from "../../../../../../../src/infrastructure/gateways/object-storage/in-memory-object-storage-gateway";
 import { LoggerModule } from "../../../../../../../src/infrastructure/logging/logger-module";
-import { AccountRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/account-repository-impl";
 import {
     EnvironmentRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/environment-repository-impl";
+import { ProjectRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
 import {
     ProviderAccountRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/provider-account-repository-impl";
@@ -76,7 +76,7 @@ describe("/internal/environments/:id:heartbeat", () => {
     let app: INestApplication;
     let environmentRepository: EnvironmentRepository;
 
-    let accountRepository: AccountRepository;
+    let projectRepository: ProjectRepository;
     let providerAccountRepository: ProviderAccountRepository;
 
     beforeEach(async () => {
@@ -91,11 +91,11 @@ describe("/internal/environments/:id:heartbeat", () => {
                 RecordEnvironmentHeartbeatUseCase,
                 UploadSessionLogsUseCase,
                 UploadSessionVideoUseCase,
-                AccountDataSource,
+                ProjectDataSource,
                 ProviderAccountDataSource,
                 EnvironmentDataSource,
                 StorageDestinationDataSource,
-                { provide: AccountRepository, useClass: AccountRepositoryImpl },
+                { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
                 { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
@@ -119,7 +119,7 @@ describe("/internal/environments/:id:heartbeat", () => {
         await app.init();
 
         environmentRepository = app.get(EnvironmentRepository);
-        accountRepository = app.get(AccountRepository);
+        projectRepository = app.get(ProjectRepository);
         providerAccountRepository = app.get(ProviderAccountRepository);
     });
 
@@ -129,21 +129,21 @@ describe("/internal/environments/:id:heartbeat", () => {
 
     const seedEnvironment = async (): Promise<string> => {
         const externalId = UserFactory.createId();
-        const account = await accountRepository.create({
+        const project = await projectRepository.create({
             name: `team-${externalId}`,
             createdBy: User.create({ externalId, providerType: "local" }),
         });
-        await accountRepository.save(account);
+        await projectRepository.save(project);
 
         const providerAccount = await providerAccountRepository.create({
-            accountId: AccountId.fromString(account.id),
-            provider: "local",
+            projectId: ProjectId.fromString(project.id),
+            provider: "noop",
             platformName: "linux",
             execution: Execution.Container,
         });
 
         const environment = await environmentRepository.create({
-            accountId: AccountId.fromString(account.id),
+            projectId: ProjectId.fromString(project.id),
             providerAccountId: ProviderAccountId.fromString(providerAccount.id),
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),

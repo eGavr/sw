@@ -13,7 +13,7 @@ beforeAll(async () => {
 });
 
 // Local auth is stateless (any `Bearer <id>` is a user), so only Postgres state needs resetting
-// between cases — permissions/accounts live there.
+// between cases — permissions/projects live there.
 beforeEach(async () => {
     await pgConnection.initialize();
 

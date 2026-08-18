@@ -9,7 +9,7 @@ export class EnvironmentPresenter implements Presenter {
         const reason = this.environment.stateReason;
 
         return {
-            name: `accounts/${this.environment.accountId.getValue()}/environments/${this.environment.id}`,
+            name: `projects/${this.environment.projectId.getValue()}/environments/${this.environment.id}`,
             uid: this.environment.id,
             state: this.environment.effectiveStatus(new Date(), defaultHeartbeatFreshnessMs),
             ...(reason ? { stateReason: reason } : {}),

@@ -4,7 +4,6 @@ import {
     CreateEnvironmentParams,
     EnvironmentRepository,
 } from "../../application/interfaces/repositories/environment-repository";
-import { AccountId } from "../../domain/entities/account/account-id";
 import { CrashedExecutionCriteria } from "../../domain/entities/environment/crashed-execution-criteria";
 import { Environment } from "../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../domain/entities/environment/environment-id";
@@ -13,6 +12,7 @@ import { EnvironmentNotFoundError } from "../../domain/entities/environment/erro
 import { GarbageCollectionCriteria } from "../../domain/entities/environment/garbage-collection-criteria";
 import { SessionAllocationCriteria } from "../../domain/entities/environment/session-allocation-criteria";
 import { StuckProvisioningCriteria } from "../../domain/entities/environment/stuck-provisioning-criteria";
+import { ProjectId } from "../../domain/entities/project/project-id";
 import { EnvironmentDataSource } from "../data-sources/database/postgres/environment-data-source";
 
 // How many free candidates to fetch and try before giving up — a query bound, not a business rule.
@@ -42,8 +42,8 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         return Environment.fromObject(data);
     }
 
-    async listByAccount(accountId: AccountId): Promise<Array<Environment>> {
-        const data = await this.environmentDataSource.findAllByAccount(accountId.getValue());
+    async listByProject(projectId: ProjectId): Promise<Array<Environment>> {
+        const data = await this.environmentDataSource.findAllByProject(projectId.getValue());
 
         return data.map(Environment.fromObject);
     }
@@ -54,11 +54,11 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         return data.map(Environment.fromObject);
     }
 
-    async findAllocatable(accountId: AccountId, criteria: SessionAllocationCriteria): Promise<Array<Environment>> {
+    async findAllocatable(projectId: ProjectId, criteria: SessionAllocationCriteria): Promise<Array<Environment>> {
         const predicate = criteria.toPredicate();
 
         const data = await this.environmentDataSource.findAllocatable(
-            accountId.getValue(),
+            projectId.getValue(),
             {
                 state: predicate.state,
                 busy: predicate.busy,
