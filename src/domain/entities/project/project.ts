@@ -1,6 +1,7 @@
 import { User, UserData } from "../user/user";
 import { UserPermissionName } from "../user/user-permission-name";
 
+import { IamPolicyEtagMismatchError } from "./iam/error/iam-policy-etag-mismatch-error";
 import { IamBinding } from "./iam/iam-binding";
 import { IamPolicy } from "./iam/iam-policy";
 import { Member } from "./iam/member";
@@ -93,7 +94,14 @@ export class Project {
         return this._policy;
     }
 
-    setIamPolicy(policy: IamPolicy): void {
+    // Replaces the whole policy (google.iam.v1 SetIamPolicy). When an expected etag is given, it must
+    // match the current policy's version, or the write is rejected as a stale (lost) update; omitting it
+    // is a blind overwrite, as Google allows.
+    setIamPolicy(policy: IamPolicy, expectedEtag?: string): void {
+        if (expectedEtag !== undefined && expectedEtag !== this._policy.etag()) {
+            throw new IamPolicyEtagMismatchError();
+        }
+
         this._policy = policy;
         this._updatedAt = new Date();
     }

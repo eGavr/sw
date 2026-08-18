@@ -28,8 +28,8 @@ describe("IamPolicy", () => {
     test("a member without a binding holds nothing", () => {
         const policy = IamPolicy.withOwner(alice);
 
-        expect(policy.grants(bob, UserPermissionName.Environment.Read)).toBe(false);
-        expect(policy.test(bob, [UserPermissionName.Project.Read])).toEqual([]);
+        expect(policy.grants(bob, UserPermissionName.Environment.Get)).toBe(false);
+        expect(policy.test(bob, [UserPermissionName.Project.Get])).toEqual([]);
     });
 
     test("test returns the held subset preserving request order", () => {
@@ -37,10 +37,43 @@ describe("IamPolicy", () => {
 
         const held = policy.test(bob, [
             UserPermissionName.Environment.Create,
-            UserPermissionName.Environment.Read,
-            UserPermissionName.Project.Read,
+            UserPermissionName.Environment.Get,
+            UserPermissionName.Project.Get,
         ]);
 
-        expect(held).toEqual([UserPermissionName.Environment.Read, UserPermissionName.Project.Read]);
+        expect(held).toEqual([UserPermissionName.Environment.Get, UserPermissionName.Project.Get]);
+    });
+
+    describe("#etag", () => {
+        test("is stable regardless of binding and member order", () => {
+            const one = IamPolicy.fromBindings([
+                IamBinding.create(RoleName.Admin, [alice, bob]),
+                IamBinding.create(RoleName.Viewer, [bob]),
+            ]);
+            const reordered = IamPolicy.fromBindings([
+                IamBinding.create(RoleName.Viewer, [bob]),
+                IamBinding.create(RoleName.Admin, [bob, alice]),
+            ]);
+
+            expect(one.etag()).toBe(reordered.etag());
+        });
+
+        test("changes when the policy content changes", () => {
+            const before = IamPolicy.fromBindings([IamBinding.create(RoleName.Viewer, [alice])]);
+            const after = IamPolicy.fromBindings([IamBinding.create(RoleName.Viewer, [alice, bob])]);
+
+            expect(before.etag()).not.toBe(after.etag());
+        });
+
+        test("distinguishes the same members bound to different roles", () => {
+            const asViewer = IamPolicy.fromBindings([IamBinding.create(RoleName.Viewer, [alice])]);
+            const asDeveloper = IamPolicy.fromBindings([IamBinding.create(RoleName.Developer, [alice])]);
+
+            expect(asViewer.etag()).not.toBe(asDeveloper.etag());
+        });
+
+        test("is stable for the empty policy", () => {
+            expect(IamPolicy.empty().etag()).toBe(IamPolicy.empty().etag());
+        });
     });
 });

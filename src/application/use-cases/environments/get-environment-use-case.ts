@@ -18,7 +18,7 @@ type GetEnvironmentInput = {
 
 @Injectable()
 export class GetEnvironmentUseCase {
-    private readonly permissionName = UserPermissionName.Environment.Read;
+    private readonly permissionName = UserPermissionName.Environment.Get;
 
     constructor(
         private readonly accessControl: AccessControl,

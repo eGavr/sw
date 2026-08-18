@@ -534,7 +534,15 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     `:getIamPolicy`/`:setIamPolicy`/`:testIamPermissions` (google.iam.v1 — политика возвращается/пишется целиком, см. п.27). Итог ревизии:
     консистентность формы уже есть; долг — только «настоящая» БД-пагинация.
 
-26. **`:setIamPolicy` без etag (optimistic concurrency) — риск потерянного обновления — НЕ сделано.** Полное переопределение политики
+26. **`:setIamPolicy` etag (optimistic concurrency) — СДЕЛАНО (ветка `feat.iam-policy-etag`).** `getIamPolicy`/`setIamPolicy`-ответ теперь
+    несёт **`etag`** — непрозрачный отпечаток содержимого политики (доменный `IamPolicy.etag()`: канонизация биндингов/членов → чистый sync
+    FNV-1a-хеш, БЕЗ crypto/I-O, БЕЗ колонки в БД). **Google-стиль (опционален):** `setIamPolicy` с `policy.etag` → при рассинхроне
+    `IamPolicyEtagMismatchError` (`ConflictError` → **409 ABORTED**), защищая от lost-update; без etag → слепая перезапись разрешена (как gcloud).
+    Инвариант «пишешь поверх версии, что читал» — в домене (`Project.setIamPolicy(policy, expectedEtag?)`). Покрыто: unit (etag стабилен при
+    переупорядочивании, различает роли/членов; guard) + integration (current-etag OK+новый etag, stale→409 ABORTED, blind-set без etag OK).
+    tsc 0 · eslint 0 · unit 114 · integration 93. **Осталось (по желанию):** клиентские удобства
+    add/remove-binding (как `gcloud ... add-iam-policy-binding` — тонкая обёртка read-modify-write над тем же setIamPolicy).
+    *(Историческая формулировка ниже.)* Полное переопределение политики
     (read-modify-write) — это САМ google.iam.v1-стандарт (метод заменяет политику целиком), это ок; проблема в другом — у нас нет **etag**,
     поэтому два параллельных `setIamPolicy` затрут друг друга (lost update). Нужно: (а) `getIamPolicy` возвращает `etag` (версия/хеш
     политики), `setIamPolicy` требует его и отвергает при рассинхроне (`ABORTED`/409); (б) опц. добавить клиентские удобства
@@ -545,8 +553,11 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
 27. **Именование permission'ов: двоеточие→точка (Google-стиль) — СДЕЛАНО (ветка `refactor.dotted-permission-names`).** Перешли на dotted
     **`sw.<resourcePlural>.<verb>`** (напр. `sw.environments.create`, `sw.projects.setIamPolicy`, `sw.storageDestinations.get`) — консистентно с
     принятой google.iam.v1-моделью. Изменены ЗНАЧЕНИЯ enum `UserPermissionName` (члены `Read`/`Create`/… не тронуты, каталог ролей ссылается на них,
-    не на строки); `testIamPermissions` known-names автоматически dotted; тест-строки обновлены. Verb'ы оставлены текущие (`read`/`create`/`delete`/
-    `getIamPolicy`/`setIamPolicy`/`get`/`set`) — декомпозиция `read→get/list` под Google — возможный follow-up. Design-doc (историч.) не трогали.
+    не на строки); `testIamPermissions` known-names автоматически dotted; тест-строки обновлены. **Декомпозиция `read→get/list` под Google —
+    СДЕЛАНА (ветка `feat.iam-policy-etag`, см. п.26):** `sw.<res>.read` → `get` (одна сущность) + `list` (коллекция) → `sw.projects.get`,
+    `sw.environments.get`+`sw.environments.list` (роли developer/viewer держат оба; поведение read сохранено). **У проектов НЕТ `list`**
+    осознанно: листинг проектов membership-scoped (`listByUser` не проверяет право), гейтить нечего. Verb'ы `create`/`delete`/`getIamPolicy`/
+    `setIamPolicy`/`get`/`set` — без изменений. Design-doc (историч.) не трогали.
     tsc 0 · eslint 0 · unit 108 · integration 90. *(Историческая формулировка ниже.)* Мы приняли
     **google.iam.v1** для политики (`bindings`/`members`/roles/`testIamPermissions`), но сами permission-строки у нас в **AWS-стиле**
     `account:read`/`environment:create`/`session:create` (двоеточие = `service:Action`, как в AWS IAM). Google IAM использует **точку**

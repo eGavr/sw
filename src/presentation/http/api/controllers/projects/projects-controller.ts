@@ -108,7 +108,7 @@ export class ProjectsController {
 
         const policy = await this.setProjectIamPolicyUseCase.execute({
             creds: { token },
-            params: { projectId, bindings: request.policy.bindings },
+            params: { projectId, etag: request.policy.etag, bindings: request.policy.bindings },
         });
 
         return new IamPolicyPresenter(policy);
