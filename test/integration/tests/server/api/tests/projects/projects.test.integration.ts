@@ -404,4 +404,58 @@ describe("/projects", () => {
             }).expect(HttpStatus.OK);
         });
     });
+
+    describe("IAM groups", () => {
+        const bindGroupRole = (uid: string, ownerId: string, role: string, group: string): request.Test =>
+            request(app.getHttpServer())
+                .post(`/projects/${uid}:setIamPolicy`)
+                .set(Authorization.forUser(ownerId))
+                .send({
+                    policy: {
+                        bindings: [
+                            { role: "roles/admin", members: [`user:${ownerId}`] },
+                            { role, members: [`group:${group}`] },
+                        ], 
+                    }, 
+                });
+
+        test("a role granted to a group reaches a caller the IdP puts in it", async () => {
+            const ownerId = UserFactory.createId();
+            const memberId = UserFactory.createId();
+            const uid = await createProjectFor(ownerId);
+
+            await bindGroupRole(uid, ownerId, "roles/developer", "eng").expect(HttpStatus.OK);
+
+            // The caller presents group eng via their identity -> holds the group's permissions.
+            await request(app.getHttpServer())
+                .post(`/projects/${uid}:testIamPermissions`)
+                .set(Authorization.forUser(memberId, ["eng"]))
+                .send({ permissions: ["sw.environments.create"] })
+                .expect(HttpStatus.OK, { permissions: ["sw.environments.create"] });
+
+            // The same caller without the group holds nothing.
+            return request(app.getHttpServer())
+                .post(`/projects/${uid}:testIamPermissions`)
+                .set(Authorization.forUser(memberId))
+                .send({ permissions: ["sw.environments.create"] })
+                .expect(HttpStatus.OK, { permissions: [] });
+        });
+
+        test("getIamPolicy returns a group member verbatim (no expansion to users)", async () => {
+            const ownerId = UserFactory.createId();
+            const uid = await createProjectFor(ownerId);
+
+            await bindGroupRole(uid, ownerId, "roles/viewer", "eng").expect(HttpStatus.OK);
+
+            const { body } = await request(app.getHttpServer())
+                .post(`/projects/${uid}:getIamPolicy`)
+                .set(Authorization.forUser(ownerId))
+                .send({})
+                .expect(HttpStatus.OK);
+
+            expect(body.bindings).toEqual(expect.arrayContaining([
+                { role: "roles/viewer", members: ["group:eng"] },
+            ]));
+        });
+    });
 });

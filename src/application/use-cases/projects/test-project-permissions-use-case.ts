@@ -1,6 +1,5 @@
 import { Injectable } from "@nestjs/common";
 
-import { Member } from "../../../domain/entities/project/iam/member";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
@@ -36,6 +35,6 @@ export class TestProjectPermissionsUseCase {
             return [];
         }
 
-        return project.testPermissions(Member.user(user.externalId), requested);
+        return project.testPermissions(this.accessControl.principalsOf(user), requested);
     }
 }

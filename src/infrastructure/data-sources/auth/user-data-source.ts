@@ -3,6 +3,7 @@ import { FindUserQuery } from "../../../application/interfaces/repositories/user
 export type User = {
     id: string;
     providerType: string;
+    groups: ReadonlyArray<string>;
 }
 
 export abstract class UserDataSource {

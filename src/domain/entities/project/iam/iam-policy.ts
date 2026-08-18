@@ -28,16 +28,18 @@ export class IamPolicy {
         return this.bindings.filter((binding) => binding.hasMember(member)).map((binding) => binding.role);
     }
 
-    permissionsFor(member: Member): UserPermissionList {
-        return Role.permissionsOf(this.rolesFor(member));
+    // A caller presents several principals — their own user identity plus every group the IdP puts them
+    // in — and their effective permissions are the union across all of them (Google IAM group semantics).
+    permissionsFor(members: ReadonlyArray<Member>): UserPermissionList {
+        return UserPermissionList.union(members.map((member) => Role.permissionsOf(this.rolesFor(member))));
     }
 
-    grants(member: Member, permission: UserPermissionName): boolean {
-        return this.permissionsFor(member).has(permission);
+    grants(members: ReadonlyArray<Member>, permission: UserPermissionName): boolean {
+        return this.permissionsFor(members).has(permission);
     }
 
-    test(member: Member, requested: ReadonlyArray<UserPermissionName>): Array<UserPermissionName> {
-        return this.permissionsFor(member).intersect(requested);
+    test(members: ReadonlyArray<Member>, requested: ReadonlyArray<UserPermissionName>): Array<UserPermissionName> {
+        return this.permissionsFor(members).intersect(requested);
     }
 
     toBindings(): ReadonlyArray<IamBinding> {

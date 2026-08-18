@@ -6,11 +6,15 @@ export type UserData = {
     providerType: string;
     createdAt: Date;
     updatedAt: Date;
+    // The groups the identity provider asserts for this identity. Transient (from the token/IdP each
+    // request), not persisted, so a role granted to `group:<id>` resolves without our own directory.
+    groups?: ReadonlyArray<string>;
 }
 
 type UserCreateParams = {
     externalId: string;
     providerType: string;
+    groups?: ReadonlyArray<string>;
 }
 
 type UserConstructorParams = {
@@ -19,6 +23,7 @@ type UserConstructorParams = {
     providerType: string;
     createdAt?: Date;
     updatedAt?: Date;
+    groups?: ReadonlyArray<string>;
 }
 
 export class User {
@@ -34,6 +39,7 @@ export class User {
     readonly providerType: string;
     readonly createdAt: Date;
     readonly updatedAt: Date;
+    readonly groups: ReadonlyArray<string>;
 
     private readonly _id: UserId;
 
@@ -43,6 +49,7 @@ export class User {
         this.providerType = params.providerType;
         this.createdAt = params.createdAt ?? new Date();
         this.updatedAt = params.updatedAt ?? this.createdAt;
+        this.groups = params.groups ?? [];
     }
 
     get id(): string {

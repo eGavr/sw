@@ -106,11 +106,11 @@ export class Project {
         this._updatedAt = new Date();
     }
 
-    grants(member: Member, permission: UserPermissionName): boolean {
-        return this._policy.grants(member, permission);
+    grants(members: ReadonlyArray<Member>, permission: UserPermissionName): boolean {
+        return this._policy.grants(members, permission);
     }
 
-    testPermissions(member: Member, requested: ReadonlyArray<UserPermissionName>): Array<UserPermissionName> {
-        return this._policy.test(member, requested);
+    testPermissions(members: ReadonlyArray<Member>, requested: ReadonlyArray<UserPermissionName>): Array<UserPermissionName> {
+        return this._policy.test(members, requested);
     }
 }

@@ -33,8 +33,15 @@ export class AccessControl {
     }
 
     async authorize(user: User, project: Project, permission: UserPermissionName): Promise<void> {
-        if (!project.grants(Member.user(user.externalId), permission)) {
+        if (!project.grants(this.principalsOf(user), permission)) {
             throw new PermissionDeniedError(`user: no permission: ${permission}`);
         }
+    }
+
+    // The IAM principals a caller presents: their own user identity plus every group the IdP asserts for
+    // them. Effective access is resolved against all of them (union), so a role granted to a group reaches
+    // its members without us storing any membership.
+    principalsOf(user: User): Array<Member> {
+        return [Member.user(user.externalId), ...user.groups.map((group) => Member.group(group))];
     }
 }
