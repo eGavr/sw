@@ -14,7 +14,8 @@ describe("Role", () => {
     test("viewer holds only read permissions", () => {
         const permissions = Role.fromName(RoleName.Viewer).permissions();
 
-        expect(permissions.has(UserPermissionName.Environment.Read)).toBe(true);
+        expect(permissions.has(UserPermissionName.Environment.Get)).toBe(true);
+        expect(permissions.has(UserPermissionName.Environment.List)).toBe(true);
         expect(permissions.has(UserPermissionName.Environment.Create)).toBe(false);
         expect(permissions.has(UserPermissionName.Project.SetIamPolicy)).toBe(false);
     });
@@ -23,7 +24,7 @@ describe("Role", () => {
         const permissions = Role.permissionsOf([RoleName.Viewer, RoleName.Developer]);
 
         expect(permissions.has(UserPermissionName.Environment.Create)).toBe(true);
-        expect(permissions.has(UserPermissionName.Environment.Read)).toBe(true);
+        expect(permissions.has(UserPermissionName.Environment.Get)).toBe(true);
     });
 
     test("rejects an unknown role", () => {

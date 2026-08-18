@@ -43,4 +43,32 @@ export class IamPolicy {
     toBindings(): ReadonlyArray<IamBinding> {
         return this.bindings;
     }
+
+    // An opaque fingerprint of the policy's content, for optimistic concurrency (google.iam.v1
+    // Policy.etag): getIamPolicy returns it, setIamPolicy sends it back, and a stale value is rejected.
+    // Derived from the canonical (order-independent) binding set, so two equal policies share an etag.
+    // It is a version marker, not a secret, so a plain deterministic hash is enough.
+    etag(): string {
+        const canonical = JSON.stringify(
+            this.bindings
+                .map((binding) => JSON.stringify({ role: binding.role, members: [...binding.memberValues()].sort() }))
+                .sort(),
+        );
+
+        return IamPolicy.fingerprint(canonical);
+    }
+
+    // FNV-1a 64-bit over the canonical JSON — pure and deterministic, no crypto needed for a version tag.
+    private static fingerprint(canonical: string): string {
+        const offsetBasis = 0xcbf29ce484222325n;
+        const prime = 0x100000001b3n;
+        const mask = 0xffffffffffffffffn;
+
+        let hash = offsetBasis;
+        for (let index = 0; index < canonical.length; index++) {
+            hash = ((hash ^ BigInt(canonical.charCodeAt(index))) * prime) & mask;
+        }
+
+        return hash.toString(16).padStart(16, "0");
+    }
 }

@@ -17,7 +17,7 @@ type GetProjectInput = {
 
 @Injectable()
 export class GetProjectUseCase {
-    private readonly permissionName = UserPermissionName.Project.Read;
+    private readonly permissionName = UserPermissionName.Project.Get;
 
     constructor(
         private readonly accessControl: AccessControl,

@@ -4,6 +4,7 @@ import { InvalidArgumentError } from "../error/invalid-argument-error";
 import { User } from "../user/user";
 import { UserPermissionName } from "../user/user-permission-name";
 
+import { IamPolicyEtagMismatchError } from "./iam/error/iam-policy-etag-mismatch-error";
 import { IamBinding } from "./iam/iam-binding";
 import { IamPolicy } from "./iam/iam-policy";
 import { Member } from "./iam/member";
@@ -37,7 +38,7 @@ describe("Project", () => {
         test("should reconstitute the policy from bindings", () => {
             const project = Project.fromObject(projectData({ bindings: [{ role: "roles/viewer", members: ["user:bob"] }] }));
 
-            expect(project.grants(Member.user("bob"), UserPermissionName.Environment.Read)).toBe(true);
+            expect(project.grants(Member.user("bob"), UserPermissionName.Environment.Get)).toBe(true);
             expect(project.grants(Member.user("bob"), UserPermissionName.Environment.Create)).toBe(false);
         });
     });
@@ -71,18 +72,37 @@ describe("Project", () => {
             const project = Project.create(createDefaults);
             const stranger = Member.user("mallory");
 
-            expect(project.grants(stranger, UserPermissionName.Environment.Read)).toBe(false);
-            expect(project.testPermissions(stranger, [UserPermissionName.Project.Read])).toEqual([]);
+            expect(project.grants(stranger, UserPermissionName.Environment.Get)).toBe(false);
+            expect(project.testPermissions(stranger, [UserPermissionName.Project.Get])).toEqual([]);
         });
     });
 
     describe("#setIamPolicy", () => {
+        const developerPolicy = (): IamPolicy =>
+            IamPolicy.fromBindings([IamBinding.create(RoleName.Developer, [Member.user("bob")])]);
+
         test("should replace the whole policy", () => {
             const project = Project.create(createDefaults);
 
-            project.setIamPolicy(IamPolicy.fromBindings([IamBinding.create(RoleName.Developer, [Member.user("bob")])]));
+            project.setIamPolicy(developerPolicy());
 
             expect(project.grants(Member.user("alice"), UserPermissionName.Project.SetIamPolicy)).toBe(false);
+            expect(project.grants(Member.user("bob"), UserPermissionName.Environment.Create)).toBe(true);
+        });
+
+        test("should reject a replace carrying a stale etag", () => {
+            const project = Project.create(createDefaults);
+            const staleEtag = "0000000000000000";
+
+            expect(() => project.setIamPolicy(developerPolicy(), staleEtag)).toThrow(IamPolicyEtagMismatchError);
+            expect(project.grants(Member.user("alice"), UserPermissionName.Project.SetIamPolicy)).toBe(true);
+        });
+
+        test("should accept a replace carrying the current etag", () => {
+            const project = Project.create(createDefaults);
+
+            project.setIamPolicy(developerPolicy(), project.iamPolicy().etag());
+
             expect(project.grants(Member.user("bob"), UserPermissionName.Environment.Create)).toBe(true);
         });
     });

@@ -15,6 +15,7 @@ type SetProjectIamPolicyInput = {
     },
     params: {
         projectId: string;
+        etag?: string;
         bindings: ReadonlyArray<{
             role: string;
             members: ReadonlyArray<string>;
@@ -40,7 +41,7 @@ export class SetProjectIamPolicyUseCase {
 
         await this.accessControl.authorize(user, project, this.permissionName);
 
-        project.setIamPolicy(this.toPolicy(params.bindings));
+        project.setIamPolicy(this.toPolicy(params.bindings), params.etag);
         await this.projectRepository.save(project);
 
         return project.iamPolicy();

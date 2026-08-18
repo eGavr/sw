@@ -185,10 +185,10 @@ describe("/projects", () => {
             const { body } = await request(app.getHttpServer())
                 .post(`/projects/${uid}:testIamPermissions`)
                 .set(owner)
-                .send({ permissions: ["sw.environments.create", "sw.projects.read"] })
+                .send({ permissions: ["sw.environments.create", "sw.projects.get"] })
                 .expect(HttpStatus.OK);
 
-            expect(body).toEqual({ permissions: ["sw.environments.create", "sw.projects.read"] });
+            expect(body).toEqual({ permissions: ["sw.environments.create", "sw.projects.get"] });
         });
 
         test("grants the owner every permission after project creation", async () => {
@@ -211,7 +211,7 @@ describe("/projects", () => {
             return request(app.getHttpServer())
                 .post(`/projects/${uid}:testIamPermissions`)
                 .set(stranger)
-                .send({ permissions: ["sw.environments.create", "sw.projects.read"] })
+                .send({ permissions: ["sw.environments.create", "sw.projects.get"] })
                 .expect(HttpStatus.OK, { permissions: [] });
         });
 
@@ -232,7 +232,7 @@ describe("/projects", () => {
             return request(app.getHttpServer())
                 .post(`/projects/${uid}:doSomethingElse`)
                 .set(owner)
-                .send({ permissions: ["sw.projects.read"] })
+                .send({ permissions: ["sw.projects.get"] })
                 .expect(HttpStatus.NOT_FOUND);
         });
     });
@@ -258,7 +258,11 @@ describe("/projects", () => {
                 .send({})
                 .expect(HttpStatus.OK);
 
-            expect(body).toEqual({ version: 1, bindings: [{ role: "roles/admin", members: [`user:${ownerId}`] }] });
+            expect(body).toEqual({
+                version: 1,
+                etag: expect.any(String),
+                bindings: [{ role: "roles/admin", members: [`user:${ownerId}`] }],
+            });
         });
 
         test("responds PERMISSION_DENIED for a non-owner", async () => {
@@ -340,6 +344,64 @@ describe("/projects", () => {
                 .send({ policy: { bindings: [{ role: "roles/wizard", members: [`user:${ownerId}`] }] } })
                 .expect(HttpStatus.BAD_REQUEST)
                 .expect((response) => expect(response.body.error.status).toBe("INVALID_ARGUMENT"));
+        });
+
+        const getPolicy = (uid: string, auth: AuthHeader): request.Test =>
+            request(app.getHttpServer()).post(`/projects/${uid}:getIamPolicy`).set(auth).send({});
+
+        const setPolicy = (uid: string, auth: AuthHeader, policy: object): request.Test =>
+            request(app.getHttpServer()).post(`/projects/${uid}:setIamPolicy`).set(auth).send({ policy });
+
+        test("accepts a replace carrying the current etag and returns a new one", async () => {
+            const ownerId = UserFactory.createId();
+            const uid = await createProjectFor(ownerId);
+            const owner = Authorization.forUser(ownerId);
+
+            const { body: current } = await getPolicy(uid, owner).expect(HttpStatus.OK);
+
+            const { body: updated } = await setPolicy(uid, owner, {
+                etag: current.etag,
+                bindings: [
+                    { role: "roles/admin", members: [`user:${ownerId}`] },
+                    { role: "roles/viewer", members: [`user:${UserFactory.createId()}`] },
+                ],
+            }).expect(HttpStatus.OK);
+
+            expect(updated.etag).toEqual(expect.any(String));
+            expect(updated.etag).not.toBe(current.etag);
+        });
+
+        test("rejects a replace carrying a stale etag with ABORTED", async () => {
+            const ownerId = UserFactory.createId();
+            const uid = await createProjectFor(ownerId);
+            const owner = Authorization.forUser(ownerId);
+
+            const { body: stale } = await getPolicy(uid, owner).expect(HttpStatus.OK);
+
+            await setPolicy(uid, owner, {
+                etag: stale.etag,
+                bindings: [
+                    { role: "roles/admin", members: [`user:${ownerId}`] },
+                    { role: "roles/developer", members: [`user:${UserFactory.createId()}`] },
+                ],
+            }).expect(HttpStatus.OK);
+
+            return setPolicy(uid, owner, {
+                etag: stale.etag,
+                bindings: [{ role: "roles/admin", members: [`user:${ownerId}`] }],
+            })
+                .expect(HttpStatus.CONFLICT)
+                .expect((response) => expect(response.body.error.status).toBe("ABORTED"));
+        });
+
+        test("allows a blind replace without an etag (Google-style optional)", async () => {
+            const ownerId = UserFactory.createId();
+            const uid = await createProjectFor(ownerId);
+            const owner = Authorization.forUser(ownerId);
+
+            return setPolicy(uid, owner, {
+                bindings: [{ role: "roles/admin", members: [`user:${ownerId}`] }],
+            }).expect(HttpStatus.OK);
         });
     });
 });

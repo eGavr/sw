@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { ArrayMaxSize, IsArray, IsDefined, IsString, ValidateNested } from "class-validator";
+import { ArrayMaxSize, IsArray, IsDefined, IsOptional, IsString, ValidateNested } from "class-validator";
 
 class IamBindingModel {
     @IsString()
@@ -12,6 +12,10 @@ class IamBindingModel {
 }
 
 class IamPolicyModel {
+    @IsOptional()
+    @IsString()
+    etag?: string;
+
     @IsArray()
     @ArrayMaxSize(100)
     @ValidateNested({ each: true })

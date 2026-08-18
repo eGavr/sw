@@ -20,7 +20,7 @@ type ListEnvironmentsInput = {
 
 @Injectable()
 export class ListEnvironmentsUseCase {
-    private readonly permissionName = UserPermissionName.Environment.Read;
+    private readonly permissionName = UserPermissionName.Environment.List;
 
     constructor(
         private readonly accessControl: AccessControl,

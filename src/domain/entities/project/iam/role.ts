@@ -14,15 +14,17 @@ export enum RoleName {
 const catalogue: Record<RoleName, Array<UserPermissionName>> = {
     [RoleName.Admin]: UserPermissionList.getAll().names(),
     [RoleName.Developer]: [
-        UserPermissionName.Project.Read,
-        UserPermissionName.Environment.Read,
+        UserPermissionName.Project.Get,
+        UserPermissionName.Environment.Get,
+        UserPermissionName.Environment.List,
         UserPermissionName.Environment.Create,
         UserPermissionName.Environment.Delete,
         UserPermissionName.Session.Create,
     ],
     [RoleName.Viewer]: [
-        UserPermissionName.Project.Read,
-        UserPermissionName.Environment.Read,
+        UserPermissionName.Project.Get,
+        UserPermissionName.Environment.Get,
+        UserPermissionName.Environment.List,
     ],
 };
 
