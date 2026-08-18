@@ -627,6 +627,11 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     - **Целевая форма `ProviderAccount`:** `id, projectId, provider, platformName, execution, config(JSON), credentialRef?, state
       (active|disabled|invalid), stateReason?, displayName, labels(map), createdAt, updatedAt`. Сейчас-релевантно: `config` (замена `externalRef`)
       + валидация `provider` по реестру; остальное — по фичам (PR-2/PR-3).
+    - **Валидация `provider` по реестру — СДЕЛАНО (ветка `feat.provider-config`, слайс 1 PR-B).** Порт `application/interfaces/provider-catalog.ts`
+      (`supports`/`list`), impl `RegisteredProviderCatalog` из `registeredProviderTypes` (единый источник рядом с реестром адаптеров),
+      провайдится в `ApiModule`. `CreateProjectUseCase` валидирует каждый `compute.provider` ДО создания проекта → неизвестный = `400
+      INVALID_ARGUMENT` (fail-fast, без orphan-проекта). Интеграция покрывает. tsc 0 · eslint 0 · unit 108 · integration 90. **Осталось (слайс 2):**
+      `externalRef → config` + чтение адаптерами + воркер грузит PA + `COMPUTE_* → config` + `android-redroid → yandex-compute`.
 
 ---
 

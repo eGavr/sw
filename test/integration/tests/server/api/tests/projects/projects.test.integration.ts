@@ -92,6 +92,17 @@ describe("/projects", () => {
             await request(app.getHttpServer()).post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
             await request(app.getHttpServer()).post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
         });
+
+        test("responds INVALID_ARGUMENT for a compute provider with no registered adapter", async () => {
+            const compute = [{ provider: "there-is-no-such-provider", externalRef: "p", platform: "linux", execution: "container" }];
+
+            return request(app.getHttpServer())
+                .post("/projects")
+                .set(Authorization.forUser(UserFactory.createId()))
+                .send({ displayName: "team-a", compute })
+                .expect(HttpStatus.BAD_REQUEST)
+                .expect((response) => expect(response.body.error.status).toBe("INVALID_ARGUMENT"));
+        });
     });
 
     describe("GET /projects", () => {

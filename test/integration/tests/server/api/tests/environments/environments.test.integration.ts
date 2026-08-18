@@ -65,7 +65,7 @@ describe("/projects/:project/environments", () => {
                     displayName: "exec",
                     compute: [
                         { provider: "noop", externalRef: "p", platform: "linux", execution: "container" },
-                        { provider: "local-emulator", externalRef: "p", platform: "linux", execution: "emulator" },
+                        { provider: "noop", externalRef: "p", platform: "linux", execution: "emulator" },
                     ],
                 })
                 .expect(HttpStatus.CREATED);

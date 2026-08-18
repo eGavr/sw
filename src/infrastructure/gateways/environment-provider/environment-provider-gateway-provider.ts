@@ -1,6 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
+import { ProviderCatalog } from "../../../application/interfaces/provider-catalog";
 
 import { defaultAgentEntrypoint } from "./agent-bootstrap";
 import {
@@ -38,6 +39,7 @@ import {
     KubernetesEnvironmentProviderGateway,
 } from "./kubernetes/kubernetes-environment-provider-gateway";
 import { NoopEnvironmentProviderGateway } from "./noop-environment-provider-gateway";
+import { RegisteredProviderCatalog } from "./registered-provider-catalog";
 import { RoutingEnvironmentProviderGateway } from "./routing-environment-provider-gateway";
 import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 
@@ -69,6 +71,16 @@ export const EnvironmentProviderGatewayProvider = {
         return new RoutingEnvironmentProviderGateway(gateways);
     },
     inject: [ConfigService],
+};
+
+// The provider keys the routing gateway registers adapters for (mirror of the map keys above). create-project
+// validates a requested provider against this catalog so an unknown provider fails fast (400) at create time
+// rather than later at provision.
+export const registeredProviderTypes: ReadonlyArray<string> = ["noop", "docker", "kubernetes", androidRedroidProviderValue];
+
+export const ProviderCatalogProvider = {
+    provide: ProviderCatalog,
+    useValue: new RegisteredProviderCatalog(registeredProviderTypes),
 };
 
 function dockerConfig(configService: ConfigService): DockerEnvironmentConfig {
