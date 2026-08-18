@@ -70,6 +70,26 @@ describe("resolveSessionRequest", () => {
         })).toThrow(/browserName/);
     });
 
+    test("resolves an omitted browserVersion to no version (meaning latest)", () => {
+        const params = resolveSessionRequest({ alwaysMatch: { browserName: "chrome", "sw:projectId": "acc-1" } });
+
+        expect(params.application).toEqual({ name: "chrome", version: undefined });
+    });
+
+    test("passes the reserved 'latest' browserVersion through to the domain", () => {
+        const params = resolveSessionRequest({
+            alwaysMatch: { browserName: "chrome", browserVersion: "latest", "sw:projectId": "acc-1" },
+        });
+
+        expect(params.application).toEqual({ name: "chrome", version: "latest" });
+    });
+
+    test("rejects an empty browserVersion when present", () => {
+        expect(() => resolveSessionRequest({
+            alwaysMatch: { browserName: "chrome", browserVersion: "", "sw:projectId": "acc-1" },
+        })).toThrow(/browserVersion/);
+    });
+
     test("rejects a non-boolean opt-in", () => {
         expect(() => resolveSessionRequest({
             alwaysMatch: { ...alwaysMatch, "sw:logging": "yes" },

@@ -494,12 +494,18 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     (AIP-ресурс `accounts/{a}/providerAccounts` — create/list/delete, или расширить create-account до массива). Матч сессии по `execution`
     уже готов (ось `execution`, п. D). Это ПРЯМОЕ продолжение D — без него «redroid+emulator на одном аккаунте» не выбираемы.
 
-23. **Версия приложения окружения обязана быть КОНКРЕТНОЙ; `latest` — только capability сессии — ЧАСТЬ 1 СДЕЛАНА (ветка `fix.api-correctness-sweep`).**
-    Сделано (часть «а»): `Application.create` отвергает зарезервированную версию `latest` (новая доменная ошибка `NonConcreteApplicationVersionError`);
+23. **Версия приложения окружения обязана быть КОНКРЕТНОЙ; `latest` — только capability сессии — СДЕЛАНО (части «а» и «б»).**
+    Сделано (часть «а», ветка `fix.api-correctness-sweep`): `Application.create` отвергает зарезервированную версию `latest` (новая доменная ошибка `NonConcreteApplicationVersionError`);
     `CreateEnvironmentUseCase` переведён с `Application.fromObject` (реконституция, толерантна) на `Application.create` (создание с инвариантом),
     поэтому создать окружение с `version:"latest"` теперь `400`; в ответе окружения `latest` больше не появится. Unit + integration покрыто.
-    **Осталось (часть «б», отдельно):** `latest`/отсутствие версии как капа СЕССИИ = «выбрать самую свежую среди поднятых окружений» — требует
-    порядка версий в `SessionAllocationCriteria`/матче (semver vs числовой vs строковый — доменное решение), сейчас матч строго по равенству.
+    **Сделано (часть «б», ветка `feat.session-latest-version`):** `latest`/отсутствие версии как капа СЕССИИ = «выбрать самую свежую среди поднятых окружений».
+    Доменный `RequestedApplication` VO (name + версия ИЛИ latest; omit/"latest" ⇒ latest); порядок версий — `ApplicationVersion.compareTo`
+    (dotted-numeric: `141>139`, `9<10`, `1.2==1.2.0<1.2.1`, non-numeric → строковое сравнение; unit-покрыто как сложная чистая логика);
+    `SessionAllocationCriteria` несёт nullable-версию (null=latest) и `rank()` — для latest сортирует кандидатов по версии desc (стабильно,
+    ties держат random-load-spread), для exact — identity. Data-source: при latest матчит по имени БЕЗ версии и БЕЗ лимита (новейшее выбирается
+    в домене — нельзя срезать до сортировки; множество ограничено свободным инвентарём), reload eager `applications` двухшаговым запросом
+    (QueryBuilder не грузит eager). Сессия открывается с **конкретным** приложением выбранного окружения (в ответе `browserVersion` — реальная
+    версия, не `latest`). Резолвер: `browserVersion` опционален (отсутствие ⇒ latest). tsc 0 · eslint 0 · unit 128 · integration 96.
     *(Историческая формулировка ниже.)* Сейчас
     create-environment принимает любую строку версии (в т.ч. `latest`) и хранит/возвращает её как есть — окружение с `version:"latest"`
     семантически неверно (у поднятого ресурса всегда есть конкретная версия). Правило: (а) домен требует у `application.version`

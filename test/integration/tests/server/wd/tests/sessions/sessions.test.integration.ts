@@ -26,7 +26,9 @@ import { Authorization } from "../../../utils/request/headers/authorization";
 
 type AuthHeader = { authorization: string };
 
+// The request asks for "latest"; a real environment always runs a concrete version (chromeVersion).
 const chrome = { name: "chrome", version: "latest" };
+const chromeVersion = "141";
 const nodeEndpoint = "http://127.0.0.1:45454";
 const wdSessionId = "wd-node-session-1";
 
@@ -65,18 +67,20 @@ describe("/sessions", () => {
         return { owner: Authorization.forUser(externalId), projectId: project.id };
     };
 
-    // enqueued -> starting -> preparing -> executing (endpoint + fresh heartbeat), so it is allocatable.
-    const seedExecutingEnvironment = async (
+    // Bring one chrome environment to executing (endpoint + fresh heartbeat) in the given project, so it
+    // is allocatable: enqueued -> starting -> preparing -> executing. Returns its id.
+    const registerExecutingEnvironment = async (
+        projectId: string,
+        version: string,
         execution: Execution = Execution.Container,
-    ): Promise<{ owner: AuthHeader, projectId: string, environmentId: string }> => {
-        const { owner, projectId } = await seedProject();
+    ): Promise<string> => {
         const environmentRepository = app.get(EnvironmentRepository);
 
         await environmentRepository.create({
             projectId: ProjectId.fromString(projectId),
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             execution,
-            applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
+            applications: ApplicationList.fromObject([{ name: "chrome", version }]),
         });
 
         const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());
@@ -89,7 +93,16 @@ describe("/sessions", () => {
         claimed.register(new EnvironmentEndpoint(nodeEndpoint), new Date());
         await environmentRepository.save(claimed);
 
-        return { owner, projectId, environmentId: claimed.id };
+        return claimed.id;
+    };
+
+    const seedExecutingEnvironment = async (
+        execution: Execution = Execution.Container,
+    ): Promise<{ owner: AuthHeader, projectId: string, environmentId: string }> => {
+        const { owner, projectId } = await seedProject();
+        const environmentId = await registerExecutingEnvironment(projectId, chromeVersion, execution);
+
+        return { owner, projectId, environmentId };
     };
 
     type SessionOpts = { logging?: boolean, video?: boolean, execution?: Execution };
@@ -128,7 +141,7 @@ describe("/sessions", () => {
 
             expect(caps["sw:environmentId"]).toBe(environmentId);
             expect(caps.browserName).toBe("chrome");
-            expect(caps.browserVersion).toBe("latest");
+            expect(caps.browserVersion).toBe(chromeVersion);
             expect(SessionRoute.decode(body.value.sessionId))
                 .toEqual({ endpoint: nodeEndpoint, webDriverSessionId: wdSessionId });
 
@@ -210,6 +223,40 @@ describe("/sessions", () => {
             const { owner, projectId } = await seedExecutingEnvironment();
 
             return createSession(projectId, owner, { name: "firefox", version: "latest" }).expect(HttpStatus.CONFLICT);
+        });
+
+        test("a latest request allocates the newest running environment", async () => {
+            const { owner, projectId } = await seedProject();
+            const olderId = await registerExecutingEnvironment(projectId, "139");
+            const newerId = await registerExecutingEnvironment(projectId, "141");
+
+            const { body } = await createSession(projectId, owner, { name: "chrome", version: "latest" }).expect(HttpStatus.OK);
+
+            expect(body.value.capabilities["sw:environmentId"]).toBe(newerId);
+            expect(body.value.capabilities["sw:environmentId"]).not.toBe(olderId);
+            expect(body.value.capabilities.browserVersion).toBe("141");
+        });
+
+        test("an exact-version request allocates only that version", async () => {
+            const { owner, projectId } = await seedProject();
+            await registerExecutingEnvironment(projectId, "141");
+
+            await createSession(projectId, owner, { name: "chrome", version: "141" }).expect(HttpStatus.OK);
+
+            return createSession(projectId, owner, { name: "chrome", version: "140" }).expect(HttpStatus.CONFLICT);
+        });
+
+        test("an omitted browserVersion behaves as latest", async () => {
+            const { owner, projectId } = await seedProject();
+            await registerExecutingEnvironment(projectId, "141");
+
+            const { body } = await request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send({ capabilities: { alwaysMatch: { browserName: "chrome", "sw:projectId": projectId } } })
+                .expect(HttpStatus.OK);
+
+            expect(body.value.capabilities.browserVersion).toBe("141");
         });
 
         test("allocates an environment on the requested execution substrate (sw:execution)", async () => {

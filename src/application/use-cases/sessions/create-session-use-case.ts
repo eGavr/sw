@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
-import { Application } from "../../../domain/entities/environment/application/application";
+import { latestApplicationVersion } from "../../../domain/entities/environment/application/application-version";
+import { RequestedApplication } from "../../../domain/entities/environment/application/requested-application";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { toExecution } from "../../../domain/entities/environment/execution";
@@ -24,7 +25,7 @@ type CreateSessionInput = {
         execution: string;
         application: {
             name: string;
-            version: string;
+            version?: string;
         };
         logging?: boolean;
         video?: boolean;
@@ -53,40 +54,47 @@ export class CreateSessionUseCase {
 
         await this.accessControl.authorize(user, project, this.permissionName);
 
-        const application = Application.fromObject(params.application);
+        const requested = RequestedApplication.create(params.application);
         const criteria = SessionAllocationCriteria.from({
             now: new Date(),
             freshnessMs: defaultHeartbeatFreshnessMs,
             execution: toExecution(params.execution),
-            application,
+            application: requested,
         });
         const candidates = await this.environmentRepository.findAllocatable(projectId, criteria);
 
-        return this.allocate(candidates, application, { logging: params.logging ?? false, video: params.video ?? false });
+        return this.allocate(criteria.rank(candidates), requested, {
+            logging: params.logging ?? false,
+            video: params.video ?? false,
+        });
     }
 
     private async allocate(
         candidates: Array<Environment>,
-        application: Application,
+        requested: RequestedApplication,
         options: WebDriverSessionOptions,
     ): Promise<Session> {
         for (const candidate of candidates) {
-            const session = await this.tryAllocate(candidate, application, options);
+            const session = await this.tryAllocate(candidate, requested, options);
 
             if (session) {
                 return session;
             }
         }
 
-        throw new NoAllocatableEnvironmentError(application.name, application.version);
+        throw new NoAllocatableEnvironmentError(requested.name, requested.version() ?? latestApplicationVersion);
     }
 
+    // Opens the session with the environment's own installed application, so a "latest" request runs (and
+    // reports) the concrete version the chosen environment actually offers, not the "latest" placeholder.
     private async tryAllocate(
         environment: Environment,
-        application: Application,
+        requested: RequestedApplication,
         options: WebDriverSessionOptions,
     ): Promise<Session | null> {
-        if (!environment.endpoint) {
+        const application = environment.applicationFor(requested.name);
+
+        if (!environment.endpoint || !application) {
             return null;
         }
 

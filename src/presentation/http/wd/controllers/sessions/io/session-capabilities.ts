@@ -14,7 +14,7 @@ export type SessionRequestParams = {
     execution: string;
     application: {
         name: string;
-        version: string;
+        version?: string;
     };
     logging?: boolean;
     video?: boolean;
@@ -38,7 +38,7 @@ export function resolveSessionRequest(envelope: CapabilitiesEnvelope): SessionRe
         execution: optionalExecution(capabilities),
         application: {
             name: requireString(capabilities, "browserName"),
-            version: requireString(capabilities, "browserVersion"),
+            version: optionalString(capabilities, "browserVersion"),
         },
         logging: optionalBoolean(capabilities, loggingCapability),
         video: optionalBoolean(capabilities, videoCapability),
@@ -100,6 +100,22 @@ function requireString(capabilities: Capabilities, name: string): string {
 
     if (typeof value !== "string" || value.length === 0) {
         throw invalid(`capability "${name}" is required and must be a non-empty string`);
+    }
+
+    return value;
+}
+
+// A browser capability that may be omitted (e.g. browserVersion, whose absence means "latest"); when
+// present it must still be a non-empty string.
+function optionalString(capabilities: Capabilities, name: string): string | undefined {
+    const value = capabilities[name];
+
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (typeof value !== "string" || value.length === 0) {
+        throw invalid(`capability "${name}" must be a non-empty string`);
     }
 
     return value;

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { DataSource } from "typeorm";
+import { DataSource, In } from "typeorm";
 
 import { Page, PageRequest } from "../../../../application/pagination";
 import { Environment as EnvironmentEntity, EnvironmentData } from "../../../../domain/entities/environment/environment";
@@ -138,7 +138,9 @@ export class EnvironmentDataSource {
 
     // Free environments an project may allocate a session onto, in random order. The state/busy rule,
     // freshness cutoff and requested application arrive ready from the domain criteria; this only
-    // translates them into SQL. The row limit is a query bound, not a business threshold.
+    // translates them into SQL. A null `applicationVersion` means "latest" — match by name only and skip
+    // the row limit, since the newest is chosen upstream and must not be capped away (the set is bounded
+    // by free inventory). The row limit is a query bound for exact requests, not a business threshold.
     async findAllocatable(
         projectId: string,
         predicate: {
@@ -147,27 +149,47 @@ export class EnvironmentDataSource {
             heartbeatCutoff: Date;
             execution: string;
             applicationName: string;
-            applicationVersion: string;
+            applicationVersion: string | null;
         },
         limit: number,
     ): Promise<Array<EnvironmentData>> {
-        const environments = await this.dataSource.getRepository(Environment)
+        const idQuery = this.dataSource.getRepository(Environment)
             .createQueryBuilder("environment")
+            .select("environment.id", "id")
             .where("environment.projectId = :projectId", { projectId })
             .andWhere("environment.state = :state", { state: predicate.state })
             .andWhere("environment.busy = :busy", { busy: predicate.busy })
             .andWhere("environment.execution = :execution", { execution: predicate.execution })
-            .andWhere("environment.lastHeartbeatAt > :cutoff", { cutoff: predicate.heartbeatCutoff })
-            .andWhere(
+            .andWhere("environment.lastHeartbeatAt > :cutoff", { cutoff: predicate.heartbeatCutoff });
+
+        if (predicate.applicationVersion === null) {
+            idQuery.andWhere(
+                "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
+                + " AND ea.application_name = :applicationName)",
+                { applicationName: predicate.applicationName },
+            );
+        } else {
+            idQuery.andWhere(
                 "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
                 + " AND ea.application_name = :applicationName AND ea.application_version = :applicationVersion)",
                 { applicationName: predicate.applicationName, applicationVersion: predicate.applicationVersion },
-            )
-            .orderBy("RANDOM()")
-            .limit(limit)
-            .getMany();
+            ).limit(limit);
+        }
 
-        return environments.map((environment) => environment.toObject());
+        const rows = await idQuery.orderBy("RANDOM()").getRawMany<{ id: string }>();
+        const ids = rows.map((row) => row.id);
+
+        if (ids.length === 0) {
+            return [];
+        }
+
+        // Reload with the eager `applications` relation (QueryBuilder does not load it), preserving the
+        // random order so equal-version candidates keep their load spread.
+        const environments = await this.dataSource.getRepository(Environment).find({ where: { id: In(ids) } });
+        const byId = new Map(environments.map((environment) => [environment.id, environment]));
+
+        return ids.map((id) => byId.get(id)).filter((environment): environment is Environment => environment !== undefined)
+            .map((environment) => environment.toObject());
     }
 
     async findOne(id: string): Promise<EnvironmentData | null> {

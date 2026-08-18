@@ -15,6 +15,10 @@ export class ApplicationList {
         return this.applications.some((candidate) => candidate.equals(application));
     }
 
+    find(name: string): Application | null {
+        return this.applications.find((application) => application.name === name) ?? null;
+    }
+
     toArray(): Array<ApplicationData> {
         return this.applications.map((application) => application.toObject());
     }
