@@ -31,6 +31,7 @@ import { Execution } from "../../../../../../../src/domain/entities/environment/
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
 import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
+import { SessionLogKey } from "../../../../../../../src/domain/entities/storage/session-log-key";
 import { StorageDestination } from "../../../../../../../src/domain/entities/storage/storage-destination";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
@@ -69,8 +70,10 @@ import { UserFactory } from "../../../utils/entities/user/user-factory";
 
 const secret = "test-internal-secret";
 const destination = StorageDestination.create({ bucket: "test-logs", prefix: "logs" });
+const sessionId = "wd-session-abc";
+const logKey = destination.keyFor(SessionLogKey.forSession(sessionId));
 
-describe("/internal/environments/:id:uploadSessionLogs", () => {
+describe("/internal/environments/:env/sessions/:session:uploadSessionLogs", () => {
     let app: INestApplication;
     let objectStorage: InMemoryObjectStorageGateway;
 
@@ -164,12 +167,12 @@ describe("/internal/environments/:id:uploadSessionLogs", () => {
 
     const upload = (id: string, body: string): request.Test =>
         request(app.getHttpServer())
-            .post(`/internal/environments/${id}:uploadSessionLogs`)
+            .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionLogs`)
             .set("x-internal-secret", secret)
             .set("content-type", "text/plain")
             .send(body);
 
-    test("stores the logs under the project's destination and they read back", async () => {
+    test("stores the logs keyed by the session, under the project's destination", async () => {
         const id = await seedEnvironment(true);
         const logs = "session started\nGET /url 200\nsession ended\n";
 
@@ -177,10 +180,7 @@ describe("/internal/environments/:id:uploadSessionLogs", () => {
 
         expect(body).toEqual({ uid: id, stored: true });
 
-        const keys = await objectStorage.list(destination, destination.keyFor(`sessions/${id}`));
-        expect(keys).toHaveLength(1);
-
-        const stored = await objectStorage.get(destination, keys[0]);
+        const stored = await objectStorage.get(destination, logKey);
         expect(stored?.body.toString("utf8")).toBe(logs);
     });
 
@@ -190,14 +190,14 @@ describe("/internal/environments/:id:uploadSessionLogs", () => {
         const { body } = await upload(id, "some logs").expect(200);
 
         expect(body).toEqual({ uid: id, stored: false });
-        expect(await objectStorage.list(destination, destination.keyFor(`sessions/${id}`))).toHaveLength(0);
+        expect(await objectStorage.get(destination, logKey)).toBeNull();
     });
 
     test("responds UNAUTHENTICATED without the internal secret", async () => {
         const id = await seedEnvironment(true);
 
         return request(app.getHttpServer())
-            .post(`/internal/environments/${id}:uploadSessionLogs`)
+            .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionLogs`)
             .set("content-type", "text/plain")
             .send("logs")
             .expect(401);

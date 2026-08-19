@@ -33,15 +33,15 @@ export class InternalEnvironmentsController {
 
     // Custom methods (AIP-136): POST /internal/environments/{id}:{verb}. express matches "{id}:{verb}"
     // as one path segment, so the verb is split off the last ":" and dispatched here. `:heartbeat` carries
-    // a JSON body; `:uploadSessionLogs` carries raw log bytes (buffered by the express.raw route
-    // middleware); `:uploadSessionVideo` carries the mp4 as an unbuffered stream (its content-type is
-    // outside the raw middleware, so the request body is piped straight through to storage).
+    // a JSON body; `:uploadSessionVideo` carries the mp4 as an unbuffered stream (its content-type is
+    // outside the raw middleware, so the request body is piped straight through to storage). Session logs
+    // are keyed by session, so they ride a session-scoped path instead (see uploadSessionLogsMethod).
     @Post(":resource")
     @HttpCode(HttpStatus.OK)
     async customMethod(
         @Param("resource") resource: string,
         @Req() request: Request,
-    ): Promise<EnvironmentHeartbeatPresenter | UploadSessionLogsPresenter | UploadSessionVideoPresenter> {
+    ): Promise<EnvironmentHeartbeatPresenter | UploadSessionVideoPresenter> {
         const separatorIndex = resource.lastIndexOf(":");
         const environmentId = resource.slice(0, separatorIndex);
         const verb = separatorIndex === -1 ? "" : resource.slice(separatorIndex + 1);
@@ -49,13 +49,32 @@ export class InternalEnvironmentsController {
         switch (verb) {
             case heartbeatVerb:
                 return this.heartbeat(environmentId, request);
-            case uploadSessionLogsVerb:
-                return this.uploadSessionLogs(environmentId, request);
             case uploadSessionVideoVerb:
                 return this.uploadSessionVideo(environmentId, request);
             default:
                 throw new NotFoundException(`unknown custom method on environment: ${verb || "(none)"}`);
         }
+    }
+
+    // POST /internal/environments/{env}/sessions/{sessionId}:uploadSessionLogs. The session id keys the
+    // stored log (its fingerprint); the environment id still resolves which project's bucket to write to.
+    // The agent sends the raw session id it read off the node — the fingerprinting happens in the domain.
+    @Post(":environment/sessions/:resource")
+    @HttpCode(HttpStatus.OK)
+    async uploadSessionLogsMethod(
+        @Param("environment") environmentId: string,
+        @Param("resource") resource: string,
+        @Req() request: Request,
+    ): Promise<UploadSessionLogsPresenter> {
+        const separatorIndex = resource.lastIndexOf(":");
+        const sessionId = resource.slice(0, separatorIndex);
+        const verb = separatorIndex === -1 ? "" : resource.slice(separatorIndex + 1);
+
+        if (verb !== uploadSessionLogsVerb) {
+            throw new NotFoundException(`unknown custom method on session: ${verb || "(none)"}`);
+        }
+
+        return this.uploadSessionLogs(environmentId, sessionId, request);
     }
 
     private async heartbeat(environmentId: string, request: Request): Promise<EnvironmentHeartbeatPresenter> {
@@ -70,9 +89,14 @@ export class InternalEnvironmentsController {
         return new EnvironmentHeartbeatPresenter(environment);
     }
 
-    private async uploadSessionLogs(environmentId: string, request: Request): Promise<UploadSessionLogsPresenter> {
+    private async uploadSessionLogs(
+        environmentId: string,
+        sessionId: string,
+        request: Request,
+    ): Promise<UploadSessionLogsPresenter> {
         const result = await this.uploadSessionLogsUseCase.execute({
             environmentId,
+            sessionId,
             body: Buffer.isBuffer(request.body) ? request.body : Buffer.alloc(0),
             contentType: request.headers["content-type"],
         });

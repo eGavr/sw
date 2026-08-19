@@ -8,6 +8,9 @@ import { StorageDestinationRepository } from "../../interfaces/repositories/stor
 
 export type UploadSessionLogsParams = {
     readonly environmentId: string;
+    // The WebDriver session id the agent read off the node; the logs are keyed by its fingerprint so they
+    // are later addressable by session on read. The environment only resolves which project's bucket.
+    readonly sessionId: string;
     readonly body: Buffer;
     readonly contentType?: string;
 };
@@ -36,7 +39,7 @@ export class UploadSessionLogsUseCase {
             return { environmentId: environment.id, stored: false };
         }
 
-        const key = destination.keyFor(SessionLogKey.forEnvironment(environment.id, new Date()));
+        const key = destination.keyFor(SessionLogKey.forSession(params.sessionId));
         await this.objectStorageGateway.put(destination, key, { body: params.body, contentType: params.contentType });
 
         return { environmentId: environment.id, stored: true };

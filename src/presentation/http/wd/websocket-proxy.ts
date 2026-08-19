@@ -4,7 +4,7 @@ import { Duplex } from "node:stream";
 import { Injectable } from "@nestjs/common";
 import { RawData, WebSocket, WebSocketServer } from "ws";
 
-import { SessionRoute } from "./session-route";
+import { SessionRoute } from "../session-route";
 
 // Maps a client upgrade path `/sessions/{id}/{rest}` to the upstream WebSocket URL by decoding the
 // endpoint from the session id: `ws(s)://{endpoint}/session/{wdSessionId}/{rest}`. Returns null when

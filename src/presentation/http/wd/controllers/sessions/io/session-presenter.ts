@@ -1,6 +1,6 @@
 import { Session } from "../../../../../../domain/entities/session/session";
 import { Presenter } from "../../../../presenters/presenter";
-import { SessionRoute } from "../../../session-route";
+import { SessionRoute } from "../../../../session-route";
 
 // W3C WebDriver "New Session"-shaped response: { value: { sessionId, capabilities } }. The stateless
 // WebSocket protocols (BiDi / DevTools / VNC) are advertised as vendor extension capabilities in our

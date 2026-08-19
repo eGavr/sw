@@ -100,6 +100,9 @@ export class InternalModule implements NestModule {
         // content-type, so the default JSON parser still handles heartbeats.
         consumer
             .apply(raw({ type: ["application/octet-stream", "text/plain"], limit: "16mb" }))
-            .forRoutes({ path: "internal/environments/:resource", method: RequestMethod.POST });
+            .forRoutes(
+                { path: "internal/environments/:resource", method: RequestMethod.POST },
+                { path: "internal/environments/:environment/sessions/:resource", method: RequestMethod.POST },
+            );
     }
 }

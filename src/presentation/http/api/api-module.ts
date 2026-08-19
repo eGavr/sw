@@ -26,6 +26,7 @@ import {
     SetProjectIamPolicyUseCase,
 } from "../../../application/use-cases/projects/set-project-iam-policy-use-case";
 import { TestProjectPermissionsUseCase } from "../../../application/use-cases/projects/test-project-permissions-use-case";
+import { GetSessionLogsUseCase } from "../../../application/use-cases/sessions/get-session-logs-use-case";
 import {
     GetProjectStorageDestinationUseCase,
 } from "../../../application/use-cases/storage-destinations/get-project-storage-destination-use-case";
@@ -47,6 +48,9 @@ import { UserDataSource as PgUserDataSource } from "../../../infrastructure/data
 import {
     ProviderCatalogProvider,
 } from "../../../infrastructure/gateways/environment-provider/environment-provider-gateway-provider";
+import {
+    ObjectStorageGatewayProvider,
+} from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
@@ -62,6 +66,7 @@ import { LoggingMiddleware } from "../middlewares/logging-middleware";
 
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
+import { SessionLogsController } from "./controllers/sessions/session-logs-controller";
 import {
     StorageDestinationController,
 } from "./controllers/storage-destination/storage-destination-controller";
@@ -78,6 +83,7 @@ import {
         ProjectsController,
         EnvironmentsController,
         StorageDestinationController,
+        SessionLogsController,
     ],
     providers: [
         CreateEnvironmentUseCase,
@@ -95,6 +101,8 @@ import {
         GetProjectStorageDestinationUseCase,
         SetProjectStorageDestinationUseCase,
 
+        GetSessionLogsUseCase,
+
         AccessControl,
 
         { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
@@ -103,6 +111,7 @@ import {
         { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
         { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
         ProviderCatalogProvider,
+        ObjectStorageGatewayProvider,
 
         ProjectDataSource,
         EnvironmentDataSource,
