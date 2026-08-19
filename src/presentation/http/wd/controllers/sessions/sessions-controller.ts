@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 
 import { CreateSessionUseCase } from "../../../../../application/use-cases/sessions/create-session-use-case";
 import { BearerToken } from "../../../decorators/param/bearer-token";
-import { SessionRoute } from "../../session-route";
+import { SessionRoute } from "../../../session-route";
 import { WebDriverProxy } from "../../webdriver-proxy";
 
 import { CreateSessionRequestModel } from "./io/create-session-request-model";

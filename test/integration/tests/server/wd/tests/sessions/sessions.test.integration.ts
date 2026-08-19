@@ -19,7 +19,7 @@ import { Execution } from "../../../../../../../src/domain/entities/environment/
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
 import { User } from "../../../../../../../src/domain/entities/user/user";
-import { SessionRoute } from "../../../../../../../src/presentation/http/wd/session-route";
+import { SessionRoute } from "../../../../../../../src/presentation/http/session-route";
 import { WdModule } from "../../../../../../../src/presentation/http/wd/wd-module";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { Authorization } from "../../../utils/request/headers/authorization";

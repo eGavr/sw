@@ -20,6 +20,7 @@ export enum EnvironmentPermission {
 }
 
 export enum SessionPermission {
+    Get = "sw.sessions.get",
     Create = "sw.sessions.create",
 }
 

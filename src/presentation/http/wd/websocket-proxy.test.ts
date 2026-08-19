@@ -1,4 +1,5 @@
-import { SessionRoute } from "./session-route";
+import { SessionRoute } from "../session-route";
+
 import { resolveWebSocketTarget } from "./websocket-proxy";
 
 describe("resolveWebSocketTarget", () => {
