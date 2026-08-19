@@ -1,10 +1,12 @@
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
+import { ProviderAccount } from "../../../../domain/entities/provider-account/provider-account";
 import { agentBootstrap, sessionLogFile } from "../agent-bootstrap";
 
 import { DockerClient } from "./docker-client";
-import { DockerEnvironmentConfig } from "./docker-environment-config";
+import { DockerEnvironmentConfig, resolveDockerProvisioning } from "./docker-environment-config";
+import { dockerProvisioningOverrides } from "./docker-provider-config";
 import { reserveFreePort } from "./free-port";
 import { dockerLabels, dockerProviderValue } from "./labels";
 
@@ -22,7 +24,7 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
         super();
     }
 
-    async provision(environment: Environment): Promise<void> {
+    async provision(environment: Environment, providerAccount: ProviderAccount | null): Promise<void> {
         await this.removeByEnvironmentId(environment.id);
 
         const [application] = environment.applications.toArray();
@@ -31,15 +33,23 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
             throw new InvalidArgumentError("environment: at least one application is required");
         }
 
-        const provisioning = this.config.resolve(application);
+        // The provisioning shape comes from the environment's provider account when set, falling back to
+        // the install default; the install-level fields (callback URL/secret, advertise host) stay global.
+        const overrides = dockerProvisioningOverrides(providerAccount?.config);
+        const provisioning = resolveDockerProvisioning(application, {
+            image: overrides.image ?? this.config.image,
+            baseImage: overrides.baseImage ?? this.config.baseImage,
+        });
+        const platform = overrides.platform ?? this.config.platform;
+        const internalPort = overrides.internalPort ?? this.config.internalPort;
 
         const hostPort = await reserveFreePort();
         const endpoint = `http://${this.config.advertiseHost}:${hostPort}`;
 
         await this.docker.run({
             image: provisioning.image,
-            platform: this.config.platform,
-            publish: { host: hostPort, container: this.config.internalPort },
+            platform,
+            publish: { host: hostPort, container: internalPort },
             shmSize: "2g",
             entrypoint: "bash",
             command: ["-c", agentBootstrap(this.config.entrypoint)],
