@@ -1,12 +1,14 @@
-// Where a session's video recording lives inside the project's storage destination, as a relative key
-// under the destination prefix. Built from the environment id (a non-secret UUID) and the end timestamp —
-// NEVER from the wire session id, which carries the secret WebDriver session id. The timestamp is stamped
-// by the control-plane (not the agent) and is colon-free so it composes cleanly into an object key. Sits
-// beside SessionLogKey; both name a session artifact under the same sessions/<env>/<ts>/ folder.
-export class SessionVideoKey {
-    static forEnvironment(environmentId: string, endedAt: Date): string {
-        const timestamp = endedAt.toISOString().replace(/[-:]/g, "");
+import { createHash } from "node:crypto";
 
-        return `sessions/${environmentId}/${timestamp}/session.mp4`;
+// Where a session's video recording lives inside the project's storage destination — a flat key under the
+// destination prefix, fingerprinted from the WebDriver session id (sha256), exactly like SessionLogKey.
+// The raw session secret never lands in a persistent object key, and the same key is computed on write
+// (from the id the agent read off the node) and on read (from the id decoded out of the caller's session
+// id), so the recording is addressable by session without storing the secret. sha256 matches `sha256sum`.
+export class SessionVideoKey {
+    static forSession(webDriverSessionId: string): string {
+        const fingerprint = createHash("sha256").update(webDriverSessionId).digest("hex");
+
+        return `session-videos/${fingerprint}/session.mp4`;
     }
 }

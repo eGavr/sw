@@ -31,6 +31,7 @@ import { Execution } from "../../../../../../../src/domain/entities/environment/
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
 import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
+import { SessionVideoKey } from "../../../../../../../src/domain/entities/storage/session-video-key";
 import { StorageDestination } from "../../../../../../../src/domain/entities/storage/storage-destination";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
@@ -69,8 +70,10 @@ import { UserFactory } from "../../../utils/entities/user/user-factory";
 
 const secret = "test-internal-secret";
 const destination = StorageDestination.create({ bucket: "test-videos", prefix: "videos" });
+const sessionId = "wd-session-vid";
+const videoKey = destination.keyFor(SessionVideoKey.forSession(sessionId));
 
-describe("/internal/environments/:id:uploadSessionVideo", () => {
+describe("/internal/environments/:env/sessions/:session:uploadSessionVideo", () => {
     let app: INestApplication;
     let objectStorage: InMemoryObjectStorageGateway;
 
@@ -166,12 +169,12 @@ describe("/internal/environments/:id:uploadSessionVideo", () => {
 
     const upload = (id: string, body: Buffer): request.Test =>
         request(app.getHttpServer())
-            .post(`/internal/environments/${id}:uploadSessionVideo`)
+            .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionVideo`)
             .set("x-internal-secret", secret)
             .set("content-type", "video/mp4")
             .send(body);
 
-    test("streams the video into the project's destination and it reads back", async () => {
+    test("streams the video keyed by the session, into the project's destination", async () => {
         const id = await seedEnvironment(true);
         const video = Buffer.from("fake-mp4-payload- -end");
 
@@ -179,11 +182,7 @@ describe("/internal/environments/:id:uploadSessionVideo", () => {
 
         expect(body).toEqual({ uid: id, stored: true });
 
-        const keys = await objectStorage.list(destination, destination.keyFor(`sessions/${id}`));
-        expect(keys).toHaveLength(1);
-        expect(keys[0].endsWith("/session.mp4")).toBe(true);
-
-        const stored = await objectStorage.get(destination, keys[0]);
+        const stored = await objectStorage.get(destination, videoKey);
         expect(stored?.body.equals(video)).toBe(true);
     });
 
@@ -193,14 +192,14 @@ describe("/internal/environments/:id:uploadSessionVideo", () => {
         const { body } = await upload(id, Buffer.from("some video")).expect(200);
 
         expect(body).toEqual({ uid: id, stored: false });
-        expect(await objectStorage.list(destination, destination.keyFor(`sessions/${id}`))).toHaveLength(0);
+        expect(await objectStorage.get(destination, videoKey)).toBeNull();
     });
 
     test("responds UNAUTHENTICATED without the internal secret", async () => {
         const id = await seedEnvironment(true);
 
         return request(app.getHttpServer())
-            .post(`/internal/environments/${id}:uploadSessionVideo`)
+            .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionVideo`)
             .set("content-type", "video/mp4")
             .send(Buffer.from("video"))
             .expect(401);

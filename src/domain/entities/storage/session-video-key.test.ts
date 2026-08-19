@@ -1,17 +1,19 @@
 import { SessionVideoKey } from "./session-video-key";
 
 describe("SessionVideoKey", () => {
-    const environmentId = "3b8ce88a-9b59-4bee-8e60-0e55997dd58c";
-    const endedAt = new Date("2026-08-12T01:23:45.678Z");
+    describe("#forSession", () => {
+        // sha256("abc") — the digest `sha256sum` produces in the agent container, locking the key contract.
+        const sha256OfAbc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
-    describe(".forEnvironment", () => {
-        test("builds the key from the environment id and a colon-free timestamp", () => {
-            expect(SessionVideoKey.forEnvironment(environmentId, endedAt))
-                .toBe(`sessions/${environmentId}/20260812T012345.678Z/session.mp4`);
+        test("keys a recording by the sha256 fingerprint of the session id", () => {
+            expect(SessionVideoKey.forSession("abc")).toBe(`session-videos/${sha256OfAbc}/session.mp4`);
         });
 
-        test("never contains a colon so it is safe as an object key", () => {
-            expect(SessionVideoKey.forEnvironment(environmentId, endedAt)).not.toContain(":");
+        test("is deterministic and never leaks the raw session id", () => {
+            const key = SessionVideoKey.forSession("wd-session-secret-123");
+
+            expect(key).toBe(SessionVideoKey.forSession("wd-session-secret-123"));
+            expect(key).not.toContain("wd-session-secret-123");
         });
     });
 });

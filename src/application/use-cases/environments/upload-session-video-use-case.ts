@@ -10,6 +10,9 @@ import { StorageDestinationRepository } from "../../interfaces/repositories/stor
 
 export type UploadSessionVideoParams = {
     readonly environmentId: string;
+    // The WebDriver session id the agent read off the node; the recording is keyed by its fingerprint so
+    // it is addressable by session on read. The environment only resolves which project's bucket.
+    readonly sessionId: string;
     readonly body: Readable;
     readonly contentType?: string;
 };
@@ -40,7 +43,7 @@ export class UploadSessionVideoUseCase {
             return { environmentId: environment.id, stored: false };
         }
 
-        const key = destination.keyFor(SessionVideoKey.forEnvironment(environment.id, new Date()));
+        const key = destination.keyFor(SessionVideoKey.forSession(params.sessionId));
         await this.objectStorageGateway.putStream(destination, key, { body: params.body, contentType: params.contentType });
 
         return { environmentId: environment.id, stored: true };

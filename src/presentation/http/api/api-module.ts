@@ -27,6 +27,7 @@ import {
 } from "../../../application/use-cases/projects/set-project-iam-policy-use-case";
 import { TestProjectPermissionsUseCase } from "../../../application/use-cases/projects/test-project-permissions-use-case";
 import { GetSessionLogsUseCase } from "../../../application/use-cases/sessions/get-session-logs-use-case";
+import { GetSessionVideoUseCase } from "../../../application/use-cases/sessions/get-session-video-use-case";
 import {
     GetProjectStorageDestinationUseCase,
 } from "../../../application/use-cases/storage-destinations/get-project-storage-destination-use-case";
@@ -66,7 +67,7 @@ import { LoggingMiddleware } from "../middlewares/logging-middleware";
 
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
-import { SessionLogsController } from "./controllers/sessions/session-logs-controller";
+import { SessionArtifactsController } from "./controllers/sessions/session-artifacts-controller";
 import {
     StorageDestinationController,
 } from "./controllers/storage-destination/storage-destination-controller";
@@ -83,7 +84,7 @@ import {
         ProjectsController,
         EnvironmentsController,
         StorageDestinationController,
-        SessionLogsController,
+        SessionArtifactsController,
     ],
     providers: [
         CreateEnvironmentUseCase,
@@ -102,6 +103,7 @@ import {
         SetProjectStorageDestinationUseCase,
 
         GetSessionLogsUseCase,
+        GetSessionVideoUseCase,
 
         AccessControl,
 
