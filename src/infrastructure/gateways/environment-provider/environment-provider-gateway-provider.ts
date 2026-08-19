@@ -2,6 +2,7 @@ import { ConfigService } from "@nestjs/config";
 
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
 import { ProviderCatalog } from "../../../application/interfaces/provider-catalog";
+import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 
 import { defaultAgentEntrypoint } from "./agent-bootstrap";
 import {
@@ -20,7 +21,6 @@ import { DockerClient } from "./docker/docker-client";
 import {
     buildDockerEnvironmentConfig,
     defaultInternalPort,
-    defaultSessionTimeoutSeconds,
     DockerEnvironmentConfig,
 } from "./docker/docker-environment-config";
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
@@ -31,7 +31,6 @@ import {
     defaultNetworking,
     defaultNodePortRange,
     defaultResources,
-    defaultSessionTimeoutSeconds as defaultK8sSessionTimeoutSeconds,
     KubernetesEnvironmentConfig,
     KubernetesNetworking,
 } from "./kubernetes/kubernetes-environment-config";
@@ -52,15 +51,19 @@ const defaultInternalCallbackPort = 3002;
 export const EnvironmentProviderGatewayProvider = {
     provide: EnvironmentProviderGateway,
     useFactory: (configService: ConfigService): EnvironmentProviderGateway => {
+        // One backend-agnostic idle timeout (domain policy), translated by each gateway into the node's
+        // SE_NODE_SESSION_TIMEOUT — no per-backend copy of the default.
+        const idleTimeoutSeconds = resolveSessionIdleTimeout(configService).toSeconds();
+
         const gateways = new Map<string, EnvironmentProviderGateway>([
             ["noop", new NoopEnvironmentProviderGateway()],
-            ["docker", new DockerEnvironmentProviderGateway(new DockerClient(), dockerConfig(configService))],
+            ["docker", new DockerEnvironmentProviderGateway(new DockerClient(), dockerConfig(configService, idleTimeoutSeconds))],
             ["kubernetes", new KubernetesEnvironmentProviderGateway(
                 new KubernetesClient(
                     configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultNamespace,
                     configService.get<string>("COMPUTE_K8S_CONTEXT"),
                 ),
-                kubernetesConfig(configService),
+                kubernetesConfig(configService, idleTimeoutSeconds),
             )],
             [androidRedroidProviderValue, new AndroidRedroidEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_FOLDER_ID")),
@@ -83,7 +86,15 @@ export const ProviderCatalogProvider = {
     useValue: new RegisteredProviderCatalog(registeredProviderTypes),
 };
 
-function dockerConfig(configService: ConfigService): DockerEnvironmentConfig {
+// Resolves the one session idle timeout from SESSION_IDLE_TIMEOUT (a positive integer of seconds),
+// falling back to the domain default. Bad config fails fast here rather than at provision time.
+function resolveSessionIdleTimeout(configService: ConfigService): SessionIdleTimeout {
+    const configured = configService.get<string>("SESSION_IDLE_TIMEOUT");
+
+    return configured ? SessionIdleTimeout.ofSeconds(Number(configured)) : SessionIdleTimeout.default();
+}
+
+function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: number): DockerEnvironmentConfig {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
     return buildDockerEnvironmentConfig({
@@ -91,9 +102,7 @@ function dockerConfig(configService: ConfigService): DockerEnvironmentConfig {
         baseImage: configService.get<string>("COMPUTE_DOCKER_BASE_IMAGE"),
         platform: configService.get<string>("COMPUTE_DOCKER_PLATFORM"),
         internalPort: Number(configService.get<string>("COMPUTE_DOCKER_PORT") ?? String(defaultInternalPort)),
-        sessionTimeoutSeconds: Number(
-            configService.get<string>("COMPUTE_DOCKER_SESSION_TIMEOUT") ?? String(defaultSessionTimeoutSeconds),
-        ),
+        sessionTimeoutSeconds,
         entrypoint: configService.get<string>("COMPUTE_DOCKER_ENTRYPOINT") ?? defaultAgentEntrypoint,
         // The host address the browser node is reachable at; on the dev Mac that is the loopback the
         // wd proxy uses to reach the published container port.
@@ -124,7 +133,7 @@ function androidRedroidConfig(configService: ConfigService): AndroidRedroidEnvir
     });
 }
 
-function kubernetesConfig(configService: ConfigService): KubernetesEnvironmentConfig {
+function kubernetesConfig(configService: ConfigService, sessionTimeoutSeconds: number): KubernetesEnvironmentConfig {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
     return {
@@ -132,9 +141,7 @@ function kubernetesConfig(configService: ConfigService): KubernetesEnvironmentCo
         namespace: configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultNamespace,
         networking: (configService.get<string>("COMPUTE_K8S_NETWORKING") as KubernetesNetworking) ?? defaultNetworking,
         containerPort: Number(configService.get<string>("COMPUTE_K8S_PORT") ?? String(defaultContainerPort)),
-        sessionTimeoutSeconds: Number(
-            configService.get<string>("COMPUTE_K8S_SESSION_TIMEOUT") ?? String(defaultK8sSessionTimeoutSeconds),
-        ),
+        sessionTimeoutSeconds,
         entrypoint: configService.get<string>("COMPUTE_K8S_ENTRYPOINT") ?? defaultAgentEntrypoint,
         nodePortRange: {
             min: Number(configService.get<string>("COMPUTE_K8S_NODEPORT_MIN") ?? String(defaultNodePortRange.min)),

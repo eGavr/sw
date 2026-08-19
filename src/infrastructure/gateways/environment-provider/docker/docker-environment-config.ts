@@ -33,10 +33,6 @@ export type BuildDockerEnvironmentConfigOptions = {
 
 export const defaultInternalPort = 4444;
 
-// Idle timeout the browser node enforces per session: it kills a session that receives no command
-// within this window and resets it on every command — the "smart" idle timeout, delegated to the node.
-export const defaultSessionTimeoutSeconds = 300;
-
 // Prebuilt strategy: the browser is baked into the image tag. `image` is a fixed tag or a template
 // with `{version}`; without it, falls back to the amd64 selenium images keyed by version.
 function prebuiltResolver(image: string | undefined): DockerEnvironmentConfig["resolve"] {
