@@ -39,8 +39,6 @@ export const defaultNetworking: KubernetesNetworking = "nodeport";
 
 export const defaultContainerPort = 4444;
 
-export const defaultSessionTimeoutSeconds = 300;
-
 export const defaultNodePortRange = { min: 30000, max: 30005 };
 
 export const defaultResources = {

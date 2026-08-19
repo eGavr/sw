@@ -419,8 +419,16 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     добавить его в worker-use-case'ы/насос (структурные поля: `environmentId`, `action`, `outcome`), без чувствительных
     данных (без `wdSessionId`/`credential_ref`). Небольшой код-чейндж + redeploy образа.
 
-17. **Session idle timeout — вынести из backend-конфигов в единую доменную политику (+ опц. override через API) — НЕ сделано.**
-    Сейчас idle-таймаут WebDriver-сессии (нода закрывает простаивающую сессию; сброс на каждой команде) задаётся
+17. **Session idle timeout — единая доменная политика — СДЕЛАНО (ветка `feat.session-idle-timeout`).** Дубль `defaultSessionTimeoutSeconds = 300`
+    из `docker-environment-config.ts` и `kubernetes-environment-config.ts` убран; введён доменный VO `SessionIdleTimeout`
+    (`domain/entities/session/session-idle-timeout.ts`: `defaultSessionIdleTimeoutSeconds = 300`, `default()`, `ofSeconds(n)` — отвергает
+    не-положительное/не-целое → `InvalidArgumentError`). Composition root (`environment-provider-gateway-provider.ts`) резолвит таймаут ОДИН раз из
+    **единого ключа `SESSION_IDLE_TIMEOUT`** (fallback — доменный default; кривой конфиг падает fail-fast на старте) и передаёт секунды и в docker-, и в
+    k8s-конфиг; gateway'и лишь транслируют в `SE_NODE_SESSION_TIMEOUT`. Ключи `COMPUTE_DOCKER_SESSION_TIMEOUT`/`COMPUTE_K8S_SESSION_TIMEOUT` удалены
+    (в .env их и не было). Домен формирует порог, gateway транслирует — по правилу `CLAUDE.md`. Unit на VO. tsc 0 · eslint 0 · unit 137 · integration 99.
+    **Пер-окруженческий override через API (`sessionTimeout` в create-environment) — сознательно НЕ делаю (YAGNI):** глобальной доменной политики
+    достаточно; появится реальная нужда — VO уже готов принять пер-окруженческое значение, протащим его как атрибут окружения в gateway.
+    *(Историческая формулировка ниже.)* Сейчас idle-таймаут WebDriver-сессии (нода закрывает простаивающую сессию; сброс на каждой команде) задаётся
     **пер-backend**: два отдельных ключа `COMPUTE_DOCKER_SESSION_TIMEOUT` и `COMPUTE_K8S_SESSION_TIMEOUT`, константа
     `defaultSessionTimeoutSeconds = 300` **продублирована** в `docker-environment-config.ts` и `kubernetes-environment-config.ts`,
     каждый gateway сам кладёт её в `SE_NODE_SESSION_TIMEOUT` пода. Это запашок: idle-таймаут — свойство **сессии/окружения
