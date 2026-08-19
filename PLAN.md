@@ -30,14 +30,16 @@ service-identity), мы грузим под своей identity; включен�
   (5) `logging?: boolean` в create-session → capability `sw:logging` в сессии ноды (порт `WebDriverSessionGateway.create(...,options)` → `WebDriverClient`);
   (6) тесты: интеграционный приём логов (read-back через `list`+`get`), wd `logging`→gateway, `WebDriverClient` кладёт `sw:logging` в тело `/session`;
   (7) агент (bash): на конце сессии (busy true→false) шлёт offset-дельту лога ноды на ручку; capture решается по `sw:logging` из `/status`; best-effort POST (не-2xx, вкл. 404, НЕ триггерит self-fence).
-  **read-back API — СЕРВЕРНАЯ ЧАСТЬ СДЕЛАНА (session-scoped, ветки `fix.redact-session-ids-in-logs` + `feat.session-logs-readback-server`).** Логи читаются **по session id**, а не по env:
+  **read-back API — СДЕЛАНО (session-scoped; ветки `fix.redact-session-ids-in-logs` + `feat.session-logs-readback-server` + `feat.session-logs-agent`).** Логи читаются **по session id**, а не по env:
   `GET /v1/projects/{project}/sessions/{sessionId}/logs` (api). **Проект в URL** (долгоживущий), т.к. окружение эфемерно (GC сносит его раньше, чем читают лог); из проекта резолвим бакет.
   Лог **ключуется по `sha256(wdSessionId)`** (плоско `session-logs/<hash>/session.log`) — сырой секрет не попадает в persistent-ключ; тот же ключ считается на записи и на чтении. Сервер — **делегированная
   прокся**: тянет объект из бакета пользователя под нашей identity. Write-path переехал на session-scoped `POST /internal/environments/{env}/sessions/{sessionId}:uploadSessionLogs`
   (env всё ещё резолвит бакет; сессия — ключ); `SessionLogKey.forEnvironment`→`forSession`. Право **`sw.sessions.get`** (роли developer/viewer). `SessionRoute` поднят в общий `presentation/http/`.
   **Редакция логов:** `LoggingMiddleware` маскирует `/sessions/<id>` во ВСЕХ request-логах (api/wd/internal) — чинит и текущую wd-утечку wire-id. tsc 0 · eslint 0 · unit 142 · integration 105.
-  **Осталось (агент, PR3, Docker-e2e):** агент вытаскивает `sessionId` из `/status` `.session.sessionId` (де-риск пройден: id есть, `jq`/`sha256sum` в образе есть) и шлёт на session-scoped upload.
-  Плюс **проверка `/status`-feasibility** для `sw:logging` и ручной docker e2e. Способ делегирования на проде (bucket-policy vs AssumeRole по `roleArn`) — при подключении реального S3.
+  **Агент — СДЕЛАНО (ветка `feat.session-logs-agent`, проверено живым Docker-e2e):** агент захватывает `sessionId` из `/status` `.session.sessionId` во время busy (пропуская Grid-плейсхолдер
+  `reserved` — ловится реальный hex-id) и шлёт **сырой** id на session-scoped upload; сервер хэширует. Заодно снят вопрос **`/status`-feasibility**: нода отдаёт vendor-cap **`sw:logging: true`**
+  в `.session.capabilities` — опт-ин работает, fallback-прокси не нужен. E2e: реальная нода + агент + фейковый internal → сессия → на конце агент POST-нул на `…/sessions/<реальный-id>:uploadSessionLogs`
+  с верным слайсом лога. Способ делегирования на проде (bucket-policy vs AssumeRole по `roleArn`) — при подключении реального S3.
   **Follow-up (низкий приоритет):** нативный per-session лог-файл драйвера (chromedriver `--log-path` + verbose, свой образ/энтрипоинт) вместо нарезки общего лога ноды по offset — чище/богаче, но требует своего образа (связано с install-at-startup из п.5). Механизм capture на шаге 4 выбран = «агент нарезает из лога ноды».
 
 - **B. Запись видео сессии + выгрузка в S3 (opt-in через capability).** Записывать видео происходящего в сессии и грузить в S3

@@ -24,7 +24,6 @@ INTERVAL="${SW_HEARTBEAT_INTERVAL_SECONDS:-3}"
 : "${SW_ENDPOINT:?SW_ENDPOINT is required}"
 
 heartbeat_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:heartbeat"
-session_logs_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:uploadSessionLogs"
 session_video_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:uploadSessionVideo"
 ffmpeg_download_url="${SW_INTERNAL_URL}/internal/ffmpeg:download"
 
@@ -75,6 +74,17 @@ session_wants_video() {
     curl -sf "${NODE_URL}/status" \
         | jq -e 'first(.. | objects | select(has("session")) | .session | select(. != null))
                  | .capabilities["sw:video"] == true' >/dev/null 2>&1
+}
+
+# The WebDriver session id the node currently holds (empty if none), read from the same active-session
+# object as the opt-ins. The logs are keyed by it (its fingerprint, server-side) so they are addressable
+# by session on read; it must be captured while the session is live, since it leaves /status on end. The
+# Grid slot briefly reports the placeholder "reserved" before the real id lands, so that is skipped —
+# the agent just retries on the next tick until the real id appears.
+node_session_id() {
+    curl -sf "${NODE_URL}/status" \
+        | jq -r '[.. | objects | select(has("session")) | .session | select(. != null) | .sessionId
+                  | select(. != null and . != "reserved")] | first // empty' 2>/dev/null
 }
 
 # Fetch the static ffmpeg binary once from the control plane, keyed by architecture. Best effort: on any
@@ -169,10 +179,11 @@ log_size() {
     cat ${session_log_glob} 2>/dev/null | wc -c | tr -d '[:space:]'
 }
 
-# Ship the bytes appended since start_offset (this session's slice) to the control-plane. Best effort:
-# any non-2xx is logged and ignored — it must never bring the environment down (only heartbeat 404 does).
+# Ship the bytes appended since start_offset (this session's slice) to the control-plane, keyed by the
+# session id (raw — the control-plane fingerprints it). Best effort: any non-2xx is logged and ignored —
+# it must never bring the environment down (only heartbeat 404 does).
 ship_session_logs() {
-    local start_offset="$1" total available tail_start code
+    local start_offset="$1" session_id="$2" total available tail_start code url
     total=$(log_size)
 
     if [ "${total:-0}" -le "${start_offset}" ]; then
@@ -185,8 +196,9 @@ ship_session_logs() {
         tail_start=$((total - max_log_bytes + 1))
     fi
 
+    url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/sessions/${session_id}:uploadSessionLogs"
     code=$(cat ${session_log_glob} 2>/dev/null | tail -c "+${tail_start}" \
-        | curl -s -o /dev/null -w "%{http_code}" -X POST "${session_logs_url}" \
+        | curl -s -o /dev/null -w "%{http_code}" -X POST "${url}" \
             -H "x-internal-secret: ${SW_INTERNAL_SECRET}" \
             -H "content-type: application/octet-stream" \
             --max-time 20 --data-binary @-)
@@ -248,6 +260,7 @@ download_ffmpeg &
 prev_busy=false
 capture=false
 recording=false
+session_id=""
 idle_offset=0
 log_offset=0
 
@@ -262,15 +275,24 @@ while true; do
             log_offset="${idle_offset}"
             capture=false
             recording=false
+            session_id=""
         fi
+        # Capture the session id while it is live (it leaves /status on end); lazy like the opt-ins, since
+        # it can land in /status a tick after the slot becomes busy.
+        if [ -z "${session_id}" ]; then session_id=$(node_session_id); fi
         if [ "${capture}" = "false" ] && session_wants_logs; then capture=true; fi
         if [ "${recording}" = "false" ] && session_wants_video && start_recording; then recording=true; fi
     else
         if [ "${prev_busy}" = "true" ]; then
-            if [ "${capture}" = "true" ]; then ship_session_logs "${log_offset}"; fi
+            if [ "${capture}" = "true" ] && [ -n "${session_id}" ]; then
+                ship_session_logs "${log_offset}" "${session_id}"
+            elif [ "${capture}" = "true" ]; then
+                log "logging opted in but no session id was captured; dropping this session's logs"
+            fi
             if [ "${recording}" = "true" ]; then stop_recording_and_ship; fi
             capture=false
             recording=false
+            session_id=""
         fi
         idle_offset=$(log_size)
     fi
