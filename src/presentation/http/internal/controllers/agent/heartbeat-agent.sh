@@ -24,7 +24,6 @@ INTERVAL="${SW_HEARTBEAT_INTERVAL_SECONDS:-3}"
 : "${SW_ENDPOINT:?SW_ENDPOINT is required}"
 
 heartbeat_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:heartbeat"
-session_video_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:uploadSessionVideo"
 ffmpeg_download_url="${SW_INTERNAL_URL}/internal/ffmpeg:download"
 
 # The startup bootstrap redirects the container's whole stdout/stderr into one file (stock selenium logs
@@ -137,6 +136,7 @@ start_recording() {
 # hang the heartbeat loop — as a last resort it is killed (a broken file beats a stuck environment). Best
 # effort: any non-2xx (incl. 404) is logged and ignored — it must never bring the environment down.
 stop_recording_and_ship() {
+    local session_id="$1"
     if [ -z "${ffmpeg_pid}" ]; then return 0; fi
 
     printf q >&3 2>/dev/null
@@ -158,9 +158,16 @@ stop_recording_and_ship() {
         return 0
     fi
 
-    local size code
+    if [ -z "${session_id}" ]; then
+        log "video recorded but no session id captured; dropping this session's video"
+        rm -f "${video_file}"
+        return 0
+    fi
+
+    local size code url
     size=$(wc -c < "${video_file}" | tr -d '[:space:]')
-    code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${session_video_url}" \
+    url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/sessions/${session_id}:uploadSessionVideo"
+    code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${url}" \
         -H "x-internal-secret: ${SW_INTERNAL_SECRET}" \
         -H "content-type: video/mp4" \
         --max-time 120 --data-binary @"${video_file}")
@@ -289,7 +296,7 @@ while true; do
             elif [ "${capture}" = "true" ]; then
                 log "logging opted in but no session id was captured; dropping this session's logs"
             fi
-            if [ "${recording}" = "true" ]; then stop_recording_and_ship; fi
+            if [ "${recording}" = "true" ]; then stop_recording_and_ship "${session_id}"; fi
             capture=false
             recording=false
             session_id=""

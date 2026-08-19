@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+
 import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { Injectable } from "@nestjs/common";
@@ -51,6 +53,28 @@ export class S3ObjectStorageGateway extends ObjectStorageGateway {
             }
 
             return { body: Buffer.from(await response.Body.transformToByteArray()), contentType: response.ContentType };
+        } catch (error) {
+            if (this.isNotFound(error)) {
+                return null;
+            }
+
+            throw error;
+        }
+    }
+
+    // Returns the object's body as a stream (the SDK's response Body is already a Node Readable), so a
+    // large recording is piped straight to the client without being buffered whole in memory.
+    async getStream(destination: StorageDestination, key: string): Promise<StoredStream | null> {
+        try {
+            const response = await this.clientFor(destination).send(
+                new GetObjectCommand({ Bucket: destination.bucket, Key: key }),
+            );
+
+            if (!response.Body) {
+                return null;
+            }
+
+            return { body: response.Body as Readable, contentType: response.ContentType };
         } catch (error) {
             if (this.isNotFound(error)) {
                 return null;

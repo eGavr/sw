@@ -22,5 +22,7 @@ export abstract class ObjectStorageGateway {
     abstract put(destination: StorageDestination, key: string, object: StoredObject): Promise<void>;
     abstract putStream(destination: StorageDestination, key: string, object: StoredStream): Promise<void>;
     abstract get(destination: StorageDestination, key: string): Promise<StoredObject | null>;
+    // Streams an object back (for large artifacts like video read-back) without buffering it whole.
+    abstract getStream(destination: StorageDestination, key: string): Promise<StoredStream | null>;
     abstract list(destination: StorageDestination, prefix: string): Promise<Array<string>>;
 }

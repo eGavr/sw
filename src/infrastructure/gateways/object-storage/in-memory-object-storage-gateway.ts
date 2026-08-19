@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+
 import { Injectable } from "@nestjs/common";
 
 import {
@@ -37,6 +39,12 @@ export class InMemoryObjectStorageGateway extends ObjectStorageGateway {
 
     get(destination: StorageDestination, key: string): Promise<StoredObject | null> {
         return Promise.resolve(this.objects.get(this.locate(destination, key)) ?? null);
+    }
+
+    getStream(destination: StorageDestination, key: string): Promise<StoredStream | null> {
+        const object = this.objects.get(this.locate(destination, key));
+
+        return Promise.resolve(object ? { body: Readable.from(object.body), contentType: object.contentType } : null);
     }
 
     list(destination: StorageDestination, prefix: string): Promise<Array<string>> {
