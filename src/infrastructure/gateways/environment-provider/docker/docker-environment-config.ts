@@ -6,64 +6,43 @@ export type DockerProvisioning = {
 };
 
 export type DockerEnvironmentConfig = {
-    resolve: (application: ApplicationData) => DockerProvisioning;
-    internalPort: number;
-    sessionTimeoutSeconds: number;
-    // Image entrypoint the bootstrap execs after starting the agent (selenium base default).
-    entrypoint: string;
-    // Host address the node is reachable at (used to build SW_ENDPOINT for the in-container agent).
-    advertiseHost: string;
-    // Base URL the in-container agent calls back on, and the shared secret it authenticates with.
-    internalUrl: string;
-    internalSecret: string;
-    platform?: string;
-};
-
-export type BuildDockerEnvironmentConfigOptions = {
+    // Provisioning shape — the install default, overridable per project from the provider account config.
     image?: string;
     baseImage?: string;
+    platform?: string;
     internalPort: number;
-    sessionTimeoutSeconds: number;
+    // Install-level: the node's image entrypoint the bootstrap execs after starting the agent.
     entrypoint: string;
+    // Install-level: host address the node is reachable at (used to build SW_ENDPOINT for the agent).
     advertiseHost: string;
+    // Install-level: base URL the in-container agent calls back on, and the shared secret it uses.
     internalUrl: string;
     internalSecret: string;
-    platform?: string;
+    // Session idle timeout (domain policy), translated into the node's SE_NODE_SESSION_TIMEOUT.
+    sessionTimeoutSeconds: number;
 };
 
 export const defaultInternalPort = 4444;
 
-// Prebuilt strategy: the browser is baked into the image tag. `image` is a fixed tag or a template
-// with `{version}`; without it, falls back to the amd64 selenium images keyed by version.
-function prebuiltResolver(image: string | undefined): DockerEnvironmentConfig["resolve"] {
-    return (application) => ({
+// Resolves the container image for an application. Prebuilt: the browser is baked into the tag (`image`
+// is a fixed tag or a `{version}` template; without it, the amd64 selenium images keyed by version).
+// Install: a custom `baseImage` installs the requested browser at startup, reading name/version from env.
+export function resolveDockerProvisioning(
+    application: ApplicationData,
+    options: { image?: string; baseImage?: string },
+): DockerProvisioning {
+    if (options.baseImage) {
+        return {
+            image: options.baseImage,
+            env: { SW_BROWSER_NAME: application.name, SW_BROWSER_VERSION: application.version },
+        };
+    }
+
+    const image = options.image;
+
+    return {
         image: image
             ? (image.includes("{version}") ? image.replace("{version}", application.version) : image)
             : `selenium/standalone-chrome:${application.version}`,
-    });
-}
-
-// Install strategy: a custom base image that installs the requested browser at startup, reading its
-// name and version from these env vars — the base image's entrypoint contract.
-function installResolver(baseImage: string): DockerEnvironmentConfig["resolve"] {
-    return (application) => ({
-        image: baseImage,
-        env: {
-            SW_BROWSER_NAME: application.name,
-            SW_BROWSER_VERSION: application.version,
-        },
-    });
-}
-
-export function buildDockerEnvironmentConfig(options: BuildDockerEnvironmentConfigOptions): DockerEnvironmentConfig {
-    return {
-        resolve: options.baseImage ? installResolver(options.baseImage) : prebuiltResolver(options.image),
-        internalPort: options.internalPort,
-        sessionTimeoutSeconds: options.sessionTimeoutSeconds,
-        entrypoint: options.entrypoint,
-        advertiseHost: options.advertiseHost,
-        internalUrl: options.internalUrl,
-        internalSecret: options.internalSecret,
-        platform: options.platform,
     };
 }

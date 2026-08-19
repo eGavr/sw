@@ -19,7 +19,6 @@ import {
 } from "./android-redroid/android-redroid-environment-provider-gateway";
 import { DockerClient } from "./docker/docker-client";
 import {
-    buildDockerEnvironmentConfig,
     defaultInternalPort,
     DockerEnvironmentConfig,
 } from "./docker/docker-environment-config";
@@ -97,7 +96,9 @@ function resolveSessionIdleTimeout(configService: ConfigService): SessionIdleTim
 function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: number): DockerEnvironmentConfig {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
-    return buildDockerEnvironmentConfig({
+    // Install defaults for the docker provisioning shape; a project's provider account config overrides
+    // image/baseImage/platform/port at provision. The install-level fields below stay global.
+    return {
         image: configService.get<string>("COMPUTE_DOCKER_IMAGE"),
         baseImage: configService.get<string>("COMPUTE_DOCKER_BASE_IMAGE"),
         platform: configService.get<string>("COMPUTE_DOCKER_PLATFORM"),
@@ -111,7 +112,7 @@ function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: numbe
         internalUrl:
             configService.get<string>("COMPUTE_DOCKER_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,
         internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
-    });
+    };
 }
 
 function androidRedroidConfig(configService: ConfigService): AndroidRedroidEnvironmentConfig {

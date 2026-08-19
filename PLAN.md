@@ -687,11 +687,17 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
       (`Record<string,unknown>`) + поле `config` вместо `externalRef`; миграция `1786700000000` (add `config` jsonb / drop `external_ref`); typeorm-entity
       (jsonb); `create-project` compute-запись принимает `config` вместо `externalRef` (`@IsOptional @IsObject`); тесты. Пока `config` ХРАНИТСЯ, но
       адаптеры его НЕ читают (используют install `COMPUTE_*`). tsc 0 · eslint 0 · unit 108 · integration 90.
-    - **Слайс 2 шаг 2 — ОТЛОЖЕНО ДО ЖИВОЙ ИНФРЫ:** порт `provision(env, providerAccount?)` + воркер грузит PA и отдаёт в provision/deprovision +
-      **адаптеры docker/k8s/yandex читают `config` вместо `COMPUTE_*`** + `android-redroid → yandex-compute`. Это переписывание 3 облачных адаптеров;
-      integration идёт через `noop` (config игнорит), поэтому реальное поведение docker/k8s/YC нельзя проверить, пока инфра погашена — делать вслепую
-      рискованно (сломанный провижн всплывёт только вживую). Делать этот шаг при поднятой инфре. Порт/воркер-плюмбинг можно сделать раньше (тестируемо), а
-      консумпцию адаптерами — под живую проверку.
+    - **Слайс 2 шаг 2 — DOCKER-часть СДЕЛАНА и проверена вживую (ветка `feat.provider-config-consumption`).** Плумбинг: порт `provision(env,
+      providerAccount)` (deprovision без изменений — docker сносит по label, конфиг не нужен; PA в deprovision добавим с k8s/yandex); `PrepareNextEnvironmentUseCase`
+      грузит PA окружения (`ProviderAccountRepository.get` по `env.providerAccountId`, null если нет) и отдаёт в `provision`; `RoutingEnvironmentProviderGateway`
+      пробрасывает. **Docker-адаптер читает provisioning-config из `ProviderAccount.config`** (`image`/`baseImage`/`platform`/`port`), fallback — install `COMPUTE_DOCKER_*`;
+      install-level поля (`internalUrl`/`internalSecret`/`advertiseHost`/`entrypoint`/idle-timeout) остаются глобальными. Чистый парсер `dockerProvisioningOverrides`
+      (валидирует типы, кривой конфиг → 400) + `resolveDockerProvisioning` (образ prebuilt/install) — unit-покрыто. `noop`/k8s/android не трогали (TS: метод с меньшим
+      числом параметров реализует порт). **Живой Docker e2e:** окружение с `config.image=seleniarm/...` подняло контейнер именно с этим образом (а не install-fallback
+      `selenium/standalone-chrome`). tsc 0 · eslint 0 · unit 141 · integration 99.
+    - **Осталось (шаг 2, под живую инфру):** **k8s-адаптер** читает config (`image`/`namespace`/`networking`/лимиты) — проверяемо на `kind`; **yandex-compute-адаптер**
+      читает config (`folder`/`zone`/`subnet`/`image`/`cores`) + `deprovision(env, providerAccount)` для namespace/folder + **`android-redroid → yandex-compute`** ренейм —
+      проверяемо только на YC. Паттерн доказан на docker; k8s/yandex — тот же заход, когда поднимем kind/YC.
 
 33. **Честный auth на проде + прогон недавнего IAM/сессий на живой инфре — НЕ сделано (ОБЯЗАТЕЛЬНО до боевого запуска).** Сейчас единственная
     auth-стратегия — `local`-заглушка (`AUTH_STRATEGY=local`): токен `<external_id#group1,group2>` разбирается напрямую, БЕЗ проверки подписи. Это

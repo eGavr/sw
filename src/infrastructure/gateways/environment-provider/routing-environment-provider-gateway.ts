@@ -1,6 +1,7 @@
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { InternalError } from "../../../domain/entities/error/internal-error";
+import { ProviderAccount } from "../../../domain/entities/provider-account/provider-account";
 
 // One EnvironmentProviderGateway over many backend adapters: each action is routed to the adapter of
 // the environment's provider type (captured on the environment at creation), so the worker use cases
@@ -10,8 +11,8 @@ export class RoutingEnvironmentProviderGateway extends EnvironmentProviderGatewa
         super();
     }
 
-    async provision(environment: Environment): Promise<void> {
-        await this.gatewayFor(environment).provision(environment);
+    async provision(environment: Environment, providerAccount: ProviderAccount | null): Promise<void> {
+        await this.gatewayFor(environment).provision(environment, providerAccount);
     }
 
     async deprovision(environment: Environment): Promise<void> {
