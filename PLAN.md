@@ -716,15 +716,18 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
       читает config (`folder`/`zone`/`subnet`/`image`/`cores`) + `deprovision(env, providerAccount)` для namespace/folder + **`android-redroid → yandex-compute`** ренейм —
       проверяемо только на YC. Паттерн доказан на docker; k8s/yandex — тот же заход, когда поднимем kind/YC.
 
-33. **Честный auth на проде + прогон недавнего IAM/сессий на живой инфре — НЕ сделано (ОБЯЗАТЕЛЬНО до боевого запуска).** Сейчас единственная
-    auth-стратегия — `local`-заглушка (`AUTH_STRATEGY=local`): токен `<external_id#group1,group2>` разбирается напрямую, БЕЗ проверки подписи. Это
-    тест-скаффолдинг, в прод его пускать нельзя. Нужно:
-    - **Реальный OIDC-адаптер** — новый auth-data-source за тем же портом (`UserDataSource`), выбираемый `AUTH_STRATEGY=oidc`: валидирует подпись JWT
-      по JWKS IdP, проверяет `iss`/`aud`/`exp`, извлекает `sub`→`external_id` и **`groups`-claim→`User.groups`** (та же форма, что отдаёт `local`, —
-      прод-модель уже готова, отличается только «откуда достаём claims»). Конфиг: `OIDC_ISSUER`/`OIDC_JWKS_URL`/`OIDC_AUDIENCE`/имя groups-claim.
-    - **Огородить `local` от прода** — `local`-токен `<id#groups>` только для dev/test; в прод-профиле `AUTH_STRATEGY=local` должен падать на старте
-      (или отсутствовать), чтобы честный auth нельзя было случайно обойти.
-    - **Прогнать на живой инфре с реальным IdP всё недавнее:** роли + **etag `setIamPolicy`** (п.26), гранулярность **get/list** (п.27-follow-up),
+33. **Честный auth на проде + прогон недавнего IAM/сессий на живой инфре — CODE-SIDE СДЕЛАН, живой прогон с реальным IdP остаётся.** Сейчас
+    дефолтная dev/test-стратегия — `local`-заглушка (`AUTH_STRATEGY=local`): токен `<external_id#group1,group2>` разбирается напрямую, БЕЗ проверки
+    подписи. Это тест-скаффолдинг, в прод его пускать нельзя.
+    - **[СДЕЛАНО] Реальный OIDC-адаптер** — `OidcUserDataSource` за тем же портом (`UserDataSource`), выбирается `AUTH_STRATEGY=oidc`: `jose` валидирует
+      подпись JWT по JWKS IdP (`createRemoteJWKSet(OIDC_JWKS_URI)` — сам кэширует + rotation), проверяет `iss`/`aud`/`exp`, извлекает `sub`→`external_id`
+      и **`groups`-claim→`User.groups`** (та же форма, что отдаёт `local`). Конфиг: `OIDC_ISSUER`/`OIDC_AUDIENCE`/`OIDC_JWKS_URI`/`OIDC_GROUPS_CLAIM`
+      (default `groups`). Тонкая обёртка-клиент `OidcTokenVerifier` над `jose`; JWKS-резолвер инжектируемый → тесты подставляют локальный key set (реальная
+      проверка подписи, без сети — «мокаем только внешний IdP-fetch»). Прод-env переведён на `oidc`. Покрыто integration-suite (`api/tests/auth/oidc`):
+      валидный токен → аутентифицирован как `sub`; `groups`-claim → доступ по роли группы; tampered/expired/wrong-iss/wrong-aud/unknown-key/non-JWT → 401.
+    - **[СДЕЛАНО] Огородить `local` от прода** — при `NODE_ENV=production` фабрика auth-data-source бросает на `AUTH_STRATEGY=local`, честный auth нельзя
+      случайно обойти.
+    - **[ОСТАЁТСЯ] Прогнать на живой инфре с реальным IdP всё недавнее:** роли + **etag `setIamPolicy`** (п.26), гранулярность **get/list** (п.27-follow-up),
       **`testIamPermissions`**, **группы** (реальный `groups`-claim → union прав, п.29), **latest-капа сессии** (п.23-ч2). Убедиться, что local-scaffolding
       (`<id#groups>`, лениво-создаваемый юзер) нигде не протекает в прод-путь и что группы реально приезжают из claim, а не из нашей БД.
     - Связано с **п.12** (безопасность internal-канала) и **п.14** (деплой в YC) — весь блок прод-безопасности закрываем до боевого трафика.
