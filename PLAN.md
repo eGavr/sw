@@ -712,9 +712,15 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
       (валидирует типы, кривой конфиг → 400) + `resolveDockerProvisioning` (образ prebuilt/install) — unit-покрыто. `noop`/k8s/android не трогали (TS: метод с меньшим
       числом параметров реализует порт). **Живой Docker e2e:** окружение с `config.image=seleniarm/...` подняло контейнер именно с этим образом (а не install-fallback
       `selenium/standalone-chrome`). tsc 0 · eslint 0 · unit 141 · integration 99.
-    - **Осталось (шаг 2, под живую инфру):** **k8s-адаптер** читает config (`image`/`namespace`/`networking`/лимиты) — проверяемо на `kind`; **yandex-compute-адаптер**
-      читает config (`folder`/`zone`/`subnet`/`image`/`cores`) + `deprovision(env, providerAccount)` для namespace/folder + **`android-redroid → yandex-compute`** ренейм —
-      проверяемо только на YC. Паттерн доказан на docker; k8s/yandex — тот же заход, когда поднимем kind/YC.
+    - **Слайс 2 шаг 2 — K8S-часть СДЕЛАНА (ветка `feat.k8s-per-project-config`), live-verify на kind отложен.** Зеркало docker-слайса: `provision(env, providerAccount)`
+      **читает provisioning-config из `ProviderAccount.config`** (`image` / `port`→`containerPort` / `resources`{requests,limits}), fallback — install `COMPUTE_K8S_*`;
+      install-level поля (`namespace`/`networking`/`nodePortRange`/callback URL/secret) **остаются глобальными** — это топология кластера и изоляция (RBAC scoped на
+      `sw-environments`), а не per-project. Чистый парсер `kubernetesProvisioningOverrides` (валидирует типы + вложенный `resources`, кривой конфиг → 400) — unit-покрыт.
+      Плумбинг (`prepare`-use-case грузит PA → routing-gateway пробрасывает) уже был от docker-части; k8s лишь начал использовать аргумент. Live-e2e на `kind` — когда
+      поднимем кластер (сейчас kind снят). tsc 0 · eslint 0 · unit 153 · integration 120.
+    - **Осталось (шаг 2, под живую инфру):** **k8s live-verify на `kind`** (пересоздать кластер) — код готов; **yandex-compute-адаптер** читает config
+      (`folder`/`zone`/`subnet`/`image`/`cores`) + `deprovision(env, providerAccount)` для namespace/folder + **`android-redroid → yandex-compute`** ренейм — проверяемо только
+      на YC. Паттерн доказан на docker + реализован на k8s; yandex — тот же заход, когда поднимем YC.
 
 33. **Честный auth на проде + прогон недавнего IAM/сессий на живой инфре — CODE-SIDE СДЕЛАН, живой прогон с реальным IdP остаётся.** Сейчас
     дефолтная dev/test-стратегия — `local`-заглушка (`AUTH_STRATEGY=local`): токен `<external_id#group1,group2>` разбирается напрямую, БЕЗ проверки
