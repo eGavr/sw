@@ -1,9 +1,11 @@
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
+import { ProviderAccount } from "../../../../domain/entities/provider-account/provider-account";
 import { agentBootstrap, sessionLogFile } from "../agent-bootstrap";
 
 import { KubernetesClient } from "./kubernetes-client";
 import { KubernetesEnvironmentConfig } from "./kubernetes-environment-config";
+import { kubernetesProvisioningOverrides } from "./kubernetes-provider-config";
 
 const labels = {
     provider: "sw.provider",
@@ -19,6 +21,9 @@ type ServicePlan = {
     servicePort: { port: number; targetPort: number; nodePort?: number };
 };
 
+// The provisioning shape that a project's provider account may override; install-level fields stay global.
+type Provisioning = Pick<KubernetesEnvironmentConfig, "image" | "containerPort" | "resources">;
+
 // Kubernetes adapter: an environment is a Pod exposing a WebDriver endpoint plus a Service that
 // publishes it — a NodePort on a host-mapped port for local dev, or a ClusterIP reached by service DNS
 // when the control plane runs in-cluster. provision is idempotent (any Pod/Service for the env id is
@@ -33,12 +38,22 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         super();
     }
 
-    async provision(environment: Environment): Promise<void> {
+    async provision(environment: Environment, providerAccount: ProviderAccount | null): Promise<void> {
         await this.kubernetes.deleteByLabel(labels.environmentId, environment.id);
 
-        const plan = await this.planService(`sw-env-${environment.id}`);
+        // The image/port/resources come from the environment's provider account when set, falling back to
+        // the install default; install-level fields (namespace, networking, node-port range, callback
+        // URL/secret) stay global — they are cluster topology and isolation, not per-project.
+        const overrides = kubernetesProvisioningOverrides(providerAccount?.config);
+        const provisioning: Provisioning = {
+            image: overrides.image ?? this.config.image,
+            containerPort: overrides.containerPort ?? this.config.containerPort,
+            resources: overrides.resources ?? this.config.resources,
+        };
 
-        await this.kubernetes.apply(JSON.stringify(this.manifest(environment, plan)));
+        const plan = await this.planService(`sw-env-${environment.id}`, provisioning.containerPort);
+
+        await this.kubernetes.apply(JSON.stringify(this.manifest(environment, plan, provisioning)));
     }
 
     async deprovision(environment: Environment): Promise<void> {
@@ -47,14 +62,14 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
 
     // Resolve how the pod is published and the endpoint the agent will advertise. cluster-dns reaches the
     // pod by its Service DNS (control plane in-cluster); nodeport publishes it on a host-mapped port.
-    private async planService(name: string): Promise<ServicePlan> {
+    private async planService(name: string, containerPort: number): Promise<ServicePlan> {
         if (this.config.networking === "cluster-dns") {
-            const endpoint = `http://${name}.${this.config.namespace}.svc.cluster.local:${this.config.containerPort}`;
+            const endpoint = `http://${name}.${this.config.namespace}.svc.cluster.local:${containerPort}`;
 
             return {
                 endpoint,
                 serviceType: "ClusterIP",
-                servicePort: { port: this.config.containerPort, targetPort: this.config.containerPort },
+                servicePort: { port: containerPort, targetPort: containerPort },
             };
         }
 
@@ -63,7 +78,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         return {
             endpoint: `http://${this.config.advertiseHost}:${nodePort}`,
             serviceType: "NodePort",
-            servicePort: { port: this.config.containerPort, targetPort: this.config.containerPort, nodePort },
+            servicePort: { port: containerPort, targetPort: containerPort, nodePort },
         };
     }
 
@@ -82,7 +97,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         throw new Error("kubernetes: no free node port in the configured range");
     }
 
-    private manifest(environment: Environment, plan: ServicePlan): object {
+    private manifest(environment: Environment, plan: ServicePlan, provisioning: Provisioning): object {
         const name = `sw-env-${environment.id}`;
         const selector = { [labels.environmentId]: environment.id };
         const metadataLabels = {
@@ -105,13 +120,13 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
                         restartPolicy: "Never",
                         containers: [{
                             name: "node",
-                            image: this.config.image,
+                            image: provisioning.image,
                             imagePullPolicy: "IfNotPresent",
                             // Stock selenium image: fetch the agent at startup, then exec the node.
                             command: ["bash", "-c", agentBootstrap(this.config.entrypoint)],
-                            ports: [{ containerPort: this.config.containerPort }],
+                            ports: [{ containerPort: provisioning.containerPort }],
                             env: this.env(environment, plan.endpoint),
-                            resources: this.config.resources,
+                            resources: provisioning.resources,
                             volumeMounts: [{ name: "dshm", mountPath: "/dev/shm" }],
                         }],
                         volumes: [{ name: "dshm", emptyDir: { medium: "Memory", sizeLimit: "2Gi" } }],
