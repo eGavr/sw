@@ -738,13 +738,15 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
       (`<id#groups>`, лениво-создаваемый юзер) нигде не протекает в прод-путь и что группы реально приезжают из claim, а не из нашей БД.
     - Связано с **п.12** (безопасность internal-канала) и **п.14** (деплой в YC) — весь блок прод-безопасности закрываем до боевого трафика.
 
-34. **Редакция session id в логах вшита в глобальный `LoggingMiddleware` — сделать конфигурируемой per-route (тех-долг) — НЕ сделано.** Сейчас
-    `redactSessionIds` хардкодит паттерн `/sessions/<id>` прямо в общем `LoggingMiddleware`, который фронтит все три сервера (api/wd/internal). Это
-    cross-cutting хак: middleware не должен «знать» про конкретный чувствительный сегмент конкретных ручек — при появлении нового чувствительного роута
-    придётся снова править этот глобальный хардкод. Подумать над принципиальным подходом, где чувствительность объявляется **рядом с роутом**, а не в
-    middleware: (а) декларативная пометка чувствительных path-параметров (метадата роута / декоратор `@Sensitive()`), которую middleware читает через
-    reflector; (б) конфиг редакции per-route/per-module (список паттернов), инъектируемый в middleware, а не зашитый; (в) более общая «sensitive-URL
-    redaction policy» на уровне логгера. Цель — новый чувствительный роут объявляет свою чувствительность сам, без правки глобального middleware.
+34. **Редакция session id в логах вшита в глобальный `LoggingMiddleware` — сделать конфигурируемой per-route (тех-долг) — СДЕЛАНО (ветка `feat.route-configurable-redaction`).**
+    Было: `redactSessionIds` хардкодил паттерн `/sessions/<id>` прямо в общем `LoggingMiddleware` (фронтит api/wd/internal) — middleware «знал» про конкретный
+    чувствительный сегмент. Решение — **вариант (б)/(в): инъекция редакций через DI** (декоратор `@Sensitive()` через reflector отпал — NestMiddleware бежит на
+    Express-уровне ДО резолва хендлера, метадату не достать). Механизм generic: `middlewares/url-redaction.ts` — тип `UrlRedaction {pattern, replacement}`, токен
+    `UrlRedactions` (Symbol) и чистая `redactUrl(url, redactions)`; middleware инжектит `@Optional() @Inject(UrlRedactions)` (дефолт `[]`) и просто применяет список,
+    **оставаясь route-agnostic**. Конкретный паттерн `sessionIdUrlRedaction` объявлен **рядом с `session-route.ts`** (владелец session-id-секрета) и регистрируется
+    каждым модулем-владельцем чувствительного роута (`{ provide: UrlRedactions, useValue: [sessionIdUrlRedaction] }` в api/wd/internal). Новый чувствительный роут →
+    добавляет свою редакцию в СВОЙ модуль, глобальный middleware НЕ трогается. Unit на `redactUrl` + `sessionIdUrlRedaction`; live-verified (лог показал
+    `/sessions/<redacted>/logs`, сырой id в логах отсутствует). tsc 0 · eslint 0 · unit 157 · integration 120.
 
 35. **UI-логин через набор провайдеров (Google/GitHub/…) → identity-брокер выдаёт НАШ токен — НЕ сделано (future, продуктовое направление; выбран брокер-паттерн).**
     Цель: пользователь заходит на наш UI, жмёт «войти через Google/GitHub/…» (конечный список), и дальше self-service — создать проект и добавлять людей в свой

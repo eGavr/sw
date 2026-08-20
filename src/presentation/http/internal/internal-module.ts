@@ -34,6 +34,8 @@ import { AipExceptionFilter } from "../filters/aip-exception-filter";
 import { ResponseInterceptor } from "../interceptors/response-interceptor";
 import { ContextMiddleware } from "../middlewares/contex-middleware";
 import { LoggingMiddleware } from "../middlewares/logging-middleware";
+import { UrlRedactions } from "../middlewares/url-redaction";
+import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { InternalAgentController } from "./controllers/agent/agent-controller";
 import { InternalEnvironmentsController } from "./controllers/environments/environments-controller";
@@ -62,6 +64,9 @@ import { InternalSecretGuard } from "./guards/internal-secret-guard";
 
         EnvironmentDataSource,
         StorageDestinationDataSource,
+
+        // A session id is a capability secret; mask it out of request logs (session log/video upload routes).
+        { provide: UrlRedactions, useValue: [sessionIdUrlRedaction] },
 
         {
             provide: APP_GUARD,

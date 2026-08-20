@@ -1,19 +1,23 @@
-import { Injectable, NestMiddleware } from "@nestjs/common";
+import { Inject, Injectable, NestMiddleware, Optional } from "@nestjs/common";
 import { Request, Response, NextFunction } from "express";
 
 import { Logger } from "../../../infrastructure/logging/logger";
 
-import { redactSessionIds } from "./redact-session-ids";
+import { redactUrl, UrlRedaction, UrlRedactions } from "./url-redaction";
 
 @Injectable()
 export class LoggingMiddleware implements NestMiddleware {
-    constructor(private readonly logger: Logger) {}
+    constructor(
+        private readonly logger: Logger,
+        // The sensitive segments to mask are declared by the modules that own the sensitive routes (e.g. a
+        // session id is a capability secret); this middleware stays route-agnostic and just applies them.
+        @Optional() @Inject(UrlRedactions) private readonly redactions: ReadonlyArray<UrlRedaction> = [],
+    ) {}
 
     use(req: Request, res: Response, next: NextFunction): void {
         const startTime = Date.now();
         const { method, ip } = req;
-        // The session id is a capability secret, so it is masked out of the logged URL.
-        const url = redactSessionIds(req.originalUrl);
+        const url = redactUrl(req.originalUrl, this.redactions);
         const userAgent = req.get("user-agent") || "";
 
         this.logger.log(`[START] ${method} ${url} - IP: ${ip} - UA: ${userAgent}`);
