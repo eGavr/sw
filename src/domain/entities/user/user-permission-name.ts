@@ -29,6 +29,16 @@ export enum StorageDestinationPermission {
     Set = "sw.storageDestinations.set",
 }
 
+// Managing a project's compute providers (bindings + non-secret config) is an owner/admin concern, so
+// these are granted only through roles/admin.
+export enum ProviderAccountPermission {
+    Get = "sw.providerAccounts.get",
+    List = "sw.providerAccounts.list",
+    Create = "sw.providerAccounts.create",
+    Update = "sw.providerAccounts.update",
+    Delete = "sw.providerAccounts.delete",
+}
+
 export class UserPermissionName {
     static readonly Project = ProjectPermission;
 
@@ -38,11 +48,14 @@ export class UserPermissionName {
 
     static readonly StorageDestination = StorageDestinationPermission;
 
+    static readonly ProviderAccount = ProviderAccountPermission;
+
     private static readonly knownNames: ReadonlySet<string> = new Set<string>([
         ...Object.values(ProjectPermission),
         ...Object.values(EnvironmentPermission),
         ...Object.values(SessionPermission),
         ...Object.values(StorageDestinationPermission),
+        ...Object.values(ProviderAccountPermission),
     ]);
 
     static fromString(value: string): UserPermissionName {

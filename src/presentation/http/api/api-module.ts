@@ -26,6 +26,21 @@ import {
     SetProjectIamPolicyUseCase,
 } from "../../../application/use-cases/projects/set-project-iam-policy-use-case";
 import { TestProjectPermissionsUseCase } from "../../../application/use-cases/projects/test-project-permissions-use-case";
+import {
+    CreateProviderAccountUseCase,
+} from "../../../application/use-cases/provider-accounts/create-provider-account-use-case";
+import {
+    DeleteProviderAccountUseCase,
+} from "../../../application/use-cases/provider-accounts/delete-provider-account-use-case";
+import {
+    GetProviderAccountUseCase,
+} from "../../../application/use-cases/provider-accounts/get-provider-account-use-case";
+import {
+    ListProviderAccountsUseCase,
+} from "../../../application/use-cases/provider-accounts/list-provider-accounts-use-case";
+import {
+    UpdateProviderAccountUseCase,
+} from "../../../application/use-cases/provider-accounts/update-provider-account-use-case";
 import { GetSessionLogsUseCase } from "../../../application/use-cases/sessions/get-session-logs-use-case";
 import { GetSessionVideoUseCase } from "../../../application/use-cases/sessions/get-session-video-use-case";
 import {
@@ -69,6 +84,9 @@ import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
+import {
+    ProviderAccountsController,
+} from "./controllers/provider-accounts/provider-accounts-controller";
 import { SessionArtifactsController } from "./controllers/sessions/session-artifacts-controller";
 import {
     StorageDestinationController,
@@ -85,6 +103,7 @@ import {
     controllers: [
         ProjectsController,
         EnvironmentsController,
+        ProviderAccountsController,
         StorageDestinationController,
         SessionArtifactsController,
     ],
@@ -103,6 +122,12 @@ import {
 
         GetProjectStorageDestinationUseCase,
         SetProjectStorageDestinationUseCase,
+
+        CreateProviderAccountUseCase,
+        ListProviderAccountsUseCase,
+        GetProviderAccountUseCase,
+        UpdateProviderAccountUseCase,
+        DeleteProviderAccountUseCase,
 
         GetSessionLogsUseCase,
         GetSessionVideoUseCase,

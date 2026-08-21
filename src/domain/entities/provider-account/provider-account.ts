@@ -77,12 +77,12 @@ export class ProviderAccount {
     readonly provider: string;
     readonly platformName: string;
     readonly execution: Execution;
-    readonly config: ProviderConfig;
     readonly credentialRef: string | null;
     readonly createdAt: Date;
 
     private readonly _id: ProviderAccountId;
     private readonly _projectId: ProjectId;
+    private _config: ProviderConfig;
     private _state: ProviderAccountState;
     private _updatedAt: Date;
 
@@ -92,7 +92,7 @@ export class ProviderAccount {
         this.provider = params.provider;
         this.platformName = params.platformName;
         this.execution = params.execution;
-        this.config = params.config ?? {};
+        this._config = params.config ?? {};
         this.credentialRef = params.credentialRef ?? null;
         this._state = params.state ?? ProviderAccountState.Active;
         this.createdAt = params.createdAt ?? new Date();
@@ -107,6 +107,10 @@ export class ProviderAccount {
         return this._projectId;
     }
 
+    get config(): ProviderConfig {
+        return this._config;
+    }
+
     get state(): ProviderAccountState {
         return this._state;
     }
@@ -117,6 +121,27 @@ export class ProviderAccount {
 
     isActive(): boolean {
         return this._state === ProviderAccountState.Active;
+    }
+
+    isDisabled(): boolean {
+        return this._state === ProviderAccountState.Disabled;
+    }
+
+    // Replace the provider-specific provisioning settings (image, folder, sizing, …). Opaque here — the
+    // adapter validates the shape; the domain only tracks that it changed.
+    updateConfig(config: ProviderConfig): void {
+        this._config = config;
+        this.touch();
+    }
+
+    // Owner soft-delete: keep the row (environments still reference it) but stop routing new work here.
+    disable(): void {
+        this._state = ProviderAccountState.Disabled;
+        this.touch();
+    }
+
+    belongsTo(projectId: ProjectId): boolean {
+        return this._projectId.getValue() === projectId.getValue();
     }
 
     // Whether this connection provisions the requested substrate — the routing key that lets one project
