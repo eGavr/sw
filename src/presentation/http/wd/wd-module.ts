@@ -32,6 +32,8 @@ import { ErrorInterceptor } from "../interceptors/error-interceptor";
 import { ResponseInterceptor } from "../interceptors/response-interceptor";
 import { ContextMiddleware } from "../middlewares/contex-middleware";
 import { LoggingMiddleware } from "../middlewares/logging-middleware";
+import { UrlRedactions } from "../middlewares/url-redaction";
+import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { InteractiveController } from "./controllers/interactive/interactive-controller";
 import { SessionsController } from "./controllers/sessions/sessions-controller";
@@ -88,6 +90,9 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
         ProjectDataSource,
         WebDriverProxy,
         WebSocketProxy,
+
+        // A session id is a capability secret; mask it out of request logs (WebDriver commands + proxy routes).
+        { provide: UrlRedactions, useValue: [sessionIdUrlRedaction] },
 
         {
             provide: APP_INTERCEPTOR,

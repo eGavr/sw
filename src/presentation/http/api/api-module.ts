@@ -64,6 +64,8 @@ import { AipExceptionFilter } from "../filters/aip-exception-filter";
 import { ResponseInterceptor } from "../interceptors/response-interceptor";
 import { ContextMiddleware } from "../middlewares/contex-middleware";
 import { LoggingMiddleware } from "../middlewares/logging-middleware";
+import { UrlRedactions } from "../middlewares/url-redaction";
+import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
@@ -121,6 +123,9 @@ import {
         StorageDestinationDataSource,
         AuthUserDataSourceProvider,
         PgUserDataSource,
+
+        // A session id is a capability secret; mask it out of request logs (nested api read routes).
+        { provide: UrlRedactions, useValue: [sessionIdUrlRedaction] },
 
         {
             provide: APP_FILTER,
