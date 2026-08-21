@@ -776,6 +776,13 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     - **Скоуп:** наш код (resource-server, IAM, self-service) в основном НЕ меняется; работа — брокер (конфиг/деплой Dex/Keycloak или тонкий свой auth-BFF) + фронт +
       решение про identity-ключ (провайдер-в-`external_id`) и опц. invite-by-email. Связано с п.33 (verify уже готов) и п.14 (деплой).
 
+36. **Storage-семантика имён методов репозитория — `collectGarbage` протёк как сценарный глагол — СДЕЛАНО (ветка `refactor.repository-delete-collectable`).**
+    По правилу (CLAUDE.md «Репозитории») публичные методы репозитория обязаны иметь **storage-семантику** (`get/find/list/create/update/save/delete/with` + осмысленные
+    варианты `verb+DomainCriterion`), а сценарные глаголы запрещены. `EnvironmentRepository.collectGarbage(criteria)` называл **зачем** (GC-сценарий), а не **что**
+    (массовый delete по collectable-критерию) — при том что data-source внизу уже был `deleteCollectable`, а сиблинги следуют конвенции (`listStuckProvisioning`,
+    `findAllocatable`). Переименовано `collectGarbage` → **`deleteCollectable`** (порт + impl + вызов); сценарное имя остаётся у use-case (`CollectGarbageEnvironmentsUseCase`).
+    Аудит всех репозиториев (project/provider-account/storage-destination/user/environment) — других протёкших сценарных глаголов НЕТ. Behavior-preserving; покрыт GC-интеграционным сьютом.
+
 ## Permissions по IAM (`:testIamPermissions`) — СДЕЛАНО
 
 `GET /v1/accounts/{account}/permissions` (возвращал ВСЕ права — нестандартно, по AIP-136 такого метода
