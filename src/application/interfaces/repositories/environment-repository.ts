@@ -36,7 +36,7 @@ export abstract class EnvironmentRepository {
 
     abstract findAllocatable(projectId: ProjectId, criteria: SessionAllocationCriteria): Promise<Array<Environment>>;
 
-    abstract collectGarbage(criteria: GarbageCollectionCriteria): Promise<void>;
+    abstract deleteCollectable(criteria: GarbageCollectionCriteria): Promise<void>;
 
     abstract withNextEnqueued(mutate: (environment: Environment) => void): Promise<Environment | null>;
 

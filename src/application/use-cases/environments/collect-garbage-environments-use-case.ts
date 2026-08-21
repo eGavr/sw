@@ -21,6 +21,6 @@ export class CollectGarbageEnvironmentsUseCase {
             failedTtlMs: params.failedTtlMs,
         });
 
-        await this.environmentRepository.collectGarbage(criteria);
+        await this.environmentRepository.deleteCollectable(criteria);
     }
 }

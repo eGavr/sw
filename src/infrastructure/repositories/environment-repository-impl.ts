@@ -74,7 +74,7 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         return data.map(Environment.fromObject);
     }
 
-    async collectGarbage(criteria: GarbageCollectionCriteria): Promise<void> {
+    async deleteCollectable(criteria: GarbageCollectionCriteria): Promise<void> {
         await this.environmentDataSource.deleteCollectable(criteria.toPredicates().map((predicate) => ({
             state: predicate.state,
             cutoff: predicate.cutoff,
