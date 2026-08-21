@@ -1,6 +1,5 @@
 import { Injectable } from "@nestjs/common";
 
-import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
@@ -29,7 +28,7 @@ export class TestProjectPermissionsUseCase {
         const user = await this.accessControl.authenticate(creds);
         const requested = params.permissions.map((permission) => UserPermissionName.fromString(permission));
 
-        const project = await this.projectRepository.find(ProjectId.fromString(params.projectId));
+        const project = await this.projectRepository.findByHandle(params.projectId);
 
         if (!project) {
             return [];

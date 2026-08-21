@@ -20,10 +20,22 @@ export class ProjectDataSource {
     async findOne(params: FindOneProjectParams): Promise<ProjectData | null> {
         const project = await this.dataSource.getRepository(Project).findOne({ where: params });
 
-        if (!project) {
-            return null;
-        }
+        return project ? this.withBindings(project) : null;
+    }
 
+    // Resolve a project by the identifier that appears in its URL: the human resource id if set, else the
+    // uid. A resource_id can never be uuid-shaped, so `id = handle` and `resource_id = handle` never overlap.
+    async findByHandle(handle: string): Promise<ProjectData | null> {
+        const project = await this.dataSource.getRepository(Project)
+            .createQueryBuilder("project")
+            .leftJoinAndSelect("project.createdBy", "createdBy")
+            .where("project.id::text = :handle OR project.resource_id = :handle", { handle })
+            .getOne();
+
+        return project ? this.withBindings(project) : null;
+    }
+
+    private async withBindings(project: Project): Promise<ProjectData> {
         const bindings = await this.bindingsByProject([project.id]);
 
         return this.toProjectData(project, bindings.get(project.id) ?? []);
@@ -91,6 +103,7 @@ export class ProjectDataSource {
     private toProjectData(project: Project, bindings: Array<IamBindingData>): ProjectData {
         return {
             id: project.id,
+            resourceId: project.resourceId,
             name: project.name,
             createdAt: project.createdAt,
             createdBy: {

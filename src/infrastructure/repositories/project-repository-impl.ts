@@ -31,6 +31,22 @@ export class ProjectRepositoryImpl extends ProjectRepository {
         return data ? Project.fromObject(data) : null;
     }
 
+    async getByHandle(handle: string): Promise<Project> {
+        const project = await this.findByHandle(handle);
+
+        if (!project) {
+            throw new NotFoundResourceError(handle);
+        }
+
+        return project;
+    }
+
+    async findByHandle(handle: string): Promise<Project | null> {
+        const data = await this.projectDataSource.findByHandle(handle);
+
+        return data ? Project.fromObject(data) : null;
+    }
+
     async listByUser(user: User, page: PageRequest): Promise<Page<Project>> {
         const result = await this.projectDataSource.pageByMember(Member.user(user.externalId).getValue(), page);
 

@@ -28,10 +28,11 @@ export class ListProviderAccountsUseCase {
 
     async execute({ creds, params }: ListProviderAccountsInput): Promise<Array<ProviderAccount>> {
         const user = await this.accessControl.authenticate(creds);
-        const projectId = ProjectId.fromString(params.projectId);
-        const project = await this.projectRepository.get(projectId);
+        const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
+
+        const projectId = ProjectId.fromString(project.id);
 
         return this.providerAccountRepository.listByProject(projectId);
     }

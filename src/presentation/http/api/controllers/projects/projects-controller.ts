@@ -42,7 +42,7 @@ export class ProjectsController {
     async createProject(@Body() body: CreateProjectRequestModel, @BearerToken() token: string): Promise<ProjectPresenter> {
         return new ProjectPresenter(await this.createProjectUseCase.execute({
             creds: { token },
-            params: { name: body.displayName, compute: body.compute },
+            params: { resourceId: body.projectId, name: body.displayName, compute: body.compute },
         }));
     }
 

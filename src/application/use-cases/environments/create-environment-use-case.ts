@@ -47,10 +47,11 @@ export class CreateEnvironmentUseCase {
 
     async execute({ creds, params }: CreateEnvironmentInput): Promise<Environment> {
         const user = await this.accessControl.authenticate(creds);
-        const projectId = ProjectId.fromString(params.projectId);
-        const project = await this.projectRepository.get(projectId);
+        const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
+
+        const projectId = ProjectId.fromString(project.id);
 
         const execution = params.execution ? toExecution(params.execution) : defaultExecution;
         const providerAccounts = await this.providerAccountRepository.listActiveByProject(projectId);

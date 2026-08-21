@@ -32,10 +32,11 @@ export class SetProjectStorageDestinationUseCase {
 
     async execute({ creds, params }: SetProjectStorageDestinationInput): Promise<StorageDestination> {
         const user = await this.accessControl.authenticate(creds);
-        const projectId = ProjectId.fromString(params.projectId);
-        const project = await this.projectRepository.get(projectId);
+        const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
+
+        const projectId = ProjectId.fromString(project.id);
 
         const destination = StorageDestination.create({
             bucket: params.bucket,
