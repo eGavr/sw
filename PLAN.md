@@ -508,9 +508,17 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     нет подходящего активного → `NoActiveProviderAccountError` (409). **`create-account` `compute` → МАССИВ** `[{provider, externalRef,
     platform, execution}]` (ломающее изменение — no users yet): один вызов заводит все провайдеры аккаунта с их субстратами. Интеграция
     подтверждает роутинг (linux→kubernetes / android→redroid) и 409 на непокрытый субстрат. Runbook обновлён. tsc 0 · eslint 0 · unit 108 ·
-    integration 89. **Осталось (PR-2, follow-up):** динамическое добавление/удаление провайдеров после создания аккаунта — AIP-ресурс
-    `POST/GET/DELETE /v1/accounts/{a}/providerAccounts` + права `providerAccount:*` (сейчас провайдеры задаются только при создании аккаунта
-    через массив `compute`). *(Историческая формулировка ниже.)* Агрегат
+    integration 89. **PR-2 (management-API providerAccounts) — СДЕЛАНО (ветка `feat.provider-account-management-api`).** Полный CRUD над
+    провайдерами проекта как AIP nested-ресурс `projects/{project}/providerAccounts`: **Create** (`POST`, валидирует `provider` по реестру,
+    принимает `platform`/`execution?`/`config?`), **List** (`GET`, все состояния; коллекция мала → без пагинации), **Get** (`GET :id`),
+    **Update** (`PATCH :id`, меняет только `config` — provider/platform/execution — identity, креды через секрет-стор), **Delete** (`DELETE :id`
+    = **AIP-135 soft-delete → `disabled`**, т.к. FK `environment→provider_account` без onDelete: строка остаётся, из активного резолва выпадает).
+    Домен: состояние `disabled` + мутаторы `disable()`/`updateConfig()` + предикат `belongsTo(projectId)` (cross-project → 404, не течём). Права
+    **`sw.providerAccounts.{get,list,create,update,delete}`** — **только `roles/admin`** (управление провайдерами = admin-концерн). Презентер отдаёт
+    `config` (не-секретный), НО НЕ `credentialRef`. Резолв по `(platform, execution)` уже был (`ProviderAccountList.resolveFor`). Миграция НЕ нужна
+    (`disabled` — новое значение varchar-состояния). Покрыто: domain-unit (`disable`/`updateConfig`/`belongsTo`) + integration blackbox (CRUD-цикл,
+    authz non-member/non-admin/unauth, unknown-provider→400, cross-project→404). **Осталось (follow-up):** `displayName` (нужна миграция-колонка),
+    `:enable` (re-enable disabled), read-права провайдеров для developer/viewer. tsc 0 · eslint 0 · unit 160 · integration 127. *(Историческая формулировка ниже.)* Агрегат
     `ProviderAccount` уже N-на-аккаунт (заложено в дизайне D), НО `CreateEnvironmentUseCase` сейчас берёт **единственный активный**
     провайдер аккаунта (при одном — неявно верно; при нескольких — недетерминированно/неверно). Нужно: (а) create-environment выбирает
     `ProviderAccount` по паре `(platform, execution)` окружения (напр. `android`+`container`→`android-redroid`, `android`+`emulator`→

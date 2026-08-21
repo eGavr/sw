@@ -36,6 +36,43 @@ describe("ProviderAccount", () => {
         });
     });
 
+    describe("#disable", () => {
+        test("should move to disabled and stop being active", () => {
+            const providerAccount = build();
+
+            providerAccount.disable();
+
+            expect(providerAccount.state).toBe(ProviderAccountState.Disabled);
+            expect(providerAccount.isDisabled()).toBe(true);
+            expect(providerAccount.isActive()).toBe(false);
+        });
+    });
+
+    describe("#updateConfig", () => {
+        test("should replace the provisioning config", () => {
+            const providerAccount = build();
+
+            providerAccount.updateConfig({ image: "registry/chrome:141" });
+
+            expect(providerAccount.config).toEqual({ image: "registry/chrome:141" });
+        });
+    });
+
+    describe("#belongsTo", () => {
+        test("should hold only for its own project", () => {
+            const projectId = ProjectId.create();
+            const providerAccount = ProviderAccount.create({
+                projectId,
+                provider: "docker",
+                platformName: "linux",
+                execution: Execution.Container,
+            });
+
+            expect(providerAccount.belongsTo(projectId)).toBe(true);
+            expect(providerAccount.belongsTo(ProjectId.create())).toBe(false);
+        });
+    });
+
     describe(".fromObject", () => {
         test("should round-trip through toObject", () => {
             const providerAccount = build();
