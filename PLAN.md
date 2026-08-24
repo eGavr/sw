@@ -765,9 +765,15 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
       валидный токен → аутентифицирован как `sub`; `groups`-claim → доступ по роли группы; tampered/expired/wrong-iss/wrong-aud/unknown-key/non-JWT → 401.
     - **[СДЕЛАНО] Огородить `local` от прода** — при `NODE_ENV=production` фабрика auth-data-source бросает на `AUTH_STRATEGY=local`, честный auth нельзя
       случайно обойти.
-    - **[ОСТАЁТСЯ] Прогнать на живой инфре с реальным IdP всё недавнее:** роли + **etag `setIamPolicy`** (п.26), гранулярность **get/list** (п.27-follow-up),
-      **`testIamPermissions`**, **группы** (реальный `groups`-claim → union прав, п.29), **latest-капа сессии** (п.23-ч2). Убедиться, что local-scaffolding
-      (`<id#groups>`, лениво-создаваемый юзер) нигде не протекает в прод-путь и что группы реально приезжают из claim, а не из нашей БД.
+    - **[СДЕЛАНО — локально, на реальном IdP] OIDC-адаптер проверен против настоящего Keycloak** (harness `docs/deploy/local-oidc-keycloak/`: docker-compose +
+      setup-realm.sh + runbook; бесплатно, без облака). Живой e2e (2026-08-24): реальный подписанный токен Keycloak → `POST /v1/projects` **201**, владелец =
+      `user:<keycloak-sub>` (`sub`→external_id); **группы из реального `groups`-claim** → доступ по `group:eng` (bob в группе → 200, carol без группы → 403);
+      битый/пустой → 401. **Багов в адаптере НЕ нашлось** — Keycloak-токены принимаются как есть. Тот же Keycloak = брокер под UI-логин (п.35). Грабли (в README):
+      audience-mapper (иначе `aud=account`→401), group-membership-mapper `full.path=false`, KC26 «not fully set up» (нужны firstName/lastName/emailVerified/non-temp
+      пароль), префикс `/v1` у запущенного сервера.
+    - **[ОСТАЁТСЯ] Прогнать на ЖИВОЙ ЗАДЕПЛОЕННОЙ инфре с реальным IdP всё недавнее:** роли + **etag `setIamPolicy`** (п.26), гранулярность **get/list** (п.27-follow-up),
+      **`testIamPermissions`**, **группы** (п.29), **latest-капа сессии** (п.23-ч2). Убедиться, что local-scaffolding (`<id#groups>`, лениво-создаваемый юзер) нигде не
+      протекает в прод-путь. (OIDC-механика уже доказана на Keycloak локально — осталось повторить на задеплоенном стеке.)
     - Связано с **п.12** (безопасность internal-канала) и **п.14** (деплой в YC) — весь блок прод-безопасности закрываем до боевого трафика.
 
 34. **Редакция session id в логах вшита в глобальный `LoggingMiddleware` — сделать конфигурируемой per-route (тех-долг) — СДЕЛАНО (ветка `feat.route-configurable-redaction`).**
