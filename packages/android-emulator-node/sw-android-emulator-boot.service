@@ -1,0 +1,12 @@
+[Unit]
+Description=sw Android emulator environment boot (QEMU AVD + companion node)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/android-emulator-node/vm-boot.sh
+
+[Install]
+WantedBy=multi-user.target

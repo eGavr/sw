@@ -6,6 +6,18 @@ import { SessionIdleTimeout } from "../../../domain/entities/session/session-idl
 
 import { defaultAgentEntrypoint } from "./agent-bootstrap";
 import {
+    AndroidEmulatorEnvironmentConfig,
+    buildAndroidEmulatorEnvironmentConfig,
+    defaultEmulatorAndroidVersion,
+    defaultEmulatorCores,
+    defaultEmulatorDiskGb,
+    defaultEmulatorMemoryGb,
+} from "./android-emulator/android-emulator-environment-config";
+import {
+    AndroidEmulatorEnvironmentProviderGateway,
+    androidEmulatorProviderValue,
+} from "./android-emulator/android-emulator-environment-provider-gateway";
+import {
     AndroidRedroidEnvironmentConfig,
     buildAndroidRedroidEnvironmentConfig,
     defaultAndroidCores,
@@ -68,6 +80,10 @@ export const EnvironmentProviderGatewayProvider = {
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_FOLDER_ID")),
                 androidRedroidConfig(configService),
             )],
+            [androidEmulatorProviderValue, new AndroidEmulatorEnvironmentProviderGateway(
+                new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_EMULATOR_FOLDER_ID")),
+                androidEmulatorConfig(configService),
+            )],
         ]);
 
         return new RoutingEnvironmentProviderGateway(gateways);
@@ -78,7 +94,13 @@ export const EnvironmentProviderGatewayProvider = {
 // The provider keys the routing gateway registers adapters for (mirror of the map keys above). create-project
 // validates a requested provider against this catalog so an unknown provider fails fast (400) at create time
 // rather than later at provision.
-export const registeredProviderTypes: ReadonlyArray<string> = ["noop", "docker", "kubernetes", androidRedroidProviderValue];
+export const registeredProviderTypes: ReadonlyArray<string> = [
+    "noop",
+    "docker",
+    "kubernetes",
+    androidRedroidProviderValue,
+    androidEmulatorProviderValue,
+];
 
 export const ProviderCatalogProvider = {
     provide: ProviderCatalog,
@@ -130,6 +152,27 @@ function androidRedroidConfig(configService: ConfigService): AndroidRedroidEnvir
         // The in-VM agent reaches the control plane's internal API here — a VPC-internal address (internal LB
         // in front of the internal service) reachable from the Compute VM.
         internalUrl: configService.get<string>("COMPUTE_ANDROID_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
+        internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
+    });
+}
+
+function androidEmulatorConfig(configService: ConfigService): AndroidEmulatorEnvironmentConfig {
+    const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
+
+    return buildAndroidEmulatorEnvironmentConfig({
+        imageId: configService.get<string>("COMPUTE_ANDROID_EMULATOR_IMAGE_ID") ?? "",
+        // KVM-capable hardware platform; unset falls back to the folder default (usable only where the
+        // default platform already exposes /dev/kvm, e.g. bare metal).
+        platformId: configService.get<string>("COMPUTE_ANDROID_EMULATOR_PLATFORM_ID"),
+        zone: configService.get<string>("COMPUTE_ANDROID_EMULATOR_ZONE") ?? "ru-central1-a",
+        subnetId: configService.get<string>("COMPUTE_ANDROID_EMULATOR_SUBNET_ID") ?? "",
+        securityGroupId: configService.get<string>("COMPUTE_ANDROID_EMULATOR_SECURITY_GROUP_ID"),
+        cores: Number(configService.get<string>("COMPUTE_ANDROID_EMULATOR_CORES") ?? String(defaultEmulatorCores)),
+        memoryGb: Number(configService.get<string>("COMPUTE_ANDROID_EMULATOR_MEMORY_GB") ?? String(defaultEmulatorMemoryGb)),
+        diskSizeGb: Number(configService.get<string>("COMPUTE_ANDROID_EMULATOR_DISK_GB") ?? String(defaultEmulatorDiskGb)),
+        defaultAndroidVersion:
+            configService.get<string>("COMPUTE_ANDROID_EMULATOR_DEFAULT_VERSION") ?? defaultEmulatorAndroidVersion,
+        internalUrl: configService.get<string>("COMPUTE_ANDROID_EMULATOR_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
         internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
     });
 }

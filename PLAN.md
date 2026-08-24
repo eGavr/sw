@@ -98,7 +98,17 @@ service-identity), мы грузим под своей identity; включен�
     на диске (11=2.98GB, 13=2.87GB), образ растёт линейно и это тупо долго качать/хранить. Нужен **параметризованный выбор образа**: тянуть/
     выбирать per-версию образ по запросу (pull-on-demand с кэшем, либо per-версия golden-image, либо отдельный слой-том с redroid-тегами). Пока
     печём фикс-набор популярных версий; масштабирование на все версии — отдельная задача.
-  - **D2 (потом): `runtime=emulator` — официальный QEMU-эмулятор через KVM.** Нужен `/dev/kvm` (полное ускорение; без него single-digit FPS
+  - **D2: `runtime=emulator` — официальный QEMU-эмулятор через KVM — CODE-SIDE СДЕЛАН (ветка `feat.android-emulator-adapter`), live-verify отложен.**
+    Адаптер `AndroidEmulatorEnvironmentProviderGateway` (`provider="android-emulator"`, зарегистрирован в реестре) — **зеркало redroid**: on-demand
+    YC Compute VM из прешитого golden-image **на KVM-платформе**, минимум ресурсов под ОДИН эмулятор, metadata (env id, `sw-android-avd`, internal
+    url/secret) → VM сама разворачивается → агент регистрит → executing; `deprovision` = delete VM. **KVM-платформа — параметр** (`platformId`,
+    `--platform-id` добавлен в `YandexComputeClient`): оператор подставляет KVM-железо (сегодня YC bare-metal; мини-VM когда появится nested-virt/
+    дешёвый per-minute провайдер). Boot-infra `packages/android-emulator-node/` (`vm-boot.sh`: проверка `/dev/kvm`, headless AVD с KVM, тот же
+    companion, что у redroid — Appium+`/status`-shim+nginx на :4444, agent-fetch; `sw-android-emulator-boot.service`; README с golden-image build +
+    de-risk-чеклистом) — **portable на любой KVM-хост**, YC-специфичен только адаптер. Домен НЕ трогали (ось `execution=emulator` уже была). Прешитый
+    golden-image (фикс набор версий, AVD `sw-android-<версия>`). tsc 0 · eslint 0 · unit 171 · integration 140. **Осталось (под железо):** де-риск
+    на KVM-платформе (см. README-чеклист: `/dev/kvm` → emulator boot → adb → Appium → companion :4444), бейк golden-image, e2e на YC + PLATFORM_ID.
+    *(Историческая формулировка — субстраты и трейд-оффы ниже.)* Нужен `/dev/kvm` (полное ускорение; без него single-digit FPS
     / загрузка в минуты — непригодно). YC MK8s/Compute VM **KVM НЕ дают** (nested virt не отдают). Субстраты: **YC Bare Metal** (KVM есть, но
     минимум — целый двухсокетник ~52c/128GB/~1.6TB SSD, ~76k₽/мес, аренда суточно, только RU → только как ПЛОТНАЯ ФЕРМА: пакуем ~15–25
     эмуляторов, сами делаем нарезку (наш контейнер+cgroups) + возвращаем учёт слотов/ёмкости, который выкинули для браузеров) **ИЛИ**
