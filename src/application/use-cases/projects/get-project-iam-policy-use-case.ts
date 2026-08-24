@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
 import { IamPolicy } from "../../../domain/entities/project/iam/iam-policy";
-import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
@@ -28,7 +27,7 @@ export class GetProjectIamPolicyUseCase {
 
     async execute({ creds, params }: GetProjectIamPolicyInput): Promise<IamPolicy> {
         const user = await this.accessControl.authenticate(creds);
-        const project = await this.projectRepository.get(ProjectId.fromString(params.projectId));
+        const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
 

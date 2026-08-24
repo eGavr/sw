@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 
 import { toExecution } from "../../../domain/entities/environment/execution";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
+import { ResourceIdConflictError } from "../../../domain/entities/error/resource-id-conflict-error";
 import { Project } from "../../../domain/entities/project/project";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { ProviderCatalog } from "../../interfaces/provider-catalog";
@@ -21,6 +22,7 @@ type CreateProjectInput = {
         token: string;
     },
     params: {
+        resourceId?: string;
         name: string;
         compute: Array<ComputeProvider>;
     }
@@ -48,10 +50,19 @@ export class CreateProjectUseCase {
             }
         }
 
+        // A chosen human-readable id must be free among projects (uid-based names never collide with it).
+        if (params.resourceId !== undefined && await this.projectRepository.findByHandle(params.resourceId)) {
+            throw new ResourceIdConflictError(params.resourceId);
+        }
+
         // Self-service: any authenticated user may create a project and becomes its owner with all
         // permissions (granted inside Project.create and persisted by save). No prior permission is
         // required — that was the bootstrap deadlock (needing Project.Create before any project exists).
-        const project = await this.projectRepository.create({ name: params.name, createdBy: user });
+        const project = await this.projectRepository.create({
+            resourceId: params.resourceId,
+            name: params.name,
+            createdBy: user,
+        });
         await this.projectRepository.save(project);
 
         const projectId = ProjectId.fromString(project.id);

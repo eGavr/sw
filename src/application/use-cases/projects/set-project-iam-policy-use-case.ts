@@ -4,7 +4,6 @@ import { IamBinding } from "../../../domain/entities/project/iam/iam-binding";
 import { IamPolicy } from "../../../domain/entities/project/iam/iam-policy";
 import { Member } from "../../../domain/entities/project/iam/member";
 import { Role } from "../../../domain/entities/project/iam/role";
-import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
@@ -37,7 +36,7 @@ export class SetProjectIamPolicyUseCase {
 
     async execute({ creds, params }: SetProjectIamPolicyInput): Promise<IamPolicy> {
         const user = await this.accessControl.authenticate(creds);
-        const project = await this.projectRepository.get(ProjectId.fromString(params.projectId));
+        const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
 

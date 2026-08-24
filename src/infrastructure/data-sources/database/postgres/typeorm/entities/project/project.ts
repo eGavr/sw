@@ -10,6 +10,7 @@ export class Project {
         const project = new Project();
 
         project.id = entity.id;
+        project.resourceId = entity.resourceId;
         project.name = entity.name;
         project.createdAt = entity.createdAt;
         project.createdById = entity.createdBy.id;
@@ -20,6 +21,10 @@ export class Project {
 
     @PrimaryColumn("uuid")
     id: string;
+
+    // Client-chosen human-readable id (unique when set); null when the resource is addressed by its uid.
+    @Column({ type: "varchar", nullable: true })
+    resourceId: string | null;
 
     @Column()
     name: string;

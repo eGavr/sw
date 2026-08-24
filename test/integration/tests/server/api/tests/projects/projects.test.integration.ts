@@ -170,11 +170,12 @@ describe("/projects", () => {
                 .expect(HttpStatus.NOT_FOUND);
         });
 
-        test("responds INVALID_ARGUMENT for a malformed project id", () => {
+        // A non-uuid token is a valid human-id handle, so an unknown one is NOT_FOUND (not malformed).
+        test("responds NOT_FOUND for an unknown human-id handle", () => {
             return request(app.getHttpServer())
-                .get("/projects/not-a-uuid")
+                .get("/projects/no-such-project")
                 .set(Authorization.forUser(UserFactory.createId()))
-                .expect(HttpStatus.BAD_REQUEST);
+                .expect(HttpStatus.NOT_FOUND);
         });
     });
 

@@ -1,3 +1,4 @@
+import { ResourceId } from "../../types/resource-id/resource-id";
 import { User, UserData } from "../user/user";
 import { UserPermissionName } from "../user/user-permission-name";
 
@@ -16,6 +17,7 @@ export type IamBindingData = {
 
 export type ProjectData = {
     id: string;
+    resourceId?: string | null;
     name: string;
     createdAt: Date;
     createdBy: UserData;
@@ -24,12 +26,14 @@ export type ProjectData = {
 }
 
 export type ProjectCreateParams = {
+    resourceId?: string;
     name: string;
     createdBy: User;
 };
 
 type ProjectConstructorParams = {
     id?: string;
+    resourceId?: string | null;
     name: string;
     createdAt?: Date;
     createdBy: User;
@@ -41,6 +45,7 @@ export class Project {
     static fromObject(data: ProjectData): Project {
         return new Project({
             id: data.id,
+            resourceId: data.resourceId,
             name: data.name,
             createdAt: data.createdAt,
             createdBy: User.fromObject(data.createdBy),
@@ -55,6 +60,7 @@ export class Project {
     // A new project grants its creator the admin role, so the owner starts with every permission.
     static create(params: ProjectCreateParams): Project {
         return new Project({
+            resourceId: params.resourceId,
             name: params.name,
             createdBy: params.createdBy,
             policy: IamPolicy.withOwner(Member.user(params.createdBy.externalId)),
@@ -65,12 +71,14 @@ export class Project {
     readonly createdBy: User;
 
     private readonly _id: ProjectId;
+    private readonly _resourceId: ResourceId | null;
     private readonly _name: ProjectName;
     private _policy: IamPolicy;
     private _updatedAt: Date;
 
     private constructor(params: ProjectConstructorParams) {
         this._id = params.id ? ProjectId.fromString(params.id) : ProjectId.create();
+        this._resourceId = params.resourceId ? new ResourceId(params.resourceId) : null;
         this._name = new ProjectName(params.name);
         this.createdAt = params.createdAt ?? new Date();
         this.createdBy = params.createdBy;
@@ -80,6 +88,11 @@ export class Project {
 
     get id(): string {
         return this._id.getValue();
+    }
+
+    // The human-readable id if one was chosen at creation, else null (then the uid addresses the resource).
+    get resourceId(): string | null {
+        return this._resourceId ? this._resourceId.getValue() : null;
     }
 
     get name(): string {

@@ -121,8 +121,15 @@ Get/List/Create/Delete (Delete → `{}` — **пересмотреть, см. п
 Сделано также: **permissions по IAM** — `GET .../permissions` заменён на IAM-метод
 `POST /v1/accounts/{account}:testIamPermissions` (google.iam.v1): тестирует переданный набор и
 возвращает подмножество, которым владеет вызывающий (детали — в разделе «Сделано»).
-Осталось: `{resource}_id` — доменное решение (нужен релакс id `AccountId`/`EnvironmentId` с uuid до
-формата `^[a-z][a-z0-9-]*$` под человекочитаемые имена).
+**`{resource}_id` (человекочитаемые id) — ПРОЕКТЫ СДЕЛАНЫ (ветка `feat.human-readable-resource-ids`); ОКРУЖЕНИЯ — следующим PR.**
+Реализовано по AIP-133: клиент опц. задаёт `projectId` (`^[a-z][a-z0-9-]*$`, VO `ResourceId`, uuid-форма запрещена во избежание коллизии
+с uid-namespace), он идёт в `name: projects/my-team`; не задал → `name: projects/<uid>` (backward-compatible). `uid` (uuid) остаётся
+стабильным хэндлом; `displayName` — отдельная изменяемая метка. Дубликат → 409 (`ResourceIdConflictError`, глобально уникален,
+партиал-unique-индекс на `resource_id`). Резолв URL-токена — `ProjectRepository.getByHandle`/`findByHandle` (`id::text = h OR resource_id = h`);
+`get(ProjectId)` остаётся строго-uuid для внутренних вызовов. ~15 use-case-ов переключены на `getByHandle`. Well-formed-but-missing токен →
+404 (не 400). Покрыто: unit `ResourceId` + integration (id в name / фолбэк на uid / lookup по id и uid / дубль 409 / формат 400 / uuid-форма 400 /
+вложенный ресурс по human-id). tsc 0 · eslint 0 · unit 171 · integration 133. **Осталось (следующий PR):** те же человекочитаемые id для
+**окружений** (`projects/{p}/environments/{env}`) — env-`resource_id` уникален пер-проект, резолв env-токена в контексте проекта.
 
 ## Сделано
 
