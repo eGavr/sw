@@ -262,11 +262,14 @@ describe("/projects/:project/environments", () => {
                 .expect(HttpStatus.UNAUTHORIZED);
         });
 
-        test("responds INVALID_ARGUMENT for a malformed environment id", () => {
+        // A non-uuid token is a valid human-id handle, so an unknown one is NOT_FOUND (not malformed).
+        test("responds NOT_FOUND for an unknown environment handle in an existing project", async () => {
+            const { owner, projectId } = await createProject();
+
             return request(app.getHttpServer())
-                .get(`/projects/${uuidv4()}/environments/not-a-uuid`)
-                .set(Authorization.forUser(UserFactory.createId()))
-                .expect(HttpStatus.BAD_REQUEST);
+                .get(`/projects/${projectId}/environments/no-such-environment`)
+                .set(owner)
+                .expect(HttpStatus.NOT_FOUND);
         });
 
         test("responds NOT_FOUND for a non-existent environment", () => {

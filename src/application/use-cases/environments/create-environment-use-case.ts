@@ -5,6 +5,7 @@ import { ApplicationList } from "../../../domain/entities/environment/applicatio
 import { Environment } from "../../../domain/entities/environment/environment";
 import { defaultExecution, toExecution } from "../../../domain/entities/environment/execution";
 import { Platform } from "../../../domain/entities/environment/platform/platform";
+import { ResourceIdConflictError } from "../../../domain/entities/error/resource-id-conflict-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { NoActiveProviderAccountError } from "../../../domain/entities/provider-account/error/no-active-provider-account-error";
 import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
@@ -21,6 +22,7 @@ type CreateEnvironmentInput = {
     },
     params: {
         projectId: string;
+        environmentId?: string;
         platform: {
             name: string;
             version: string;
@@ -53,6 +55,12 @@ export class CreateEnvironmentUseCase {
 
         const projectId = ProjectId.fromString(project.id);
 
+        // A chosen human id must be free within the project (uid-based names never collide with it).
+        if (params.environmentId !== undefined
+            && await this.environmentRepository.findByProjectAndHandle(projectId, params.environmentId)) {
+            throw new ResourceIdConflictError(params.environmentId);
+        }
+
         const execution = params.execution ? toExecution(params.execution) : defaultExecution;
         const providerAccounts = await this.providerAccountRepository.listActiveByProject(projectId);
         const providerAccount = ProviderAccountList.of(providerAccounts).resolveFor(params.platform.name, execution);
@@ -66,6 +74,7 @@ export class CreateEnvironmentUseCase {
         });
 
         return this.environmentRepository.create({
+            resourceId: params.environmentId,
             projectId,
             providerAccountId: ProviderAccountId.fromString(providerAccount.id),
             provider: providerAccount.provider,

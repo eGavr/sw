@@ -13,6 +13,7 @@ import { ProviderAccountId } from "../../../domain/entities/provider-account/pro
 import { Page, PageRequest } from "../../pagination";
 
 export type CreateEnvironmentParams = {
+    resourceId?: string;
     projectId: ProjectId;
     providerAccountId?: ProviderAccountId | null;
     provider?: string | null;
@@ -25,6 +26,11 @@ export abstract class EnvironmentRepository {
     abstract create(params: CreateEnvironmentParams): Promise<Environment>;
 
     abstract get(environmentId: EnvironmentId): Promise<Environment>;
+
+    // Resolve within a project by the identifier used in the URL — the human resource id if set, else uid.
+    abstract getByProjectAndHandle(projectId: ProjectId, handle: string): Promise<Environment>;
+
+    abstract findByProjectAndHandle(projectId: ProjectId, handle: string): Promise<Environment | null>;
 
     abstract listByProject(projectId: ProjectId, page: PageRequest): Promise<Page<Environment>>;
 

@@ -24,6 +24,12 @@ class ApplicationModel {
 }
 
 export class CreateEnvironmentRequestModel {
+    // Optional client-chosen human-readable id (AIP-133), unique within the project; format enforced by
+    // the domain ResourceId. When omitted, the environment is addressed by its uid.
+    @IsOptional()
+    @IsString()
+    environmentId?: string;
+
     @IsDefined()
     @ValidateNested()
     @Type(() => PlatformModel)

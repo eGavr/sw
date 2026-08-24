@@ -32,11 +32,12 @@ export class EnvironmentsController {
             creds: { token },
             params: {
                 projectId: project,
+                environmentId: body.environmentId,
                 platform: body.platform,
                 execution: body.execution,
                 applications: body.applications,
             },
-        }));
+        }), project);
     }
 
     @Get()
@@ -53,21 +54,35 @@ export class EnvironmentsController {
             },
         });
 
-        return new ListEnvironmentsPresenter(page.items, page.nextCursor ? encodePageToken(page.nextCursor) : undefined);
+        return new ListEnvironmentsPresenter(
+            page.items,
+            project,
+            page.nextCursor ? encodePageToken(page.nextCursor) : undefined,
+        );
     }
 
     @Get(":environment")
-    async getEnvironment(@Param("environment") environment: string, @BearerToken() token: string): Promise<EnvironmentPresenter> {
-        return new EnvironmentPresenter(
-            await this.getEnvironmentUseCase.execute({ creds: { token }, params: { environmentId: environment } }),
-        );
+    async getEnvironment(
+        @Param("project") project: string,
+        @Param("environment") environment: string,
+        @BearerToken() token: string,
+    ): Promise<EnvironmentPresenter> {
+        return new EnvironmentPresenter(await this.getEnvironmentUseCase.execute({
+            creds: { token },
+            params: { projectId: project, environmentId: environment },
+        }), project);
     }
 
     // AIP-135 soft delete: return the resource with its (now deleting/deleted) state, not an empty body.
     @Delete(":environment")
-    async deleteEnvironment(@Param("environment") environment: string, @BearerToken() token: string): Promise<EnvironmentPresenter> {
-        return new EnvironmentPresenter(
-            await this.deleteEnvironmentUseCase.execute({ creds: { token }, params: { environmentId: environment } }),
-        );
+    async deleteEnvironment(
+        @Param("project") project: string,
+        @Param("environment") environment: string,
+        @BearerToken() token: string,
+    ): Promise<EnvironmentPresenter> {
+        return new EnvironmentPresenter(await this.deleteEnvironmentUseCase.execute({
+            creds: { token },
+            params: { projectId: project, environmentId: environment },
+        }), project);
     }
 }
