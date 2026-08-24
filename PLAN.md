@@ -128,8 +128,15 @@ Get/List/Create/Delete (Delete → `{}` — **пересмотреть, см. п
 партиал-unique-индекс на `resource_id`). Резолв URL-токена — `ProjectRepository.getByHandle`/`findByHandle` (`id::text = h OR resource_id = h`);
 `get(ProjectId)` остаётся строго-uuid для внутренних вызовов. ~15 use-case-ов переключены на `getByHandle`. Well-formed-but-missing токен →
 404 (не 400). Покрыто: unit `ResourceId` + integration (id в name / фолбэк на uid / lookup по id и uid / дубль 409 / формат 400 / uuid-форма 400 /
-вложенный ресурс по human-id). tsc 0 · eslint 0 · unit 171 · integration 133. **Осталось (следующий PR):** те же человекочитаемые id для
-**окружений** (`projects/{p}/environments/{env}`) — env-`resource_id` уникален пер-проект, резолв env-токена в контексте проекта.
+вложенный ресурс по human-id). tsc 0 · eslint 0 · unit 171 · integration 133.
+**ОКРУЖЕНИЯ — СДЕЛАНО (ветка `feat.environment-resource-ids`).** Те же человекочитаемые id для окружений (`projects/{p}/environments/{env}`):
+опц. `environmentId` в create, env-`resource_id` **уникален пер-проект** (партиал-unique-индекс `(project_id, resource_id)`, миграция), дубликат
+в проекте → 409, тот же id в другом проекте — ок. Резолв env-токена **в контексте проекта** — `EnvironmentRepository.getByProjectAndHandle`/
+`findByProjectAndHandle` (`project_id = p AND (id::text = h OR resource_id = h)`, applications join'ится явно — eager не грузится в QueryBuilder);
+`get(EnvironmentId)` остаётся uuid-only для internal. `get`/`delete-environment` теперь резолвят **проект по handle → authorize → env по
+(project, handle)** — заодно починен латентный баг «env другого проекта в чужом URL». Env-`name = projects/{projectHandle}/environments/{envHandle}`
+(проектный токен эхом в презентер). Покрыто integration (id в name / фолбэк uid / lookup по id и uid / дубль-в-проекте 409 / тот же id в другом
+проекте ок / формат 400 / uuid-форма 400 / env под human-id проекта). tsc 0 · eslint 0 · unit 171 · integration 140.
 
 ## Сделано
 

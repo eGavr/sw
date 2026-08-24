@@ -15,6 +15,7 @@ export class Environment {
         const environment = new Environment();
 
         environment.id = data.id;
+        environment.resourceId = data.resourceId ?? null;
         environment.projectId = data.projectId;
         environment.providerAccountId = data.providerAccountId ?? null;
         environment.provider = data.provider ?? null;
@@ -36,6 +37,10 @@ export class Environment {
 
     @PrimaryColumn("uuid")
     id: string;
+
+    // Client-chosen human-readable id (unique per project when set); null when addressed by uid.
+    @Column({ type: "varchar", nullable: true })
+    resourceId: string | null;
 
     @ManyToOne(() => Project, project => project.id)
     project: Project;
@@ -97,6 +102,7 @@ export class Environment {
     toObject(): EnvironmentData {
         return {
             id: this.id,
+            resourceId: this.resourceId,
             projectId: this.projectId,
             providerAccountId: this.providerAccountId,
             provider: this.provider,

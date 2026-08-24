@@ -43,6 +43,22 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         return Environment.fromObject(data);
     }
 
+    async getByProjectAndHandle(projectId: ProjectId, handle: string): Promise<Environment> {
+        const environment = await this.findByProjectAndHandle(projectId, handle);
+
+        if (!environment) {
+            throw new EnvironmentNotFoundError(handle);
+        }
+
+        return environment;
+    }
+
+    async findByProjectAndHandle(projectId: ProjectId, handle: string): Promise<Environment | null> {
+        const data = await this.environmentDataSource.findByProjectAndHandle(projectId.getValue(), handle);
+
+        return data ? Environment.fromObject(data) : null;
+    }
+
     async listByProject(projectId: ProjectId, page: PageRequest): Promise<Page<Environment>> {
         const result = await this.environmentDataSource.pageByProject(projectId.getValue(), page);
 

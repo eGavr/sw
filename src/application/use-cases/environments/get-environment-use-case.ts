@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { Environment } from "../../../domain/entities/environment/environment";
-import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
+import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
@@ -12,6 +12,7 @@ type GetEnvironmentInput = {
         token: string;
     },
     params: {
+        projectId: string;
         environmentId: string;
     },
 }
@@ -28,11 +29,10 @@ export class GetEnvironmentUseCase {
 
     async execute({ creds, params }: GetEnvironmentInput): Promise<Environment> {
         const user = await this.accessControl.authenticate(creds);
-        const environment = await this.environmentRepository.get(EnvironmentId.fromString(params.environmentId));
-        const project = await this.projectRepository.get(environment.projectId);
+        const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
 
-        return environment;
+        return this.environmentRepository.getByProjectAndHandle(ProjectId.fromString(project.id), params.environmentId);
     }
 }

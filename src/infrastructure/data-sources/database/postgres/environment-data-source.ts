@@ -198,6 +198,20 @@ export class EnvironmentDataSource {
         return environment?.toObject() ?? null;
     }
 
+    // Resolve an environment within a project by the identifier used in its URL: the human resource id if
+    // set, else the uid. The eager `applications` relation is not auto-loaded by the query builder, so it
+    // is joined explicitly. `id::text` avoids a uuid-syntax error when the handle is a human id.
+    async findByProjectAndHandle(projectId: string, handle: string): Promise<EnvironmentData | null> {
+        const environment = await this.dataSource.getRepository(Environment)
+            .createQueryBuilder("environment")
+            .leftJoinAndSelect("environment.applications", "applications")
+            .where("environment.projectId = :projectId", { projectId })
+            .andWhere("(environment.id::text = :handle OR environment.resourceId = :handle)", { handle })
+            .getOne();
+
+        return environment?.toObject() ?? null;
+    }
+
     async pageByProject(projectId: string, page: PageRequest): Promise<Page<EnvironmentData>> {
         const query = this.dataSource.getRepository(Environment)
             .createQueryBuilder("environment")
