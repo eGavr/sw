@@ -11,6 +11,9 @@ const metadataTokenUrl =
 export type YandexComputeInstanceOptions = {
     name: string;
     imageId: string;
+    // The hardware platform to schedule on; used to select a KVM-capable platform for the Android emulator
+    // (which needs /dev/kvm). Omitted for the browser/redroid path, which takes the folder's default.
+    platformId?: string;
     zone: string;
     subnetId: string;
     securityGroupId?: string;
@@ -42,11 +45,14 @@ export class YandexComputeClient {
         // itself and the agent flips the environment to executing on its first heartbeat. An instance already
         // existing for this env id (a reaper retry over a still-booting VM) is treated as success, so
         // provision is idempotent — the same rule the Docker adapter gets from remove-before-run.
+        const platformArgs = options.platformId ? ["--platform-id", options.platformId] : [];
+
         try {
             await this.exec([
                 "compute", "instance", "create",
                 "--name", options.name,
                 "--zone", options.zone,
+                ...platformArgs,
                 "--network-interface", networkInterface,
                 "--create-boot-disk", `image-id=${options.imageId},size=${options.diskSizeGb},type=network-ssd`,
                 "--cores", String(options.cores),
