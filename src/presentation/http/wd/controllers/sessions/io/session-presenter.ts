@@ -5,12 +5,13 @@ import { SessionRoute } from "../../../../session-route";
 // W3C WebDriver "New Session"-shaped response: { value: { sessionId, capabilities } }. The stateless
 // WebSocket protocols (BiDi / DevTools / VNC) are advertised as vendor extension capabilities in our
 // `sw:` namespace — the way Selenium Grid exposes `se:vnc` / `se:cdp` — rather than as ad-hoc top-level
-// fields. `sw:vnc` is the raw RFB-over-WS URL a VNC viewer connects to (the hosted /interactive page, or
-// the client's own noVNC).
+// fields. `sw:vnc` is the raw RFB-over-WS URL a VNC client connects to; `sw:interactive` is the ready-to-open
+// hosted viewer page — an https URL a human clicks to watch and drive the session — which connects to it.
 export class SessionPresenter implements Presenter {
     constructor(
         private readonly session: Session,
         private readonly webSocketBaseUrl: string,
+        private readonly httpBaseUrl: string,
     ) {}
 
     present(): object {
@@ -27,6 +28,7 @@ export class SessionPresenter implements Presenter {
                     "sw:bidi": `${proxy}/bidi`,
                     "sw:cdp": `${proxy}/cdp`,
                     "sw:vnc": `${proxy}/vnc`,
+                    "sw:interactive": `${this.httpBaseUrl}/interactive?path=sessions/${sessionId}/se/vnc`,
                 },
             },
         };
