@@ -4,11 +4,14 @@ ENV DEBIAN_FRONTEND=noninteractive ANDROID_HOME=/opt/android-sdk
 
 # On networks where deb.debian.org is unreachable (e.g. some RU clouds), point apt at a reachable mirror.
 # Harmless elsewhere; drop the sed if the default mirrors are fine for your build host.
+# The `|| dpkg --configure -a` retry is for cross-arch (qemu-emulated) builds, where websockify's python
+# postinst intermittently crashes leaving it half-configured; the retry finishes it. No-op on a native build.
 RUN (sed -i "s|deb.debian.org|mirror.yandex.ru|g; s|security.debian.org|mirror.yandex.ru|g" \
         /etc/apt/sources.list.d/debian.sources 2>/dev/null || true) \
     && apt-get update \
-    && apt-get install -y --no-install-recommends android-tools-adb nginx curl ca-certificates procps jq \
+    && (apt-get install -y --no-install-recommends android-tools-adb nginx curl ca-certificates procps jq \
         xvfb x11vnc websockify openbox libgl1-mesa-dri ffmpeg libsdl2-2.0-0 libusb-1.0-0 \
+        || (dpkg --configure -a && apt-get install -y --no-install-recommends websockify)) \
     && rm -rf /var/lib/apt/lists/*
 
 # scrcpy mirrors the device screen and injects input for the interactive VNC pipeline. It is not packaged in
