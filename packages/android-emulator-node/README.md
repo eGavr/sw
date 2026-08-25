@@ -20,7 +20,7 @@ lifecycle — is identical, and this boot infra runs on **any host that exposes
 2. The adapter runs `yc compute instance create` from `imageId` on
    `--platform-id <KVM platform>` with minimal resources (one emulator), passing
    metadata: `sw-environment-id`, `sw-android-avd` (`sw-android-<version>`),
-   `sw-internal-url`, `sw-internal-secret`.
+   `sw-internal-url`, `sw-internal-token` (per-environment agent bearer token).
 3. `sw-android-emulator-boot.service` runs `vm-boot.sh`: checks `/dev/kvm`,
    starts the AVD headless (KVM), fetches the agent, runs the companion (Appium
    + `/status` shim + nginx on `:4444`).
