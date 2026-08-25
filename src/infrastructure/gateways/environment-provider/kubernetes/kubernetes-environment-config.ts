@@ -26,9 +26,8 @@ export type KubernetesEnvironmentConfig = {
     resources: { requests: ResourceQuantities; limits: ResourceQuantities };
     // Host address the node is reachable at (used to build SW_ENDPOINT for the in-pod agent).
     advertiseHost: string;
-    // Base URL the in-pod agent calls back on, and the shared secret it authenticates with.
+    // Base URL the in-pod agent calls back on (its per-env token is minted separately).
     internalUrl: string;
-    internalSecret: string;
     // kubectl context to target; when unset the current context is used.
     context?: string;
 };

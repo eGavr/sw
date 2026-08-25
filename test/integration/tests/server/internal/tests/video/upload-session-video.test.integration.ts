@@ -36,6 +36,9 @@ import { StorageDestination } from "../../../../../../../src/domain/entities/sto
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
 import {
+    AgentTokenServiceProvider,
+} from "../../../../../../../src/infrastructure/agent-token/agent-token-service-provider";
+import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
@@ -65,10 +68,11 @@ import { ResponseInterceptor } from "../../../../../../../src/presentation/http/
 import {
     InternalEnvironmentsController,
 } from "../../../../../../../src/presentation/http/internal/controllers/environments/environments-controller";
-import { InternalSecretGuard } from "../../../../../../../src/presentation/http/internal/guards/internal-secret-guard";
+import {
+    InternalAgentTokenGuard,
+} from "../../../../../../../src/presentation/http/internal/guards/internal-agent-token-guard";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
-
-const secret = "test-internal-secret";
+import { internalAgentToken } from "../../../utils/request/internal-agent-token";
 const destination = StorageDestination.create({ bucket: "test-videos", prefix: "videos" });
 const sessionId = "wd-session-vid";
 const videoKey = destination.keyFor(SessionVideoKey.forSession(sessionId));
@@ -107,7 +111,8 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionVideo", () 
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
                 { provide: ObjectStorageGateway, useValue: objectStorage },
-                { provide: APP_GUARD, useClass: InternalSecretGuard },
+                AgentTokenServiceProvider,
+                { provide: APP_GUARD, useClass: InternalAgentTokenGuard },
                 { provide: APP_FILTER, useClass: AipExceptionFilter },
                 { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
                 {
@@ -170,7 +175,7 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionVideo", () 
     const upload = (id: string, body: Buffer): request.Test =>
         request(app.getHttpServer())
             .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionVideo`)
-            .set("x-internal-secret", secret)
+            .set("authorization", `Bearer ${internalAgentToken(id)}`)
             .set("content-type", "video/mp4")
             .send(body);
 
@@ -195,7 +200,7 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionVideo", () 
         expect(await objectStorage.get(destination, videoKey)).toBeNull();
     });
 
-    test("responds UNAUTHENTICATED without the internal secret", async () => {
+    test("responds UNAUTHENTICATED without a token", async () => {
         const id = await seedEnvironment(true);
 
         return request(app.getHttpServer())

@@ -7,7 +7,7 @@ export const defaultAgentEntrypoint = "/opt/bin/entry_point.sh";
 export const sessionLogFile = "/tmp/sw-session.log";
 
 // Command run inside a stock selenium container: fetch the heartbeat agent from the control plane (with
-// the injected secret) and run it in the background, then exec the image's normal entrypoint so it
+// the injected per-environment token) and run it in the background, then exec the image's normal entrypoint so it
 // becomes PID 1 with proper signal handling. The agent is delivered at startup rather than baked into
 // the image, so any stock browser image/version works with no rebuild. Retries a few times because the
 // control plane may not be reachable the instant the container starts.
@@ -20,7 +20,7 @@ export const sessionLogFile = "/tmp/sw-session.log";
 export function agentBootstrap(entrypoint: string): string {
     return [
         "for attempt in 1 2 3 4 5; do",
-        "  curl -fsSL -H \"x-internal-secret: $SW_INTERNAL_SECRET\""
+        "  curl -fsSL -H \"Authorization: Bearer $SW_INTERNAL_TOKEN\""
             + " \"$SW_INTERNAL_URL/internal/agentScript:download\" -o /tmp/sw-agent.sh && break",
         "  sleep 2",
         "done",

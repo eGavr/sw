@@ -1,3 +1,4 @@
+import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { YandexComputeClient } from "../yandex-compute/yandex-compute-client";
@@ -17,6 +18,7 @@ export class AndroidRedroidEnvironmentProviderGateway extends EnvironmentProvide
     constructor(
         private readonly compute: YandexComputeClient,
         private readonly config: AndroidRedroidEnvironmentConfig,
+        private readonly agentTokens: AgentTokenService,
     ) {
         super();
     }
@@ -35,7 +37,7 @@ export class AndroidRedroidEnvironmentProviderGateway extends EnvironmentProvide
                 "sw-environment-id": environment.id,
                 "sw-redroid-tag": this.config.redroidTag(environment.platform.version),
                 "sw-internal-url": this.config.internalUrl,
-                "sw-internal-secret": this.config.internalSecret,
+                "sw-internal-token": await this.agentTokens.issue(environment.id),
             },
         });
     }

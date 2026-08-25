@@ -19,8 +19,8 @@ const defaultFfmpegDir = "bin/ffmpeg";
 // Serves the assets the in-container agent fetches at startup so they are not baked into the image (no
 // rebuild per browser/version): the bootstrap script (always) and a static ffmpeg binary (only when a
 // session opts into video recording, fetched lazily by architecture). Guarded by the module's
-// InternalSecretGuard like every internal route — the agent sends the same x-internal-secret it uses for
-// heartbeats. Media downloads, written straight to the response, bypassing the JSON presenter.
+// InternalAgentTokenGuard like every internal route — the agent sends the same per-environment bearer
+// token it uses for heartbeats. Media downloads, written straight to the response, bypassing the JSON presenter.
 @Controller("internal")
 export class InternalAgentController {
     private readonly script = readFileSync(join(__dirname, "heartbeat-agent.sh"), "utf8");

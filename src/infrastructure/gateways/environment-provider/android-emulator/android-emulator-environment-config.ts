@@ -13,9 +13,8 @@ export type AndroidEmulatorEnvironmentConfig = {
     diskSizeGb: number;
     // Requested Android version -> the baked AVD name the VM boots (must be one baked into the image).
     avdName: (platformVersion: string) => string;
-    // Base URL the in-VM agent calls back on, and the shared secret it authenticates with.
+    // Base URL the in-VM agent calls back on (its per-env token is minted separately).
     internalUrl: string;
-    internalSecret: string;
 };
 
 export type BuildAndroidEmulatorEnvironmentConfigOptions = {
@@ -29,7 +28,6 @@ export type BuildAndroidEmulatorEnvironmentConfigOptions = {
     diskSizeGb: number;
     defaultAndroidVersion: string;
     internalUrl: string;
-    internalSecret: string;
 };
 
 // One emulator wants a couple of vCPUs, several GB of RAM and enough disk for the system image + userdata.
@@ -60,6 +58,5 @@ export function buildAndroidEmulatorEnvironmentConfig(
         diskSizeGb: options.diskSizeGb,
         avdName: (version) => toAvdName(version, options.defaultAndroidVersion),
         internalUrl: options.internalUrl,
-        internalSecret: options.internalSecret,
     };
 }

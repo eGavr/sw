@@ -19,6 +19,7 @@ import {
 import {
     ReclaimStuckEnvironmentsUseCase,
 } from "../../application/use-cases/environments/reclaim-stuck-environments-use-case";
+import { AgentTokenServiceProvider } from "../../infrastructure/agent-token/agent-token-service-provider";
 import { EnvironmentDataSource } from "../../infrastructure/data-sources/database/postgres/environment-data-source";
 import {
     ProviderAccountDataSource,
@@ -56,6 +57,7 @@ import { EnvironmentWorker } from "./environment-worker";
         { provide: ApplicationLogger, useExisting: Logger },
         EnvironmentDataSource,
         ProviderAccountDataSource,
+        AgentTokenServiceProvider,
         EnvironmentProviderGatewayProvider,
     ],
 })

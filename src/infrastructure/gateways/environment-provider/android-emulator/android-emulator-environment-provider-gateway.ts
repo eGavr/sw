@@ -1,3 +1,4 @@
+import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { YandexComputeClient } from "../yandex-compute/yandex-compute-client";
@@ -18,6 +19,7 @@ export class AndroidEmulatorEnvironmentProviderGateway extends EnvironmentProvid
     constructor(
         private readonly compute: YandexComputeClient,
         private readonly config: AndroidEmulatorEnvironmentConfig,
+        private readonly agentTokens: AgentTokenService,
     ) {
         super();
     }
@@ -37,7 +39,7 @@ export class AndroidEmulatorEnvironmentProviderGateway extends EnvironmentProvid
                 "sw-environment-id": environment.id,
                 "sw-android-avd": this.config.avdName(environment.platform.version),
                 "sw-internal-url": this.config.internalUrl,
-                "sw-internal-secret": this.config.internalSecret,
+                "sw-internal-token": await this.agentTokens.issue(environment.id),
             },
         });
     }

@@ -15,9 +15,8 @@ export type DockerEnvironmentConfig = {
     entrypoint: string;
     // Install-level: host address the node is reachable at (used to build SW_ENDPOINT for the agent).
     advertiseHost: string;
-    // Install-level: base URL the in-container agent calls back on, and the shared secret it uses.
+    // Install-level: base URL the in-container agent calls back on (its per-env token is minted separately).
     internalUrl: string;
-    internalSecret: string;
     // Session idle timeout (domain policy), translated into the node's SE_NODE_SESSION_TIMEOUT.
     sessionTimeoutSeconds: number;
 };
