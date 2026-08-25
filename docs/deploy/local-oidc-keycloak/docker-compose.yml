@@ -1,0 +1,13 @@
+# Local real OIDC IdP for verifying the `oidc` auth strategy end to end (no cloud, no cost).
+# Keycloak is off-the-shelf identity/access-management software — we only run and configure it.
+# Port 8085 on the host (8080 is often taken locally); the issuer is http://localhost:8085/realms/sw.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: sw-keycloak
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8085:8080"
