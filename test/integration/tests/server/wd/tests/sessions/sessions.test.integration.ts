@@ -152,6 +152,10 @@ describe("/sessions", () => {
             const base = caps["sw:vnc"].slice(0, -vncSuffix.length);
             expect(caps["sw:bidi"]).toBe(`${base}/sessions/${body.value.sessionId}/se/bidi`);
             expect(caps["sw:cdp"]).toBe(`${base}/sessions/${body.value.sessionId}/se/cdp`);
+
+            // sw:interactive is the ready-to-open hosted viewer page (http origin), pointed at the sw:vnc path.
+            const httpBase = base.replace(/^ws/, "http");
+            expect(caps["sw:interactive"]).toBe(`${httpBase}/interactive?path=sessions/${body.value.sessionId}/se/vnc`);
             expect(createSessionOnNode).toHaveBeenCalledTimes(1);
         });
 

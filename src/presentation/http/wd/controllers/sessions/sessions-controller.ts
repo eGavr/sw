@@ -30,7 +30,7 @@ export class SessionsController {
         const params = resolveSessionRequest(body.capabilities);
         const session = await this.createSessionUseCase.execute({ creds: { token }, params });
 
-        return new SessionPresenter(session, this.webSocketBaseUrl(request));
+        return new SessionPresenter(session, this.webSocketBaseUrl(request), this.httpBaseUrl(request));
     }
 
     // The wd host the client reached us on, as a ws(s) origin — the proxy the advertised URLs point at.
@@ -38,6 +38,11 @@ export class SessionsController {
         const scheme = request.protocol === "https" ? "wss" : "ws";
 
         return `${scheme}://${request.get("host") ?? ""}`;
+    }
+
+    // The same host as an http(s) origin — the hosted interactive viewer page a human opens.
+    private httpBaseUrl(request: Request): string {
+        return `${request.protocol}://${request.get("host") ?? ""}`;
     }
 
     @All(":sessionId")
