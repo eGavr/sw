@@ -5,8 +5,9 @@
 # node surface on :4444. The heartbeat agent is layered on top by the container command (agentBootstrap),
 # not here.
 #
-# Follow-up: the interactive VNC pipeline (scrcpy -> Xvfb -> x11vnc -> websockify) is not started here yet
-# — it needs extra packages (scrcpy et al.) in the image; see README. Until then /session/{id}/se/vnc 502s.
+# It also brings up the interactive VNC pipeline: scrcpy mirrors the device onto a virtual X display (Xvfb)
+# and injects input back into it, x11vnc exports it over VNC, websockify bridges VNC to WebSocket; nginx
+# routes /session/*/se/vnc there so the hosted noVNC viewer can watch and drive the session.
 set -e
 
 export ANDROID_HOME=/opt/android-sdk
@@ -27,6 +28,20 @@ done
 
 appium --address 127.0.0.1 --port 4723 --base-path / --relaxed-security >/tmp/appium.log 2>&1 &
 node /opt/android-node/status-shim.js >/tmp/status-shim.log 2>&1 &
+
+# Interactive VNC pipeline. scrcpy renders into a headless X display (Xvfb) under a minimal window manager
+# (openbox, so its window keeps input focus for keyboard control); x11vnc exports that display (no password —
+# access is gated by possession of the unguessable session id); websockify bridges it to WebSocket on 7900,
+# where nginx forwards /session/*/se/vnc. Geometry defaults to the redroid device size and is overridable.
+export DISPLAY=:99
+GEOMETRY="${SW_VNC_GEOMETRY:-720x1280x24}"
+Xvfb :99 -screen 0 "${GEOMETRY}" -nolisten tcp >/tmp/xvfb.log 2>&1 &
+sleep 2
+openbox >/tmp/openbox.log 2>&1 &
+LIBGL_ALWAYS_SOFTWARE=1 scrcpy -s "${REDROID}" --fullscreen --stay-awake --no-audio --max-fps=15 \
+    >/tmp/scrcpy.log 2>&1 &
+x11vnc -display :99 -forever -shared -nopw -rfbport 5900 -bg -quiet -o /tmp/x11vnc.log
+websockify 7900 127.0.0.1:5900 >/tmp/websockify.log 2>&1 &
 
 sleep 8
 echo "[android-node] nginx surface on :4444"

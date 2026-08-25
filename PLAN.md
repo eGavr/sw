@@ -575,12 +575,18 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     окружений», резолв — в `SessionAllocationCriteria`/матче (сортировка по версии desc, не строгое равенство). Т.е. версия окружения =
     факт, версия в запросе сессии = критерий выбора. Убрать `latest` из примеров ответа create-environment.
 
-24. **Android live-VNC/видео — companion не поднимает VNC-пайплайн (сейчас `se/vnc` = 502) — НЕ сделано.** Транспорт (`se/vnc`-прокси +
-    hosted-вьюер `/interactive` + движок `/novnc/`) готов и работает для браузеров, НО `packages/android-node/start.sh` не запускает
-    `scrcpy→Xvfb:99→x11vnc:5900→websockify:7900` (в скрипте прямой TODO: «/session/{id}/se/vnc 502s»). Нужно: добавить в companion-образ
-    `scrcpy`+`x11vnc`+`websockify`(+Xvfb) и запустить пайплайн в `start.sh`, перепечь golden-image (см. runbook §4). Тогда Android live-VNC
-    заработает 1-в-1 как у Chrome (де-риск на лаб-VM это подтвердил). Скриншот (`GET /session/{id}/screenshot` через Appium/UiAutomator2)
-    работает уже сейчас — от VNC не зависит. Видео Android (`adb screenrecord`) — тем же заходом, follow-up к этому пункту.
+24. **Android live-VNC — companion-образ теперь поднимает VNC-пайплайн — CODE-SIDE СДЕЛАНО (ветка `feat.android-node-vnc`), live-verify под железо.**
+    Транспорт (`se/vnc`-прокси + hosted-вьюер `/interactive` + движок `/novnc/`) готов и работает для браузеров; теперь `packages/android-node`
+    заводит и Android-сторону. **Сделано:** в `Dockerfile` добавлены `xvfb x11vnc websockify openbox libgl1-mesa-dri ffmpeg libsdl2-2.0-0 libusb-1.0-0`
+    + скачивание прешитого **scrcpy v4.1** (в bookworm пакета нет; официальный portable linux x86_64, sha256-пиннинг, несёт scrcpy-server+adb;
+    поэтому образ строится под `linux/amd64` — совпадает с redroid-VM). `start.sh` запускает пайплайн
+    `scrcpy → Xvfb:99 → openbox → x11vnc:5900 → websockify:7900` перед nginx (x11vnc без пароля — доступ гейтит неугадываемый session id;
+    geometry дефолт `720x1280`, override `SW_VNC_GEOMETRY`; вход scrcpy пробрасывает обратно на устройство = полное управление). nginx уже
+    роутит `/session/*/se/vnc` на websockify. **Проверено:** apt-пакеты резолвятся в bookworm, scrcpy-либы линкуются (ldd 0 not-found),
+    образ-слои собираются под amd64 и `scrcpy --version` запускается. **Осталось (под железо):** live-verify всей цепочки на redroid-хосте
+    (дешёвый YC Compute VM — redroid контейнерный, KVM НЕ нужен; чеклист в `packages/android-node/README.md`), перепечь golden-image (runbook §4),
+    e2e через `sw:interactive`. **Не делаем:** серверный view-only (сессии всегда full-control). Скриншот (`GET /session/{id}/screenshot` через
+    Appium/UiAutomator2) работает и без VNC. Видео Android (`adb screenrecord`) — follow-up тем же заходом.
 
 25. **Настоящая keyset (курсорная) БД-пагинация — СДЕЛАНО (ветка `feat.keyset-pagination`).** Заменили in-memory offset-`paginate()` на
     **keyset** по `(created_at, id)` на уровне data-source: `application/pagination.ts` (`PageCursor`/`PageRequest`/`Page`/`clampPageSize`),

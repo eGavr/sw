@@ -22,15 +22,41 @@ The heartbeat agent (registration / liveness / log & video shipping) is **not** 
 adapter injects it as the container command (`agentBootstrap`), fetched from the control plane at startup,
 the same way browser nodes get it.
 
+## Interactive VNC
+
+Watching and driving a live Android session works exactly like a browser session: the create-session
+response advertises `sw:vnc` / `sw:interactive`, and the wd WS proxy routes `/session/{id}/se/vnc` here.
+The pipeline (started by `start.sh`) is:
+
+    redroid → scrcpy → Xvfb :99 → x11vnc :5900 → websockify :7900 → (nginx /se/vnc) → wd proxy → noVNC
+
+- **scrcpy** mirrors the device and injects input back into it (so the viewer has full control).
+- **Xvfb** is the headless display scrcpy renders into; **openbox** keeps scrcpy's window focused for keys.
+- **x11vnc** exports the display over VNC (no password — access is gated by the unguessable session id).
+- **websockify** bridges VNC↔WebSocket for the browser.
+
+scrcpy is **not** in Debian bookworm, so the image fetches the official portable Linux build (pinned +
+sha256-verified). That build is **x86_64-only**, so the image must be built for `linux/amd64` — which matches
+the redroid Compute VMs (also x86_64). Screen geometry defaults to the redroid device size (`720x1280`);
+override with `SW_VNC_GEOMETRY` (e.g. `1080x1920x24`) if you boot redroid at another resolution.
+
 ## Build
 
-    docker build -t sw/android-node:latest .
+    docker build --platform linux/amd64 -t sw/android-node:latest .
 
 The companion is **version-agnostic** (one image for all Android versions); the Android OS version is the
 redroid image tag (`redroid/redroid:13.0.0-latest` = Android 13), selected per environment by the adapter.
 
-## Follow-up
+## Verifying VNC on a redroid host
 
-- **Interactive VNC is not wired in this image yet.** The pipeline is `redroid → scrcpy → Xvfb → x11vnc →
-  websockify` (proven out-of-band); folding it in needs `scrcpy xvfb x11vnc websockify` in the image, which
-  is why they are omitted here for now. Until then `/session/{id}/se/vnc` returns 502.
+The full chain can only be exercised on a host that actually runs redroid (a Linux box with the `binder_linux`
+kernel module; on YC that is a cheap Compute VM — redroid is containerised, **KVM not needed**, unlike the
+emulator). Bring up redroid + this companion, then inside the companion check each hop:
+
+1. `adb -s 127.0.0.1:5555 shell getprop sys.boot_completed` → `1` (device up).
+2. `DISPLAY=:99 xdpyinfo` succeeds and `pgrep -a scrcpy` is running (mirror rendered into Xvfb).
+3. `curl -sI http://127.0.0.1:7900/` — websockify answers (VNC bridge up).
+4. Open the session's `sw:interactive` URL in a browser → the Android screen appears and clicks/keys land.
+
+Follow-up: server-side input filtering (true "view only") is intentionally not implemented — sessions are
+always full-control.
