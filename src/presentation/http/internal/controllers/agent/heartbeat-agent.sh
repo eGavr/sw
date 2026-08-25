@@ -20,7 +20,7 @@ INTERVAL="${SW_HEARTBEAT_INTERVAL_SECONDS:-3}"
 
 : "${SW_ENVIRONMENT_ID:?SW_ENVIRONMENT_ID is required}"
 : "${SW_INTERNAL_URL:?SW_INTERNAL_URL is required}"
-: "${SW_INTERNAL_SECRET:?SW_INTERNAL_SECRET is required}"
+: "${SW_INTERNAL_TOKEN:?SW_INTERNAL_TOKEN is required}"
 : "${SW_ENDPOINT:?SW_ENDPOINT is required}"
 
 heartbeat_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:heartbeat"
@@ -100,7 +100,7 @@ download_ffmpeg() {
         *) log "no ffmpeg build for arch $(uname -m); video disabled"; return 1 ;;
     esac
 
-    if curl -fsSL -H "x-internal-secret: ${SW_INTERNAL_SECRET}" \
+    if curl -fsSL -H "Authorization: Bearer ${SW_INTERNAL_TOKEN}" \
         "${ffmpeg_download_url}?arch=${arch}" -o "${ffmpeg_bin}.part" --max-time 120; then
         chmod +x "${ffmpeg_bin}.part" && mv "${ffmpeg_bin}.part" "${ffmpeg_bin}" && log "ffmpeg ready (${arch})"
     else
@@ -168,7 +168,7 @@ stop_recording_and_ship() {
     size=$(wc -c < "${video_file}" | tr -d '[:space:]')
     url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/sessions/${session_id}:uploadSessionVideo"
     code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${url}" \
-        -H "x-internal-secret: ${SW_INTERNAL_SECRET}" \
+        -H "Authorization: Bearer ${SW_INTERNAL_TOKEN}" \
         -H "content-type: video/mp4" \
         --max-time 120 --data-binary @"${video_file}")
 
@@ -206,7 +206,7 @@ ship_session_logs() {
     url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/sessions/${session_id}:uploadSessionLogs"
     code=$(cat ${session_log_glob} 2>/dev/null | tail -c "+${tail_start}" \
         | curl -s -o /dev/null -w "%{http_code}" -X POST "${url}" \
-            -H "x-internal-secret: ${SW_INTERNAL_SECRET}" \
+            -H "Authorization: Bearer ${SW_INTERNAL_TOKEN}" \
             -H "content-type: application/octet-stream" \
             --max-time 20 --data-binary @-)
 
@@ -220,7 +220,7 @@ ship_session_logs() {
 send_heartbeat() {
     curl -s -o /dev/null -w "%{http_code}" -X POST "${heartbeat_url}" \
         -H "content-type: application/json" \
-        -H "x-internal-secret: ${SW_INTERNAL_SECRET}" \
+        -H "Authorization: Bearer ${SW_INTERNAL_TOKEN}" \
         -d "$1"
 }
 

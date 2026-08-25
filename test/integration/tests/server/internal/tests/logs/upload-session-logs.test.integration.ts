@@ -36,6 +36,9 @@ import { StorageDestination } from "../../../../../../../src/domain/entities/sto
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
 import {
+    AgentTokenServiceProvider,
+} from "../../../../../../../src/infrastructure/agent-token/agent-token-service-provider";
+import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
@@ -65,10 +68,11 @@ import { ResponseInterceptor } from "../../../../../../../src/presentation/http/
 import {
     InternalEnvironmentsController,
 } from "../../../../../../../src/presentation/http/internal/controllers/environments/environments-controller";
-import { InternalSecretGuard } from "../../../../../../../src/presentation/http/internal/guards/internal-secret-guard";
+import {
+    InternalAgentTokenGuard,
+} from "../../../../../../../src/presentation/http/internal/guards/internal-agent-token-guard";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
-
-const secret = "test-internal-secret";
+import { internalAgentToken } from "../../../utils/request/internal-agent-token";
 const destination = StorageDestination.create({ bucket: "test-logs", prefix: "logs" });
 const sessionId = "wd-session-abc";
 const logKey = destination.keyFor(SessionLogKey.forSession(sessionId));
@@ -107,7 +111,8 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionLogs", () =
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
                 { provide: ObjectStorageGateway, useValue: objectStorage },
-                { provide: APP_GUARD, useClass: InternalSecretGuard },
+                AgentTokenServiceProvider,
+                { provide: APP_GUARD, useClass: InternalAgentTokenGuard },
                 { provide: APP_FILTER, useClass: AipExceptionFilter },
                 { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
                 {
@@ -168,7 +173,7 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionLogs", () =
     const upload = (id: string, body: string): request.Test =>
         request(app.getHttpServer())
             .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionLogs`)
-            .set("x-internal-secret", secret)
+            .set("authorization", `Bearer ${internalAgentToken(id)}`)
             .set("content-type", "text/plain")
             .send(body);
 
@@ -193,11 +198,22 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionLogs", () =
         expect(await objectStorage.get(destination, logKey)).toBeNull();
     });
 
-    test("responds UNAUTHENTICATED without the internal secret", async () => {
+    test("responds UNAUTHENTICATED without a token", async () => {
         const id = await seedEnvironment(true);
 
         return request(app.getHttpServer())
             .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionLogs`)
+            .set("content-type", "text/plain")
+            .send("logs")
+            .expect(401);
+    });
+
+    test("responds UNAUTHENTICATED with a token for a different environment", async () => {
+        const id = await seedEnvironment(true);
+
+        return request(app.getHttpServer())
+            .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionLogs`)
+            .set("authorization", `Bearer ${internalAgentToken(uuidv4())}`)
             .set("content-type", "text/plain")
             .send("logs")
             .expect(401);

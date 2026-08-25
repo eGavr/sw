@@ -10,9 +10,8 @@ export type AndroidRedroidEnvironmentConfig = {
     diskSizeGb: number;
     // Requested Android version -> the redroid image tag the VM boots (must be one baked into the image).
     redroidTag: (platformVersion: string) => string;
-    // Base URL the in-VM agent calls back on, and the shared secret it authenticates with.
+    // Base URL the in-VM agent calls back on (its per-env token is minted separately).
     internalUrl: string;
-    internalSecret: string;
 };
 
 export type BuildAndroidRedroidEnvironmentConfigOptions = {
@@ -25,7 +24,6 @@ export type BuildAndroidRedroidEnvironmentConfigOptions = {
     diskSizeGb: number;
     defaultAndroidVersion: string;
     internalUrl: string;
-    internalSecret: string;
 };
 
 export const defaultAndroidCores = 4;
@@ -54,6 +52,5 @@ export function buildAndroidRedroidEnvironmentConfig(
         diskSizeGb: options.diskSizeGb,
         redroidTag: (version) => toRedroidTag(version || options.defaultAndroidVersion),
         internalUrl: options.internalUrl,
-        internalSecret: options.internalSecret,
     };
 }

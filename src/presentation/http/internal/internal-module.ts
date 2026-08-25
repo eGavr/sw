@@ -17,6 +17,9 @@ import {
     UploadSessionVideoUseCase,
 } from "../../../application/use-cases/environments/upload-session-video-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
+import {
+    AgentTokenServiceProvider,
+} from "../../../infrastructure/agent-token/agent-token-service-provider";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import {
     StorageDestinationDataSource,
@@ -39,7 +42,7 @@ import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { InternalAgentController } from "./controllers/agent/agent-controller";
 import { InternalEnvironmentsController } from "./controllers/environments/environments-controller";
-import { InternalSecretGuard } from "./guards/internal-secret-guard";
+import { InternalAgentTokenGuard } from "./guards/internal-agent-token-guard";
 
 @Module({
     imports: [
@@ -64,13 +67,14 @@ import { InternalSecretGuard } from "./guards/internal-secret-guard";
 
         EnvironmentDataSource,
         StorageDestinationDataSource,
+        AgentTokenServiceProvider,
 
         // A session id is a capability secret; mask it out of request logs (session log/video upload routes).
         { provide: UrlRedactions, useValue: [sessionIdUrlRedaction] },
 
         {
             provide: APP_GUARD,
-            useClass: InternalSecretGuard,
+            useClass: InternalAgentTokenGuard,
         },
         {
             provide: APP_FILTER,

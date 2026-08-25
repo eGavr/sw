@@ -1,3 +1,4 @@
+import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
@@ -20,6 +21,7 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
     constructor(
         private readonly docker: DockerClient,
         private readonly config: DockerEnvironmentConfig,
+        private readonly agentTokens: AgentTokenService,
     ) {
         super();
     }
@@ -57,7 +59,7 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
                 SW_ENVIRONMENT_ID: environment.id,
                 SW_ENDPOINT: endpoint,
                 SW_INTERNAL_URL: this.config.internalUrl,
-                SW_INTERNAL_SECRET: this.config.internalSecret,
+                SW_INTERNAL_TOKEN: await this.agentTokens.issue(environment.id),
                 // The bootstrap redirects the container's stdout here; the agent slices session logs from it.
                 SW_SESSION_LOG_GLOB: sessionLogFile,
                 // Delegate the smart idle timeout and the "one active session" invariant to the node.

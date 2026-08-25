@@ -37,6 +37,9 @@ import { ProviderAccountId } from "../../../../../../../src/domain/entities/prov
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
 import {
+    AgentTokenServiceProvider,
+} from "../../../../../../../src/infrastructure/agent-token/agent-token-service-provider";
+import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
@@ -66,11 +69,13 @@ import { ResponseInterceptor } from "../../../../../../../src/presentation/http/
 import {
     InternalEnvironmentsController,
 } from "../../../../../../../src/presentation/http/internal/controllers/environments/environments-controller";
-import { InternalSecretGuard } from "../../../../../../../src/presentation/http/internal/guards/internal-secret-guard";
+import {
+    InternalAgentTokenGuard,
+} from "../../../../../../../src/presentation/http/internal/guards/internal-agent-token-guard";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
+import { internalAgentToken } from "../../../utils/request/internal-agent-token";
 
 const endpoint = "http://127.0.0.1:44444";
-const secret = "test-internal-secret";
 
 describe("/internal/environments/:id:heartbeat", () => {
     let app: INestApplication;
@@ -100,7 +105,8 @@ describe("/internal/environments/:id:heartbeat", () => {
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
                 { provide: ObjectStorageGateway, useClass: InMemoryObjectStorageGateway },
-                { provide: APP_GUARD, useClass: InternalSecretGuard },
+                AgentTokenServiceProvider,
+                { provide: APP_GUARD, useClass: InternalAgentTokenGuard },
                 { provide: APP_FILTER, useClass: AipExceptionFilter },
                 { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
                 {
@@ -169,21 +175,34 @@ describe("/internal/environments/:id:heartbeat", () => {
     };
 
     const heartbeat = (id: string, body: object): request.Test =>
-        request(app.getHttpServer()).post(`/internal/environments/${id}:heartbeat`).set("x-internal-secret", secret).send(body);
+        request(app.getHttpServer())
+            .post(`/internal/environments/${id}:heartbeat`)
+            .set("authorization", `Bearer ${internalAgentToken(id)}`)
+            .send(body);
 
     const reload = (id: string): Promise<Environment> => environmentRepository.get(EnvironmentId.fromString(id));
 
-    test("responds UNAUTHENTICATED without the internal secret", () => {
+    test("responds UNAUTHENTICATED without a token", () => {
         return request(app.getHttpServer())
             .post(`/internal/environments/${uuidv4()}:heartbeat`)
             .send({ endpoint, busy: false })
             .expect(401);
     });
 
-    test("responds UNAUTHENTICATED with a wrong internal secret", () => {
+    test("responds UNAUTHENTICATED with an invalid token", () => {
         return request(app.getHttpServer())
             .post(`/internal/environments/${uuidv4()}:heartbeat`)
-            .set("x-internal-secret", "wrong")
+            .set("authorization", "Bearer not-a-valid-token")
+            .send({ endpoint, busy: false })
+            .expect(401);
+    });
+
+    test("responds UNAUTHENTICATED with a token for a different environment", async () => {
+        const id = await seedPreparingEnvironment();
+
+        return request(app.getHttpServer())
+            .post(`/internal/environments/${id}:heartbeat`)
+            .set("authorization", `Bearer ${internalAgentToken(uuidv4())}`)
             .send({ endpoint, busy: false })
             .expect(401);
     });
@@ -239,7 +258,7 @@ describe("/internal/environments/:id:heartbeat", () => {
 
         return request(app.getHttpServer())
             .post(`/internal/environments/${id}:frobnicate`)
-            .set("x-internal-secret", secret)
+            .set("authorization", `Bearer ${internalAgentToken(id)}`)
             .send({ busy: false })
             .expect(404);
     });

@@ -1,3 +1,4 @@
+import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { ProviderAccount } from "../../../../domain/entities/provider-account/provider-account";
@@ -34,6 +35,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
     constructor(
         private readonly kubernetes: KubernetesClient,
         private readonly config: KubernetesEnvironmentConfig,
+        private readonly agentTokens: AgentTokenService,
     ) {
         super();
     }
@@ -52,8 +54,9 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         };
 
         const plan = await this.planService(`sw-env-${environment.id}`, provisioning.containerPort);
+        const agentToken = await this.agentTokens.issue(environment.id);
 
-        await this.kubernetes.apply(JSON.stringify(this.manifest(environment, plan, provisioning)));
+        await this.kubernetes.apply(JSON.stringify(this.manifest(environment, plan, provisioning, agentToken)));
     }
 
     async deprovision(environment: Environment): Promise<void> {
@@ -97,7 +100,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         throw new Error("kubernetes: no free node port in the configured range");
     }
 
-    private manifest(environment: Environment, plan: ServicePlan, provisioning: Provisioning): object {
+    private manifest(environment: Environment, plan: ServicePlan, provisioning: Provisioning, agentToken: string): object {
         const name = `sw-env-${environment.id}`;
         const selector = { [labels.environmentId]: environment.id };
         const metadataLabels = {
@@ -125,7 +128,7 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
                             // Stock selenium image: fetch the agent at startup, then exec the node.
                             command: ["bash", "-c", agentBootstrap(this.config.entrypoint)],
                             ports: [{ containerPort: provisioning.containerPort }],
-                            env: this.env(environment, plan.endpoint),
+                            env: this.env(environment, plan.endpoint, agentToken),
                             resources: provisioning.resources,
                             volumeMounts: [{ name: "dshm", mountPath: "/dev/shm" }],
                         }],
@@ -142,12 +145,12 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         };
     }
 
-    private env(environment: Environment, endpoint: string): Array<{ name: string; value: string }> {
+    private env(environment: Environment, endpoint: string, agentToken: string): Array<{ name: string; value: string }> {
         return Object.entries({
             SW_ENVIRONMENT_ID: environment.id,
             SW_ENDPOINT: endpoint,
             SW_INTERNAL_URL: this.config.internalUrl,
-            SW_INTERNAL_SECRET: this.config.internalSecret,
+            SW_INTERNAL_TOKEN: agentToken,
             // The bootstrap redirects the container's stdout here; the agent slices session logs from it.
             SW_SESSION_LOG_GLOB: sessionLogFile,
             // Delegate the smart idle timeout and the "one active session" invariant to the node.

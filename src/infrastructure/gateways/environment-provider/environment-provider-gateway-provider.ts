@@ -1,5 +1,6 @@
 import { ConfigService } from "@nestjs/config";
 
+import { AgentTokenService } from "../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
 import { ProviderCatalog } from "../../../application/interfaces/provider-catalog";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
@@ -61,34 +62,41 @@ const defaultInternalCallbackPort = 3002;
 // environment's provider type, replacing the install-wide COMPUTE_PROVIDER switch.
 export const EnvironmentProviderGatewayProvider = {
     provide: EnvironmentProviderGateway,
-    useFactory: (configService: ConfigService): EnvironmentProviderGateway => {
+    useFactory: (configService: ConfigService, agentTokens: AgentTokenService): EnvironmentProviderGateway => {
         // One backend-agnostic idle timeout (domain policy), translated by each gateway into the node's
         // SE_NODE_SESSION_TIMEOUT — no per-backend copy of the default.
         const idleTimeoutSeconds = resolveSessionIdleTimeout(configService).toSeconds();
 
         const gateways = new Map<string, EnvironmentProviderGateway>([
             ["noop", new NoopEnvironmentProviderGateway()],
-            ["docker", new DockerEnvironmentProviderGateway(new DockerClient(), dockerConfig(configService, idleTimeoutSeconds))],
+            ["docker", new DockerEnvironmentProviderGateway(
+                new DockerClient(),
+                dockerConfig(configService, idleTimeoutSeconds),
+                agentTokens,
+            )],
             ["kubernetes", new KubernetesEnvironmentProviderGateway(
                 new KubernetesClient(
                     configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultNamespace,
                     configService.get<string>("COMPUTE_K8S_CONTEXT"),
                 ),
                 kubernetesConfig(configService, idleTimeoutSeconds),
+                agentTokens,
             )],
             [androidRedroidProviderValue, new AndroidRedroidEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_FOLDER_ID")),
                 androidRedroidConfig(configService),
+                agentTokens,
             )],
             [androidEmulatorProviderValue, new AndroidEmulatorEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_EMULATOR_FOLDER_ID")),
                 androidEmulatorConfig(configService),
+                agentTokens,
             )],
         ]);
 
         return new RoutingEnvironmentProviderGateway(gateways);
     },
-    inject: [ConfigService],
+    inject: [ConfigService, AgentTokenService],
 };
 
 // The provider keys the routing gateway registers adapters for (mirror of the map keys above). create-project
@@ -132,8 +140,7 @@ function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: numbe
         advertiseHost: configService.get<string>("COMPUTE_DOCKER_ADVERTISE_HOST") ?? "127.0.0.1",
         // From inside the container the host's internal callback API is reached via host.docker.internal.
         internalUrl:
-            configService.get<string>("COMPUTE_DOCKER_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,
-        internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
+            configService.get<string>("COMPUTE_DOCKER_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,    
     };
 }
 
@@ -151,8 +158,7 @@ function androidRedroidConfig(configService: ConfigService): AndroidRedroidEnvir
         defaultAndroidVersion: configService.get<string>("COMPUTE_ANDROID_DEFAULT_VERSION") ?? defaultAndroidVersion,
         // The in-VM agent reaches the control plane's internal API here — a VPC-internal address (internal LB
         // in front of the internal service) reachable from the Compute VM.
-        internalUrl: configService.get<string>("COMPUTE_ANDROID_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
-        internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
+        internalUrl: configService.get<string>("COMPUTE_ANDROID_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,    
     });
 }
 
@@ -172,8 +178,7 @@ function androidEmulatorConfig(configService: ConfigService): AndroidEmulatorEnv
         diskSizeGb: Number(configService.get<string>("COMPUTE_ANDROID_EMULATOR_DISK_GB") ?? String(defaultEmulatorDiskGb)),
         defaultAndroidVersion:
             configService.get<string>("COMPUTE_ANDROID_EMULATOR_DEFAULT_VERSION") ?? defaultEmulatorAndroidVersion,
-        internalUrl: configService.get<string>("COMPUTE_ANDROID_EMULATOR_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
-        internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
+        internalUrl: configService.get<string>("COMPUTE_ANDROID_EMULATOR_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,    
     });
 }
 
@@ -206,7 +211,6 @@ function kubernetesConfig(configService: ConfigService, sessionTimeoutSeconds: n
         // From inside a pod the host's internal callback API is reachable via host.docker.internal.
         internalUrl:
             configService.get<string>("COMPUTE_K8S_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,
-        internalSecret: configService.get<string>("INTERNAL_API_SECRET") ?? "",
         context: configService.get<string>("COMPUTE_K8S_CONTEXT"),
     };
 }
