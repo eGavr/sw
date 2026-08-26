@@ -22,4 +22,7 @@ services:
       KC_HTTP_PORT: "8085"
       KC_HOSTNAME: ${KC_HOSTNAME_URL:?set KC_HOSTNAME_URL}
       KC_HOSTNAME_STRICT: "false"
+      # When fronted by a TLS-terminating reverse proxy (Caddy), trust its X-Forwarded-* headers so Keycloak
+      # builds https issuer/redirect URLs. Set KC_HOSTNAME_URL to the public https origin.
+      KC_PROXY_HEADERS: xforwarded
     restart: unless-stopped
