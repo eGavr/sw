@@ -1,0 +1,25 @@
+# Keycloak identity broker, co-located on the sw-service VM (cheap prod-auth). It federates an external
+# provider (GitHub/Google) and mints OUR OIDC token, which the deployed service verifies (single issuer).
+# Its state lives in a SEPARATE `keycloak` database on the same co-located Postgres, so it is portable to a
+# dedicated VM later (dump the `keycloak` DB + move this container; keep the issuer URL stable). Host
+# networking so it reaches Postgres on loopback and the browser/service reach it at :8085.
+#
+# HTTP only (no TLS) — this verifies the real third-party login flow at minimum cost; TLS + a real domain
+# is the hardening step for a true production issuer. Required env: KC_ADMIN_PASSWORD, KC_DB_PASSWORD,
+# KC_HOSTNAME_URL (e.g. http://<vm-public-ip>:8085).
+services:
+  keycloak:
+    image: ${KC_IMAGE:?set KC_IMAGE}
+    network_mode: host
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?set KC_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://127.0.0.1:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?set KC_DB_PASSWORD}
+      KC_HTTP_PORT: "8085"
+      KC_HOSTNAME: ${KC_HOSTNAME_URL:?set KC_HOSTNAME_URL}
+      KC_HOSTNAME_STRICT: "false"
+    restart: unless-stopped
