@@ -28,12 +28,15 @@ ARG KUBECTL_VERSION
 WORKDIR /app
 ENV NODE_ENV=production
 # ca-certificates for outbound TLS (Postgres SSL, registry); kubectl for the k8s compute adapter; the yc
-# CLI for the Android (YC Compute VM) adapter (installed from YC object storage, no rc/PATH changes).
+# CLI for the Android (YC Compute VM) adapter; the docker CLI for the docker compute adapter (talks to a
+# mounted host docker socket — lets the worker run browser env containers on a plain VM). All static, no rc.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && curl -fsSL -o /usr/local/bin/kubectl \
        "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/$(dpkg --print-architecture)/kubectl" \
     && chmod +x /usr/local/bin/kubectl \
+    && curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz \
+       | tar -xzO docker/docker > /usr/local/bin/docker && chmod +x /usr/local/bin/docker \
     && curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /opt/yc -n \
     && ln -s /opt/yc/bin/yc /usr/local/bin/yc \
     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*

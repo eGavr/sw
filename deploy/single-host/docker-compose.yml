@@ -42,6 +42,18 @@ x-service-env: &service-env
   # Android boots slowly: keep the provisioning lease and heartbeat window generous.
   WORKER_PREPARING_TIMEOUT_MS: ${WORKER_PREPARING_TIMEOUT_MS:-360000}
   HEARTBEAT_FRESHNESS_MS: ${HEARTBEAT_FRESHNESS_MS:-120000}
+  # Browser (docker) env compute: the worker runs stock selenium containers on the host's docker (socket
+  # mounted into the worker below). The browser node reaches the internal API at COMPUTE_DOCKER_INTERNAL_URL
+  # (the docker bridge gateway routes to the host); wd reaches the published node port on the loopback.
+  COMPUTE_DOCKER_IMAGE: ${COMPUTE_DOCKER_IMAGE:-selenium/standalone-chrome:latest}
+  COMPUTE_DOCKER_INTERNAL_URL: ${COMPUTE_DOCKER_INTERNAL_URL:-http://172.17.0.1:3002}
+  COMPUTE_DOCKER_ADVERTISE_HOST: ${COMPUTE_DOCKER_ADVERTISE_HOST:-127.0.0.1}
+  # Session artifacts (logs/video) → S3-compatible storage when LOG_STORAGE=s3. Credentials are the service's
+  # OWN delegated identity (SDK default chain reads AWS_*); the user's bucket grants that identity access — we
+  # never hold the user's secrets. The bucket/endpoint/region are per project (registered as StorageDestination).
+  LOG_STORAGE: ${LOG_STORAGE:-memory}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
 
 services:
   db:
@@ -104,6 +116,11 @@ services:
   worker:
     image: ${SW_IMAGE:?set SW_IMAGE}
     network_mode: host
+    # root + the host docker socket so the docker compute adapter can run browser env containers on this VM
+    # (docker-out-of-docker). Only the worker provisions, so only it needs the socket.
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     environment: *service-env
     command: ["node", "build/src/presentation/worker/index.js"]
     depends_on:
