@@ -1,0 +1,115 @@
+# Minimum-cost single-host deploy of the sw control plane.
+#
+# One small amd64 Compute VM runs everything the service needs: Postgres co-located with the four service
+# processes (all one image, different commands). ENVIRONMENTS ARE NOT RUN HERE — the worker provisions them
+# separately on demand (android → on-demand YC Compute VMs from the golden image; browser → a docker/k8s
+# compute backend), so the always-on cost is just this one VM.
+#
+# The service processes use host networking so the worker reaches the YC metadata service (169.254.169.254)
+# for its SA token and env VMs reach the internal callback at http://<this-vm-private-ip>:3002. Postgres stays
+# on loopback only (127.0.0.1:5432) — never exposed on the VM's public IP. Required env: POSTGRES_PASSWORD,
+# INTERNAL_API_SECRET, SW_IMAGE. For OIDC set AUTH_STRATEGY=oidc + OIDC_* (else the cheap local stub, which
+# is refused when NODE_ENV=production — keep NODE_ENV=staging for the local-auth bring-up).
+x-service-env: &service-env
+  NODE_ENV: ${NODE_ENV:-staging}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  POSTGRES_HOST: 127.0.0.1
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: ${POSTGRES_USER:-sw}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+  POSTGRES_DATABASE: ${POSTGRES_DATABASE:-sw}
+  POSTGRES_SSL: "false"
+  AUTH_STRATEGY: ${AUTH_STRATEGY:-local}
+  OIDC_ISSUER: ${OIDC_ISSUER:-}
+  OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+  OIDC_JWKS_URI: ${OIDC_JWKS_URI:-}
+  OIDC_GROUPS_CLAIM: ${OIDC_GROUPS_CLAIM:-groups}
+  API_PORT: "3000"
+  WD_PORT: "3001"
+  INTERNAL_PORT: "3002"
+  INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?set INTERNAL_API_SECRET}
+  # On-demand Android env VMs (redroid). The worker authenticates to the YC API with this VM's SA token from
+  # the metadata service; env VMs call back to the internal API at COMPUTE_ANDROID_INTERNAL_URL.
+  COMPUTE_ANDROID_IMAGE_ID: ${COMPUTE_ANDROID_IMAGE_ID:-fd8opcrg042a3lu6u90e}
+  COMPUTE_ANDROID_ZONE: ${COMPUTE_ANDROID_ZONE:-ru-central1-a}
+  COMPUTE_ANDROID_SUBNET_ID: ${COMPUTE_ANDROID_SUBNET_ID:-e9bcp55uhm61e0jln645}
+  COMPUTE_ANDROID_SECURITY_GROUP_ID: ${COMPUTE_ANDROID_SECURITY_GROUP_ID:-enpktcul739o27mqntlp}
+  COMPUTE_ANDROID_FOLDER_ID: ${COMPUTE_ANDROID_FOLDER_ID:?set COMPUTE_ANDROID_FOLDER_ID}
+  COMPUTE_ANDROID_DEFAULT_VERSION: ${COMPUTE_ANDROID_DEFAULT_VERSION:-13}
+  COMPUTE_ANDROID_DISK_GB: ${COMPUTE_ANDROID_DISK_GB:-40}
+  COMPUTE_ANDROID_MEMORY_GB: ${COMPUTE_ANDROID_MEMORY_GB:-16}
+  COMPUTE_ANDROID_INTERNAL_URL: ${COMPUTE_ANDROID_INTERNAL_URL:?set to http://<this-vm-private-ip>:3002}
+  # Android boots slowly: keep the provisioning lease and heartbeat window generous.
+  WORKER_PREPARING_TIMEOUT_MS: ${WORKER_PREPARING_TIMEOUT_MS:-360000}
+  HEARTBEAT_FRESHNESS_MS: ${HEARTBEAT_FRESHNESS_MS:-120000}
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sw}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE:-sw}
+    volumes:
+      - sw-pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sw} -d ${POSTGRES_DATABASE:-sw}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    image: ${SW_IMAGE:?set SW_IMAGE}
+    network_mode: host
+    environment: *service-env
+    command: ["npm", "run", "pg:migration:run:built"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: ${SW_IMAGE:?set SW_IMAGE}
+    network_mode: host
+    environment: *service-env
+    command: ["node", "build/src/presentation/http/api/index.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  wd:
+    image: ${SW_IMAGE:?set SW_IMAGE}
+    network_mode: host
+    environment: *service-env
+    command: ["node", "build/src/presentation/http/wd/index.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  internal:
+    image: ${SW_IMAGE:?set SW_IMAGE}
+    network_mode: host
+    environment: *service-env
+    command: ["node", "build/src/presentation/http/internal/index.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    image: ${SW_IMAGE:?set SW_IMAGE}
+    network_mode: host
+    environment: *service-env
+    command: ["node", "build/src/presentation/worker/index.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  sw-pgdata:
