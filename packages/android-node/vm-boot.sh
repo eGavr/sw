@@ -14,7 +14,7 @@ attribute() { curl -s -H "${header}" "${metadata}/$1"; }
 environment_id=$(attribute sw-environment-id)
 redroid_tag=$(attribute sw-redroid-tag); redroid_tag=${redroid_tag:-11.0.0-latest}
 internal_url=$(attribute sw-internal-url)
-internal_secret=$(attribute sw-internal-secret)
+internal_token=$(attribute sw-internal-token)
 # The endpoint the control plane routes WebDriver traffic to is this VM's own private IP — always derived
 # here, since the adapter cannot know the IP before the VM exists (a missing sw-endpoint attribute comes
 # back as the literal "Not Found" from the metadata service, so it can't be used as an override).
@@ -36,12 +36,12 @@ docker run -d --name sw-node --restart unless-stopped --network "container:sw-re
     -e SW_ENVIRONMENT_ID="${environment_id}" \
     -e SW_ENDPOINT="${endpoint}" \
     -e SW_INTERNAL_URL="${internal_url}" \
-    -e SW_INTERNAL_SECRET="${internal_secret}" \
+    -e SW_INTERNAL_TOKEN="${internal_token}" \
     -e SW_SESSION_LOG_GLOB="/tmp/sw-session.log" \
     -e REDROID_ADDR="127.0.0.1:5555" \
     --entrypoint bash sw/android-node:latest -c '
         for attempt in 1 2 3 4 5; do
-            curl -fsSL -H "x-internal-secret: $SW_INTERNAL_SECRET" \
+            curl -fsSL -H "Authorization: Bearer $SW_INTERNAL_TOKEN" \
                 "$SW_INTERNAL_URL/internal/agentScript:download" -o /tmp/sw-agent.sh && break
             sleep 2
         done

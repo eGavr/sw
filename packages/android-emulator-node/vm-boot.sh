@@ -18,7 +18,7 @@ environment_id=$(attribute sw-environment-id)
 # The AVD to boot, named by convention sw-android-<version>; must be one baked into this image.
 avd=$(attribute sw-android-avd); avd=${avd:-sw-android-34}
 internal_url=$(attribute sw-internal-url)
-internal_secret=$(attribute sw-internal-secret)
+internal_token=$(attribute sw-internal-token)
 # The endpoint the control plane routes WebDriver traffic to is this VM's own private IP — derived here,
 # since the adapter cannot know the IP before the VM exists (like the redroid path).
 internal_ip=$(curl -s -H "${header}" "http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/ip")
@@ -44,12 +44,12 @@ nohup emulator -avd "${avd}" -no-window -no-audio -no-boot-anim -no-snapshot \
 export SW_ENVIRONMENT_ID="${environment_id}"
 export SW_ENDPOINT="${endpoint}"
 export SW_INTERNAL_URL="${internal_url}"
-export SW_INTERNAL_SECRET="${internal_secret}"
+export SW_INTERNAL_TOKEN="${internal_token}"
 export SW_SESSION_LOG_GLOB="/tmp/sw-session.log"
 export REDROID_ADDR="127.0.0.1:5555"
 
 for _ in 1 2 3 4 5; do
-    curl -fsSL -H "x-internal-secret: ${SW_INTERNAL_SECRET}" \
+    curl -fsSL -H "Authorization: Bearer ${SW_INTERNAL_TOKEN}" \
         "${SW_INTERNAL_URL}/internal/agentScript:download" -o /tmp/sw-agent.sh && break
     sleep 2
 done
