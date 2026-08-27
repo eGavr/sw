@@ -1,3 +1,4 @@
+import { CloudAccountId } from "../../../domain/entities/cloud-account/cloud-account-id";
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
 import { CrashedExecutionCriteria } from "../../../domain/entities/environment/crashed-execution-criteria";
 import { Environment } from "../../../domain/entities/environment/environment";
@@ -9,14 +10,13 @@ import { Platform } from "../../../domain/entities/environment/platform/platform
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
 import { StuckProvisioningCriteria } from "../../../domain/entities/environment/stuck-provisioning-criteria";
 import { ProjectId } from "../../../domain/entities/project/project-id";
-import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
 import { Page, PageRequest } from "../../pagination";
 
 export type CreateEnvironmentParams = {
     resourceId?: string;
     projectId: ProjectId;
-    providerAccountId?: ProviderAccountId | null;
-    provider?: string | null;
+    cloudAccountId?: CloudAccountId | null;
+    cloudType?: string | null;
     platform: Platform;
     execution?: Execution;
     applications: ApplicationList;

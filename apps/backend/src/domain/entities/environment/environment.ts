@@ -1,7 +1,7 @@
 import { ResourceId } from "../../types/resource-id/resource-id";
+import { CloudAccountId } from "../cloud-account/cloud-account-id";
 import { InvalidArgumentError } from "../error/invalid-argument-error";
 import { ProjectId } from "../project/project-id";
-import { ProviderAccountId } from "../provider-account/provider-account-id";
 
 import { Application, ApplicationData } from "./application/application";
 import { ApplicationList } from "./application/application-list";
@@ -18,8 +18,8 @@ export type EnvironmentData = {
     id: string;
     resourceId?: string | null;
     projectId: string;
-    providerAccountId?: string | null;
-    provider?: string | null;
+    cloudAccountId?: string | null;
+    cloudType?: string | null;
     state: string;
     stateReason?: string | null;
     platform: PlatformData;
@@ -36,8 +36,10 @@ export type EnvironmentData = {
 export type EnvironmentCreateParams = {
     resourceId?: string;
     projectId: ProjectId;
-    providerAccountId?: ProviderAccountId | null;
-    provider?: string | null;
+    // Which cloud this environment runs on, plus its type denormalised for routing (adapter = (cloudType,
+    // execution)) without loading the cloud account.
+    cloudAccountId?: CloudAccountId | null;
+    cloudType?: string | null;
     platform: Platform;
     execution?: Execution;
     applications: ApplicationList;
@@ -47,8 +49,8 @@ type EnvironmentConstructorParams = {
     id?: EnvironmentId;
     resourceId?: string | null;
     projectId: ProjectId;
-    providerAccountId?: ProviderAccountId | null;
-    provider?: string | null;
+    cloudAccountId?: CloudAccountId | null;
+    cloudType?: string | null;
     state?: EnvironmentState;
     stateReason?: EnvironmentStateReason | null;
     platform: Platform;
@@ -72,8 +74,8 @@ export class Environment {
             id: EnvironmentId.fromString(data.id),
             resourceId: data.resourceId,
             projectId: ProjectId.fromString(data.projectId),
-            providerAccountId: data.providerAccountId ? ProviderAccountId.fromString(data.providerAccountId) : null,
-            provider: data.provider ?? null,
+            cloudAccountId: data.cloudAccountId ? CloudAccountId.fromString(data.cloudAccountId) : null,
+            cloudType: data.cloudType ?? null,
             state: Environment.toState(data.state),
             stateReason: data.stateReason ? Environment.toStateReason(data.stateReason) : null,
             platform: Platform.fromObject(data.platform),
@@ -116,8 +118,8 @@ export class Environment {
     private readonly _id: EnvironmentId;
     private readonly _resourceId: ResourceId | null;
     private readonly _projectId: ProjectId;
-    private readonly _providerAccountId: ProviderAccountId | null;
-    private readonly _provider: string | null;
+    private readonly _cloudAccountId: CloudAccountId | null;
+    private readonly _cloudType: string | null;
     private _state: EnvironmentState;
     private _stateReason: EnvironmentStateReason | null;
     private _endpoint: EnvironmentEndpoint | null;
@@ -130,8 +132,8 @@ export class Environment {
         this._id = params.id ?? EnvironmentId.create();
         this._resourceId = params.resourceId ? new ResourceId(params.resourceId) : null;
         this._projectId = params.projectId;
-        this._providerAccountId = params.providerAccountId ?? null;
-        this._provider = params.provider ?? null;
+        this._cloudAccountId = params.cloudAccountId ?? null;
+        this._cloudType = params.cloudType ?? null;
         this._state = params.state ?? EnvironmentState.Enqueued;
         this._stateReason = params.stateReason ?? null;
         this.platform = params.platform;
@@ -158,12 +160,13 @@ export class Environment {
         return this._projectId;
     }
 
-    get providerAccountId(): string | null {
-        return this._providerAccountId?.getValue() ?? null;
+    get cloudAccountId(): string | null {
+        return this._cloudAccountId?.getValue() ?? null;
     }
 
-    get provider(): string | null {
-        return this._provider;
+    // The cloud type this runs on, denormalised for routing (adapter = (cloudType, execution)).
+    get cloudType(): string | null {
+        return this._cloudType;
     }
 
     get state(): EnvironmentState {
@@ -297,8 +300,8 @@ export class Environment {
             id: this.id,
             resourceId: this.resourceId,
             projectId: this._projectId.getValue(),
-            providerAccountId: this.providerAccountId,
-            provider: this._provider,
+            cloudAccountId: this.cloudAccountId,
+            cloudType: this._cloudType,
             state: this._state,
             stateReason: this._stateReason,
             platform: this.platform.toObject(),

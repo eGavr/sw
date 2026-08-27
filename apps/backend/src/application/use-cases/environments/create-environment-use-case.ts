@@ -1,5 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
+import { CloudAccountId } from "../../../domain/entities/cloud-account/cloud-account-id";
+import { CloudAccountList } from "../../../domain/entities/cloud-account/cloud-account-list";
+import { NoActiveCloudAccountError } from "../../../domain/entities/cloud-account/error/no-active-cloud-account-error";
 import { Application } from "../../../domain/entities/environment/application/application";
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
 import { Environment } from "../../../domain/entities/environment/environment";
@@ -7,13 +10,10 @@ import { defaultExecution, toExecution } from "../../../domain/entities/environm
 import { Platform } from "../../../domain/entities/environment/platform/platform";
 import { ResourceIdConflictError } from "../../../domain/entities/error/resource-id-conflict-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
-import { NoActiveProviderAccountError } from "../../../domain/entities/provider-account/error/no-active-provider-account-error";
-import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
-import { ProviderAccountList } from "../../../domain/entities/provider-account/provider-account-list";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
+import { CloudAccountRepository } from "../../interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
-import { ProviderAccountRepository } from "../../interfaces/repositories/provider-account-repository";
 import { AccessControl } from "../../services/access-control";
 
 type CreateEnvironmentInput = {
@@ -44,7 +44,7 @@ export class CreateEnvironmentUseCase {
         private readonly accessControl: AccessControl,
         private readonly projectRepository: ProjectRepository,
         private readonly environmentRepository: EnvironmentRepository,
-        private readonly providerAccountRepository: ProviderAccountRepository,
+        private readonly cloudAccountRepository: CloudAccountRepository,
     ) {}
 
     async execute({ creds, params }: CreateEnvironmentInput): Promise<Environment> {
@@ -62,11 +62,11 @@ export class CreateEnvironmentUseCase {
         }
 
         const execution = params.execution ? toExecution(params.execution) : defaultExecution;
-        const providerAccounts = await this.providerAccountRepository.listActiveByProject(projectId);
-        const providerAccount = ProviderAccountList.of(providerAccounts).resolveFor(params.platform.name, execution);
+        const cloudAccounts = await this.cloudAccountRepository.listActiveByProject(projectId);
+        const cloudAccount = CloudAccountList.of(cloudAccounts).resolveActiveFor(params.platform.name, execution);
 
-        if (!providerAccount) {
-            throw new NoActiveProviderAccountError(projectId.getValue());
+        if (!cloudAccount) {
+            throw new NoActiveCloudAccountError(projectId.getValue());
         }
 
         const applications = ApplicationList.create({
@@ -76,8 +76,8 @@ export class CreateEnvironmentUseCase {
         return this.environmentRepository.create({
             resourceId: params.environmentId,
             projectId,
-            providerAccountId: ProviderAccountId.fromString(providerAccount.id),
-            provider: providerAccount.provider,
+            cloudAccountId: CloudAccountId.fromString(cloudAccount.id),
+            cloudType: cloudAccount.type,
             platform: Platform.fromObject(params.platform),
             execution,
             applications,

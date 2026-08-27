@@ -30,10 +30,15 @@ describe("human-readable environment ids", () => {
         await app.close();
     });
 
+    const connectCloud = (projectId: string, owner: AuthHeader): request.Test =>
+        request(app.getHttpServer()).post(`/projects/${projectId}/cloudAccounts`).set(owner).send({ type: "noop" });
+
     const createProject = async (): Promise<{ owner: AuthHeader, projectId: string }> => {
         const owner = Authorization.forUser(UserFactory.createId());
         const { body } = await request(app.getHttpServer())
             .post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
+
+        await connectCloud(body.uid, owner).expect(HttpStatus.CREATED);
 
         return { owner, projectId: body.uid };
     };
@@ -100,6 +105,7 @@ describe("human-readable environment ids", () => {
         const projectId = humanId();
         await request(app.getHttpServer())
             .post("/projects").set(owner).send(CreateProjectBody.create({ projectId })).expect(HttpStatus.CREATED);
+        await connectCloud(projectId, owner).expect(HttpStatus.CREATED);
 
         const environmentId = humanId();
         const { body } = await createEnvironment(projectId, owner, { environmentId }).expect(HttpStatus.CREATED);

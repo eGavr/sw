@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { AgentTokenService } from "../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
 import { ProviderCatalog } from "../../../application/interfaces/provider-catalog";
+import { Execution } from "../../../domain/entities/environment/execution";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 
 import { defaultAgentEntrypoint } from "./agent-bootstrap";
@@ -51,7 +52,7 @@ import {
 } from "./kubernetes/kubernetes-environment-provider-gateway";
 import { NoopEnvironmentProviderGateway } from "./noop-environment-provider-gateway";
 import { RegisteredProviderCatalog } from "./registered-provider-catalog";
-import { RoutingEnvironmentProviderGateway } from "./routing-environment-provider-gateway";
+import { RoutingEnvironmentProviderGateway, routingKey } from "./routing-environment-provider-gateway";
 import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 
 // Fallback callback-API port when INTERNAL_PORT is unset; the env files always set it to 3002.
@@ -67,14 +68,17 @@ export const EnvironmentProviderGatewayProvider = {
         // SE_NODE_SESSION_TIMEOUT — no per-backend copy of the default.
         const idleTimeoutSeconds = resolveSessionIdleTimeout(configService).toSeconds();
 
+        // Keyed by (cloud type, execution): the environment carries its cloud type + execution and the
+        // routing gateway dispatches here. yandex-cloud serves both android substrates (redroid/emulator).
         const gateways = new Map<string, EnvironmentProviderGateway>([
-            ["noop", new NoopEnvironmentProviderGateway()],
-            ["docker", new DockerEnvironmentProviderGateway(
+            [routingKey("noop", Execution.Container), new NoopEnvironmentProviderGateway()],
+            [routingKey("noop", Execution.Emulator), new NoopEnvironmentProviderGateway()],
+            [routingKey("docker", Execution.Container), new DockerEnvironmentProviderGateway(
                 new DockerClient(),
                 dockerConfig(configService, idleTimeoutSeconds),
                 agentTokens,
             )],
-            ["kubernetes", new KubernetesEnvironmentProviderGateway(
+            [routingKey("kubernetes", Execution.Container), new KubernetesEnvironmentProviderGateway(
                 new KubernetesClient(
                     configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultNamespace,
                     configService.get<string>("COMPUTE_K8S_CONTEXT"),
@@ -82,12 +86,12 @@ export const EnvironmentProviderGatewayProvider = {
                 kubernetesConfig(configService, idleTimeoutSeconds),
                 agentTokens,
             )],
-            [androidRedroidProviderValue, new AndroidRedroidEnvironmentProviderGateway(
+            [routingKey("yandex-cloud", Execution.Container), new AndroidRedroidEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_FOLDER_ID")),
                 androidRedroidConfig(configService),
                 agentTokens,
             )],
-            [androidEmulatorProviderValue, new AndroidEmulatorEnvironmentProviderGateway(
+            [routingKey("yandex-cloud", Execution.Emulator), new AndroidEmulatorEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_EMULATOR_FOLDER_ID")),
                 androidEmulatorConfig(configService),
                 agentTokens,

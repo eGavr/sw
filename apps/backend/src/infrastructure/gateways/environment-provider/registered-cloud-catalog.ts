@@ -6,7 +6,9 @@ import { Execution } from "../../../domain/entities/environment/execution";
 // backend means adding an entry here (and its adapter/routing). The domain stays cloud-agnostic: a
 // CloudAccount only stores the `provides` materialised from this catalogue at connect time.
 const substratesByType = new Map<string, ReadonlyArray<Stereotype>>([
-    ["noop", [new Stereotype("linux", Execution.Container)]],
+    // A dry-run cloud for tests: provisions nothing, but declares the linux substrates so the full
+    // lifecycle (both executions) can be driven against real Postgres without a real backend.
+    ["noop", [new Stereotype("linux", Execution.Container), new Stereotype("linux", Execution.Emulator)]],
     ["docker", [new Stereotype("linux", Execution.Container)]],
     ["kubernetes", [new Stereotype("linux", Execution.Container)]],
     [
