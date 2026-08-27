@@ -104,8 +104,10 @@ export class CloudAccount {
         return this._projectId;
     }
 
+    // A shallow copy so callers can't mutate the aggregate's internal state through the getter — changes go
+    // through updateConfig(). (toObject keeps the raw ref: it is the serialization boundary for persistence.)
     get config(): CloudConfig {
-        return this._config;
+        return { ...this._config };
     }
 
     get state(): CloudAccountState {
