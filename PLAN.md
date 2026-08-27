@@ -890,3 +890,54 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 
 Проверка (из корня): `pnpm --filter @sw/backend run build` · `pnpm --filter @sw/backend run lint` · `pnpm --filter @sw/backend run test:unit`.
 Дев-e2e делаю поднятием реальных `api`/`wd` + Postgres(5433) + Docker и curl-прогоном (см. историю сессии).
+
+## UI / дашборд (frontend) — В РАБОТЕ
+
+**Стек (выбран, сверено с мировой практикой):** pnpm-монорепа, приложение `apps/frontend` = **Next.js (App Router) + Auth.js (NextAuth v5, Keycloak-провайдер) + Mantine**. Дизайн — НЕ с нуля: тема Mantine + готовые блоки Mantine UI, расширяем по мере надобности.
+
+**Аутентификация = BFF-паттерн (самый безопасный из 3 по IETF «OAuth 2.0 for Browser-Based Apps»; сверено с Auth0/Curity/FusionAuth).** Наш OIDC-токен живёт ТОЛЬКО на сервере Next (BFF); браузер держит лишь httpOnly cookie-сессию; route-handlers `/api/sw/*` проксируют к sw `api`/`wd`, подставляя `Bearer` на сервере. Токена в браузере нет. Гочи: отдельный **confidential** Keycloak-клиент `sw-web` (не public `sw-api`) + audience-mapper `aud=sw`; форвардить **access_token** (не id_token); refresh в jwt-колбэке; НЕ отдавать токены через `/api/auth/session`; нормальный TLS (наш Caddy self-signed → back-channel Node↔Keycloak споткнётся; нужен реальный серт по DNS-01). CORS не нужен. Механизм BFF-сессии (encrypted-cookie vs server-store) — при wiring auth.
+
+**Модель секретов (СОГЛАСОВАНО):** `session-id` несёт секрет `wdSessionId` → **не храним НИГДЕ** (ни БД, ни кука, ни localStorage) — консистентно с «секрет сессии не персистим». После создания сессии показываем id **один раз** (copy) — дальше он у пользователя, как session-id у обычного WebDriver-клиента. Взаимодействие — через **stateless «Inspect session»**: вставил id → VNC / логи / видео (readback project-scoped, право `sw.sessions.get`). Ничего at-rest. **Durable-история сессий — отдельная будущая фича** (неизбежно требует персистить capability → отдельное решение по секрету; вариант «RAM BFF + прокси VNC-WS по opaque-хэндлу» — тоже без БД).
+
+**Экраны MVP:** Login (Keycloak → Google/Yandex) → **Projects** (+create) → **Project → Environments** (список + `state`; +create/+delete; +New session) → **New session** (capabilities + тумблеры `sw:logging`/`sw:video`; id один раз) → **Inspect session** (Live-VNC / Logs / Video, stateless). Якорь — окружение; отдельной вкладки-списка сессий нет (у бэкенда нет ручки «список сессий»).
+
+**Доставка — ИНКРЕМЕНТАЛЬНО, маленькими под-PR, каждый запускаем и открываем локально** (`pnpm --filter @sw/frontend dev`), а не одним большим PR:
+- **шаг 1:** скаффолд Next+Mantine — рендерится AppShell + плейсхолдер Projects (моки/пусто), БЕЗ auth. Открывается локально.
+- **шаг 2:** Auth.js (Keycloak, BFF) + `/api/sw/*` прокси → реальный список Projects.
+- **шаг 3:** Project → Environments (список/create/delete).
+- **шаг 4:** New session (caps + тумблеры, id один раз).
+- **шаг 5:** Inspect session (VNC/Logs/Video, stateless).
+
+**Backend follow-ups для occupancy (ОТДЕЛЬНЫМИ шагами, НЕ во фронт-PR):**
+- **Отдать `busy` (bool) + `lastHeartbeatAt` в GET environments.** Presenter сейчас отдаёт только `state`. Занятость **ортогональна** lifecycle: и свободное, и занятое окружение — оба `state=executing` (сессия не меняет lifecycle, `busy` ставит хартбит агента) → из `state` не вывести. `busy` — не секрет. Нужно для колонки Occupancy (`busy`/`free` + свежесть хартбита).
+- **Таймстемпы перехода `busy↔free`** («стало занято/свободно в HH:MM»): бэкенд сейчас НЕ пишет момент перехода (только `updatedAt`/`lastHeartbeatAt`) → нужна доп-колонка/событие. Для UI «busy since / free since».
+
+## Рефактор БЛИЖАЙШИЙ (приоритет): `CloudAccount` × `ComputeBinding` (расщепить провайдера на «облако × вид compute») — НЕ начато
+
+**Мотивация (всплыло на UI-этапе, юзер хочет поддержать сразу).** Сейчас `ProviderAccount.provider` **конфлейтит два понятия**: (1) вид compute/адаптер и (2) неявно — облако. `android-redroid` жёстко = redroid **на Yandex Cloud** (адаптер в коде делает `new YandexComputeClient(...)`). Из-за этого **один и тот же вид compute на втором облаке невозможен** без дубля адаптеров (`android-redroid-<cloud>`), а «какое облако» не является настраиваемой сущностью.
+
+**Цель — расщепить на две сущности:**
+- **`CloudAccount`** (привязка проекта к ВНЕШНЕМУ облаку/субстрату): тип облака + **`credentialRef`** (секрет-стор) + облако-уровневый config (для YC: `folderId`/`zone`/`subnetId`/`securityGroupId`/`region`). Это «на каком облаке и как к нему авторизуемся». N на проект.
+- **`ComputeBinding`** (перепрофилированный `ProviderAccount`): **вид compute** (`container`/`redroid`/`emulator`/`pod`/`docker`) + per-kind config (`image`/sizing) + **ссылка на `CloudAccount`** + `(platform, execution)` для роутинга. N на проект.
+- Итог: **провайдер = вид × облако.** «redroid на YC» и «redroid на cloud-Y» = один `ComputeBinding`-вид × два `CloudAccount`.
+
+**Что меняется:**
+- **Домен:** новый агрегат `CloudAccount`; `ComputeBinding` вместо/на основе `ProviderAccount`; «вид compute» становится значением, отделённым от облака.
+- **Адаптеры — cloud-agnostic:** ввести **порт облака/VM** (напр. `VmProvisioner`/`ComputeVmCloud`) c YC-реализацией (`YandexComputeClient` уходит за порт); redroid/emulator-адаптеры зависят от порта, а КОНКРЕТНОЕ облако (client+creds+config) им даёт `CloudAccount`. docker/k8s тоже выражаются как «облако» (`local-docker`/`k8s-cluster`).
+- **Роутинг:** env → project → `ComputeBinding` по `(platform, execution)` → его `CloudAccount` → облачный клиент.
+- **API + миграции:** management-ручки `cloudAccounts` + `computeBindings` (или вложенно), create-project bootstrap переписать; миграции таблиц.
+- **UI (Add provider):** становится «выбрать вид compute + выбрать/создать `CloudAccount`», а не одну строку `provider`.
+- **Ломающее изменение — no users → делаем чисто, без compat-shim** ([[breaking-changes-ok]]).
+
+## Follow-up: Provider **config descriptors** (schema-driven форма вместо сырого JSON) — НЕ начато
+
+`config` сейчас — opaque `Record<string,unknown>`, у UI нет схемы → форму не построить. Нужно, чтобы **каталог описывал схему конфига на каждый вид/провайдер** (дескрипторы полей / JSON Schema: redroid → `imageId/zone/subnet/sizing`, docker → `image/port`), и ручка отдавала это (напр. `GET supported providers` поверх `ProviderCatalog.list()` + схемы). Тогда фронт рендерит **типизированную форму** (Select провайдера, поля конфига по схеме) вместо ручного JSON. Сюда же — мини-ручка «список поддерживаемых провайдеров» (чтобы Select не хардкодить) и провайдер-`displayName` (человеческое имя в таблице — сейчас у `ProviderAccount` только uuid). Связано с рефактором `CloudAccount`×`ComputeBinding` выше (каждый вид×облако объявляет свою схему).
+
+## Follow-up: per-env targeting сессии через `sw:environmentId` (для UI/демо) — НЕ начато (к step 4)
+
+Дефолт остаётся **capability-based** (аллоцировать любой свободный `executing`-env под caps) — основной продуктовый путь. Добавляем **опциональную кастомную капу `sw:environmentId`**: если указана — сессия создаётся на КОНКРЕТНОМ окружении (детерминированно), иначе pool-аллокация как сейчас. Нужно, чтобы UI имел понятную кнопку **«New session» на строке конкретного env** (создание окружения — отдельная кнопка). Реализация — как `sw:execution`: резолвер сессии читает капу → домен кладёт в `SessionAllocationCriteria` доп-фильтр env-id → `findAllocatable` фильтрует по одному кандидату (тот же optimistic pick). **Матчинг caps — СТРОГИЙ.** Семантика ошибок (важно — по HTTP/AIP-смыслу, НЕ всё 409):
+- targeted env НЕ несёт запрошенный `browserName` → **400 INVALID_ARGUMENT** (несочетаемый запрос, а не состояние-конфликт);
+- env не найден / не в проекте вызывающего → **404 NOT_FOUND** (не течём наружу);
+- env существует, но не `executing` (провижнится/failed) → **409 ABORTED/Conflict** (transient состояние);
+- env матчит и свободен, но занят/reject ноды → **409 Conflict** (как текущий busy / `NoAllocatableEnvironmentError`).
+То есть **409 — только про состояние** (занято/не готово), **400 — про несовместимость запроса** (targeted env без нужного browser). Это опт-ин таргетинг для UI/отладки, НЕ отказ от pool-модели.
