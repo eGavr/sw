@@ -3,25 +3,12 @@ import { promisify } from "util";
 
 import { Injectable } from "@nestjs/common";
 
+import { VmInstanceOptions, VmProvisioner } from "../vm/vm-provisioner";
+
 const execFileAsync = promisify(execFile);
 
 const metadataTokenUrl =
     "http://169.254.169.254/computeMetadata/v1/instance/service-projects/default/token";
-
-export type YandexComputeInstanceOptions = {
-    name: string;
-    imageId: string;
-    // The hardware platform to schedule on; used to select a KVM-capable platform for the Android emulator
-    // (which needs /dev/kvm). Omitted for the browser/redroid path, which takes the folder's default.
-    platformId?: string;
-    zone: string;
-    subnetId: string;
-    securityGroupId?: string;
-    cores: number;
-    memoryGb: number;
-    diskSizeGb: number;
-    metadata: Record<string, string>;
-};
 
 // Thin wrapper around the `yc` CLI (the same shell-out pattern as DockerClient/KubernetesClient). It runs
 // the operational verbs against YC Compute; the environment data the control plane needs comes back via the
@@ -29,10 +16,12 @@ export type YandexComputeInstanceOptions = {
 // metadata service and passes it as YC_TOKEN (kept out of argv/ps); locally it falls back to the ambient
 // `yc` profile. The folder is passed explicitly because a token-authenticated call has no profile default.
 @Injectable()
-export class YandexComputeClient {
-    constructor(private readonly folderId?: string) {}
+export class YandexComputeClient extends VmProvisioner {
+    constructor(private readonly folderId?: string) {
+        super();
+    }
 
-    async createInstance(options: YandexComputeInstanceOptions): Promise<void> {
+    async createInstance(options: VmInstanceOptions): Promise<void> {
         const metadata = Object.entries(options.metadata).map(([key, value]) => `${key}=${value}`).join(",");
         // Internal-only: no NAT/public IP. The env VM is reached by wd within the VPC and calls the control
         // plane back via the internal load balancer, so a public IP is unnecessary (and would need

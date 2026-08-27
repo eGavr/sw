@@ -1,7 +1,7 @@
 import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
-import { YandexComputeClient } from "../yandex-compute/yandex-compute-client";
+import { VmProvisioner } from "../vm/vm-provisioner";
 
 import { AndroidEmulatorEnvironmentConfig } from "./android-emulator-environment-config";
 
@@ -17,7 +17,7 @@ export const androidEmulatorProviderValue = "android-emulator";
 // VM. Only the YC CLI is provider-specific; the boot infra runs on any host that exposes /dev/kvm.
 export class AndroidEmulatorEnvironmentProviderGateway extends EnvironmentProviderGateway {
     constructor(
-        private readonly compute: YandexComputeClient,
+        private readonly compute: VmProvisioner,
         private readonly config: AndroidEmulatorEnvironmentConfig,
         private readonly agentTokens: AgentTokenService,
     ) {
