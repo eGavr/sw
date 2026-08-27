@@ -170,7 +170,11 @@ export function EnvironmentsTab({ project }: { project: string }) {
           </Group>
           <Select
             label="Execution"
-            data={["container", "emulator", "device"]}
+            data={[
+              { value: "container", label: "container" },
+              { value: "emulator", label: "emulator (soon)", disabled: true },
+              { value: "device", label: "device (soon)", disabled: true },
+            ]}
             value={execution}
             onChange={(v) => setExecution(v ?? "container")}
           />
