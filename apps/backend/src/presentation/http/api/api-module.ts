@@ -18,6 +18,12 @@ import {
     CreateCloudAccountUseCase,
 } from "../../../application/use-cases/cloud-accounts/create-cloud-account-use-case";
 import {
+    DeleteCloudAccountUseCase,
+} from "../../../application/use-cases/cloud-accounts/delete-cloud-account-use-case";
+import {
+    GetCloudAccountUseCase,
+} from "../../../application/use-cases/cloud-accounts/get-cloud-account-use-case";
+import {
     ListCloudAccountsUseCase,
 } from "../../../application/use-cases/cloud-accounts/list-cloud-accounts-use-case";
 import { CreateEnvironmentUseCase } from "../../../application/use-cases/environments/create-environment-use-case";
@@ -148,6 +154,8 @@ import {
 
         CreateCloudAccountUseCase,
         ListCloudAccountsUseCase,
+        GetCloudAccountUseCase,
+        DeleteCloudAccountUseCase,
 
         GetSessionLogsUseCase,
         GetSessionVideoUseCase,

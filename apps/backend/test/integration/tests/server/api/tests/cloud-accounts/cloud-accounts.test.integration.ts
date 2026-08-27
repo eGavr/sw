@@ -57,6 +57,33 @@ describe("/projects/:project/cloudAccounts", () => {
         expect(list.cloudAccounts.map((account: { type: string }) => account.type)).toContain("yandex-cloud");
     });
 
+    test("gets and soft-deletes a cloud account", async () => {
+        const { owner, uid } = await seedProject();
+        const created = (await connect(uid, owner, "docker").expect(HttpStatus.CREATED)).body;
+
+        const fetched = (await request(app.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
+        expect(fetched.uid).toBe(created.uid);
+
+        const deleted = (await request(app.getHttpServer())
+            .delete(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
+        expect(deleted.state).toBe("disabled");
+
+        // Soft delete: still readable, disabled.
+        const afterDelete = (await request(app.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
+        expect(afterDelete.state).toBe("disabled");
+    });
+
+    test("does not expose a cloud account of another project", async () => {
+        const first = await seedProject();
+        const second = await seedProject();
+        const created = (await connect(first.uid, first.owner, "docker").expect(HttpStatus.CREATED)).body;
+
+        return request(app.getHttpServer())
+            .get(`/projects/${second.uid}/cloudAccounts/${created.uid}`).set(second.owner).expect(HttpStatus.NOT_FOUND);
+    });
+
     test("allows clouds with disjoint substrates but rejects an overlapping one (CONFLICT)", async () => {
         const { owner, uid } = await seedProject();
 
