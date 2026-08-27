@@ -12,9 +12,6 @@ import {
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
 import {
-    ProviderAccountRepository,
-} from "../../../../../../../src/application/interfaces/repositories/provider-account-repository";
-import {
     StorageDestinationRepository,
 } from "../../../../../../../src/application/interfaces/repositories/storage-destination-repository";
 import {
@@ -27,10 +24,8 @@ import {
     UploadSessionVideoUseCase,
 } from "../../../../../../../src/application/use-cases/environments/upload-session-video-use-case";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
-import { Execution } from "../../../../../../../src/domain/entities/environment/execution";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
-import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
 import { SessionVideoKey } from "../../../../../../../src/domain/entities/storage/session-video-key";
 import { StorageDestination } from "../../../../../../../src/domain/entities/storage/storage-destination";
 import { User } from "../../../../../../../src/domain/entities/user/user";
@@ -43,9 +38,6 @@ import {
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
 import {
-    ProviderAccountDataSource,
-} from "../../../../../../../src/infrastructure/data-sources/database/postgres/provider-account-data-source";
-import {
     StorageDestinationDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/storage-destination-data-source";
 import { PostgresModule } from "../../../../../../../src/infrastructure/data-sources/database/postgres/typeorm/postgres-module";
@@ -57,9 +49,6 @@ import {
     EnvironmentRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/environment-repository-impl";
 import { ProjectRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
-import {
-    ProviderAccountRepositoryImpl,
-} from "../../../../../../../src/infrastructure/repositories/provider-account-repository-impl";
 import {
     StorageDestinationRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/storage-destination-repository-impl";
@@ -82,7 +71,6 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionVideo", () 
     let objectStorage: InMemoryObjectStorageGateway;
 
     let projectRepository: ProjectRepository;
-    let providerAccountRepository: ProviderAccountRepository;
     let environmentRepository: EnvironmentRepository;
     let storageDestinationRepository: StorageDestinationRepository;
 
@@ -103,11 +91,9 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionVideo", () 
                 UploadSessionLogsUseCase,
                 UploadSessionVideoUseCase,
                 ProjectDataSource,
-                ProviderAccountDataSource,
                 EnvironmentDataSource,
                 StorageDestinationDataSource,
                 { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
-                { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
                 { provide: ObjectStorageGateway, useValue: objectStorage },
@@ -134,7 +120,6 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionVideo", () 
         await app.init();
 
         projectRepository = app.get(ProjectRepository);
-        providerAccountRepository = app.get(ProviderAccountRepository);
         environmentRepository = app.get(EnvironmentRepository);
         storageDestinationRepository = app.get(StorageDestinationRepository);
     });
@@ -151,16 +136,8 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionVideo", () 
         });
         await projectRepository.save(project);
 
-        const providerAccount = await providerAccountRepository.create({
-            projectId: ProjectId.fromString(project.id),
-            provider: "local",
-            platformName: "linux",
-            execution: Execution.Container,
-        });
-
         const environment = await environmentRepository.create({
             projectId: ProjectId.fromString(project.id),
-            providerAccountId: ProviderAccountId.fromString(providerAccount.id),
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
@@ -181,7 +158,7 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionVideo", () 
 
     test("streams the video keyed by the session, into the project's destination", async () => {
         const id = await seedEnvironment(true);
-        const video = Buffer.from("fake-mp4-payload- -end");
+        const video = Buffer.from("fake-mp4-payload-\x00\x01\x02-end");
 
         const { body } = await upload(id, video).expect(200);
 

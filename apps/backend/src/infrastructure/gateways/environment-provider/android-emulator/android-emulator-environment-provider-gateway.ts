@@ -5,8 +5,6 @@ import { VmProvisioner } from "../vm/vm-provisioner";
 
 import { AndroidEmulatorEnvironmentConfig } from "./android-emulator-environment-config";
 
-export const androidEmulatorProviderValue = "android-emulator";
-
 // Android emulator adapter: an environment is an on-demand YC Compute VM created from the prebaked golden
 // image (Android SDK + emulator + AVDs + Appium + companion + boot unit — see images/android-emulator-node),
 // scheduled on a KVM-capable hardware platform because the official QEMU emulator needs /dev/kvm. Like the

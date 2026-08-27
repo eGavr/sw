@@ -1,5 +1,5 @@
+import { CloudConfig } from "../../../../domain/entities/cloud-account/cloud-account";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
-import { ProviderConfig } from "../../../../domain/entities/provider-account/provider-account";
 
 import { ResourceQuantities } from "./kubernetes-environment-config";
 
@@ -14,12 +14,12 @@ export type KubernetesProvisioningOverrides = {
     resources?: KubernetesResources;
 };
 
-// Reads the kubernetes adapter's provisioning shape out of a provider account's opaque config blob,
+// Reads the kubernetes adapter's provisioning shape out of a cloud account's opaque config blob,
 // validating the few keys it understands (a wrong type fails fast). Absent keys leave the install default
 // in place, so a project with no config provisions exactly as before. Install-level fields (namespace,
 // networking, node-port range, callback URL/secret) are cluster topology and isolation, not per-project,
 // so they are not overridable here.
-export function kubernetesProvisioningOverrides(config: ProviderConfig | undefined): KubernetesProvisioningOverrides {
+export function kubernetesProvisioningOverrides(config: CloudConfig | undefined): KubernetesProvisioningOverrides {
     if (!config) {
         return {};
     }
@@ -31,7 +31,7 @@ export function kubernetesProvisioningOverrides(config: ProviderConfig | undefin
     };
 }
 
-function optionalString(config: ProviderConfig, key: string): string | undefined {
+function optionalString(config: CloudConfig, key: string): string | undefined {
     const value = config[key];
 
     if (value === undefined) {
@@ -45,7 +45,7 @@ function optionalString(config: ProviderConfig, key: string): string | undefined
     return value;
 }
 
-function optionalPort(config: ProviderConfig, key: string): number | undefined {
+function optionalPort(config: CloudConfig, key: string): number | undefined {
     const value = config[key];
 
     if (value === undefined) {
@@ -61,7 +61,7 @@ function optionalPort(config: ProviderConfig, key: string): number | undefined {
 
 // A resources override sets the whole scheduler shape at once (both requests and limits, cpu and memory),
 // mirroring the install default — a partial override would need merge semantics the config blob can't express.
-function optionalResources(config: ProviderConfig, key: string): KubernetesResources | undefined {
+function optionalResources(config: CloudConfig, key: string): KubernetesResources | undefined {
     const value = config[key];
 
     if (value === undefined) {

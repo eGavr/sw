@@ -12,7 +12,6 @@ import { Environment } from "./entities/environment/environment";
 import { EnvironmentApplication } from "./entities/environment/environment-application";
 import { Project } from "./entities/project/project";
 import { ProjectIamBinding } from "./entities/project/project-iam-binding";
-import { ProviderAccount } from "./entities/provider-account/provider-account";
 import { StorageDestination } from "./entities/storage-destination/storage-destination";
 import { User } from "./entities/user/user";
 
@@ -47,7 +46,6 @@ export class PostgresConnection {
                 CloudAccount,
                 Environment,
                 EnvironmentApplication,
-                ProviderAccount,
                 StorageDestination,
             ],
         })

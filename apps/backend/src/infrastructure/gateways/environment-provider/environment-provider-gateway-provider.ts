@@ -2,7 +2,6 @@ import { ConfigService } from "@nestjs/config";
 
 import { AgentTokenService } from "../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
-import { ProviderCatalog } from "../../../application/interfaces/provider-catalog";
 import { Execution } from "../../../domain/entities/environment/execution";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 
@@ -17,7 +16,6 @@ import {
 } from "./android-emulator/android-emulator-environment-config";
 import {
     AndroidEmulatorEnvironmentProviderGateway,
-    androidEmulatorProviderValue,
 } from "./android-emulator/android-emulator-environment-provider-gateway";
 import {
     AndroidRedroidEnvironmentConfig,
@@ -29,7 +27,6 @@ import {
 } from "./android-redroid/android-redroid-environment-config";
 import {
     AndroidRedroidEnvironmentProviderGateway,
-    androidRedroidProviderValue,
 } from "./android-redroid/android-redroid-environment-provider-gateway";
 import { DockerClient } from "./docker/docker-client";
 import {
@@ -51,7 +48,6 @@ import {
     KubernetesEnvironmentProviderGateway,
 } from "./kubernetes/kubernetes-environment-provider-gateway";
 import { NoopEnvironmentProviderGateway } from "./noop-environment-provider-gateway";
-import { RegisteredProviderCatalog } from "./registered-provider-catalog";
 import { RoutingEnvironmentProviderGateway, routingKey } from "./routing-environment-provider-gateway";
 import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 
@@ -59,8 +55,8 @@ import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 const defaultInternalCallbackPort = 3002;
 
 // Every supported adapter is registered up front (construction is cheap — the Docker client only
-// shells out per command). The routing gateway then dispatches each action to the adapter of the
-// environment's provider type, replacing the install-wide COMPUTE_PROVIDER switch.
+// shells out per command). The routing gateway then dispatches each action to the adapter keyed by
+// the environment's (cloud type, execution), replacing the install-wide COMPUTE_PROVIDER switch.
 export const EnvironmentProviderGatewayProvider = {
     provide: EnvironmentProviderGateway,
     useFactory: (configService: ConfigService, agentTokens: AgentTokenService): EnvironmentProviderGateway => {
@@ -103,22 +99,6 @@ export const EnvironmentProviderGatewayProvider = {
     inject: [ConfigService, AgentTokenService],
 };
 
-// The provider keys the routing gateway registers adapters for (mirror of the map keys above). create-project
-// validates a requested provider against this catalog so an unknown provider fails fast (400) at create time
-// rather than later at provision.
-export const registeredProviderTypes: ReadonlyArray<string> = [
-    "noop",
-    "docker",
-    "kubernetes",
-    androidRedroidProviderValue,
-    androidEmulatorProviderValue,
-];
-
-export const ProviderCatalogProvider = {
-    provide: ProviderCatalog,
-    useValue: new RegisteredProviderCatalog(registeredProviderTypes),
-};
-
 // Resolves the one session idle timeout from SESSION_IDLE_TIMEOUT (a positive integer of seconds),
 // falling back to the domain default. Bad config fails fast here rather than at provision time.
 function resolveSessionIdleTimeout(configService: ConfigService): SessionIdleTimeout {
@@ -130,7 +110,7 @@ function resolveSessionIdleTimeout(configService: ConfigService): SessionIdleTim
 function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: number): DockerEnvironmentConfig {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
-    // Install defaults for the docker provisioning shape; a project's provider account config overrides
+    // Install defaults for the docker provisioning shape; a project's cloud account config overrides
     // image/baseImage/platform/port at provision. The install-level fields below stay global.
     return {
         image: configService.get<string>("COMPUTE_DOCKER_IMAGE"),

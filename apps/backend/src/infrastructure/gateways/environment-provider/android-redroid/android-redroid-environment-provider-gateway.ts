@@ -5,8 +5,6 @@ import { VmProvisioner } from "../vm/vm-provisioner";
 
 import { AndroidRedroidEnvironmentConfig } from "./android-redroid-environment-config";
 
-export const androidRedroidProviderValue = "android-redroid";
-
 // Android (redroid) adapter: an environment is an on-demand YC Compute VM created from the prebaked golden
 // image (docker + redroid tags + companion + binder + boot unit — see images/android-node). redroid needs
 // binder + privileged on the host kernel, which a managed k8s node cannot give, so unlike the browser

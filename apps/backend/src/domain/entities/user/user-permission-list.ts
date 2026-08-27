@@ -7,13 +7,10 @@ export class UserPermissionList {
         const environment = Object.values(UserPermissionName.Environment);
         const session = Object.values(UserPermissionName.Session);
         const storageDestination = Object.values(UserPermissionName.StorageDestination);
-        const providerAccount = Object.values(UserPermissionName.ProviderAccount);
         const cloudAccount = Object.values(UserPermissionName.CloudAccount);
 
         return UserPermissionList.create({
-            permissions: [
-                ...project, ...environment, ...session, ...storageDestination, ...providerAccount, ...cloudAccount,
-            ],
+            permissions: [...project, ...environment, ...session, ...storageDestination, ...cloudAccount],
         });
     }
 

@@ -72,6 +72,6 @@ describe("human-readable project ids", () => {
         await create(auth, { projectId }).expect(HttpStatus.CREATED);
 
         await request(app.getHttpServer())
-            .get(`/projects/${projectId}/providerAccounts`).set(auth).expect(HttpStatus.OK);
+            .get(`/projects/${projectId}/cloudAccounts`).set(auth).expect(HttpStatus.OK);
     });
 });

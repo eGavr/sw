@@ -8,7 +8,6 @@ import { CloudCatalog } from "../../../application/interfaces/cloud-catalog";
 import { CloudAccountRepository } from "../../../application/interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../application/interfaces/repositories/project-repository";
-import { ProviderAccountRepository } from "../../../application/interfaces/repositories/provider-account-repository";
 import {
     StorageDestinationRepository,
 } from "../../../application/interfaces/repositories/storage-destination-repository";
@@ -40,21 +39,6 @@ import {
     SetProjectIamPolicyUseCase,
 } from "../../../application/use-cases/projects/set-project-iam-policy-use-case";
 import { TestProjectPermissionsUseCase } from "../../../application/use-cases/projects/test-project-permissions-use-case";
-import {
-    CreateProviderAccountUseCase,
-} from "../../../application/use-cases/provider-accounts/create-provider-account-use-case";
-import {
-    DeleteProviderAccountUseCase,
-} from "../../../application/use-cases/provider-accounts/delete-provider-account-use-case";
-import {
-    GetProviderAccountUseCase,
-} from "../../../application/use-cases/provider-accounts/get-provider-account-use-case";
-import {
-    ListProviderAccountsUseCase,
-} from "../../../application/use-cases/provider-accounts/list-provider-accounts-use-case";
-import {
-    UpdateProviderAccountUseCase,
-} from "../../../application/use-cases/provider-accounts/update-provider-account-use-case";
 import { GetSessionLogsUseCase } from "../../../application/use-cases/sessions/get-session-logs-use-case";
 import { GetSessionVideoUseCase } from "../../../application/use-cases/sessions/get-session-video-use-case";
 import {
@@ -72,15 +56,11 @@ import {
 } from "../../../infrastructure/data-sources/database/postgres/cloud-account-data-source";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../infrastructure/data-sources/database/postgres/project-data-source";
-import { ProviderAccountDataSource } from "../../../infrastructure/data-sources/database/postgres/provider-account-data-source";
 import {
     StorageDestinationDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/storage-destination-data-source";
 import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../infrastructure/data-sources/database/postgres/user-data-source";
-import {
-    ProviderCatalogProvider,
-} from "../../../infrastructure/gateways/environment-provider/environment-provider-gateway-provider";
 import {
     RegisteredCloudCatalog,
 } from "../../../infrastructure/gateways/environment-provider/registered-cloud-catalog";
@@ -91,7 +71,6 @@ import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { CloudAccountRepositoryImpl } from "../../../infrastructure/repositories/cloud-account-repository-impl";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
-import { ProviderAccountRepositoryImpl } from "../../../infrastructure/repositories/provider-account-repository-impl";
 import {
     StorageDestinationRepositoryImpl,
 } from "../../../infrastructure/repositories/storage-destination-repository-impl";
@@ -106,9 +85,6 @@ import { sessionIdUrlRedaction } from "../session-route-redaction";
 import { CloudAccountsController } from "./controllers/cloud-accounts/cloud-accounts-controller";
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
-import {
-    ProviderAccountsController,
-} from "./controllers/provider-accounts/provider-accounts-controller";
 import { SessionArtifactsController } from "./controllers/sessions/session-artifacts-controller";
 import {
     StorageDestinationController,
@@ -125,7 +101,6 @@ import {
     controllers: [
         ProjectsController,
         EnvironmentsController,
-        ProviderAccountsController,
         CloudAccountsController,
         StorageDestinationController,
         SessionArtifactsController,
@@ -146,12 +121,6 @@ import {
         GetProjectStorageDestinationUseCase,
         SetProjectStorageDestinationUseCase,
 
-        CreateProviderAccountUseCase,
-        ListProviderAccountsUseCase,
-        GetProviderAccountUseCase,
-        UpdateProviderAccountUseCase,
-        DeleteProviderAccountUseCase,
-
         CreateCloudAccountUseCase,
         ListCloudAccountsUseCase,
         GetCloudAccountUseCase,
@@ -165,16 +134,13 @@ import {
         { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
         { provide: UserRepository, useClass: UserRepositoryImpl },
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
-        { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
         { provide: CloudAccountRepository, useClass: CloudAccountRepositoryImpl },
         { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
-        ProviderCatalogProvider,
         { provide: CloudCatalog, useClass: RegisteredCloudCatalog },
         ObjectStorageGatewayProvider,
 
         ProjectDataSource,
         EnvironmentDataSource,
-        ProviderAccountDataSource,
         CloudAccountDataSource,
         StorageDestinationDataSource,
         AuthUserDataSourceProvider,
