@@ -77,7 +77,7 @@ services:
     image: ${SW_IMAGE:?set SW_IMAGE}
     network_mode: host
     environment: *service-env
-    command: ["npm", "run", "pg:migration:run:built"]
+    command: ["pnpm", "run", "pg:migration:run:built"]
     depends_on:
       db:
         condition: service_healthy

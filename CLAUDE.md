@@ -24,7 +24,8 @@ presentation <- use case <- repository <- data source <- external backend client
 -   `infrastructure/data-sources` предоставляет репозиториям доступ к данным доменных сущностей в конкретном backend-е. Data source использует клиент этого backend-а и не вызывает data source другого backend-а.
 -   `domain` содержит бизнес-правила, выраженные через сущности, value objects и специализированные коллекции, а также доменные ошибки. Он не зависит от `application`, `infrastructure`, `presentation`, транспортных контрактов, клиентов и фреймворков.
 -   `bootstrap.ts`, `compose-*.ts`, фабрики и entrypoint-ы являются composition root: только здесь допустимо знать сразу о нескольких слоях и связывать реализации.
--   Код в `packages/` должен быть переиспользуемым и не зависеть от конкретного сервиса из `services/`.
+-   Репозиторий — pnpm-монорепа. Деплой-юниты (приложения) живут в `apps/` (`apps/backend` — control plane api/wd/internal/worker; `apps/frontend` — дашборд); общий переиспользуемый JS/TS-код — в `packages/`; docker-контексты окружений (android-node и т.п.) — в `images/`. Все слои архитектуры (`domain`/`application`/`infrastructure`/`presentation`) находятся ВНУТРИ соответствующего приложения (напр. `apps/backend/src/...`).
+-   Код в `packages/` должен быть переиспользуемым и не зависеть от конкретного приложения из `apps/` (зависимости направлены только вниз: `apps/*` зависят от `packages/*`, но не наоборот).
 
 ## Домен
 

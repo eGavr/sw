@@ -5,7 +5,7 @@ On-demand **real Android emulator** environments: the compute adapter
 **KVM-capable hardware platform**, and the VM self-configures from metadata into
 a WebDriver node on `:4444`, exactly like every other environment.
 
-This is the KVM sibling of `packages/android-node` (redroid). Redroid is a
+This is the KVM sibling of `images/android-node` (redroid). Redroid is a
 container on the host kernel; the **official QEMU emulator needs `/dev/kvm`**
 (hardware acceleration), so it runs on a VM whose platform exposes nested
 virtualization / bare metal. Everything else — the companion, the agent, the
@@ -57,12 +57,12 @@ avdmanager create avd -n sw-android-34 -k "system-images;android-34;google_apis;
 avdmanager create avd -n sw-android-33 -k "system-images;android-33;google_apis;x86_64" -d pixel_6
 
 # Companion (identical to the redroid node): Appium + node + nginx + the scripts
-cp packages/android-node/{start.sh,status-shim.js,nginx.conf} /opt/android-node/
+cp images/android-node/{start.sh,status-shim.js,nginx.conf} /opt/android-node/
 npm i -g appium && appium driver install uiautomator2
 
 # Boot infra
-install -Dm755 packages/android-emulator-node/vm-boot.sh /opt/android-emulator-node/vm-boot.sh
-install -Dm644 packages/android-emulator-node/sw-android-emulator-boot.service \
+install -Dm755 images/android-emulator-node/vm-boot.sh /opt/android-emulator-node/vm-boot.sh
+install -Dm644 images/android-emulator-node/sw-android-emulator-boot.service \
     /etc/systemd/system/sw-android-emulator-boot.service
 systemctl enable sw-android-emulator-boot.service
 ```

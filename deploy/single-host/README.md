@@ -12,8 +12,8 @@ topology in `../../docs/deploy/yc-mk8s-android-runbook.md` (which stays the prod
 - Service account `sw-k8s-nodes` (`compute.editor` + `vpc.user` + `container-registry.images.puller`) —
   attach it to the VM so the worker can create env VMs and pull the image.
 - Container Registry with the `sw-service` image (build below).
-- Golden image for android env VMs (`../../packages/android-node`, runbook §4). **Rebake it whenever
-  `packages/android-node` changes** — the one baked before per-env agent tokens + the VNC pipeline won't
+- Golden image for android env VMs (`../../images/android-node`, runbook §4). **Rebake it whenever
+  `images/android-node` changes** — the one baked before per-env agent tokens + the VNC pipeline won't
   register against the current internal API (see "Verifying VNC" caveat).
 
 ## Build & push the image
@@ -54,7 +54,7 @@ The local stub is refused under `NODE_ENV=production`. Realm setup mirrors `docs
 
 ## Verifying VNC
 
-Needs an android env, which needs a golden image rebaked from the **current** `packages/android-node`
+Needs an android env, which needs a golden image rebaked from the **current** `images/android-node`
 (per-env agent token + the scrcpy→Xvfb→x11vnc→websockify pipeline). Rebake (runbook §4), create an android
 project + environment, wait for `ACTIVE`, create a session, then open the session's `sw:interactive` URL.
 

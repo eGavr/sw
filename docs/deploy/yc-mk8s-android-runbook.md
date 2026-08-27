@@ -29,7 +29,7 @@ proxy commands. Everything runs in Yandex Cloud; the browser path (k8s Pods) and
 | tooling | OpenTofu `/tmp/tfbin/tofu`; provider mirror in `~/.terraformrc` (terraform-mirror.yandexcloud.net) |
 
 Deploy overlay with real values lives in `/tmp/sw-deploy/` (ephemeral — the reproducible parts are `terraform/`,
-`k8s/`, `packages/android-node/` in the repo; the `config.yaml` values are listed in §3).
+`k8s/`, `images/android-node/` in the repo; the `config.yaml` values are listed in §3).
 
 ---
 
@@ -60,7 +60,7 @@ Deploy overlay with real values lives in `/tmp/sw-deploy/` (ephemeral — the re
     docker pull selenium/ffmpeg:latest
     docker build -t cr.yandex/<registry_id>/sw-service:v4 . && docker push cr.yandex/<registry_id>/sw-service:v4
 
-### 1c. Golden image for Android env VMs (see `packages/android-node/`, §4 for how it's baked)
+### 1c. Golden image for Android env VMs (see `images/android-node/`, §4 for how it's baked)
 
 Use the existing one (`fd8opcrg042a3lu6u90e`) or rebake per §4.
 
@@ -140,14 +140,14 @@ Use the existing one (`fd8opcrg042a3lu6u90e`) or rebake per §4.
 
 ---
 
-## 4. Rebake the golden image (when packages/android-node changes)
+## 4. Rebake the golden image (when images/android-node changes)
 
     # create a VM FROM the current golden image (it already has docker + redroid tags + companion + node base):
     yc compute instance create --name sw-imgbuild --zone ru-central1-a \
       --network-interface subnet-id=e9bcp55uhm61e0jln645,nat-ip-version=ipv4 \
       --create-boot-disk image-id=<current-golden>,size=40,type=network-ssd \
       --memory 4 --cores 2 --metadata-from-file ssh-keys=<ubuntu:pubkey>
-    # on it: disable sw-android-boot, rebuild the companion (docker build packages/android-node → sw/android-node:latest,
+    # on it: disable sw-android-boot, rebuild the companion (docker build images/android-node → sw/android-node:latest,
     #   or a quick `FROM sw/android-node:latest; RUN apt install jq` overlay), and/or update /opt/android-node/vm-boot.sh,
     #   re-enable sw-android-boot, remove containers.
     yc compute instance stop --name sw-imgbuild

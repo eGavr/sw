@@ -1,6 +1,6 @@
 export type AndroidRedroidEnvironmentConfig = {
     // The prebaked golden image every Android VM is created from (docker + redroid tags + companion +
-    // binder + the boot unit). See packages/android-node.
+    // binder + the boot unit). See images/android-node.
     imageId: string;
     zone: string;
     subnetId: string;

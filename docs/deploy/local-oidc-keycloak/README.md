@@ -28,7 +28,7 @@ AUTH_STRATEGY=oidc \
 OIDC_ISSUER=http://localhost:8085/realms/sw \
 OIDC_AUDIENCE=sw \
 OIDC_JWKS_URI=http://localhost:8085/realms/sw/protocol/openid-connect/certs \
-npm run start:api:dev
+pnpm --filter @sw/backend run start:api:dev
 
 # 5. Use the real token (note the /v1 prefix on the running server)
 curl -X POST localhost:3000/v1/projects -H "Authorization: Bearer $TOKEN" \

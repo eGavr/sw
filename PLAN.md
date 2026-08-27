@@ -106,7 +106,7 @@ service-identity), мы грузим под своей identity; включен�
     YC Compute VM из прешитого golden-image **на KVM-платформе**, минимум ресурсов под ОДИН эмулятор, metadata (env id, `sw-android-avd`, internal
     url/secret) → VM сама разворачивается → агент регистрит → executing; `deprovision` = delete VM. **KVM-платформа — параметр** (`platformId`,
     `--platform-id` добавлен в `YandexComputeClient`): оператор подставляет KVM-железо (сегодня YC bare-metal; мини-VM когда появится nested-virt/
-    дешёвый per-minute провайдер). Boot-infra `packages/android-emulator-node/` (`vm-boot.sh`: проверка `/dev/kvm`, headless AVD с KVM, тот же
+    дешёвый per-minute провайдер). Boot-infra `images/android-emulator-node/` (`vm-boot.sh`: проверка `/dev/kvm`, headless AVD с KVM, тот же
     companion, что у redroid — Appium+`/status`-shim+nginx на :4444, agent-fetch; `sw-android-emulator-boot.service`; README с golden-image build +
     de-risk-чеклистом) — **portable на любой KVM-хост**, YC-специфичен только адаптер. Домен НЕ трогали (ось `execution=emulator` уже была). Прешитый
     golden-image (фикс набор версий, AVD `sw-android-<версия>`). tsc 0 · eslint 0 · unit 171 · integration 140. **Осталось (под железо):** де-риск
@@ -579,7 +579,7 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     факт, версия в запросе сессии = критерий выбора. Убрать `latest` из примеров ответа create-environment.
 
 24. **Android live-VNC — companion-образ теперь поднимает VNC-пайплайн — CODE-SIDE СДЕЛАНО (ветка `feat.android-node-vnc`), live-verify под железо.**
-    Транспорт (`se/vnc`-прокси + hosted-вьюер `/interactive` + движок `/novnc/`) готов и работает для браузеров; теперь `packages/android-node`
+    Транспорт (`se/vnc`-прокси + hosted-вьюер `/interactive` + движок `/novnc/`) готов и работает для браузеров; теперь `images/android-node`
     заводит и Android-сторону. **Сделано:** в `Dockerfile` добавлены `xvfb x11vnc websockify openbox libgl1-mesa-dri ffmpeg libsdl2-2.0-0 libusb-1.0-0`
     + скачивание прешитого **scrcpy v4.1** (в bookworm пакета нет; официальный portable linux x86_64, sha256-пиннинг, несёт scrcpy-server+adb;
     поэтому образ строится под `linux/amd64` — совпадает с redroid-VM). `start.sh` запускает пайплайн
@@ -587,7 +587,7 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     geometry дефолт `720x1280`, override `SW_VNC_GEOMETRY`; вход scrcpy пробрасывает обратно на устройство = полное управление). nginx уже
     роутит `/session/*/se/vnc` на websockify. **Проверено:** apt-пакеты резолвятся в bookworm, scrcpy-либы линкуются (ldd 0 not-found),
     образ-слои собираются под amd64 и `scrcpy --version` запускается. **Осталось (под железо):** live-verify всей цепочки на redroid-хосте
-    (дешёвый YC Compute VM — redroid контейнерный, KVM НЕ нужен; чеклист в `packages/android-node/README.md`), перепечь golden-image (runbook §4),
+    (дешёвый YC Compute VM — redroid контейнерный, KVM НЕ нужен; чеклист в `images/android-node/README.md`), перепечь golden-image (runbook §4),
     e2e через `sw:interactive`. **Не делаем:** серверный view-only (сессии всегда full-control). Скриншот (`GET /session/{id}/screenshot` через
     Appium/UiAutomator2) работает и без VNC. Видео Android (`adb screenrecord`) — follow-up тем же заходом.
 
@@ -861,15 +861,15 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
 ## Как запускать локально (runbook)
 
 Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-chromium:latest` подтянут;
-`node_modules` стоят. Порт 5432 занят чужим `hyperenv-api-postgresql` → наш Postgres на **5433**
-(уже прописан в `.env.development`, оверрайд не нужен). И `api`, и `wd` требуют Postgres.
+`pnpm install` выполнен в корне монорепы. Порт 5432 занят чужим `hyperenv-api-postgresql` → наш Postgres на **5433**
+(уже прописан в `apps/backend/env/.env.development`, оверрайд не нужен). И `api`, и `wd` требуют Postgres.
 
     # БД + миграции (один раз)
     docker run -d --name sw-db -e POSTGRES_USER=sw -e POSTGRES_PASSWORD=sw -e POSTGRES_DB=sw -p 5433:5432 postgres:16-alpine
-    npm run pg:migration:run:dev
+    pnpm --filter @sw/backend run pg:migration:run:dev
 
     # control-plane (api, :3000) — всё под /v1; локальный токен: любой `Bearer <что-то>`
-    npm run start:api:dev
+    pnpm --filter @sw/backend run start:api:dev
     curl -X POST localhost:3000/v1/accounts -H 'Authorization: Bearer <user1>' -H 'content-type: application/json' \
       -d '{"displayName":"team-a","resources":{"providerId":"p","providerType":"docker"}}'   # -> uid
     curl localhost:3000/v1/accounts -H 'Authorization: Bearer <user1>'                        # List accounts
@@ -880,13 +880,13 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
     # окружения вложены: POST/GET/LIST/DELETE /v1/accounts/{account}/environments[/{env}]
 
     # data-plane (wd, :3001) — W3C WebDriver + WS-протоколы (bidi/cdp/vnc): ws://{wd}/sessions/{id}/se/{bidi,cdp,vnc}
-    npm run start:wd:dev
+    pnpm --filter @sw/backend run start:wd:dev
     # сессия аллоцируется по capabilities (W3C New Session), без явного env; ${ACC} — аккаунт, под которым создано окружение
     SESSION_ID=$(curl -s -X POST localhost:3001/sessions -H 'Authorization: Bearer <user1>' -H 'content-type: application/json' \
       -d "{\"capabilities\":{\"alwaysMatch\":{\"browserName\":\"chrome\",\"browserVersion\":\"latest\",\"sw:accountId\":\"${ACC}\"}}}" \
       | sed 's/.*"sessionId":"//;s/".*//')                  # ответ = W3C {value:{sessionId, capabilities:{sw:vnc,…}}}
     curl localhost:3001/sessions/$SESSION_ID/url            # прокси-команды — без токена (доступ по SESSION_ID)
-    npm run env:delete:dev -- $ENV_ID
+    pnpm --filter @sw/backend run env:delete:dev -- $ENV_ID
 
-Проверка: `npx tsc --noEmit` · `npx eslint <files>` · `npx jest --config ./test/unit/jest.unit.js`.
+Проверка (из корня): `pnpm --filter @sw/backend run build` · `pnpm --filter @sw/backend run lint` · `pnpm --filter @sw/backend run test:unit`.
 Дев-e2e делаю поднятием реальных `api`/`wd` + Postgres(5433) + Docker и curl-прогоном (см. историю сессии).
