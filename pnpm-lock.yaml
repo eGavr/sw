@@ -146,6 +146,9 @@ importers:
       '@tabler/icons-react':
         specifier: ^3
         version: 3.46.0(react@19.2.8)
+      '@tanstack/react-query':
+        specifier: ^5
+        version: 5.102.7(react@19.2.8)
       next:
         specifier: ^15
         version: 15.5.24(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1572,6 +1575,14 @@ packages:
 
   '@tabler/icons@3.46.0':
     resolution: {integrity: sha512-f2RYFl3fzPwj5WO82x6en0dmkjefxEfOm16D1ByM6cj/McNiwOkL4VaPUoP9VVIrXAD9WnTSVFr70px703b//A==}
+
+  '@tanstack/query-core@5.102.7':
+    resolution: {integrity: sha512-4TH8KQrCLoNs9Zvl1LW1iaZ9cZx3dGTgfZ1BnLrcRxMNnX/toe/dGbfvF/DkvbzRyfLfpMKZkembz3o0rnugtw==}
+
+  '@tanstack/react-query@5.102.7':
+    resolution: {integrity: sha512-bbd8T4jDIj9aPbNn11SsjNH8apKY4zspkrw63JRsNDXjpW5SRF7X0ipi7yrGd8DCs8QhYfhQJKqEj1YLru1DbQ==}
+    peerDependencies:
+      react: ^18 || ^19
 
   '@tokenizer/inflate@0.4.1':
     resolution: {integrity: sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA==}
@@ -6360,6 +6371,13 @@ snapshots:
       react: 19.2.8
 
   '@tabler/icons@3.46.0': {}
+
+  '@tanstack/query-core@5.102.7': {}
+
+  '@tanstack/react-query@5.102.7(react@19.2.8)':
+    dependencies:
+      '@tanstack/query-core': 5.102.7
+      react: 19.2.8
 
   '@tokenizer/inflate@0.4.1':
     dependencies:

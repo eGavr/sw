@@ -7,6 +7,7 @@ import {
   Burger,
   Divider,
   Group,
+  Loader,
   Menu,
   NavLink,
   Text,
@@ -14,11 +15,12 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconEye, IconLogout, IconPlus } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { signOutAction } from "@/app/actions/auth";
-import { MOCK_PROJECTS } from "@/lib/mock-projects";
+import { listProjects, projectHandle } from "@/lib/sw";
 
 export function DashboardShell({
   children,
@@ -31,6 +33,11 @@ export function DashboardShell({
   const pathname = usePathname();
   const segments = pathname.split("/");
   const selectedProjectId = segments[1] === "projects" ? segments[2] : undefined;
+
+  const { data: projects, isLoading } = useQuery({
+    queryKey: ["projects"],
+    queryFn: listProjects,
+  });
 
   return (
     <AppShell
@@ -67,22 +74,36 @@ export function DashboardShell({
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">
             Projects
           </Text>
-          <Tooltip label="New project">
+          <Tooltip label="New project (soon)">
             <ActionIcon variant="subtle" size="sm" disabled aria-label="New project">
               <IconPlus size={16} />
             </ActionIcon>
           </Tooltip>
         </Group>
 
-        {MOCK_PROJECTS.map((p) => (
-          <NavLink
-            key={p.id}
-            component={Link}
-            href={`/projects/${p.id}`}
-            label={p.displayName}
-            active={p.id === selectedProjectId}
-          />
-        ))}
+        {isLoading ? (
+          <Group px="xs" py="xs">
+            <Loader size="xs" />
+          </Group>
+        ) : projects && projects.length > 0 ? (
+          projects.map((p) => {
+            const handle = projectHandle(p);
+
+            return (
+              <NavLink
+                key={p.uid}
+                component={Link}
+                href={`/projects/${handle}`}
+                label={p.displayName}
+                active={handle === selectedProjectId}
+              />
+            );
+          })
+        ) : (
+          <Text size="sm" c="dimmed" px="xs" py="xs">
+            No projects yet
+          </Text>
+        )}
 
         <Divider my="sm" />
         <Text size="xs" fw={600} c="dimmed" tt="uppercase" px="xs" pb={4}>

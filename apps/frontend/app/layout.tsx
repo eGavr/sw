@@ -1,9 +1,9 @@
 import "@mantine/core/styles.css";
 
 import type { Metadata } from "next";
-import { ColorSchemeScript, MantineProvider, mantineHtmlProps } from "@mantine/core";
+import { ColorSchemeScript, mantineHtmlProps } from "@mantine/core";
 
-import { theme } from "@/lib/theme";
+import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
   title: "sw dashboard",
@@ -17,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ColorSchemeScript />
       </head>
       <body>
-        <MantineProvider theme={theme}>{children}</MantineProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
