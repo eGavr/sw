@@ -17,9 +17,16 @@ import { IconEye, IconLogout, IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { signOutAction } from "@/app/actions/auth";
 import { MOCK_PROJECTS } from "@/lib/mock-projects";
 
-export function DashboardShell({ children }: { children: React.ReactNode }) {
+export function DashboardShell({
+  children,
+  userEmail,
+}: {
+  children: React.ReactNode;
+  userEmail: string | null;
+}) {
   const [opened, { toggle }] = useDisclosure();
   const pathname = usePathname();
   const segments = pathname.split("/");
@@ -44,10 +51,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               <Avatar radius="xl" size="sm" style={{ cursor: "pointer" }} />
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Label>Signed in (mock)</Menu.Label>
-              <Menu.Item leftSection={<IconLogout size={16} />} disabled>
-                Sign out
-              </Menu.Item>
+              <Menu.Label>{userEmail ?? "Signed in"}</Menu.Label>
+              <form action={signOutAction}>
+                <Menu.Item component="button" type="submit" leftSection={<IconLogout size={16} />}>
+                  Sign out
+                </Menu.Item>
+              </form>
             </Menu.Dropdown>
           </Menu>
         </Group>
