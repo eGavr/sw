@@ -4,15 +4,12 @@ import { Badge, Button, Group, Stack, Table, Tabs, Text, Title } from "@mantine/
 import { IconPlus } from "@tabler/icons-react";
 import { useParams } from "next/navigation";
 
+import { ProvidersTab } from "@/components/providers-tab";
+
 const MOCK_ENVIRONMENTS = [
   { name: "env-1", state: "executing", platform: "linux", apps: "chrome 128" },
   { name: "env-2", state: "preparing", platform: "linux", apps: "chrome 128" },
   { name: "env-3", state: "failed", platform: "android", apps: "—" },
-];
-
-const MOCK_PROVIDERS = [
-  { provider: "docker", platform: "linux", execution: "container", state: "active" },
-  { provider: "android-redroid", platform: "android", execution: "container", state: "active" },
 ];
 
 const STATE_COLOR: Record<string, string> = {
@@ -75,37 +72,7 @@ export default function ProjectPage() {
         </Tabs.Panel>
 
         <Tabs.Panel value="providers" pt="md">
-          <Stack>
-            <Group justify="flex-end">
-              <Button leftSection={<IconPlus size={16} />} disabled>
-                Add provider
-              </Button>
-            </Group>
-            <Table striped highlightOnHover withTableBorder>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Provider</Table.Th>
-                  <Table.Th>Platform</Table.Th>
-                  <Table.Th>Execution</Table.Th>
-                  <Table.Th>State</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {MOCK_PROVIDERS.map((pr) => (
-                  <Table.Tr key={pr.provider}>
-                    <Table.Td>{pr.provider}</Table.Td>
-                    <Table.Td>{pr.platform}</Table.Td>
-                    <Table.Td>{pr.execution}</Table.Td>
-                    <Table.Td>
-                      <Badge color={pr.state === "active" ? "green" : "gray"} variant="light">
-                        {pr.state}
-                      </Badge>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Stack>
+          <ProvidersTab />
         </Tabs.Panel>
       </Tabs>
 
