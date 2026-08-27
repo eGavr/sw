@@ -5,4 +5,4 @@ node_modules
 .env
 
 # Static ffmpeg binaries served to environments for video recording (large, fetched, not source).
-bin/ffmpeg/ffmpeg-*
+**/bin/ffmpeg/ffmpeg-*

@@ -1,6 +1,6 @@
 export type AndroidEmulatorEnvironmentConfig = {
     // The prebaked golden image every emulator VM is created from (Android SDK + emulator + a fixed set of
-    // AVDs/system images + Appium + companion + the boot unit). See packages/android-emulator-node.
+    // AVDs/system images + Appium + companion + the boot unit). See images/android-emulator-node.
     imageId: string;
     // A KVM-capable YC hardware platform (the emulator needs /dev/kvm). The operator supplies one; today
     // that is bare metal, a minimal per-emulator VM once nested virtualization is available.

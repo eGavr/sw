@@ -3,21 +3,22 @@ import { EnvironmentProviderGateway } from "../../../../application/interfaces/g
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { YandexComputeClient } from "../yandex-compute/yandex-compute-client";
 
-import { AndroidRedroidEnvironmentConfig } from "./android-redroid-environment-config";
+import { AndroidEmulatorEnvironmentConfig } from "./android-emulator-environment-config";
 
-export const androidRedroidProviderValue = "android-redroid";
+export const androidEmulatorProviderValue = "android-emulator";
 
-// Android (redroid) adapter: an environment is an on-demand YC Compute VM created from the prebaked golden
-// image (docker + redroid tags + companion + binder + boot unit — see packages/android-node). redroid needs
-// binder + privileged on the host kernel, which a managed k8s node cannot give, so unlike the browser
-// adapters this provisions a whole VM rather than a container/Pod. The VM self-configures from the metadata
-// passed here (environment id, redroid tag = Android version, internal callback URL/secret) — the adapter
-// never SSHes in. The endpoint is NOT set here: the in-VM agent derives it (the VM's private IP) and reports
-// it on registration, exactly like the browser nodes. deprovision deletes the VM.
-export class AndroidRedroidEnvironmentProviderGateway extends EnvironmentProviderGateway {
+// Android emulator adapter: an environment is an on-demand YC Compute VM created from the prebaked golden
+// image (Android SDK + emulator + AVDs + Appium + companion + boot unit — see images/android-emulator-node),
+// scheduled on a KVM-capable hardware platform because the official QEMU emulator needs /dev/kvm. Like the
+// redroid adapter this provisions a whole VM (a managed k8s node cannot expose KVM), and the VM
+// self-configures from the metadata passed here (environment id, AVD = Android version, internal callback
+// URL/secret) — the adapter never SSHes in. The endpoint is NOT set here: the in-VM agent derives it (the
+// VM's private IP) and reports it on registration, exactly like the browser nodes. deprovision deletes the
+// VM. Only the YC CLI is provider-specific; the boot infra runs on any host that exposes /dev/kvm.
+export class AndroidEmulatorEnvironmentProviderGateway extends EnvironmentProviderGateway {
     constructor(
         private readonly compute: YandexComputeClient,
-        private readonly config: AndroidRedroidEnvironmentConfig,
+        private readonly config: AndroidEmulatorEnvironmentConfig,
         private readonly agentTokens: AgentTokenService,
     ) {
         super();
@@ -27,6 +28,7 @@ export class AndroidRedroidEnvironmentProviderGateway extends EnvironmentProvide
         await this.compute.createInstance({
             name: this.instanceName(environment),
             imageId: this.config.imageId,
+            platformId: this.config.platformId,
             zone: this.config.zone,
             subnetId: this.config.subnetId,
             securityGroupId: this.config.securityGroupId,
@@ -35,7 +37,7 @@ export class AndroidRedroidEnvironmentProviderGateway extends EnvironmentProvide
             diskSizeGb: this.config.diskSizeGb,
             metadata: {
                 "sw-environment-id": environment.id,
-                "sw-redroid-tag": this.config.redroidTag(environment.platform.version),
+                "sw-android-avd": this.config.avdName(environment.platform.version),
                 "sw-internal-url": this.config.internalUrl,
                 "sw-internal-token": await this.agentTokens.issue(environment.id),
             },

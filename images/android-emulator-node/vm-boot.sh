@@ -6,7 +6,7 @@
 # then runs the SAME companion the redroid path uses (Appium + the Selenium-Grid /status shim + nginx on
 # :4444, with the heartbeat agent fetched from the control plane). The adapter never SSHes in — everything
 # is metadata-driven. Only /dev/kvm and the Android SDK are host specific; the companion is identical to the
-# container path (packages/android-node), so this runs on any KVM host, not just YC.
+# container path (images/android-node), so this runs on any KVM host, not just YC.
 set -x
 exec > /var/log/sw-android-emulator-boot.log 2>&1
 
@@ -58,6 +58,6 @@ bash /tmp/sw-agent.sh &
 touch /tmp/sw-session.log
 tail -n +1 -F /tmp/sw-session.log 2>/dev/null &
 
-# The companion (Appium + /status shim + nginx on :4444) is copied from packages/android-node into the
+# The companion (Appium + /status shim + nginx on :4444) is copied from images/android-node into the
 # golden image; it waits for sys.boot_completed, so it tolerates the emulator still booting here.
 exec /opt/android-node/start.sh >>/tmp/sw-session.log 2>&1
