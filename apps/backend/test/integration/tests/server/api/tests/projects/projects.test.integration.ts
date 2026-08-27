@@ -70,11 +70,10 @@ describe("/projects", () => {
         });
 
         test("is self-service: any authenticated user creates an project and gets an AIP resource", async () => {
-            const compute = [{ provider: "noop", platform: "linux", execution: "container" }];
             const { body } = await request(app.getHttpServer())
                 .post("/projects")
                 .set(Authorization.forUser(UserFactory.createId()))
-                .send({ displayName: "team-a", compute })
+                .send({ displayName: "team-a" })
                 .expect(HttpStatus.CREATED);
 
             expect(body).toEqual({
@@ -91,17 +90,6 @@ describe("/projects", () => {
 
             await request(app.getHttpServer()).post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
             await request(app.getHttpServer()).post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
-        });
-
-        test("responds INVALID_ARGUMENT for a compute provider with no registered adapter", async () => {
-            const compute = [{ provider: "there-is-no-such-provider", platform: "linux", execution: "container" }];
-
-            return request(app.getHttpServer())
-                .post("/projects")
-                .set(Authorization.forUser(UserFactory.createId()))
-                .send({ displayName: "team-a", compute })
-                .expect(HttpStatus.BAD_REQUEST)
-                .expect((response) => expect(response.body.error.status).toBe("INVALID_ARGUMENT"));
         });
     });
 
