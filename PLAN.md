@@ -911,3 +911,24 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 **Backend follow-ups для occupancy (ОТДЕЛЬНЫМИ шагами, НЕ во фронт-PR):**
 - **Отдать `busy` (bool) + `lastHeartbeatAt` в GET environments.** Presenter сейчас отдаёт только `state`. Занятость **ортогональна** lifecycle: и свободное, и занятое окружение — оба `state=executing` (сессия не меняет lifecycle, `busy` ставит хартбит агента) → из `state` не вывести. `busy` — не секрет. Нужно для колонки Occupancy (`busy`/`free` + свежесть хартбита).
 - **Таймстемпы перехода `busy↔free`** («стало занято/свободно в HH:MM»): бэкенд сейчас НЕ пишет момент перехода (только `updatedAt`/`lastHeartbeatAt`) → нужна доп-колонка/событие. Для UI «busy since / free since».
+
+## Рефактор БЛИЖАЙШИЙ (приоритет): `CloudAccount` × `ComputeBinding` (расщепить провайдера на «облако × вид compute») — НЕ начато
+
+**Мотивация (всплыло на UI-этапе, юзер хочет поддержать сразу).** Сейчас `ProviderAccount.provider` **конфлейтит два понятия**: (1) вид compute/адаптер и (2) неявно — облако. `android-redroid` жёстко = redroid **на Yandex Cloud** (адаптер в коде делает `new YandexComputeClient(...)`). Из-за этого **один и тот же вид compute на втором облаке невозможен** без дубля адаптеров (`android-redroid-<cloud>`), а «какое облако» не является настраиваемой сущностью.
+
+**Цель — расщепить на две сущности:**
+- **`CloudAccount`** (привязка проекта к ВНЕШНЕМУ облаку/субстрату): тип облака + **`credentialRef`** (секрет-стор) + облако-уровневый config (для YC: `folderId`/`zone`/`subnetId`/`securityGroupId`/`region`). Это «на каком облаке и как к нему авторизуемся». N на проект.
+- **`ComputeBinding`** (перепрофилированный `ProviderAccount`): **вид compute** (`container`/`redroid`/`emulator`/`pod`/`docker`) + per-kind config (`image`/sizing) + **ссылка на `CloudAccount`** + `(platform, execution)` для роутинга. N на проект.
+- Итог: **провайдер = вид × облако.** «redroid на YC» и «redroid на cloud-Y» = один `ComputeBinding`-вид × два `CloudAccount`.
+
+**Что меняется:**
+- **Домен:** новый агрегат `CloudAccount`; `ComputeBinding` вместо/на основе `ProviderAccount`; «вид compute» становится значением, отделённым от облака.
+- **Адаптеры — cloud-agnostic:** ввести **порт облака/VM** (напр. `VmProvisioner`/`ComputeVmCloud`) c YC-реализацией (`YandexComputeClient` уходит за порт); redroid/emulator-адаптеры зависят от порта, а КОНКРЕТНОЕ облако (client+creds+config) им даёт `CloudAccount`. docker/k8s тоже выражаются как «облако» (`local-docker`/`k8s-cluster`).
+- **Роутинг:** env → project → `ComputeBinding` по `(platform, execution)` → его `CloudAccount` → облачный клиент.
+- **API + миграции:** management-ручки `cloudAccounts` + `computeBindings` (или вложенно), create-project bootstrap переписать; миграции таблиц.
+- **UI (Add provider):** становится «выбрать вид compute + выбрать/создать `CloudAccount`», а не одну строку `provider`.
+- **Ломающее изменение — no users → делаем чисто, без compat-shim** ([[breaking-changes-ok]]).
+
+## Follow-up: Provider **config descriptors** (schema-driven форма вместо сырого JSON) — НЕ начато
+
+`config` сейчас — opaque `Record<string,unknown>`, у UI нет схемы → форму не построить. Нужно, чтобы **каталог описывал схему конфига на каждый вид/провайдер** (дескрипторы полей / JSON Schema: redroid → `imageId/zone/subnet/sizing`, docker → `image/port`), и ручка отдавала это (напр. `GET supported providers` поверх `ProviderCatalog.list()` + схемы). Тогда фронт рендерит **типизированную форму** (Select провайдера, поля конфига по схеме) вместо ручного JSON. Сюда же — мини-ручка «список поддерживаемых провайдеров» (чтобы Select не хардкодить) и провайдер-`displayName` (человеческое имя в таблице — сейчас у `ProviderAccount` только uuid). Связано с рефактором `CloudAccount`×`ComputeBinding` выше (каждый вид×облако объявляет свою схему).
