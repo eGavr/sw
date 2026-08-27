@@ -4,6 +4,8 @@ import { BadRequestException, MiddlewareConsumer, Module, NestModule, Validation
 import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
+import { CloudCatalog } from "../../../application/interfaces/cloud-catalog";
+import { CloudAccountRepository } from "../../../application/interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../application/interfaces/repositories/project-repository";
 import { ProviderAccountRepository } from "../../../application/interfaces/repositories/provider-account-repository";
@@ -12,6 +14,12 @@ import {
 } from "../../../application/interfaces/repositories/storage-destination-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
+import {
+    CreateCloudAccountUseCase,
+} from "../../../application/use-cases/cloud-accounts/create-cloud-account-use-case";
+import {
+    ListCloudAccountsUseCase,
+} from "../../../application/use-cases/cloud-accounts/list-cloud-accounts-use-case";
 import { CreateEnvironmentUseCase } from "../../../application/use-cases/environments/create-environment-use-case";
 import { DeleteEnvironmentUseCase } from "../../../application/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../application/use-cases/environments/get-environment-use-case";
@@ -53,6 +61,9 @@ import { ClassValidatorError } from "../../../domain/utils/class-validator/class
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
 } from "../../../infrastructure/data-sources/auth/user-data-source-provider";
+import {
+    CloudAccountDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/cloud-account-data-source";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../infrastructure/data-sources/database/postgres/project-data-source";
 import { ProviderAccountDataSource } from "../../../infrastructure/data-sources/database/postgres/provider-account-data-source";
@@ -65,9 +76,13 @@ import {
     ProviderCatalogProvider,
 } from "../../../infrastructure/gateways/environment-provider/environment-provider-gateway-provider";
 import {
+    RegisteredCloudCatalog,
+} from "../../../infrastructure/gateways/environment-provider/registered-cloud-catalog";
+import {
     ObjectStorageGatewayProvider,
 } from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
+import { CloudAccountRepositoryImpl } from "../../../infrastructure/repositories/cloud-account-repository-impl";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
 import { ProviderAccountRepositoryImpl } from "../../../infrastructure/repositories/provider-account-repository-impl";
@@ -82,6 +97,7 @@ import { LoggingMiddleware } from "../middlewares/logging-middleware";
 import { UrlRedactions } from "../middlewares/url-redaction";
 import { sessionIdUrlRedaction } from "../session-route-redaction";
 
+import { CloudAccountsController } from "./controllers/cloud-accounts/cloud-accounts-controller";
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
 import {
@@ -104,6 +120,7 @@ import {
         ProjectsController,
         EnvironmentsController,
         ProviderAccountsController,
+        CloudAccountsController,
         StorageDestinationController,
         SessionArtifactsController,
     ],
@@ -129,6 +146,9 @@ import {
         UpdateProviderAccountUseCase,
         DeleteProviderAccountUseCase,
 
+        CreateCloudAccountUseCase,
+        ListCloudAccountsUseCase,
+
         GetSessionLogsUseCase,
         GetSessionVideoUseCase,
 
@@ -138,13 +158,16 @@ import {
         { provide: UserRepository, useClass: UserRepositoryImpl },
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
+        { provide: CloudAccountRepository, useClass: CloudAccountRepositoryImpl },
         { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
         ProviderCatalogProvider,
+        { provide: CloudCatalog, useClass: RegisteredCloudCatalog },
         ObjectStorageGatewayProvider,
 
         ProjectDataSource,
         EnvironmentDataSource,
         ProviderAccountDataSource,
+        CloudAccountDataSource,
         StorageDestinationDataSource,
         AuthUserDataSourceProvider,
         PgUserDataSource,

@@ -39,6 +39,15 @@ export enum ProviderAccountPermission {
     Delete = "sw.providerAccounts.delete",
 }
 
+// Connecting a project's clouds (type + non-secret config, credentials via a secret store) is an
+// owner/admin concern, so these are granted only through roles/admin.
+export enum CloudAccountPermission {
+    Get = "sw.cloudAccounts.get",
+    List = "sw.cloudAccounts.list",
+    Create = "sw.cloudAccounts.create",
+    Delete = "sw.cloudAccounts.delete",
+}
+
 export class UserPermissionName {
     static readonly Project = ProjectPermission;
 
@@ -50,12 +59,15 @@ export class UserPermissionName {
 
     static readonly ProviderAccount = ProviderAccountPermission;
 
+    static readonly CloudAccount = CloudAccountPermission;
+
     private static readonly knownNames: ReadonlySet<string> = new Set<string>([
         ...Object.values(ProjectPermission),
         ...Object.values(EnvironmentPermission),
         ...Object.values(SessionPermission),
         ...Object.values(StorageDestinationPermission),
         ...Object.values(ProviderAccountPermission),
+        ...Object.values(CloudAccountPermission),
     ]);
 
     static fromString(value: string): UserPermissionName {

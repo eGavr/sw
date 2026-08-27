@@ -12,10 +12,6 @@ import { CloudAccount } from "./typeorm/entities/cloud-account/cloud-account";
 export class CloudAccountDataSource {
     constructor(private readonly dataSource: DataSource) {}
 
-    async create(cloudAccount: CloudAccountEntity): Promise<void> {
-        await this.dataSource.getRepository(CloudAccount).save(CloudAccount.from(cloudAccount));
-    }
-
     async save(cloudAccount: CloudAccountEntity): Promise<void> {
         await this.dataSource.getRepository(CloudAccount).save(CloudAccount.from(cloudAccount));
     }

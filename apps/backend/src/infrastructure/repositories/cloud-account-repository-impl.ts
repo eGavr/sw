@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { CloudAccountRepository } from "../../application/interfaces/repositories/cloud-account-repository";
-import { CloudAccount, CloudAccountCreateParams } from "../../domain/entities/cloud-account/cloud-account";
+import { CloudAccount } from "../../domain/entities/cloud-account/cloud-account";
 import { CloudAccountId } from "../../domain/entities/cloud-account/cloud-account-id";
 import { CloudAccountState } from "../../domain/entities/cloud-account/cloud-account-state";
 import { NotFoundResourceError } from "../../domain/entities/error/not-found/not-found-resource-error";
@@ -12,14 +12,6 @@ import { CloudAccountDataSource } from "../data-sources/database/postgres/cloud-
 export class CloudAccountRepositoryImpl extends CloudAccountRepository {
     constructor(private readonly cloudAccountDataSource: CloudAccountDataSource) {
         super();
-    }
-
-    async create(params: CloudAccountCreateParams): Promise<CloudAccount> {
-        const cloudAccount = CloudAccount.create(params);
-
-        await this.cloudAccountDataSource.create(cloudAccount);
-
-        return cloudAccount;
     }
 
     async get(cloudAccountId: CloudAccountId): Promise<CloudAccount> {

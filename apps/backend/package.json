@@ -10,7 +10,7 @@
     "docker:compose:up": "docker compose up -d",
     "docker:compose:down": "docker compose down",
     "lint": "eslint .",
-    "lint:fix": "pnpm run lint -- --fix",
+    "lint:fix": "eslint . --fix",
     "pg:migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/infrastructure/data-sources/database/postgres/typeorm/migration/index.ts src/infrastructure/data-sources/database/postgres/typeorm/migration/migrations/$PG_MIGRATION_NAME",
     "pg:migration:generate:dev": "NODE_ENV=development pnpm run pg:migration:generate",
     "pg:migration:run": "typeorm-ts-node-commonjs migration:run -d src/infrastructure/data-sources/database/postgres/typeorm/migration/index.ts",
