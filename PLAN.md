@@ -890,3 +890,24 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 
 Проверка (из корня): `pnpm --filter @sw/backend run build` · `pnpm --filter @sw/backend run lint` · `pnpm --filter @sw/backend run test:unit`.
 Дев-e2e делаю поднятием реальных `api`/`wd` + Postgres(5433) + Docker и curl-прогоном (см. историю сессии).
+
+## UI / дашборд (frontend) — В РАБОТЕ
+
+**Стек (выбран, сверено с мировой практикой):** pnpm-монорепа, приложение `apps/frontend` = **Next.js (App Router) + Auth.js (NextAuth v5, Keycloak-провайдер) + Mantine**. Дизайн — НЕ с нуля: тема Mantine + готовые блоки Mantine UI, расширяем по мере надобности.
+
+**Аутентификация = BFF-паттерн (самый безопасный из 3 по IETF «OAuth 2.0 for Browser-Based Apps»; сверено с Auth0/Curity/FusionAuth).** Наш OIDC-токен живёт ТОЛЬКО на сервере Next (BFF); браузер держит лишь httpOnly cookie-сессию; route-handlers `/api/sw/*` проксируют к sw `api`/`wd`, подставляя `Bearer` на сервере. Токена в браузере нет. Гочи: отдельный **confidential** Keycloak-клиент `sw-web` (не public `sw-api`) + audience-mapper `aud=sw`; форвардить **access_token** (не id_token); refresh в jwt-колбэке; НЕ отдавать токены через `/api/auth/session`; нормальный TLS (наш Caddy self-signed → back-channel Node↔Keycloak споткнётся; нужен реальный серт по DNS-01). CORS не нужен. Механизм BFF-сессии (encrypted-cookie vs server-store) — при wiring auth.
+
+**Модель секретов (СОГЛАСОВАНО):** `session-id` несёт секрет `wdSessionId` → **не храним НИГДЕ** (ни БД, ни кука, ни localStorage) — консистентно с «секрет сессии не персистим». После создания сессии показываем id **один раз** (copy) — дальше он у пользователя, как session-id у обычного WebDriver-клиента. Взаимодействие — через **stateless «Inspect session»**: вставил id → VNC / логи / видео (readback project-scoped, право `sw.sessions.get`). Ничего at-rest. **Durable-история сессий — отдельная будущая фича** (неизбежно требует персистить capability → отдельное решение по секрету; вариант «RAM BFF + прокси VNC-WS по opaque-хэндлу» — тоже без БД).
+
+**Экраны MVP:** Login (Keycloak → Google/Yandex) → **Projects** (+create) → **Project → Environments** (список + `state`; +create/+delete; +New session) → **New session** (capabilities + тумблеры `sw:logging`/`sw:video`; id один раз) → **Inspect session** (Live-VNC / Logs / Video, stateless). Якорь — окружение; отдельной вкладки-списка сессий нет (у бэкенда нет ручки «список сессий»).
+
+**Доставка — ИНКРЕМЕНТАЛЬНО, маленькими под-PR, каждый запускаем и открываем локально** (`pnpm --filter @sw/frontend dev`), а не одним большим PR:
+- **шаг 1:** скаффолд Next+Mantine — рендерится AppShell + плейсхолдер Projects (моки/пусто), БЕЗ auth. Открывается локально.
+- **шаг 2:** Auth.js (Keycloak, BFF) + `/api/sw/*` прокси → реальный список Projects.
+- **шаг 3:** Project → Environments (список/create/delete).
+- **шаг 4:** New session (caps + тумблеры, id один раз).
+- **шаг 5:** Inspect session (VNC/Logs/Video, stateless).
+
+**Backend follow-ups для occupancy (ОТДЕЛЬНЫМИ шагами, НЕ во фронт-PR):**
+- **Отдать `busy` (bool) + `lastHeartbeatAt` в GET environments.** Presenter сейчас отдаёт только `state`. Занятость **ортогональна** lifecycle: и свободное, и занятое окружение — оба `state=executing` (сессия не меняет lifecycle, `busy` ставит хартбит агента) → из `state` не вывести. `busy` — не секрет. Нужно для колонки Occupancy (`busy`/`free` + свежесть хартбита).
+- **Таймстемпы перехода `busy↔free`** («стало занято/свободно в HH:MM»): бэкенд сейчас НЕ пишет момент перехода (только `updatedAt`/`lastHeartbeatAt`) → нужна доп-колонка/событие. Для UI «busy since / free since».
