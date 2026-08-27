@@ -7,11 +7,11 @@ import { config } from "dotenv";
 import { DataSource } from "typeorm";
 import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
+import { CloudAccount } from "./entities/cloud-account/cloud-account";
 import { Environment } from "./entities/environment/environment";
 import { EnvironmentApplication } from "./entities/environment/environment-application";
 import { Project } from "./entities/project/project";
 import { ProjectIamBinding } from "./entities/project/project-iam-binding";
-import { ProviderAccount } from "./entities/provider-account/provider-account";
 import { StorageDestination } from "./entities/storage-destination/storage-destination";
 import { User } from "./entities/user/user";
 
@@ -43,9 +43,9 @@ export class PostgresConnection {
                 ProjectIamBinding,
                 Project,
                 User,
+                CloudAccount,
                 Environment,
                 EnvironmentApplication,
-                ProviderAccount,
                 StorageDestination,
             ],
         })

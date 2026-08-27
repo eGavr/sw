@@ -1,11 +1,9 @@
 import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
-import { YandexComputeClient } from "../yandex-compute/yandex-compute-client";
+import { VmProvisioner } from "../vm/vm-provisioner";
 
 import { AndroidRedroidEnvironmentConfig } from "./android-redroid-environment-config";
-
-export const androidRedroidProviderValue = "android-redroid";
 
 // Android (redroid) adapter: an environment is an on-demand YC Compute VM created from the prebaked golden
 // image (docker + redroid tags + companion + binder + boot unit — see images/android-node). redroid needs
@@ -16,7 +14,7 @@ export const androidRedroidProviderValue = "android-redroid";
 // it on registration, exactly like the browser nodes. deprovision deletes the VM.
 export class AndroidRedroidEnvironmentProviderGateway extends EnvironmentProviderGateway {
     constructor(
-        private readonly compute: YandexComputeClient,
+        private readonly compute: VmProvisioner,
         private readonly config: AndroidRedroidEnvironmentConfig,
         private readonly agentTokens: AgentTokenService,
     ) {

@@ -11,9 +11,6 @@ import {
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
 import {
-    ProviderAccountRepository,
-} from "../../../../../../../src/application/interfaces/repositories/provider-account-repository";
-import {
     StorageDestinationRepository,
 } from "../../../../../../../src/application/interfaces/repositories/storage-destination-repository";
 import {
@@ -30,10 +27,8 @@ import { Environment } from "../../../../../../../src/domain/entities/environmen
 import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
 import { EnvironmentState } from "../../../../../../../src/domain/entities/environment/environment-state";
 import { EnvironmentStatus } from "../../../../../../../src/domain/entities/environment/environment-status";
-import { Execution } from "../../../../../../../src/domain/entities/environment/execution";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
-import { ProviderAccountId } from "../../../../../../../src/domain/entities/provider-account/provider-account-id";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
 import {
@@ -43,9 +38,6 @@ import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
-import {
-    ProviderAccountDataSource,
-} from "../../../../../../../src/infrastructure/data-sources/database/postgres/provider-account-data-source";
 import {
     StorageDestinationDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/storage-destination-data-source";
@@ -58,9 +50,6 @@ import {
     EnvironmentRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/environment-repository-impl";
 import { ProjectRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
-import {
-    ProviderAccountRepositoryImpl,
-} from "../../../../../../../src/infrastructure/repositories/provider-account-repository-impl";
 import {
     StorageDestinationRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/storage-destination-repository-impl";
@@ -82,7 +71,6 @@ describe("/internal/environments/:id:heartbeat", () => {
     let environmentRepository: EnvironmentRepository;
 
     let projectRepository: ProjectRepository;
-    let providerAccountRepository: ProviderAccountRepository;
 
     beforeEach(async () => {
         const moduleRef = await Test.createTestingModule({
@@ -97,11 +85,9 @@ describe("/internal/environments/:id:heartbeat", () => {
                 UploadSessionLogsUseCase,
                 UploadSessionVideoUseCase,
                 ProjectDataSource,
-                ProviderAccountDataSource,
                 EnvironmentDataSource,
                 StorageDestinationDataSource,
                 { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
-                { provide: ProviderAccountRepository, useClass: ProviderAccountRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
                 { provide: ObjectStorageGateway, useClass: InMemoryObjectStorageGateway },
@@ -126,7 +112,6 @@ describe("/internal/environments/:id:heartbeat", () => {
 
         environmentRepository = app.get(EnvironmentRepository);
         projectRepository = app.get(ProjectRepository);
-        providerAccountRepository = app.get(ProviderAccountRepository);
     });
 
     afterEach(async () => {
@@ -141,16 +126,8 @@ describe("/internal/environments/:id:heartbeat", () => {
         });
         await projectRepository.save(project);
 
-        const providerAccount = await providerAccountRepository.create({
-            projectId: ProjectId.fromString(project.id),
-            provider: "noop",
-            platformName: "linux",
-            execution: Execution.Container,
-        });
-
         const environment = await environmentRepository.create({
             projectId: ProjectId.fromString(project.id),
-            providerAccountId: ProviderAccountId.fromString(providerAccount.id),
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });

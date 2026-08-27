@@ -33,6 +33,13 @@ describe("/projects/:project/environments", () => {
             .send(CreateProjectBody.create())
             .expect(HttpStatus.CREATED);
 
+        // Connect a dry-run cloud so create-environment resolves a cloud for linux/{container,emulator}.
+        await request(app.getHttpServer())
+            .post(`/projects/${body.uid}/cloudAccounts`)
+            .set(owner)
+            .send({ type: "noop" })
+            .expect(HttpStatus.CREATED);
+
         return { owner, projectId: body.uid };
     };
 
@@ -57,21 +64,10 @@ describe("/projects/:project/environments", () => {
         });
 
         test("defaults the execution substrate to container and echoes an explicit one", async () => {
-            const owner = Authorization.forUser(UserFactory.createId());
-            const { body: project } = await request(app.getHttpServer())
-                .post("/projects")
-                .set(owner)
-                .send({
-                    displayName: "exec",
-                    compute: [
-                        { provider: "noop", platform: "linux", execution: "container" },
-                        { provider: "noop", platform: "linux", execution: "emulator" },
-                    ],
-                })
-                .expect(HttpStatus.CREATED);
+            const { owner, projectId } = await createProject();
 
             const { body: emulated } = await request(app.getHttpServer())
-                .post(`/projects/${project.uid}/environments`)
+                .post(`/projects/${projectId}/environments`)
                 .set(owner)
                 .send({ ...validEnvironmentBody, execution: "emulator" })
                 .expect(HttpStatus.CREATED);
@@ -110,6 +106,10 @@ describe("/projects/:project/environments", () => {
             const owner = Authorization.forUser(ownerId);
             const { body: project } = await request(app.getHttpServer())
                 .post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
+
+            await request(app.getHttpServer())
+                .post(`/projects/${project.uid}/cloudAccounts`).set(owner).send({ type: "noop" })
+                .expect(HttpStatus.CREATED);
 
             await request(app.getHttpServer())
                 .post(`/projects/${project.uid}:setIamPolicy`)
@@ -213,13 +213,17 @@ describe("/projects/:project/environments", () => {
             applications: [{ name: "settings", version: "13" }],
         };
 
-        const createProjectWith = async (compute: Array<object>): Promise<{ owner: { authorization: string }, projectId: string }> => {
+        const createProjectWithClouds = async (
+            cloudTypes: Array<string>,
+        ): Promise<{ owner: { authorization: string }, projectId: string }> => {
             const owner = Authorization.forUser(UserFactory.createId());
             const { body } = await request(app.getHttpServer())
-                .post("/projects")
-                .set(owner)
-                .send({ displayName: "multi", compute })
-                .expect(HttpStatus.CREATED);
+                .post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
+
+            for (const type of cloudTypes) {
+                await request(app.getHttpServer())
+                    .post(`/projects/${body.uid}/cloudAccounts`).set(owner).send({ type }).expect(HttpStatus.CREATED);
+            }
 
             return { owner, projectId: body.uid };
         };
@@ -227,20 +231,16 @@ describe("/projects/:project/environments", () => {
         const createEnvironmentBody = (projectId: string, owner: { authorization: string }, body: object): request.Test =>
             request(app.getHttpServer()).post(`/projects/${projectId}/environments`).set(owner).send(body);
 
-        test("routes each environment to the provider serving its substrate", async () => {
-            const { owner, projectId } = await createProjectWith([
-                { provider: "kubernetes", platform: "linux", execution: "container" },
-                { provider: "android-redroid", platform: "android", execution: "container" },
-            ]);
+        // docker (linux/container) and yandex-cloud (android/*) do not overlap, so both can be connected.
+        test("routes each environment to the cloud serving its substrate", async () => {
+            const { owner, projectId } = await createProjectWithClouds(["docker", "yandex-cloud"]);
 
             await createEnvironmentBody(projectId, owner, validEnvironmentBody).expect(HttpStatus.CREATED);
             await createEnvironmentBody(projectId, owner, androidEnvironment).expect(HttpStatus.CREATED);
         });
 
-        test("rejects an environment no active provider serves (platform/execution mismatch)", async () => {
-            const { owner, projectId } = await createProjectWith([
-                { provider: "android-redroid", platform: "android", execution: "container" },
-            ]);
+        test("rejects an environment no active cloud serves (platform/execution mismatch)", async () => {
+            const { owner, projectId } = await createProjectWithClouds(["yandex-cloud"]);
 
             await createEnvironmentBody(projectId, owner, androidEnvironment).expect(HttpStatus.CREATED);
             await createEnvironmentBody(projectId, owner, validEnvironmentBody).expect(HttpStatus.CONFLICT);

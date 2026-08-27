@@ -1,7 +1,7 @@
 import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
+import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
 import { Environment } from "../../../../domain/entities/environment/environment";
-import { ProviderAccount } from "../../../../domain/entities/provider-account/provider-account";
 import { agentBootstrap, sessionLogFile } from "../agent-bootstrap";
 
 import { KubernetesClient } from "./kubernetes-client";
@@ -40,13 +40,13 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         super();
     }
 
-    async provision(environment: Environment, providerAccount: ProviderAccount | null): Promise<void> {
+    async provision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
         await this.kubernetes.deleteByLabel(labels.environmentId, environment.id);
 
-        // The image/port/resources come from the environment's provider account when set, falling back to
-        // the install default; install-level fields (namespace, networking, node-port range, callback
+        // The image/port/resources come from the environment's cloud account when set, falling back to the
+        // install default; install-level fields (namespace, networking, node-port range, callback
         // URL/secret) stay global — they are cluster topology and isolation, not per-project.
-        const overrides = kubernetesProvisioningOverrides(providerAccount?.config);
+        const overrides = kubernetesProvisioningOverrides(cloudAccount?.config);
         const provisioning: Provisioning = {
             image: overrides.image ?? this.config.image,
             containerPort: overrides.containerPort ?? this.config.containerPort,

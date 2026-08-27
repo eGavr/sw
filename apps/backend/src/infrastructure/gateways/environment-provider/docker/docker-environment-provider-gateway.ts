@@ -1,8 +1,8 @@
 import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
+import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
-import { ProviderAccount } from "../../../../domain/entities/provider-account/provider-account";
 import { agentBootstrap, sessionLogFile } from "../agent-bootstrap";
 
 import { DockerClient } from "./docker-client";
@@ -26,7 +26,7 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
         super();
     }
 
-    async provision(environment: Environment, providerAccount: ProviderAccount | null): Promise<void> {
+    async provision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
         await this.removeByEnvironmentId(environment.id);
 
         const [application] = environment.applications.toArray();
@@ -35,9 +35,9 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
             throw new InvalidArgumentError("environment: at least one application is required");
         }
 
-        // The provisioning shape comes from the environment's provider account when set, falling back to
-        // the install default; the install-level fields (callback URL/secret, advertise host) stay global.
-        const overrides = dockerProvisioningOverrides(providerAccount?.config);
+        // The provisioning shape comes from the environment's cloud account when set, falling back to the
+        // install default; the install-level fields (callback URL/secret, advertise host) stay global.
+        const overrides = dockerProvisioningOverrides(cloudAccount?.config);
         const provisioning = resolveDockerProvisioning(application, {
             image: overrides.image ?? this.config.image,
             baseImage: overrides.baseImage ?? this.config.baseImage,

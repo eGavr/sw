@@ -3,8 +3,8 @@ import { Column, Entity, ManyToOne, OneToMany, PrimaryColumn } from "typeorm";
 import { Environment as EnvironmentEntity, EnvironmentData } from "../../../../../../../domain/entities/environment/environment";
 import { defaultExecution } from "../../../../../../../domain/entities/environment/execution";
 import { DateColumn } from "../../columns-extra/date-column";
+import { CloudAccount } from "../cloud-account/cloud-account";
 import { Project } from "../project/project";
-import { ProviderAccount } from "../provider-account/provider-account";
 
 import { EnvironmentApplication } from "./environment-application";
 
@@ -17,8 +17,8 @@ export class Environment {
         environment.id = data.id;
         environment.resourceId = data.resourceId ?? null;
         environment.projectId = data.projectId;
-        environment.providerAccountId = data.providerAccountId ?? null;
-        environment.provider = data.provider ?? null;
+        environment.cloudAccountId = data.cloudAccountId ?? null;
+        environment.cloudType = data.cloudType ?? null;
         environment.state = data.state;
         environment.stateReason = data.stateReason ?? null;
         environment.platformName = data.platform.name;
@@ -48,14 +48,14 @@ export class Environment {
     @Column()
     projectId: string;
 
-    @ManyToOne(() => ProviderAccount, providerAccount => providerAccount.id)
-    providerAccount: ProviderAccount;
+    @ManyToOne(() => CloudAccount, cloudAccount => cloudAccount.id)
+    cloudAccount: CloudAccount;
 
     @Column({ type: "uuid", nullable: true })
-    providerAccountId: string | null;
+    cloudAccountId: string | null;
 
     @Column({ type: "varchar", nullable: true })
-    provider: string | null;
+    cloudType: string | null;
 
     @Column()
     state: string;
@@ -104,8 +104,8 @@ export class Environment {
             id: this.id,
             resourceId: this.resourceId,
             projectId: this.projectId,
-            providerAccountId: this.providerAccountId,
-            provider: this.provider,
+            cloudAccountId: this.cloudAccountId,
+            cloudType: this.cloudType,
             state: this.state,
             stateReason: this.stateReason,
             platform: {

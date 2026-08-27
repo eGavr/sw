@@ -1,22 +1,22 @@
 import { Injectable } from "@nestjs/common";
 
+import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
+import { CloudAccountId } from "../../../domain/entities/cloud-account/cloud-account-id";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentStateReason } from "../../../domain/entities/environment/environment-state-reason";
-import { ProviderAccount } from "../../../domain/entities/provider-account/provider-account";
-import { ProviderAccountId } from "../../../domain/entities/provider-account/provider-account-id";
 import { EnvironmentProviderGateway } from "../../interfaces/gateways/environment-provider-gateway";
 import { Logger } from "../../interfaces/logger";
+import { CloudAccountRepository } from "../../interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
-import { ProviderAccountRepository } from "../../interfaces/repositories/provider-account-repository";
 
 // Worker scenario: prepare the next enqueued environment. Claims it atomically (domain claim() under
-// a row lock), provisions the container via the compute gateway (routed by the environment's provider
+// a row lock), provisions the container via the compute gateway (routed by the environment's cloud
 // type), and marks it dispatched. Returns null when the queue is empty so the pump stops draining.
 @Injectable()
 export class PrepareNextEnvironmentUseCase {
     constructor(
         private readonly environmentRepository: EnvironmentRepository,
-        private readonly providerAccountRepository: ProviderAccountRepository,
+        private readonly cloudAccountRepository: CloudAccountRepository,
         private readonly environmentProviderGateway: EnvironmentProviderGateway,
         private readonly logger: Logger,
     ) {}
@@ -31,7 +31,7 @@ export class PrepareNextEnvironmentUseCase {
         this.logger.log(`prepare: provisioning environment ${environment.id}`);
 
         try {
-            await this.environmentProviderGateway.provision(environment, await this.providerAccountFor(environment));
+            await this.environmentProviderGateway.provision(environment, await this.cloudAccountFor(environment));
             environment.markDispatched();
             await this.environmentRepository.save(environment);
             this.logger.log(`prepare: environment ${environment.id} dispatched, awaiting agent`);
@@ -46,12 +46,12 @@ export class PrepareNextEnvironmentUseCase {
         return environment;
     }
 
-    private async providerAccountFor(environment: Environment): Promise<ProviderAccount | null> {
-        if (!environment.providerAccountId) {
+    private async cloudAccountFor(environment: Environment): Promise<CloudAccount | null> {
+        if (!environment.cloudAccountId) {
             return null;
         }
 
-        return this.providerAccountRepository.get(ProviderAccountId.fromString(environment.providerAccountId));
+        return this.cloudAccountRepository.get(CloudAccountId.fromString(environment.cloudAccountId));
     }
 }
 
