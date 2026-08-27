@@ -932,3 +932,12 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 ## Follow-up: Provider **config descriptors** (schema-driven форма вместо сырого JSON) — НЕ начато
 
 `config` сейчас — opaque `Record<string,unknown>`, у UI нет схемы → форму не построить. Нужно, чтобы **каталог описывал схему конфига на каждый вид/провайдер** (дескрипторы полей / JSON Schema: redroid → `imageId/zone/subnet/sizing`, docker → `image/port`), и ручка отдавала это (напр. `GET supported providers` поверх `ProviderCatalog.list()` + схемы). Тогда фронт рендерит **типизированную форму** (Select провайдера, поля конфига по схеме) вместо ручного JSON. Сюда же — мини-ручка «список поддерживаемых провайдеров» (чтобы Select не хардкодить) и провайдер-`displayName` (человеческое имя в таблице — сейчас у `ProviderAccount` только uuid). Связано с рефактором `CloudAccount`×`ComputeBinding` выше (каждый вид×облако объявляет свою схему).
+
+## Follow-up: per-env targeting сессии через `sw:environmentId` (для UI/демо) — НЕ начато (к step 4)
+
+Дефолт остаётся **capability-based** (аллоцировать любой свободный `executing`-env под caps) — основной продуктовый путь. Добавляем **опциональную кастомную капу `sw:environmentId`**: если указана — сессия создаётся на КОНКРЕТНОМ окружении (детерминированно), иначе pool-аллокация как сейчас. Нужно, чтобы UI имел понятную кнопку **«New session» на строке конкретного env** (создание окружения — отдельная кнопка). Реализация — как `sw:execution`: резолвер сессии читает капу → домен кладёт в `SessionAllocationCriteria` доп-фильтр env-id → `findAllocatable` фильтрует по одному кандидату (тот же optimistic pick). **Матчинг caps — СТРОГИЙ.** Семантика ошибок (важно — по HTTP/AIP-смыслу, НЕ всё 409):
+- targeted env НЕ несёт запрошенный `browserName` → **400 INVALID_ARGUMENT** (несочетаемый запрос, а не состояние-конфликт);
+- env не найден / не в проекте вызывающего → **404 NOT_FOUND** (не течём наружу);
+- env существует, но не `executing` (провижнится/failed) → **409 ABORTED/Conflict** (transient состояние);
+- env матчит и свободен, но занят/reject ноды → **409 Conflict** (как текущий busy / `NoAllocatableEnvironmentError`).
+То есть **409 — только про состояние** (занято/не готово), **400 — про несовместимость запроса** (targeted env без нужного browser). Это опт-ин таргетинг для UI/отладки, НЕ отказ от pool-модели.
