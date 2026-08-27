@@ -33,11 +33,11 @@ describe("/projects/:project/environments", () => {
             .send(CreateProjectBody.create())
             .expect(HttpStatus.CREATED);
 
-        // Connect a dry-run cloud so create-environment resolves a cloud for linux/{container,emulator}.
+        // Connect the local cloud so create-environment resolves a cloud for linux/container.
         await request(app.getHttpServer())
             .post(`/projects/${body.uid}/cloudAccounts`)
             .set(owner)
-            .send({ type: "noop" })
+            .send({ type: "local" })
             .expect(HttpStatus.CREATED);
 
         return { owner, projectId: body.uid };
@@ -47,7 +47,7 @@ describe("/projects/:project/environments", () => {
         request(app.getHttpServer()).post(`/projects/${projectId}/environments`).set(owner).send(validEnvironmentBody);
 
     describe("POST (create)", () => {
-        test("lets the owner create a Local environment as an AIP resource", async () => {
+        test("lets the owner create an environment as an AIP resource", async () => {
             const { owner, projectId } = await createProject();
 
             const { body } = await createEnvironment(projectId, owner).expect(HttpStatus.CREATED);
@@ -63,13 +63,22 @@ describe("/projects/:project/environments", () => {
             });
         });
 
+        // The emulator substrate is only provided by yandex-cloud (android), so the echo is asserted there.
         test("defaults the execution substrate to container and echoes an explicit one", async () => {
             const { owner, projectId } = await createProject();
+
+            await request(app.getHttpServer())
+                .post(`/projects/${projectId}/cloudAccounts`).set(owner).send({ type: "yandex-cloud" })
+                .expect(HttpStatus.CREATED);
 
             const { body: emulated } = await request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
                 .set(owner)
-                .send({ ...validEnvironmentBody, execution: "emulator" })
+                .send({
+                    platform: { name: "android", version: "13" },
+                    applications: [{ name: "settings", version: "13" }],
+                    execution: "emulator",
+                })
                 .expect(HttpStatus.CREATED);
 
             expect(emulated.execution).toBe("emulator");
@@ -108,7 +117,7 @@ describe("/projects/:project/environments", () => {
                 .post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
 
             await request(app.getHttpServer())
-                .post(`/projects/${project.uid}/cloudAccounts`).set(owner).send({ type: "noop" })
+                .post(`/projects/${project.uid}/cloudAccounts`).set(owner).send({ type: "local" })
                 .expect(HttpStatus.CREATED);
 
             await request(app.getHttpServer())
@@ -231,9 +240,9 @@ describe("/projects/:project/environments", () => {
         const createEnvironmentBody = (projectId: string, owner: { authorization: string }, body: object): request.Test =>
             request(app.getHttpServer()).post(`/projects/${projectId}/environments`).set(owner).send(body);
 
-        // docker (linux/container) and yandex-cloud (android/*) do not overlap, so both can be connected.
+        // local (linux/container) and yandex-cloud (android/*) do not overlap, so both can be connected.
         test("routes each environment to the cloud serving its substrate", async () => {
-            const { owner, projectId } = await createProjectWithClouds(["docker", "yandex-cloud"]);
+            const { owner, projectId } = await createProjectWithClouds(["local", "yandex-cloud"]);
 
             await createEnvironmentBody(projectId, owner, validEnvironmentBody).expect(HttpStatus.CREATED);
             await createEnvironmentBody(projectId, owner, androidEnvironment).expect(HttpStatus.CREATED);
