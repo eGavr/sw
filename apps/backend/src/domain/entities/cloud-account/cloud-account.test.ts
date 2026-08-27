@@ -8,10 +8,10 @@ import { Stereotype } from "./stereotype";
 describe("CloudAccount", () => {
     const projectId = ProjectId.create();
 
-    const yandex = (): CloudAccount =>
+    const yandexCloud = (): CloudAccount =>
         CloudAccount.create({
             projectId,
-            type: "yandex",
+            type: "yandex-cloud",
             provides: [
                 new Stereotype("android", Execution.Container),
                 new Stereotype("android", Execution.Emulator),
@@ -26,7 +26,7 @@ describe("CloudAccount", () => {
         });
 
     test("is created active with an empty config by default", () => {
-        const account = yandex();
+        const account = yandexCloud();
 
         expect(account.isActive()).toBe(true);
         expect(account.state).toBe(CloudAccountState.Active);
@@ -35,7 +35,7 @@ describe("CloudAccount", () => {
     });
 
     test("supports exactly the substrates it provides", () => {
-        const account = yandex();
+        const account = yandexCloud();
 
         expect(account.supports("android", Execution.Container)).toBe(true);
         expect(account.supports("android", Execution.Emulator)).toBe(true);
@@ -45,16 +45,16 @@ describe("CloudAccount", () => {
     test("overlaps another cloud that shares a substrate; not one that is disjoint", () => {
         const other = CloudAccount.create({
             projectId,
-            type: "yandex-2",
+            type: "yandex-cloud-2",
             provides: [new Stereotype("android", Execution.Container)],
         });
 
-        expect(yandex().overlaps(other)).toBe(true);
-        expect(yandex().overlaps(docker())).toBe(false);
+        expect(yandexCloud().overlaps(other)).toBe(true);
+        expect(yandexCloud().overlaps(docker())).toBe(false);
     });
 
     test("disable is a soft-delete: no longer active", () => {
-        const account = yandex();
+        const account = yandexCloud();
         account.disable();
 
         expect(account.isActive()).toBe(false);
@@ -62,23 +62,23 @@ describe("CloudAccount", () => {
     });
 
     test("belongsTo its project only", () => {
-        const account = yandex();
+        const account = yandexCloud();
 
         expect(account.belongsTo(projectId)).toBe(true);
         expect(account.belongsTo(ProjectId.create())).toBe(false);
     });
 
     test("round-trips through toObject/fromObject", () => {
-        const account = yandex();
+        const account = yandexCloud();
         const restored = CloudAccount.fromObject(account.toObject());
 
         expect(restored.id).toBe(account.id);
-        expect(restored.type).toBe("yandex");
+        expect(restored.type).toBe("yandex-cloud");
         expect(restored.supports("android", Execution.Emulator)).toBe(true);
     });
 
     test("fromObject rejects an unknown state", () => {
-        const data = yandex().toObject();
+        const data = yandexCloud().toObject();
 
         expect(() => CloudAccount.fromObject({ ...data, state: "bogus" })).toThrow();
     });

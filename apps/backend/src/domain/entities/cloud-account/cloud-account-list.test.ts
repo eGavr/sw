@@ -11,8 +11,8 @@ describe("CloudAccountList", () => {
     const cloud = (type: string, provides: Array<Stereotype>): CloudAccount =>
         CloudAccount.create({ projectId, type, provides });
 
-    const yandex = (): CloudAccount =>
-        cloud("yandex", [
+    const yandexCloud = (): CloudAccount =>
+        cloud("yandex-cloud", [
             new Stereotype("android", Execution.Container),
             new Stereotype("android", Execution.Emulator),
         ]);
@@ -21,10 +21,10 @@ describe("CloudAccountList", () => {
 
     describe("resolveActiveFor", () => {
         test("returns the active cloud that supports the substrate", () => {
-            const list = CloudAccountList.of([yandex(), docker()]);
+            const list = CloudAccountList.of([yandexCloud(), docker()]);
 
             expect(list.resolveActiveFor("linux", Execution.Container)?.type).toBe("docker");
-            expect(list.resolveActiveFor("android", Execution.Emulator)?.type).toBe("yandex");
+            expect(list.resolveActiveFor("android", Execution.Emulator)?.type).toBe("yandex-cloud");
         });
 
         test("skips a disabled cloud and returns null", () => {
@@ -41,22 +41,22 @@ describe("CloudAccountList", () => {
 
     describe("activeConflictWith", () => {
         test("finds an active cloud whose substrates overlap the candidate", () => {
-            const list = CloudAccountList.of([yandex()]);
-            const candidate = cloud("yandex-2", [new Stereotype("android", Execution.Container)]);
+            const list = CloudAccountList.of([yandexCloud()]);
+            const candidate = cloud("yandex-cloud-2", [new Stereotype("android", Execution.Container)]);
 
-            expect(list.activeConflictWith(candidate)?.type).toBe("yandex");
+            expect(list.activeConflictWith(candidate)?.type).toBe("yandex-cloud");
         });
 
         test("returns null when the candidate is disjoint", () => {
-            const list = CloudAccountList.of([yandex()]);
+            const list = CloudAccountList.of([yandexCloud()]);
 
             expect(list.activeConflictWith(docker())).toBeNull();
         });
 
         test("ignores a disabled overlapping cloud", () => {
-            const disabled = yandex();
+            const disabled = yandexCloud();
             disabled.disable();
-            const candidate = cloud("yandex-2", [new Stereotype("android", Execution.Container)]);
+            const candidate = cloud("yandex-cloud-2", [new Stereotype("android", Execution.Container)]);
 
             expect(CloudAccountList.of([disabled]).activeConflictWith(candidate)).toBeNull();
         });
