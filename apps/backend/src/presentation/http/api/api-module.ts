@@ -25,6 +25,9 @@ import {
 import {
     ListCloudAccountsUseCase,
 } from "../../../application/use-cases/cloud-accounts/list-cloud-accounts-use-case";
+import {
+    ListCloudTypesUseCase,
+} from "../../../application/use-cases/cloud-types/list-cloud-types-use-case";
 import { CreateEnvironmentUseCase } from "../../../application/use-cases/environments/create-environment-use-case";
 import { DeleteEnvironmentUseCase } from "../../../application/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../application/use-cases/environments/get-environment-use-case";
@@ -83,6 +86,7 @@ import { UrlRedactions } from "../middlewares/url-redaction";
 import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { CloudAccountsController } from "./controllers/cloud-accounts/cloud-accounts-controller";
+import { CloudTypesController } from "./controllers/cloud-types/cloud-types-controller";
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
 import { SessionArtifactsController } from "./controllers/sessions/session-artifacts-controller";
@@ -102,6 +106,7 @@ import {
         ProjectsController,
         EnvironmentsController,
         CloudAccountsController,
+        CloudTypesController,
         StorageDestinationController,
         SessionArtifactsController,
     ],
@@ -125,6 +130,8 @@ import {
         ListCloudAccountsUseCase,
         GetCloudAccountUseCase,
         DeleteCloudAccountUseCase,
+
+        ListCloudTypesUseCase,
 
         GetSessionLogsUseCase,
         GetSessionVideoUseCase,
