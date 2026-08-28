@@ -908,6 +908,11 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 - **шаг 4:** New session (caps + тумблеры, id один раз).
 - **шаг 5:** Inspect session (VNC/Logs/Video, stateless).
 
+**UX-бэклог (мелочи, всплыли на живом прогоне Clouds-вкладки):**
+- **Дизейблить «New environment», пока к проекту не подключено ни одного облака** (+ подсказка «connect a cloud first» со ссылкой на вкладку Clouds). Сейчас кнопка активна и запрос честно падает 409 «no active cloud account provisions this substrate» — корректно, но пользователя надо вести до ошибки, а не после. Данные уже есть на клиенте (список cloudAccounts) — чисто фронтовая правка.
+- **«New project» в UI** (кнопка есть, задизейблена «soon»): модалка `projectId`/`displayName` → POST /v1/projects. Без неё свежий пользователь не может начать без curl.
+- **`displayName` проекта должен принимать свободный текст** («Alice demo» сейчас → 400): regex `^[a-zA-Z0-9-]+$` уместен для `projectId`, но не для отображаемого имени (AIP: display_name — свободный текст для людей). Бэковый фикс валидации.
+
 **Backend follow-ups для occupancy (ОТДЕЛЬНЫМИ шагами, НЕ во фронт-PR):**
 - **Отдать `busy` (bool) + `lastHeartbeatAt` в GET environments.** Presenter сейчас отдаёт только `state`. Занятость **ортогональна** lifecycle: и свободное, и занятое окружение — оба `state=executing` (сессия не меняет lifecycle, `busy` ставит хартбит агента) → из `state` не вывести. `busy` — не секрет. Нужно для колонки Occupancy (`busy`/`free` + свежесть хартбита).
 - **Таймстемпы перехода `busy↔free`** («стало занято/свободно в HH:MM»): бэкенд сейчас НЕ пишет момент перехода (только `updatedAt`/`lastHeartbeatAt`) → нужна доп-колонка/событие. Для UI «busy since / free since».
