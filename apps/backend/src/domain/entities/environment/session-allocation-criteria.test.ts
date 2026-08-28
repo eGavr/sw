@@ -6,9 +6,11 @@ import { RequestedApplication, RequestedApplicationParams } from "./application/
 import { Environment } from "./environment";
 import { EnvironmentEndpoint } from "./environment-endpoint";
 import { EnvironmentState } from "./environment-state";
+import { IncompatibleSessionTargetError } from "./error/incompatible-session-target-error";
+import { TargetEnvironmentNotReadyError } from "./error/target-environment-not-ready-error";
 import { Execution } from "./execution";
 import { Platform } from "./platform/platform";
-import { AllocationAdmission, SessionAllocationCriteria } from "./session-allocation-criteria";
+import { SessionAllocationCriteria } from "./session-allocation-criteria";
 
 describe("SessionAllocationCriteria", () => {
     const now = new Date(10_000);
@@ -75,25 +77,24 @@ describe("SessionAllocationCriteria", () => {
         ): SessionAllocationCriteria => criteriaFor(RequestedApplication.create(application));
 
         test("admits a matching free executing environment with a fresh heartbeat", () => {
-            expect(criteria().admit(executingEnvironmentWith("141"))).toBe(AllocationAdmission.Allocatable);
+            expect(() => criteria().admit(executingEnvironmentWith("141"))).not.toThrow();
         });
 
         test("a latest request admits any offered version", () => {
-            expect(criteria({ name: "chrome" }).admit(executingEnvironmentWith("139")))
-                .toBe(AllocationAdmission.Allocatable);
+            expect(() => criteria({ name: "chrome" }).admit(executingEnvironmentWith("139"))).not.toThrow();
         });
 
-        test("incompatible when the environment lacks the application", () => {
-            expect(criteria({ name: "firefox" }).admit(executingEnvironmentWith("141")))
-                .toBe(AllocationAdmission.Incompatible);
+        test("rejects as incompatible when the environment lacks the application", () => {
+            expect(() => criteria({ name: "firefox" }).admit(executingEnvironmentWith("141")))
+                .toThrow(IncompatibleSessionTargetError);
         });
 
-        test("incompatible when the offered version differs from the exact request", () => {
-            expect(criteria({ name: "chrome", version: "999" }).admit(executingEnvironmentWith("141")))
-                .toBe(AllocationAdmission.Incompatible);
+        test("rejects as incompatible when the offered version differs from the exact request", () => {
+            expect(() => criteria({ name: "chrome", version: "999" }).admit(executingEnvironmentWith("141")))
+                .toThrow(IncompatibleSessionTargetError);
         });
 
-        test("incompatible on another execution substrate", () => {
+        test("rejects as incompatible on another execution substrate", () => {
             const emulator = SessionAllocationCriteria.from({
                 now,
                 freshnessMs: 6_000,
@@ -101,24 +102,24 @@ describe("SessionAllocationCriteria", () => {
                 application: RequestedApplication.create({ name: "chrome", version: "141" }),
             });
 
-            expect(emulator.admit(executingEnvironmentWith("141"))).toBe(AllocationAdmission.Incompatible);
+            expect(() => emulator.admit(executingEnvironmentWith("141"))).toThrow(IncompatibleSessionTargetError);
         });
 
-        test("not ready while the environment is still provisioning", () => {
-            expect(criteria().admit(environmentWith("141"))).toBe(AllocationAdmission.NotReady);
+        test("rejects as not ready while the environment is still provisioning", () => {
+            expect(() => criteria().admit(environmentWith("141"))).toThrow(TargetEnvironmentNotReadyError);
         });
 
-        test("not ready when the environment is busy", () => {
+        test("rejects as not ready when the environment is busy", () => {
             const environment = executingEnvironmentWith("141");
             environment.heartbeat(true, now);
 
-            expect(criteria().admit(environment)).toBe(AllocationAdmission.NotReady);
+            expect(() => criteria().admit(environment)).toThrow(TargetEnvironmentNotReadyError);
         });
 
-        test("not ready when the heartbeat went stale", () => {
+        test("rejects as not ready when the heartbeat went stale", () => {
             const stale = executingEnvironmentWith("141", new Date(now.getTime() - 60_000));
 
-            expect(criteria().admit(stale)).toBe(AllocationAdmission.NotReady);
+            expect(() => criteria().admit(stale)).toThrow(TargetEnvironmentNotReadyError);
         });
     });
 });

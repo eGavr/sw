@@ -1,6 +1,13 @@
+import { latestApplicationVersion } from "./application/application-version";
 import { RequestedApplication } from "./application/requested-application";
 import { Environment } from "./environment";
 import { EnvironmentState } from "./environment-state";
+import {
+    IncompatibleSessionTargetError,
+} from "./error/incompatible-session-target-error";
+import {
+    TargetEnvironmentNotReadyError,
+} from "./error/target-environment-not-ready-error";
 import { Execution } from "./execution";
 
 export type AllocatableEnvironmentPredicate = {
@@ -18,15 +25,6 @@ export type SessionAllocationParams = {
     readonly execution: Execution;
     readonly application: RequestedApplication;
 };
-
-// The verdict on a specific environment a session was targeted at. Incompatible means the request can
-// never succeed there (wrong application/version/substrate — an invalid request); NotReady means a
-// transient state (not executing, busy, stale heartbeat — a conflict worth retrying).
-export enum AllocationAdmission {
-    Allocatable = "allocatable",
-    Incompatible = "incompatible",
-    NotReady = "notReady",
-}
 
 // Which environments a session may be allocated onto: `executing`, not busy, with a fresh heartbeat, on
 // the requested execution substrate, and offering the requested application. What "free" and "fresh" mean
@@ -53,14 +51,21 @@ export class SessionAllocationCriteria {
         return this.predicate;
     }
 
-    // The same rule as the pool predicate, evaluated in the domain against one targeted environment —
-    // split into "could never work" vs "not right now" so the caller can answer honestly.
-    admit(environment: Environment): AllocationAdmission {
+    // The same rule as the pool predicate, enforced against one targeted environment. Refusal splits
+    // honestly: a target that can never serve the request (wrong application/version/substrate) is an
+    // invalid request; one that merely cannot right now (provisioning/busy/stale) is a transient conflict.
+    admit(environment: Environment): void {
         if (!this.offersRequested(environment)) {
-            return AllocationAdmission.Incompatible;
+            throw new IncompatibleSessionTargetError(
+                environment.id,
+                this.application.name,
+                this.application.version() ?? latestApplicationVersion,
+            );
         }
 
-        return this.isReady(environment) ? AllocationAdmission.Allocatable : AllocationAdmission.NotReady;
+        if (!this.isReady(environment)) {
+            throw new TargetEnvironmentNotReadyError(environment.id);
+        }
     }
 
     private offersRequested(environment: Environment): boolean {

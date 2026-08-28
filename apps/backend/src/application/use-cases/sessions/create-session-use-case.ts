@@ -6,19 +6,10 @@ import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { toExecution } from "../../../domain/entities/environment/execution";
 import { defaultHeartbeatFreshnessMs } from "../../../domain/entities/environment/heartbeat-freshness";
-import {
-    AllocationAdmission,
-    SessionAllocationCriteria,
-} from "../../../domain/entities/environment/session-allocation-criteria";
+import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
-import {
-    IncompatibleSessionTargetError,
-} from "../../../domain/entities/session/error/incompatible-session-target-error";
 import { NoAllocatableEnvironmentError } from "../../../domain/entities/session/error/no-allocatable-environment-error";
-import {
-    TargetEnvironmentNotReadyError,
-} from "../../../domain/entities/session/error/target-environment-not-ready-error";
 import { Session } from "../../../domain/entities/session/session";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { WebDriverSessionGateway, WebDriverSessionOptions } from "../../interfaces/gateways/webdriver-session-gateway";
@@ -84,8 +75,8 @@ export class CreateSessionUseCase {
         });
     }
 
-    // sw:environmentId: the one targeted environment, admitted by the same domain rule the pool query
-    // uses — an incompatible target is an invalid request, an unready one a transient conflict.
+    // sw:environmentId: the one targeted environment; the domain enforces the strict match (throws
+    // incompatible-target / not-ready), the scenario only resolves the handle.
     private async targetedCandidate(
         projectId: ProjectId,
         environmentId: string,
@@ -97,21 +88,7 @@ export class CreateSessionUseCase {
             throw new NotFoundResourceError(environmentId);
         }
 
-        const admission = criteria.admit(environment);
-
-        if (admission === AllocationAdmission.Incompatible) {
-            const predicate = criteria.toPredicate();
-
-            throw new IncompatibleSessionTargetError(
-                environmentId,
-                predicate.applicationName,
-                predicate.applicationVersion ?? latestApplicationVersion,
-            );
-        }
-
-        if (admission === AllocationAdmission.NotReady) {
-            throw new TargetEnvironmentNotReadyError(environmentId);
-        }
+        criteria.admit(environment);
 
         return [environment];
     }
