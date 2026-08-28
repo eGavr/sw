@@ -7,7 +7,7 @@ describe("RegisteredCloudCatalog", () => {
 
     test("supports the registered cloud types only", () => {
         expect(catalog.supports("yandex-cloud")).toBe(true);
-        expect(catalog.supports("docker")).toBe(true);
+        expect(catalog.supports("local")).toBe(true);
         expect(catalog.supports("unknown")).toBe(false);
         // A prototype key must not be mistaken for a registered type.
         expect(catalog.supports("constructor")).toBe(false);
@@ -21,8 +21,8 @@ describe("RegisteredCloudCatalog", () => {
         expect(provides.some((s) => s.matches("linux", Execution.Container))).toBe(false);
     });
 
-    test("docker provisions a linux container", () => {
-        expect(catalog.providesFor("docker").some((s) => s.matches("linux", Execution.Container))).toBe(true);
+    test("the local cloud provisions a linux container", () => {
+        expect(catalog.providesFor("local").some((s) => s.matches("linux", Execution.Container))).toBe(true);
     });
 
     test("an unknown type provides nothing", () => {

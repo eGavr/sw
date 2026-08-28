@@ -77,7 +77,6 @@ describe("environment garbage collection", () => {
 
         return environmentRepository.create({
             projectId: ProjectId.fromString(project.id),
-            provider: "noop",
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });

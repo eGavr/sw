@@ -59,7 +59,7 @@ describe("/projects/:project/cloudAccounts", () => {
 
     test("gets and soft-deletes a cloud account", async () => {
         const { owner, uid } = await seedProject();
-        const created = (await connect(uid, owner, "docker").expect(HttpStatus.CREATED)).body;
+        const created = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
 
         const fetched = (await request(app.getHttpServer())
             .get(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
@@ -78,7 +78,7 @@ describe("/projects/:project/cloudAccounts", () => {
     test("does not expose a cloud account of another project", async () => {
         const first = await seedProject();
         const second = await seedProject();
-        const created = (await connect(first.uid, first.owner, "docker").expect(HttpStatus.CREATED)).body;
+        const created = (await connect(first.uid, first.owner, "local").expect(HttpStatus.CREATED)).body;
 
         return request(app.getHttpServer())
             .get(`/projects/${second.uid}/cloudAccounts/${created.uid}`).set(second.owner).expect(HttpStatus.NOT_FOUND);
@@ -87,12 +87,12 @@ describe("/projects/:project/cloudAccounts", () => {
     test("allows clouds with disjoint substrates but rejects an overlapping one (CONFLICT)", async () => {
         const { owner, uid } = await seedProject();
 
-        // yandex-cloud (android/*) and docker (linux/container) do not overlap.
+        // yandex-cloud (android/*) and local (linux/container) do not overlap.
         await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CREATED);
-        await connect(uid, owner, "docker").expect(HttpStatus.CREATED);
+        await connect(uid, owner, "local").expect(HttpStatus.CREATED);
 
-        // kubernetes also provides linux/container -> overlaps docker -> rejected.
-        return connect(uid, owner, "kubernetes").expect(HttpStatus.CONFLICT);
+        // A second local provides the same linux/container -> overlaps the first -> rejected.
+        return connect(uid, owner, "local").expect(HttpStatus.CONFLICT);
     });
 
     test("rejects an unknown cloud type with INVALID_ARGUMENT", async () => {
@@ -105,12 +105,12 @@ describe("/projects/:project/cloudAccounts", () => {
         const { uid } = await seedProject();
 
         return request(app.getHttpServer())
-            .post(`/projects/${uid}/cloudAccounts`).send({ type: "docker" }).expect(HttpStatus.UNAUTHORIZED);
+            .post(`/projects/${uid}/cloudAccounts`).send({ type: "local" }).expect(HttpStatus.UNAUTHORIZED);
     });
 
     test("responds PERMISSION_DENIED for a non-member", async () => {
         const { uid } = await seedProject();
 
-        return connect(uid, Authorization.forUser(UserFactory.createId()), "docker").expect(HttpStatus.FORBIDDEN);
+        return connect(uid, Authorization.forUser(UserFactory.createId()), "local").expect(HttpStatus.FORBIDDEN);
     });
 });

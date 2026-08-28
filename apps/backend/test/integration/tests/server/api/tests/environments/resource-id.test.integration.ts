@@ -31,7 +31,7 @@ describe("human-readable environment ids", () => {
     });
 
     const connectCloud = (projectId: string, owner: AuthHeader): request.Test =>
-        request(app.getHttpServer()).post(`/projects/${projectId}/cloudAccounts`).set(owner).send({ type: "noop" });
+        request(app.getHttpServer()).post(`/projects/${projectId}/cloudAccounts`).set(owner).send({ type: "local" });
 
     const createProject = async (): Promise<{ owner: AuthHeader, projectId: string }> => {
         const owner = Authorization.forUser(UserFactory.createId());

@@ -34,20 +34,6 @@ import {
     DockerEnvironmentConfig,
 } from "./docker/docker-environment-config";
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
-import { KubernetesClient } from "./kubernetes/kubernetes-client";
-import {
-    defaultContainerPort,
-    defaultNamespace,
-    defaultNetworking,
-    defaultNodePortRange,
-    defaultResources,
-    KubernetesEnvironmentConfig,
-    KubernetesNetworking,
-} from "./kubernetes/kubernetes-environment-config";
-import {
-    KubernetesEnvironmentProviderGateway,
-} from "./kubernetes/kubernetes-environment-provider-gateway";
-import { NoopEnvironmentProviderGateway } from "./noop-environment-provider-gateway";
 import { RoutingEnvironmentProviderGateway, routingKey } from "./routing-environment-provider-gateway";
 import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 
@@ -64,30 +50,22 @@ export const EnvironmentProviderGatewayProvider = {
         // SE_NODE_SESSION_TIMEOUT — no per-backend copy of the default.
         const idleTimeoutSeconds = resolveSessionIdleTimeout(configService).toSeconds();
 
-        // Keyed by (cloud type, execution): the environment carries its cloud type + execution and the
-        // routing gateway dispatches here. yandex-cloud serves both android substrates (redroid/emulator).
+        // Keyed by cloud type x stereotype (platform, execution): the environment carries all three and the
+        // routing gateway dispatches here. Each entry is a subdivision of its cloud — the compute kind the
+        // cloud provisions that stereotype with (local drives its docker daemon; yandex-cloud creates
+        // Compute VMs for both android substrates).
         const gateways = new Map<string, EnvironmentProviderGateway>([
-            [routingKey("noop", Execution.Container), new NoopEnvironmentProviderGateway()],
-            [routingKey("noop", Execution.Emulator), new NoopEnvironmentProviderGateway()],
-            [routingKey("docker", Execution.Container), new DockerEnvironmentProviderGateway(
+            [routingKey("local", "linux", Execution.Container), new DockerEnvironmentProviderGateway(
                 new DockerClient(),
                 dockerConfig(configService, idleTimeoutSeconds),
                 agentTokens,
             )],
-            [routingKey("kubernetes", Execution.Container), new KubernetesEnvironmentProviderGateway(
-                new KubernetesClient(
-                    configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultNamespace,
-                    configService.get<string>("COMPUTE_K8S_CONTEXT"),
-                ),
-                kubernetesConfig(configService, idleTimeoutSeconds),
-                agentTokens,
-            )],
-            [routingKey("yandex-cloud", Execution.Container), new AndroidRedroidEnvironmentProviderGateway(
+            [routingKey("yandex-cloud", "android", Execution.Container), new AndroidRedroidEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_FOLDER_ID")),
                 androidRedroidConfig(configService),
                 agentTokens,
             )],
-            [routingKey("yandex-cloud", Execution.Emulator), new AndroidEmulatorEnvironmentProviderGateway(
+            [routingKey("yandex-cloud", "android", Execution.Emulator), new AndroidEmulatorEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_EMULATOR_FOLDER_ID")),
                 androidEmulatorConfig(configService),
                 agentTokens,
@@ -166,35 +144,3 @@ function androidEmulatorConfig(configService: ConfigService): AndroidEmulatorEnv
     });
 }
 
-function kubernetesConfig(configService: ConfigService, sessionTimeoutSeconds: number): KubernetesEnvironmentConfig {
-    const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
-
-    return {
-        image: configService.get<string>("COMPUTE_K8S_IMAGE") ?? "seleniarm/standalone-chromium:latest",
-        namespace: configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultNamespace,
-        networking: (configService.get<string>("COMPUTE_K8S_NETWORKING") as KubernetesNetworking) ?? defaultNetworking,
-        containerPort: Number(configService.get<string>("COMPUTE_K8S_PORT") ?? String(defaultContainerPort)),
-        sessionTimeoutSeconds,
-        entrypoint: configService.get<string>("COMPUTE_K8S_ENTRYPOINT") ?? defaultAgentEntrypoint,
-        nodePortRange: {
-            min: Number(configService.get<string>("COMPUTE_K8S_NODEPORT_MIN") ?? String(defaultNodePortRange.min)),
-            max: Number(configService.get<string>("COMPUTE_K8S_NODEPORT_MAX") ?? String(defaultNodePortRange.max)),
-        },
-        resources: {
-            requests: {
-                cpu: configService.get<string>("COMPUTE_K8S_CPU_REQUEST") ?? defaultResources.requests.cpu,
-                memory: configService.get<string>("COMPUTE_K8S_MEMORY_REQUEST") ?? defaultResources.requests.memory,
-            },
-            limits: {
-                cpu: configService.get<string>("COMPUTE_K8S_CPU_LIMIT") ?? defaultResources.limits.cpu,
-                memory: configService.get<string>("COMPUTE_K8S_MEMORY_LIMIT") ?? defaultResources.limits.memory,
-            },
-        },
-        // On the dev Mac the wd proxy reaches the cluster's host-mapped node ports on the loopback.
-        advertiseHost: configService.get<string>("COMPUTE_K8S_ADVERTISE_HOST") ?? "127.0.0.1",
-        // From inside a pod the host's internal callback API is reachable via host.docker.internal.
-        internalUrl:
-            configService.get<string>("COMPUTE_K8S_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,
-        context: configService.get<string>("COMPUTE_K8S_CONTEXT"),
-    };
-}

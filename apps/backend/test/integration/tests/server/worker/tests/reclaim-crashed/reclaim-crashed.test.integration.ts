@@ -85,7 +85,6 @@ describe("crashed-executing reclaim", () => {
 
         await environmentRepository.create({
             projectId: ProjectId.fromString(project.id),
-            provider: "noop",
             platform: Platform.fromObject({ name: "linux", version: "latest" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
