@@ -8,10 +8,9 @@ import { Execution } from "../../../domain/entities/environment/execution";
 const substratesByType = new Map<string, ReadonlyArray<Stereotype>>([
     // The machine sw itself runs on, driven through its docker daemon.
     ["local", [new Stereotype("linux", Execution.Container)]],
-    [
-        "yandex-cloud",
-        [new Stereotype("android", Execution.Container), new Stereotype("android", Execution.Emulator)],
-    ],
+    // Only the live-proven substrate is offered: android/emulator has an adapter but was never verified
+    // on real KVM hardware, and linux browsers on YC (k8s or per-env VMs) are not built yet.
+    ["yandex-cloud", [new Stereotype("android", Execution.Container)]],
 ]);
 
 export class RegisteredCloudCatalog extends CloudCatalog {

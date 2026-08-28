@@ -26,12 +26,14 @@ export class ListCloudAccountsUseCase {
         private readonly cloudAccountRepository: CloudAccountRepository,
     ) {}
 
+    // AIP-135: soft-deleted (disabled) accounts are omitted from the listing — they only exist so
+    // environments created before the disconnect keep their reference; get-by-id still returns them.
     async execute({ creds, params }: ListCloudAccountsInput): Promise<Array<CloudAccount>> {
         const user = await this.accessControl.authenticate(creds);
         const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
 
-        return this.cloudAccountRepository.listByProject(ProjectId.fromString(project.id));
+        return this.cloudAccountRepository.listActiveByProject(ProjectId.fromString(project.id));
     }
 }

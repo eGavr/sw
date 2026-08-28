@@ -32,10 +32,7 @@ describe("/cloudTypes", () => {
             {
                 name: "cloudTypes/yandex-cloud",
                 type: "yandex-cloud",
-                provides: expect.arrayContaining([
-                    { platform: "android", execution: "container" },
-                    { platform: "android", execution: "emulator" },
-                ]),
+                provides: [{ platform: "android", execution: "container" }],
             },
         ]));
     });

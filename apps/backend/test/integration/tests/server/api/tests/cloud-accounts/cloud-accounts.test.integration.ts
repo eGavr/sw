@@ -45,12 +45,7 @@ describe("/projects/:project/cloudAccounts", () => {
 
         const created = (await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CREATED)).body;
         expect(created).toMatchObject({ uid: expect.any(String), type: "yandex-cloud", state: "active" });
-        expect(created.provides).toEqual(
-            expect.arrayContaining([
-                { platform: "android", execution: "container" },
-                { platform: "android", execution: "emulator" },
-            ]),
-        );
+        expect(created.provides).toEqual([{ platform: "android", execution: "container" }]);
 
         const list = (await request(app.getHttpServer())
             .get(`/projects/${uid}/cloudAccounts`).set(owner).expect(HttpStatus.OK)).body;
@@ -69,10 +64,16 @@ describe("/projects/:project/cloudAccounts", () => {
             .delete(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
         expect(deleted.state).toBe("disabled");
 
-        // Soft delete: still readable, disabled.
+        // Soft delete: still readable by id, disabled...
         const afterDelete = (await request(app.getHttpServer())
             .get(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
         expect(afterDelete.state).toBe("disabled");
+
+        // ...but omitted from the listing (AIP-135), so a reconnect of the same type is possible.
+        const list = (await request(app.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts`).set(owner).expect(HttpStatus.OK)).body;
+        expect(list.cloudAccounts).toEqual([]);
+        await connect(uid, owner, "local").expect(HttpStatus.CREATED);
     });
 
     test("does not expose a cloud account of another project", async () => {
