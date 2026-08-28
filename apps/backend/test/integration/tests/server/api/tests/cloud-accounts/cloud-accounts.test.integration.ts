@@ -44,20 +44,15 @@ describe("/projects/:project/cloudAccounts", () => {
         const { owner, uid } = await seedProject();
 
         const created = (await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CREATED)).body;
-        expect(created).toMatchObject({ uid: expect.any(String), type: "yandex-cloud", state: "active" });
-        expect(created.provides).toEqual(
-            expect.arrayContaining([
-                { platform: "android", execution: "container" },
-                { platform: "android", execution: "emulator" },
-            ]),
-        );
+        expect(created).toMatchObject({ uid: expect.any(String), type: "yandex-cloud" });
+        expect(created.provides).toEqual([{ platform: "android", execution: "container" }]);
 
         const list = (await request(app.getHttpServer())
             .get(`/projects/${uid}/cloudAccounts`).set(owner).expect(HttpStatus.OK)).body;
         expect(list.cloudAccounts.map((account: { type: string }) => account.type)).toContain("yandex-cloud");
     });
 
-    test("gets and soft-deletes a cloud account", async () => {
+    test("gets and deletes a cloud account for real, allowing a reconnect", async () => {
         const { owner, uid } = await seedProject();
         const created = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
 
@@ -65,14 +60,33 @@ describe("/projects/:project/cloudAccounts", () => {
             .get(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
         expect(fetched.uid).toBe(created.uid);
 
-        const deleted = (await request(app.getHttpServer())
-            .delete(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
-        expect(deleted.state).toBe("disabled");
+        await request(app.getHttpServer())
+            .delete(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK);
 
-        // Soft delete: still readable, disabled.
-        const afterDelete = (await request(app.getHttpServer())
-            .get(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
-        expect(afterDelete.state).toBe("disabled");
+        // Gone for real: unreadable, unlisted — and the same type can be connected again.
+        await request(app.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.NOT_FOUND);
+        const list = (await request(app.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts`).set(owner).expect(HttpStatus.OK)).body;
+        expect(list.cloudAccounts).toEqual([]);
+        await connect(uid, owner, "local").expect(HttpStatus.CREATED);
+    });
+
+    test("refuses to delete a cloud account still referenced by an environment (CONFLICT)", async () => {
+        const { owner, uid } = await seedProject();
+        const created = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
+
+        await request(app.getHttpServer())
+            .post(`/projects/${uid}/environments`)
+            .set(owner)
+            .send({
+                platform: { name: "linux", version: "1" },
+                applications: [{ name: "chrome", version: "128" }],
+            })
+            .expect(HttpStatus.CREATED);
+
+        return request(app.getHttpServer())
+            .delete(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.CONFLICT);
     });
 
     test("does not expose a cloud account of another project", async () => {

@@ -63,15 +63,16 @@ describe("/projects/:project/environments", () => {
             });
         });
 
-        // The emulator substrate is only provided by yandex-cloud (android), so the echo is asserted there.
-        test("defaults the execution substrate to container and echoes an explicit one", async () => {
+        // No catalogue entry provisions the emulator substrate yet (the android emulator adapter is not
+        // live-verified), so an explicit emulator request has no cloud to land on.
+        test("rejects an execution substrate no connected cloud provides", async () => {
             const { owner, projectId } = await createProject();
 
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/cloudAccounts`).set(owner).send({ type: "yandex-cloud" })
                 .expect(HttpStatus.CREATED);
 
-            const { body: emulated } = await request(app.getHttpServer())
+            return request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
                 .set(owner)
                 .send({
@@ -79,9 +80,7 @@ describe("/projects/:project/environments", () => {
                     applications: [{ name: "settings", version: "13" }],
                     execution: "emulator",
                 })
-                .expect(HttpStatus.CREATED);
-
-            expect(emulated.execution).toBe("emulator");
+                .expect(HttpStatus.CONFLICT);
         });
 
         test("responds INVALID_ARGUMENT for an unknown execution substrate", async () => {

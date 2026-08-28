@@ -27,6 +27,29 @@ export interface CreateEnvironmentInput {
   environmentId?: string;
 }
 
+// A (platform, execution) pair a cloud can provision — the same wire shape in the cloud-types
+// catalogue and in a connected cloud account's `provides`.
+export interface Substrate {
+  platform: string;
+  execution: string;
+}
+
+export interface CloudType {
+  name: string; // "cloudTypes/{type}"
+  type: string;
+  provides: Array<Substrate>;
+}
+
+export interface CloudAccount {
+  name: string; // "projects/{project}/cloudAccounts/{uid}"
+  uid: string;
+  type: string;
+  config: Record<string, unknown>;
+  provides: Array<Substrate>;
+  createTime: string;
+  updateTime: string;
+}
+
 // The URL handle a resource is addressed by (nested resources live under it).
 export function projectHandle(project: Project): string {
   return project.name.replace(/^projects\//, "");
@@ -78,4 +101,29 @@ export function createEnvironment(project: string, input: CreateEnvironmentInput
 
 export function deleteEnvironment(project: string, environment: string): Promise<void> {
   return swRequest<void>(`v1/projects/${project}/environments/${environment}`, { method: "DELETE" });
+}
+
+export function listCloudTypes(): Promise<Array<CloudType>> {
+  return swRequest<{ cloudTypes?: Array<CloudType> }>("v1/cloudTypes").then((d) => d.cloudTypes ?? []);
+}
+
+export function listCloudAccounts(project: string): Promise<Array<CloudAccount>> {
+  return swRequest<{ cloudAccounts?: Array<CloudAccount> }>(
+    `v1/projects/${project}/cloudAccounts`,
+  ).then((d) => d.cloudAccounts ?? []);
+}
+
+export function connectCloud(project: string, type: string): Promise<CloudAccount> {
+  return swRequest<CloudAccount>(`v1/projects/${project}/cloudAccounts`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ type }),
+  });
+}
+
+// A real delete; the API refuses with 409 while environments still reference the account.
+export function disconnectCloud(project: string, cloudAccount: string): Promise<void> {
+  return swRequest<void>(`v1/projects/${project}/cloudAccounts/${cloudAccount}`, {
+    method: "DELETE",
+  });
 }

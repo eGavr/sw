@@ -2,7 +2,6 @@ import { Execution } from "../environment/execution";
 import { ProjectId } from "../project/project-id";
 
 import { CloudAccount } from "./cloud-account";
-import { CloudAccountState } from "./cloud-account-state";
 import { Stereotype } from "./stereotype";
 
 describe("CloudAccount", () => {
@@ -18,18 +17,16 @@ describe("CloudAccount", () => {
             ],
         });
 
-    const docker = (): CloudAccount =>
+    const local = (): CloudAccount =>
         CloudAccount.create({
             projectId,
-            type: "docker",
+            type: "local",
             provides: [new Stereotype("linux", Execution.Container)],
         });
 
-    test("is created active with an empty config by default", () => {
+    test("is created with an empty config by default", () => {
         const account = yandexCloud();
 
-        expect(account.isActive()).toBe(true);
-        expect(account.state).toBe(CloudAccountState.Active);
         expect(account.config).toEqual({});
         expect(account.credentialRef).toBeNull();
     });
@@ -50,15 +47,7 @@ describe("CloudAccount", () => {
         });
 
         expect(yandexCloud().overlaps(other)).toBe(true);
-        expect(yandexCloud().overlaps(docker())).toBe(false);
-    });
-
-    test("disable is a soft-delete: no longer active", () => {
-        const account = yandexCloud();
-        account.disable();
-
-        expect(account.isActive()).toBe(false);
-        expect(account.isDisabled()).toBe(true);
+        expect(yandexCloud().overlaps(local())).toBe(false);
     });
 
     test("belongsTo its project only", () => {
@@ -68,18 +57,32 @@ describe("CloudAccount", () => {
         expect(account.belongsTo(ProjectId.create())).toBe(false);
     });
 
-    test("round-trips through toObject/fromObject", () => {
-        const account = yandexCloud();
-        const restored = CloudAccount.fromObject(account.toObject());
+    test("the config getter returns a copy — mutating it does not change the aggregate", () => {
+        const account = CloudAccount.create({
+            projectId,
+            type: "local",
+            provides: [new Stereotype("linux", Execution.Container)],
+            config: { image: "selenium:128" },
+        });
 
-        expect(restored.id).toBe(account.id);
-        expect(restored.type).toBe("yandex-cloud");
-        expect(restored.supports("android", Execution.Emulator)).toBe(true);
+        account.config.image = "tampered";
+
+        expect(account.config).toEqual({ image: "selenium:128" });
     });
 
-    test("fromObject rejects an unknown state", () => {
-        const data = yandexCloud().toObject();
+    test("updateConfig replaces the config", () => {
+        const account = local();
 
-        expect(() => CloudAccount.fromObject({ ...data, state: "bogus" })).toThrow();
+        account.updateConfig({ image: "selenium:129" });
+
+        expect(account.config).toEqual({ image: "selenium:129" });
+    });
+
+    test("round-trips through toObject/fromObject", () => {
+        const account = yandexCloud();
+
+        const restored = CloudAccount.fromObject(account.toObject());
+
+        expect(restored.toObject()).toEqual(account.toObject());
     });
 });

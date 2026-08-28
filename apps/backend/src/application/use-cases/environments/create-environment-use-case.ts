@@ -62,8 +62,8 @@ export class CreateEnvironmentUseCase {
         }
 
         const execution = params.execution ? toExecution(params.execution) : defaultExecution;
-        const cloudAccounts = await this.cloudAccountRepository.listActiveByProject(projectId);
-        const cloudAccount = CloudAccountList.of(cloudAccounts).resolveActiveFor(params.platform.name, execution);
+        const cloudAccounts = await this.cloudAccountRepository.listByProject(projectId);
+        const cloudAccount = CloudAccountList.of(cloudAccounts).resolveFor(params.platform.name, execution);
 
         if (!cloudAccount) {
             throw new NoActiveCloudAccountError(projectId.getValue());

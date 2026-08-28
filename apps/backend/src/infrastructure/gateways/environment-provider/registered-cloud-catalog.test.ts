@@ -13,11 +13,11 @@ describe("RegisteredCloudCatalog", () => {
         expect(catalog.supports("constructor")).toBe(false);
     });
 
-    test("yandex-cloud provisions the two android substrates", () => {
+    test("yandex-cloud provisions only the live-proven android container substrate", () => {
         const provides = catalog.providesFor("yandex-cloud");
 
         expect(provides.some((s) => s.matches("android", Execution.Container))).toBe(true);
-        expect(provides.some((s) => s.matches("android", Execution.Emulator))).toBe(true);
+        expect(provides.some((s) => s.matches("android", Execution.Emulator))).toBe(false);
         expect(provides.some((s) => s.matches("linux", Execution.Container))).toBe(false);
     });
 

@@ -3,7 +3,6 @@ import { Injectable } from "@nestjs/common";
 import { CloudAccountRepository } from "../../application/interfaces/repositories/cloud-account-repository";
 import { CloudAccount } from "../../domain/entities/cloud-account/cloud-account";
 import { CloudAccountId } from "../../domain/entities/cloud-account/cloud-account-id";
-import { CloudAccountState } from "../../domain/entities/cloud-account/cloud-account-state";
 import { NotFoundResourceError } from "../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../domain/entities/project/project-id";
 import { CloudAccountDataSource } from "../data-sources/database/postgres/cloud-account-data-source";
@@ -30,16 +29,11 @@ export class CloudAccountRepositoryImpl extends CloudAccountRepository {
         return data.map(CloudAccount.fromObject);
     }
 
-    async listActiveByProject(projectId: ProjectId): Promise<Array<CloudAccount>> {
-        const data = await this.cloudAccountDataSource.listByProjectAndState(
-            projectId.getValue(),
-            CloudAccountState.Active,
-        );
-
-        return data.map(CloudAccount.fromObject);
-    }
-
     async save(cloudAccount: CloudAccount): Promise<void> {
         await this.cloudAccountDataSource.save(cloudAccount);
+    }
+
+    async delete(cloudAccountId: CloudAccountId): Promise<void> {
+        await this.cloudAccountDataSource.delete(cloudAccountId.getValue());
     }
 }

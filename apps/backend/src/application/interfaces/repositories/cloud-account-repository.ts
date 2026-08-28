@@ -7,9 +7,10 @@ export abstract class CloudAccountRepository {
 
     abstract listByProject(projectId: ProjectId): Promise<Array<CloudAccount>>;
 
-    abstract listActiveByProject(projectId: ProjectId): Promise<Array<CloudAccount>>;
-
     // Create and update both go through save (the aggregate is built by the caller via CloudAccount.create,
     // so cross-aggregate invariants like non-overlap can be checked before persisting).
     abstract save(cloudAccount: CloudAccount): Promise<void>;
+
+    // Real delete; throws CloudAccountInUseError while environments still reference the account.
+    abstract delete(cloudAccountId: CloudAccountId): Promise<void>;
 }

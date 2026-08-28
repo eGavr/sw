@@ -61,16 +61,16 @@ export class CloudAccountsController {
         }));
     }
 
-    // AIP-135 soft delete: returns the resource with its now-disabled state, not an empty body.
+    // A real delete (empty response); refused with CONFLICT while environments still reference the account.
     @Delete(":cloudAccount")
     async deleteCloudAccount(
         @Param("project") project: string,
         @Param("cloudAccount") cloudAccount: string,
         @BearerToken() token: string,
-    ): Promise<CloudAccountPresenter> {
-        return new CloudAccountPresenter(await this.deleteCloudAccountUseCase.execute({
+    ): Promise<void> {
+        await this.deleteCloudAccountUseCase.execute({
             creds: { token },
             params: { projectId: project, cloudAccountId: cloudAccount },
-        }));
+        });
     }
 }
