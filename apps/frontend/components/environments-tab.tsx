@@ -123,6 +123,8 @@ export function EnvironmentsTab({ project }: { project: string }) {
           <Table.Tbody>
             {rows.map((e) => {
               const handle = environmentHandle(e);
+              // Soft-deleted rows linger in the list until GC removes them — nothing left to delete.
+              const gone = ["deleting", "deleted"].includes(e.state.toLowerCase());
 
               return (
                 <Table.Tr key={e.uid}>
@@ -138,15 +140,17 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   <Table.Td>{e.applications.map((a) => `${a.name} ${a.version}`).join(", ")}</Table.Td>
                   <Table.Td>{e.execution}</Table.Td>
                   <Table.Td>
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      aria-label="Delete environment"
-                      loading={remove.isPending && remove.variables === handle}
-                      onClick={() => remove.mutate(handle)}
-                    >
-                      <IconTrash size={16} />
-                    </ActionIcon>
+                    {!gone && (
+                      <ActionIcon
+                        variant="subtle"
+                        color="red"
+                        aria-label="Delete environment"
+                        loading={remove.isPending && remove.variables === handle}
+                        onClick={() => remove.mutate(handle)}
+                      >
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    )}
                   </Table.Td>
                 </Table.Tr>
               );

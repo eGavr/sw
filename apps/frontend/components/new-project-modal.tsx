@@ -12,19 +12,19 @@ export function NewProjectModal({ opened, onClose }: { opened: boolean; onClose:
   const queryClient = useQueryClient();
 
   const [displayName, setDisplayName] = useState("");
-  const [projectId, setProjectId] = useState("");
 
   const close = (): void => {
     onClose();
     create.reset();
   };
 
+  // The AIP-133 client-chosen projectId stays an API-only affordance (scripts/IaC); the UI keeps the
+  // form down to the one thing a person actually names.
   const create = useMutation({
-    mutationFn: () => createProject({ displayName, projectId: projectId || undefined }),
+    mutationFn: () => createProject({ displayName }),
     onSuccess: async (project) => {
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       setDisplayName("");
-      setProjectId("");
       onClose();
       router.push(`/projects/${projectHandle(project)}`);
     },
@@ -39,13 +39,6 @@ export function NewProjectModal({ opened, onClose }: { opened: boolean; onClose:
           value={displayName}
           onChange={(e) => setDisplayName(e.currentTarget.value)}
           data-autofocus
-        />
-        <TextInput
-          label="Project id"
-          placeholder="my-project"
-          description="Optional URL handle: lowercase letters, digits, dashes. Cannot be changed later."
-          value={projectId}
-          onChange={(e) => setProjectId(e.currentTarget.value)}
         />
         {create.error && (
           <Text c="red" size="sm">
