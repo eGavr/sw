@@ -85,6 +85,14 @@ export function listProjects(): Promise<Array<Project>> {
   return swRequest<{ projects?: Array<Project> }>("v1/projects").then((d) => d.projects ?? []);
 }
 
+export function createProject(input: { displayName: string; projectId?: string }): Promise<Project> {
+  return swRequest<Project>("v1/projects", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
 export function listEnvironments(project: string): Promise<Array<Environment>> {
   return swRequest<{ environments?: Array<Environment> }>(
     `v1/projects/${project}/environments`,

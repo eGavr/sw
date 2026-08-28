@@ -20,6 +20,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { signOutAction } from "@/app/actions/auth";
+import { NewProjectModal } from "@/components/new-project-modal";
 import { listProjects, projectHandle } from "@/lib/sw";
 
 export function DashboardShell({
@@ -30,6 +31,7 @@ export function DashboardShell({
   userEmail: string | null;
 }) {
   const [opened, { toggle }] = useDisclosure();
+  const [newProjectOpened, { open: openNewProject, close: closeNewProject }] = useDisclosure(false);
   const pathname = usePathname();
   const segments = pathname.split("/");
   const selectedProjectId = segments[1] === "projects" ? segments[2] : undefined;
@@ -74,8 +76,8 @@ export function DashboardShell({
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">
             Projects
           </Text>
-          <Tooltip label="New project (soon)">
-            <ActionIcon variant="subtle" size="sm" disabled aria-label="New project">
+          <Tooltip label="New project">
+            <ActionIcon variant="subtle" size="sm" aria-label="New project" onClick={openNewProject}>
               <IconPlus size={16} />
             </ActionIcon>
           </Tooltip>
@@ -119,6 +121,8 @@ export function DashboardShell({
       </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>
+
+      <NewProjectModal opened={newProjectOpened} onClose={closeNewProject} />
     </AppShell>
   );
 }

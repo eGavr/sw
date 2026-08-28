@@ -13,13 +13,20 @@ import {
   Table,
   Text,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { createEnvironment, deleteEnvironment, environmentHandle, listEnvironments } from "@/lib/sw";
+import {
+  createEnvironment,
+  deleteEnvironment,
+  environmentHandle,
+  listCloudAccounts,
+  listEnvironments,
+} from "@/lib/sw";
 
 const STATE_COLOR: Record<string, string> = {
   enqueued: "blue",
@@ -47,6 +54,14 @@ export function EnvironmentsTab({ project }: { project: string }) {
     refetchInterval: 3_000,
   });
 
+  // An environment lands on a connected cloud, so without one the create button leads nowhere —
+  // guard it up front instead of letting the API reject with 409 after the fact.
+  const clouds = useQuery({
+    queryKey: ["cloudAccounts", project],
+    queryFn: () => listCloudAccounts(project),
+  });
+  const noClouds = !clouds.isLoading && (clouds.data ?? []).length === 0;
+
   const invalidate = (): Promise<void> =>
     queryClient.invalidateQueries({ queryKey: ["environments", project] });
 
@@ -73,9 +88,16 @@ export function EnvironmentsTab({ project }: { project: string }) {
   return (
     <Stack>
       <Group justify="flex-end">
-        <Button variant="default" leftSection={<IconPlus size={16} />} onClick={open}>
-          New environment
-        </Button>
+        <Tooltip label="Connect a cloud on the Clouds tab first" disabled={!noClouds}>
+          <Button
+            variant="default"
+            leftSection={<IconPlus size={16} />}
+            data-disabled={noClouds || undefined}
+            onClick={(event) => (noClouds ? event.preventDefault() : open())}
+          >
+            New environment
+          </Button>
+        </Tooltip>
         <Button leftSection={<IconPlus size={16} />} disabled>
           New session
         </Button>
@@ -101,6 +123,8 @@ export function EnvironmentsTab({ project }: { project: string }) {
           <Table.Tbody>
             {rows.map((e) => {
               const handle = environmentHandle(e);
+              // Soft-deleted rows linger in the list until GC removes them — nothing left to delete.
+              const gone = ["deleting", "deleted"].includes(e.state.toLowerCase());
 
               return (
                 <Table.Tr key={e.uid}>
@@ -116,15 +140,17 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   <Table.Td>{e.applications.map((a) => `${a.name} ${a.version}`).join(", ")}</Table.Td>
                   <Table.Td>{e.execution}</Table.Td>
                   <Table.Td>
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      aria-label="Delete environment"
-                      loading={remove.isPending && remove.variables === handle}
-                      onClick={() => remove.mutate(handle)}
-                    >
-                      <IconTrash size={16} />
-                    </ActionIcon>
+                    {!gone && (
+                      <ActionIcon
+                        variant="subtle"
+                        color="red"
+                        aria-label="Delete environment"
+                        loading={remove.isPending && remove.variables === handle}
+                        onClick={() => remove.mutate(handle)}
+                      >
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    )}
                   </Table.Td>
                 </Table.Tr>
               );

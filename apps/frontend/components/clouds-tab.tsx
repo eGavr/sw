@@ -16,7 +16,7 @@ import {
   Text,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconPlugOff, IconPlus } from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -128,7 +128,7 @@ export function CloudsTab({ project }: { project: string }) {
                     loading={disconnect.isPending && disconnect.variables === cloud.uid}
                     onClick={() => disconnect.mutate(cloud.uid)}
                   >
-                    <IconPlugOff size={16} />
+                    <IconTrash size={16} />
                   </ActionIcon>
                 </Table.Td>
               </Table.Tr>
