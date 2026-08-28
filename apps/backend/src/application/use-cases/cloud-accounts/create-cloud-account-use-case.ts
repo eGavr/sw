@@ -54,8 +54,8 @@ export class CreateCloudAccountUseCase {
         });
 
         // Keep the project's clouds non-overlapping so every (platform, execution) resolves to one cloud.
-        const active = await this.cloudAccountRepository.listActiveByProject(projectId);
-        const conflict = CloudAccountList.of(active).activeConflictWith(cloudAccount);
+        const connected = await this.cloudAccountRepository.listByProject(projectId);
+        const conflict = CloudAccountList.of(connected).conflictWith(cloudAccount);
 
         if (conflict) {
             throw new CloudAccountOverlapError(params.type, conflict.type);

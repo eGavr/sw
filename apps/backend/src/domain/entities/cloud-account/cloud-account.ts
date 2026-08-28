@@ -1,9 +1,7 @@
 import { Execution } from "../environment/execution";
-import { InvalidArgumentError } from "../error/invalid-argument-error";
 import { ProjectId } from "../project/project-id";
 
 import { CloudAccountId } from "./cloud-account-id";
-import { CloudAccountState } from "./cloud-account-state";
 import { Stereotype, StereotypeData } from "./stereotype";
 
 // Cloud/substrate connection settings the adapter needs (folder/zone/subnet/host/cluster, …). Opaque to
@@ -17,7 +15,6 @@ export type CloudAccountData = {
     config: CloudConfig;
     credentialRef?: string | null;
     provides: ReadonlyArray<StereotypeData>;
-    state: string;
     createdAt: Date;
     updatedAt: Date;
 };
@@ -39,14 +36,13 @@ type CloudAccountConstructorParams = {
     provides: ReadonlyArray<Stereotype>;
     config?: CloudConfig;
     credentialRef?: string | null;
-    state?: CloudAccountState;
     createdAt?: Date;
     updatedAt?: Date;
 };
 
 export class CloudAccount {
     static create(params: CloudAccountCreateParams): CloudAccount {
-        return new CloudAccount({ ...params, state: CloudAccountState.Active });
+        return new CloudAccount(params);
     }
 
     static fromObject(data: CloudAccountData): CloudAccount {
@@ -57,20 +53,9 @@ export class CloudAccount {
             config: data.config ?? {},
             credentialRef: data.credentialRef ?? null,
             provides: data.provides.map((stereotype) => Stereotype.fromObject(stereotype)),
-            state: CloudAccount.toState(data.state),
             createdAt: data.createdAt,
             updatedAt: data.updatedAt,
         });
-    }
-
-    private static toState(value: string): CloudAccountState {
-        const state = Object.values(CloudAccountState).find((candidate) => candidate === value);
-
-        if (!state) {
-            throw new InvalidArgumentError(`cloud account state: ${value}: unknown`);
-        }
-
-        return state;
     }
 
     readonly type: string;
@@ -81,7 +66,6 @@ export class CloudAccount {
     private readonly _projectId: ProjectId;
     private readonly _provides: ReadonlyArray<Stereotype>;
     private _config: CloudConfig;
-    private _state: CloudAccountState;
     private _updatedAt: Date;
 
     private constructor(params: CloudAccountConstructorParams) {
@@ -91,7 +75,6 @@ export class CloudAccount {
         this._provides = params.provides;
         this._config = params.config ?? {};
         this.credentialRef = params.credentialRef ?? null;
-        this._state = params.state ?? CloudAccountState.Active;
         this.createdAt = params.createdAt ?? new Date();
         this._updatedAt = params.updatedAt ?? this.createdAt;
     }
@@ -110,24 +93,12 @@ export class CloudAccount {
         return { ...this._config };
     }
 
-    get state(): CloudAccountState {
-        return this._state;
-    }
-
     get updatedAt(): Date {
         return this._updatedAt;
     }
 
     providedStereotypes(): ReadonlyArray<Stereotype> {
         return this._provides;
-    }
-
-    isActive(): boolean {
-        return this._state === CloudAccountState.Active;
-    }
-
-    isDisabled(): boolean {
-        return this._state === CloudAccountState.Disabled;
     }
 
     // Whether this cloud provisions the requested substrate — the routing key that lets a project hold
@@ -149,12 +120,6 @@ export class CloudAccount {
         this.touch();
     }
 
-    // Owner soft-delete: keep the row (environments still reference it) but stop routing new work here.
-    disable(): void {
-        this._state = CloudAccountState.Disabled;
-        this.touch();
-    }
-
     belongsTo(projectId: ProjectId): boolean {
         return this._projectId.getValue() === projectId.getValue();
     }
@@ -167,7 +132,6 @@ export class CloudAccount {
             config: this._config,
             credentialRef: this.credentialRef,
             provides: this._provides.map((stereotype) => stereotype.toObject()),
-            state: this._state,
             createdAt: this.createdAt,
             updatedAt: this._updatedAt,
         };

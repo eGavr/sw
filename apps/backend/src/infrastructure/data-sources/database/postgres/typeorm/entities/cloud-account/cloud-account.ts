@@ -20,7 +20,6 @@ export class CloudAccount {
         cloudAccount.config = data.config ?? {};
         cloudAccount.credentialRef = data.credentialRef ?? null;
         cloudAccount.provides = [...data.provides];
-        cloudAccount.state = data.state;
         cloudAccount.createdAt = data.createdAt;
         cloudAccount.updatedAt = data.updatedAt;
 
@@ -50,9 +49,6 @@ export class CloudAccount {
     @Column({ type: "jsonb", default: [] })
     provides: Array<StereotypeData>;
 
-    @Column()
-    state: string;
-
     @DateColumn()
     createdAt: Date;
 
@@ -69,7 +65,6 @@ export class CloudAccount {
             config: this.config,
             credentialRef: this.credentialRef,
             provides: this.provides,
-            state: this.state,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
         };

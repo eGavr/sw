@@ -106,7 +106,6 @@ export function CloudsTab({ project }: { project: string }) {
             <Table.Tr>
               <Table.Th>Cloud</Table.Th>
               <Table.Th>Provides</Table.Th>
-              <Table.Th>State</Table.Th>
               <Table.Th>Connected</Table.Th>
               <Table.Th />
             </Table.Tr>
@@ -120,30 +119,23 @@ export function CloudsTab({ project }: { project: string }) {
                 <Table.Td>
                   <SubstrateBadges provides={cloud.provides} />
                 </Table.Td>
-                <Table.Td>
-                  <Badge color={cloud.state === "active" ? "green" : "gray"} variant="light">
-                    {cloud.state}
-                  </Badge>
-                </Table.Td>
                 <Table.Td>{new Date(cloud.createTime).toLocaleDateString()}</Table.Td>
                 <Table.Td onClick={(e) => e.stopPropagation()}>
-                  {cloud.state === "active" && (
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      aria-label="Disconnect cloud"
-                      loading={disconnect.isPending && disconnect.variables === cloud.uid}
-                      onClick={() => disconnect.mutate(cloud.uid)}
-                    >
-                      <IconPlugOff size={16} />
-                    </ActionIcon>
-                  )}
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    aria-label="Disconnect cloud"
+                    loading={disconnect.isPending && disconnect.variables === cloud.uid}
+                    onClick={() => disconnect.mutate(cloud.uid)}
+                  >
+                    <IconPlugOff size={16} />
+                  </ActionIcon>
                 </Table.Td>
               </Table.Tr>
             ))}
             {rows.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={5}>
+                <Table.Td colSpan={4}>
                   <Text c="dimmed" size="sm" ta="center" py="sm">
                     No clouds connected — connect one to create environments
                   </Text>
@@ -208,9 +200,6 @@ export function CloudsTab({ project }: { project: string }) {
           <Stack gap="md">
             <Group gap="xs">
               <Badge variant="light">{selected.type}</Badge>
-              <Badge variant="light" color={selected.state === "active" ? "green" : "gray"}>
-                {selected.state}
-              </Badge>
             </Group>
 
             <Box>

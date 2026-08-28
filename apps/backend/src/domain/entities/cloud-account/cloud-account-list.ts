@@ -11,23 +11,15 @@ export class CloudAccountList {
 
     private constructor(private readonly cloudAccounts: ReadonlyArray<CloudAccount>) {}
 
-    // The active cloud account that provisions this substrate — at most one, since a project keeps its
-    // clouds non-overlapping (see activeConflictWith).
-    resolveActiveFor(platformName: string, execution: Execution): CloudAccount | null {
-        return (
-            this.cloudAccounts.find(
-                (cloudAccount) => cloudAccount.isActive() && cloudAccount.supports(platformName, execution),
-            ) ?? null
-        );
+    // The cloud account that provisions this substrate — at most one, since a project keeps its clouds
+    // non-overlapping (see conflictWith).
+    resolveFor(platformName: string, execution: Execution): CloudAccount | null {
+        return this.cloudAccounts.find((cloudAccount) => cloudAccount.supports(platformName, execution)) ?? null;
     }
 
-    // The active cloud account whose substrates overlap the candidate's, if any — used to reject a second
-    // cloud account that would make some (platform, execution) ambiguous.
-    activeConflictWith(candidate: CloudAccount): CloudAccount | null {
-        return (
-            this.cloudAccounts.find(
-                (cloudAccount) => cloudAccount.isActive() && cloudAccount.overlaps(candidate),
-            ) ?? null
-        );
+    // The cloud account whose substrates overlap the candidate's, if any — used to reject a second cloud
+    // that would make some (platform, execution) ambiguous.
+    conflictWith(candidate: CloudAccount): CloudAccount | null {
+        return this.cloudAccounts.find((cloudAccount) => cloudAccount.overlaps(candidate)) ?? null;
     }
 }

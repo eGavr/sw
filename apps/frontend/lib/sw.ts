@@ -46,7 +46,6 @@ export interface CloudAccount {
   type: string;
   config: Record<string, unknown>;
   provides: Array<Substrate>;
-  state: string; // active | disabled
   createTime: string;
   updateTime: string;
 }
@@ -122,9 +121,9 @@ export function connectCloud(project: string, type: string): Promise<CloudAccoun
   });
 }
 
-// Soft delete: the account comes back disabled (environments may still reference it).
-export function disconnectCloud(project: string, cloudAccount: string): Promise<CloudAccount> {
-  return swRequest<CloudAccount>(`v1/projects/${project}/cloudAccounts/${cloudAccount}`, {
+// A real delete; the API refuses with 409 while environments still reference the account.
+export function disconnectCloud(project: string, cloudAccount: string): Promise<void> {
+  return swRequest<void>(`v1/projects/${project}/cloudAccounts/${cloudAccount}`, {
     method: "DELETE",
   });
 }

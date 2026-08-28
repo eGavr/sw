@@ -16,7 +16,6 @@ export class CloudAccountPresenter implements Presenter {
                 platform: stereotype.platformName,
                 execution: stereotype.execution,
             })),
-            state: this.cloudAccount.state,
             createTime: this.cloudAccount.createdAt.toISOString(),
             updateTime: this.cloudAccount.updatedAt.toISOString(),
         };
