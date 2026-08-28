@@ -42,6 +42,10 @@ export abstract class EnvironmentRepository {
 
     abstract findAllocatable(projectId: ProjectId, criteria: SessionAllocationCriteria): Promise<Array<Environment>>;
 
+    // Whether anything in the project could ever serve the request (offer match in any still-viable
+    // state) — the narrow probe behind the retryable-vs-pointless refusal, not an aggregate load.
+    abstract existsOffering(projectId: ProjectId, criteria: SessionAllocationCriteria): Promise<boolean>;
+
     abstract deleteCollectable(criteria: GarbageCollectionCriteria): Promise<void>;
 
     abstract withNextEnqueued(mutate: (environment: Environment) => void): Promise<Environment | null>;

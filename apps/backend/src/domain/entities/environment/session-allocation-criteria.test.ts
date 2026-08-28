@@ -7,6 +7,10 @@ import { Environment } from "./environment";
 import { EnvironmentEndpoint } from "./environment-endpoint";
 import { EnvironmentState } from "./environment-state";
 import { IncompatibleSessionTargetError } from "./error/incompatible-session-target-error";
+import { NoAllocatableEnvironmentError } from "./error/no-allocatable-environment-error";
+import {
+    NoEnvironmentOffersApplicationError,
+} from "./error/no-environment-offers-application-error";
 import { TargetEnvironmentNotReadyError } from "./error/target-environment-not-ready-error";
 import { Execution } from "./execution";
 import { Platform } from "./platform/platform";
@@ -41,6 +45,35 @@ describe("SessionAllocationCriteria", () => {
         const predicate = criteriaFor(RequestedApplication.create({ name: "chrome" })).toPredicate();
 
         expect(predicate.applicationVersion).toBeNull();
+    });
+
+    test("the offer predicate relaxes to every still-viable state, keeping the request shape", () => {
+        const offer = criteriaFor(RequestedApplication.create({ name: "chrome", version: "100" })).toOfferPredicate();
+
+        expect(offer).toEqual({
+            states: [
+                EnvironmentState.Enqueued,
+                EnvironmentState.Starting,
+                EnvironmentState.Preparing,
+                EnvironmentState.Executing,
+            ],
+            execution: Execution.Container,
+            applicationName: "chrome",
+            applicationVersion: "100",
+        });
+    });
+
+    describe("refuseAllocation (why an empty pool is refused)", () => {
+        const criteria = criteriaFor(RequestedApplication.create({ name: "chrome", version: "141" }));
+
+        test("a transient shortage (something offers the request) is a retryable conflict", () => {
+            expect(() => criteria.refuseAllocation(true)).toThrow(NoAllocatableEnvironmentError);
+        });
+
+        test("nothing offering the request is a failed precondition — retrying is pointless", () => {
+            expect(() => criteria.refuseAllocation(false)).toThrow(NoEnvironmentOffersApplicationError);
+            expect(() => criteria.refuseAllocation(false)).toThrow(/create one first/);
+        });
     });
 
     test("ranks a latest request by newest installed version first", () => {

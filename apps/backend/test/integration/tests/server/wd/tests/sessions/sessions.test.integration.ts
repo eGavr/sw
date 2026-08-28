@@ -15,6 +15,7 @@ import {
 import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { EnvironmentEndpoint } from "../../../../../../../src/domain/entities/environment/environment-endpoint";
+import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
 import { Execution } from "../../../../../../../src/domain/entities/environment/execution";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
@@ -218,16 +219,43 @@ describe("/sessions", () => {
             return createSession(uuidv4(), Authorization.forUser(UserFactory.createId())).expect(HttpStatus.NOT_FOUND);
         });
 
-        test("responds CONFLICT when the project has no free matching environment", async () => {
+        // Nothing offers the request at all -> a non-retryable FAILED_PRECONDITION (400), not a conflict:
+        // no amount of waiting helps until an environment is created.
+        test("responds FAILED_PRECONDITION when the project has no environment at all", async () => {
             const { owner, projectId } = await seedProject();
+
+            return createSession(projectId, owner)
+                .expect(HttpStatus.BAD_REQUEST)
+                .expect((response) => expect(JSON.stringify(response.body)).toMatch(/create one first/));
+        });
+
+        test("responds CONFLICT when matching environments exist but are all busy", async () => {
+            const { owner, projectId, environmentId } = await seedExecutingEnvironment();
+            const environmentRepository = app.get(EnvironmentRepository);
+            const environment = await environmentRepository.get(EnvironmentId.fromString(environmentId));
+            environment.heartbeat(true, new Date());
+            await environmentRepository.save(environment);
 
             return createSession(projectId, owner).expect(HttpStatus.CONFLICT);
         });
 
-        test("responds CONFLICT when no environment offers the requested application", async () => {
+        test("responds CONFLICT while the only matching environment is still provisioning", async () => {
+            const { owner, projectId } = await seedProject();
+            const environmentRepository = app.get(EnvironmentRepository);
+            await environmentRepository.create({
+                projectId: ProjectId.fromString(projectId),
+                platform: Platform.fromObject({ name: "linux", version: "latest" }),
+                applications: ApplicationList.fromObject([{ name: "chrome", version: chromeVersion }]),
+            });
+
+            return createSession(projectId, owner).expect(HttpStatus.CONFLICT);
+        });
+
+        test("responds FAILED_PRECONDITION when no environment offers the requested application", async () => {
             const { owner, projectId } = await seedExecutingEnvironment();
 
-            return createSession(projectId, owner, { name: "firefox", version: "latest" }).expect(HttpStatus.CONFLICT);
+            return createSession(projectId, owner, { name: "firefox", version: "latest" })
+                .expect(HttpStatus.BAD_REQUEST);
         });
 
         test("a latest request allocates the newest running environment", async () => {
@@ -248,7 +276,8 @@ describe("/sessions", () => {
 
             await createSession(projectId, owner, { name: "chrome", version: "141" }).expect(HttpStatus.OK);
 
-            return createSession(projectId, owner, { name: "chrome", version: "140" }).expect(HttpStatus.CONFLICT);
+            // 140 is offered by nothing in the project -> non-retryable failed precondition.
+            return createSession(projectId, owner, { name: "chrome", version: "140" }).expect(HttpStatus.BAD_REQUEST);
         });
 
         test("an omitted browserVersion behaves as latest", async () => {
@@ -272,11 +301,11 @@ describe("/sessions", () => {
             expect(createSessionOnNode).toHaveBeenCalledTimes(1);
         });
 
-        test("responds CONFLICT when the free environment is on a different execution substrate", async () => {
+        test("responds FAILED_PRECONDITION when nothing serves the requested execution substrate", async () => {
             const { owner, projectId } = await seedExecutingEnvironment(Execution.Emulator);
 
-            // No sw:execution -> defaults to container, but the only free environment is an emulator.
-            return createSession(projectId, owner).expect(HttpStatus.CONFLICT);
+            // No sw:execution -> defaults to container, but the project only has an emulator environment.
+            return createSession(projectId, owner).expect(HttpStatus.BAD_REQUEST);
         });
 
         test("responds CONFLICT when the node rejects the session (busy)", async () => {

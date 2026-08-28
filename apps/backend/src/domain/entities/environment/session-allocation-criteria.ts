@@ -6,6 +6,12 @@ import {
     IncompatibleSessionTargetError,
 } from "./error/incompatible-session-target-error";
 import {
+    NoAllocatableEnvironmentError,
+} from "./error/no-allocatable-environment-error";
+import {
+    NoEnvironmentOffersApplicationError,
+} from "./error/no-environment-offers-application-error";
+import {
     TargetEnvironmentNotReadyError,
 } from "./error/target-environment-not-ready-error";
 import { Execution } from "./execution";
@@ -25,6 +31,23 @@ export type SessionAllocationParams = {
     readonly execution: Execution;
     readonly application: RequestedApplication;
 };
+
+export type OfferedApplicationPredicate = {
+    readonly states: ReadonlyArray<EnvironmentState>;
+    readonly execution: Execution;
+    readonly applicationName: string;
+    readonly applicationVersion: string | null;
+};
+
+// The lifecycle states in which an environment will (eventually) serve sessions: anything alive on its
+// way to or in `executing`. failed/deleting/deleted cannot recover, so their presence does not make a
+// retry useful.
+const statesEventuallyServing: ReadonlyArray<EnvironmentState> = [
+    EnvironmentState.Enqueued,
+    EnvironmentState.Starting,
+    EnvironmentState.Preparing,
+    EnvironmentState.Executing,
+];
 
 // Which environments a session may be allocated onto: `executing`, not busy, with a fresh heartbeat, on
 // the requested execution substrate, and offering the requested application. What "free" and "fresh" mean
@@ -49,6 +72,30 @@ export class SessionAllocationCriteria {
 
     toPredicate(): AllocatableEnvironmentPredicate {
         return this.predicate;
+    }
+
+    // The relaxed "could this pool ever serve the request" predicate: same application and substrate,
+    // but any state that still leads to executing and no free/fresh demand.
+    toOfferPredicate(): OfferedApplicationPredicate {
+        return {
+            states: statesEventuallyServing,
+            execution: this.predicate.execution,
+            applicationName: this.predicate.applicationName,
+            applicationVersion: this.predicate.applicationVersion,
+        };
+    }
+
+    // Why an empty pool is refused: with something offering the request, the shortage is transient
+    // (busy/provisioning — retry helps); with nothing offering it, only creating an environment will —
+    // a failed precondition, not a conflict.
+    refuseAllocation(anythingOffers: boolean): never {
+        const version = this.application.version() ?? latestApplicationVersion;
+
+        if (anythingOffers) {
+            throw new NoAllocatableEnvironmentError(this.application.name, version);
+        }
+
+        throw new NoEnvironmentOffersApplicationError(this.application.name, version, this.predicate.execution);
     }
 
     // The same rule as the pool predicate, enforced against one targeted environment. Refusal splits
