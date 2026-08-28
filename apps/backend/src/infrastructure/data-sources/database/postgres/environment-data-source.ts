@@ -192,6 +192,42 @@ export class EnvironmentDataSource {
             .map((environment) => environment.toObject());
     }
 
+    // A narrow existence probe (the states/substrate/application predicate arrives ready from the
+    // domain): does anything in the project match at all, regardless of being free or fresh.
+    async existsOffering(
+        projectId: string,
+        predicate: {
+            states: Array<string>;
+            execution: string;
+            applicationName: string;
+            applicationVersion: string | null;
+        },
+    ): Promise<boolean> {
+        const query = this.dataSource.getRepository(Environment)
+            .createQueryBuilder("environment")
+            .select("1")
+            .where("environment.projectId = :projectId", { projectId })
+            .andWhere("environment.state IN (:...states)", { states: predicate.states })
+            .andWhere("environment.execution = :execution", { execution: predicate.execution })
+            .limit(1);
+
+        if (predicate.applicationVersion === null) {
+            query.andWhere(
+                "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
+                + " AND ea.application_name = :applicationName)",
+                { applicationName: predicate.applicationName },
+            );
+        } else {
+            query.andWhere(
+                "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
+                + " AND ea.application_name = :applicationName AND ea.application_version = :applicationVersion)",
+                { applicationName: predicate.applicationName, applicationVersion: predicate.applicationVersion },
+            );
+        }
+
+        return (await query.getRawOne()) !== undefined;
+    }
+
     async findOne(id: string): Promise<EnvironmentData | null> {
         const environment = await this.dataSource.getRepository(Environment).findOne({ where: { id } });
 

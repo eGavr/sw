@@ -2,7 +2,7 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from "@nestjs/co
 import type { Response } from "express";
 
 import { Logger } from "../../../infrastructure/logging/logger";
-import { domainErrorHttpStatus, rpcStatusFor } from "../errors/error-status";
+import { domainErrorHttpStatus, domainErrorRpcStatus, rpcStatusFor } from "../errors/error-status";
 
 type AipError = {
     code: number;
@@ -29,7 +29,11 @@ export class AipExceptionFilter implements ExceptionFilter {
         const domainHttpStatus = domainErrorHttpStatus(exception);
 
         if (domainHttpStatus !== null) {
-            return { code: domainHttpStatus, status: rpcStatusFor(domainHttpStatus), message: (exception as Error).message };
+            return {
+                code: domainHttpStatus,
+                status: domainErrorRpcStatus(exception) ?? rpcStatusFor(domainHttpStatus),
+                message: (exception as Error).message,
+            };
         }
 
         if (exception instanceof HttpException) {

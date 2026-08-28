@@ -4,11 +4,14 @@ import { latestApplicationVersion } from "../../../domain/entities/environment/a
 import { RequestedApplication } from "../../../domain/entities/environment/application/requested-application";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
+import {
+    NoAllocatableEnvironmentError,
+} from "../../../domain/entities/environment/error/no-allocatable-environment-error";
 import { toExecution } from "../../../domain/entities/environment/execution";
 import { defaultHeartbeatFreshnessMs } from "../../../domain/entities/environment/heartbeat-freshness";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
+import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
-import { NoAllocatableEnvironmentError } from "../../../domain/entities/session/error/no-allocatable-environment-error";
 import { Session } from "../../../domain/entities/session/session";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { WebDriverSessionGateway, WebDriverSessionOptions } from "../../interfaces/gateways/webdriver-session-gateway";
@@ -27,15 +30,17 @@ type CreateSessionInput = {
             name: string;
             version?: string;
         };
+        environmentId?: string;
         logging?: boolean;
         video?: boolean;
     },
 }
 
-// Pool allocation: the caller asks for an application, not a specific environment. We pick a free,
-// fresh, matching environment from the project and open the session on its node. The node is the real
-// 1:1 arbiter, so the DB `busy` is only a hint — we try candidates until one accepts and never write
-// to the DB here (the next agent heartbeat reports the new busy state).
+// Pool allocation by default: the caller asks for an application and we pick a free, fresh, matching
+// environment from the project. With sw:environmentId the session is targeted at that one environment
+// instead (strict match — the domain verdict splits "can never work" from "not right now"). Either way
+// the node is the real 1:1 arbiter, so the DB `busy` is only a hint — we try candidates until one
+// accepts and never write to the DB here (the next agent heartbeat reports the new busy state).
 @Injectable()
 export class CreateSessionUseCase {
     private readonly permissionName = UserPermissionName.Session.Create;
@@ -62,12 +67,47 @@ export class CreateSessionUseCase {
             execution: toExecution(params.execution),
             application: requested,
         });
-        const candidates = await this.environmentRepository.findAllocatable(projectId, criteria);
+        const candidates = params.environmentId
+            ? await this.targetedCandidate(projectId, params.environmentId, criteria)
+            : await this.poolCandidates(projectId, criteria);
 
-        return this.allocate(criteria.rank(candidates), requested, {
+        return this.allocate(candidates, requested, {
             logging: params.logging ?? false,
             video: params.video ?? false,
         });
+    }
+
+    // An empty pool is refused with a diagnosis: the domain decides whether the shortage is transient
+    // (something offers the request — retry) or pointless (nothing does — create an environment first).
+    private async poolCandidates(
+        projectId: ProjectId,
+        criteria: SessionAllocationCriteria,
+    ): Promise<Array<Environment>> {
+        const candidates = await this.environmentRepository.findAllocatable(projectId, criteria);
+
+        if (candidates.length === 0) {
+            criteria.refuseAllocation(await this.environmentRepository.existsOffering(projectId, criteria));
+        }
+
+        return criteria.rank(candidates);
+    }
+
+    // sw:environmentId: the one targeted environment; the domain enforces the strict match (throws
+    // incompatible-target / not-ready), the scenario only resolves the handle.
+    private async targetedCandidate(
+        projectId: ProjectId,
+        environmentId: string,
+        criteria: SessionAllocationCriteria,
+    ): Promise<Array<Environment>> {
+        const environment = await this.environmentRepository.findByProjectAndHandle(projectId, environmentId);
+
+        if (!environment) {
+            throw new NotFoundResourceError(environmentId);
+        }
+
+        criteria.admit(environment);
+
+        return [environment];
     }
 
     private async allocate(

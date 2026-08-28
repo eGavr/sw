@@ -1,5 +1,6 @@
 import { ConflictError } from "../../../domain/entities/error/conflict-error";
 import { DomainError } from "../../../domain/entities/error/domain-error";
+import { FailedPreconditionError } from "../../../domain/entities/error/failed-precondition-error";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { NotFoundError } from "../../../domain/entities/error/not-found/not-found-error";
 import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
@@ -22,11 +23,17 @@ export function rpcStatusFor(httpStatus: number): string {
     return rpcStatusByHttpStatus[httpStatus] ?? "UNKNOWN";
 }
 
+// The one rpc status not derivable from the HTTP code alone: FAILED_PRECONDITION shares 400 with
+// INVALID_ARGUMENT (google.rpc), but tells the client the request was fine — fix the state, not the call.
+export function domainErrorRpcStatus(error: unknown): string | null {
+    return error instanceof FailedPreconditionError ? "FAILED_PRECONDITION" : null;
+}
+
 // The single mapping of a domain error to its HTTP status, shared by every transport (the AIP filter
 // and the wd interceptor format it differently). Returns null for non-domain errors — the transport
 // decides (pass an HttpException through; treat anything else as 500).
 export function domainErrorHttpStatus(error: unknown): number | null {
-    if (error instanceof InvalidArgumentError) {
+    if (error instanceof InvalidArgumentError || error instanceof FailedPreconditionError) {
         return 400;
     }
 

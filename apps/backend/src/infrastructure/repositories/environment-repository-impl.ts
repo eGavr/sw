@@ -90,6 +90,17 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         return data.map(Environment.fromObject);
     }
 
+    async existsOffering(projectId: ProjectId, criteria: SessionAllocationCriteria): Promise<boolean> {
+        const predicate = criteria.toOfferPredicate();
+
+        return this.environmentDataSource.existsOffering(projectId.getValue(), {
+            states: [...predicate.states],
+            execution: predicate.execution,
+            applicationName: predicate.applicationName,
+            applicationVersion: predicate.applicationVersion,
+        });
+    }
+
     async deleteCollectable(criteria: GarbageCollectionCriteria): Promise<void> {
         await this.environmentDataSource.deleteCollectable(criteria.toPredicates().map((predicate) => ({
             state: predicate.state,
