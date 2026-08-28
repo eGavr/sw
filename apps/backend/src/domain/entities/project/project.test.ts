@@ -44,11 +44,11 @@ describe("Project", () => {
     });
 
     describe("#create", () => {
-        test("should throw InvalidArgumentError for an invalid name", () => {
-            const createProject = (): Project => Project.create({ ...createDefaults, name: "<invalid-name>" });
+        test("should throw InvalidArgumentError for a blank name", () => {
+            const createProject = (): Project => Project.create({ ...createDefaults, name: "   " });
 
             expect(createProject).toThrow(InvalidArgumentError);
-            expect(createProject).toThrow(/project name: value must match .+ regular expression/);
+            expect(createProject).toThrow("project name: value must not be blank");
         });
 
         test("should throw InvalidArgumentError when name exceeds the limit", () => {

@@ -4,25 +4,22 @@ import { ProjectName } from "./project-name";
 
 describe("ProjectName", () => {
     describe(".constructor", () => {
-        test("should throw when project name contains special symbols", () => {
-            const nameWithSpecialSymbols = (): ProjectName => new ProjectName("???");
-
-            expect(nameWithSpecialSymbols).toThrow(InvalidArgumentError);
-            expect(nameWithSpecialSymbols).toThrow(/project name: value must match .+ regular expression/);
+        test("accepts free text: spaces, unicode, punctuation", () => {
+            expect(new ProjectName("Alice demo").getValue()).toBe("Alice demo");
+            expect(new ProjectName("какое-то название").getValue()).toBe("какое-то название");
+            expect(new ProjectName("R&D (browsers)!").getValue()).toBe("R&D (browsers)!");
         });
 
-        test("should throw when project name contains non-latin symbols", () => {
-            const nameWithSpecialSymbols = (): ProjectName => new ProjectName("какое-то название");
-
-            expect(nameWithSpecialSymbols).toThrow(InvalidArgumentError);
-            expect(nameWithSpecialSymbols).toThrow(/project name: value must match .+ regular expression/);
+        test("should throw when the name is blank", () => {
+            expect(() => new ProjectName("")).toThrow(InvalidArgumentError);
+            expect(() => new ProjectName("   ")).toThrow("project name: value must not be blank");
         });
 
-        test("should throw when project name is longer than the limit values", () => {
-            const nameWithSpecialSymbols = (): ProjectName => new ProjectName(new Array(65).fill("w").join(""));
+        test("should throw when the name is longer than the limit", () => {
+            const tooLong = (): ProjectName => new ProjectName(new Array(65).fill("w").join(""));
 
-            expect(nameWithSpecialSymbols).toThrow(InvalidArgumentError);
-            expect(nameWithSpecialSymbols).toThrow("project name: value must be shorter than or equal to 64 characters");
+            expect(tooLong).toThrow(InvalidArgumentError);
+            expect(tooLong).toThrow("project name: value must be shorter than or equal to 64 characters");
         });
     });
 

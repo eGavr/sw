@@ -60,13 +60,24 @@ describe("/projects", () => {
                 .expect((response) => expect(response.body.error.status).toBe("INVALID_ARGUMENT"));
         });
 
-        test("responds INVALID_ARGUMENT when displayName violates the domain rule", () => {
+        test("responds INVALID_ARGUMENT when displayName is blank", () => {
             return request(app.getHttpServer())
                 .post("/projects")
                 .set(Authorization.forUser(UserFactory.createId()))
-                .send(CreateProjectBody.create({ displayName: "not a valid name!" }))
+                .send(CreateProjectBody.create({ displayName: "   " }))
                 .expect(HttpStatus.BAD_REQUEST)
                 .expect((response) => expect(response.body.error.message).toMatch(/project name/));
+        });
+
+        // AIP display_name is free text for humans — spaces and unicode are fine.
+        test("accepts a free-text displayName", async () => {
+            const { body } = await request(app.getHttpServer())
+                .post("/projects")
+                .set(Authorization.forUser(UserFactory.createId()))
+                .send({ displayName: "Alice demo (браузеры)" })
+                .expect(HttpStatus.CREATED);
+
+            expect(body.displayName).toBe("Alice demo (браузеры)");
         });
 
         test("is self-service: any authenticated user creates an project and gets an AIP resource", async () => {
