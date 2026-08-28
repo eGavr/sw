@@ -16,12 +16,15 @@ export type SessionRequestParams = {
         name: string;
         version?: string;
     };
+    // Target a specific environment instead of pool allocation (the environment's id or resource id).
+    environmentId?: string;
     logging?: boolean;
     video?: boolean;
 };
 
 const projectIdCapability = "sw:projectId";
 const executionCapability = "sw:execution";
+const environmentIdCapability = "sw:environmentId";
 const loggingCapability = "sw:logging";
 const videoCapability = "sw:video";
 
@@ -40,6 +43,7 @@ export function resolveSessionRequest(envelope: CapabilitiesEnvelope): SessionRe
             name: requireString(capabilities, "browserName"),
             version: optionalString(capabilities, "browserVersion"),
         },
+        environmentId: optionalString(capabilities, environmentIdCapability),
         logging: optionalBoolean(capabilities, loggingCapability),
         video: optionalBoolean(capabilities, videoCapability),
     };

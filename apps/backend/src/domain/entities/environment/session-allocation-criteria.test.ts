@@ -2,12 +2,13 @@ import { ProjectId } from "../project/project-id";
 
 import { Application } from "./application/application";
 import { ApplicationList } from "./application/application-list";
-import { RequestedApplication } from "./application/requested-application";
+import { RequestedApplication, RequestedApplicationParams } from "./application/requested-application";
 import { Environment } from "./environment";
+import { EnvironmentEndpoint } from "./environment-endpoint";
 import { EnvironmentState } from "./environment-state";
 import { Execution } from "./execution";
 import { Platform } from "./platform/platform";
-import { SessionAllocationCriteria } from "./session-allocation-criteria";
+import { AllocationAdmission, SessionAllocationCriteria } from "./session-allocation-criteria";
 
 describe("SessionAllocationCriteria", () => {
     const now = new Date(10_000);
@@ -56,5 +57,68 @@ describe("SessionAllocationCriteria", () => {
         const ranked = criteriaFor(RequestedApplication.create({ name: "chrome", version: "141" })).rank([first, second]);
 
         expect(ranked).toEqual([first, second]);
+    });
+
+    describe("admit (targeted allocation)", () => {
+        const executingEnvironmentWith = (version: string, heartbeatAt: Date = now): Environment => {
+            const environment = environmentWith(version);
+
+            environment.claim();
+            environment.markDispatched();
+            environment.register(new EnvironmentEndpoint("http://127.0.0.1:4444"), heartbeatAt);
+
+            return environment;
+        };
+
+        const criteria = (
+            application: RequestedApplicationParams = { name: "chrome", version: "141" },
+        ): SessionAllocationCriteria => criteriaFor(RequestedApplication.create(application));
+
+        test("admits a matching free executing environment with a fresh heartbeat", () => {
+            expect(criteria().admit(executingEnvironmentWith("141"))).toBe(AllocationAdmission.Allocatable);
+        });
+
+        test("a latest request admits any offered version", () => {
+            expect(criteria({ name: "chrome" }).admit(executingEnvironmentWith("139")))
+                .toBe(AllocationAdmission.Allocatable);
+        });
+
+        test("incompatible when the environment lacks the application", () => {
+            expect(criteria({ name: "firefox" }).admit(executingEnvironmentWith("141")))
+                .toBe(AllocationAdmission.Incompatible);
+        });
+
+        test("incompatible when the offered version differs from the exact request", () => {
+            expect(criteria({ name: "chrome", version: "999" }).admit(executingEnvironmentWith("141")))
+                .toBe(AllocationAdmission.Incompatible);
+        });
+
+        test("incompatible on another execution substrate", () => {
+            const emulator = SessionAllocationCriteria.from({
+                now,
+                freshnessMs: 6_000,
+                execution: Execution.Emulator,
+                application: RequestedApplication.create({ name: "chrome", version: "141" }),
+            });
+
+            expect(emulator.admit(executingEnvironmentWith("141"))).toBe(AllocationAdmission.Incompatible);
+        });
+
+        test("not ready while the environment is still provisioning", () => {
+            expect(criteria().admit(environmentWith("141"))).toBe(AllocationAdmission.NotReady);
+        });
+
+        test("not ready when the environment is busy", () => {
+            const environment = executingEnvironmentWith("141");
+            environment.heartbeat(true, now);
+
+            expect(criteria().admit(environment)).toBe(AllocationAdmission.NotReady);
+        });
+
+        test("not ready when the heartbeat went stale", () => {
+            const stale = executingEnvironmentWith("141", new Date(now.getTime() - 60_000));
+
+            expect(criteria().admit(stale)).toBe(AllocationAdmission.NotReady);
+        });
     });
 });

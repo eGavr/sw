@@ -19,6 +19,15 @@ export type SessionAllocationParams = {
     readonly application: RequestedApplication;
 };
 
+// The verdict on a specific environment a session was targeted at. Incompatible means the request can
+// never succeed there (wrong application/version/substrate — an invalid request); NotReady means a
+// transient state (not executing, busy, stale heartbeat — a conflict worth retrying).
+export enum AllocationAdmission {
+    Allocatable = "allocatable",
+    Incompatible = "incompatible",
+    NotReady = "notReady",
+}
+
 // Which environments a session may be allocated onto: `executing`, not busy, with a fresh heartbeat, on
 // the requested execution substrate, and offering the requested application. What "free" and "fresh" mean
 // is a domain decision expressed here as a ready predicate; the data source only translates it into a
@@ -42,6 +51,34 @@ export class SessionAllocationCriteria {
 
     toPredicate(): AllocatableEnvironmentPredicate {
         return this.predicate;
+    }
+
+    // The same rule as the pool predicate, evaluated in the domain against one targeted environment —
+    // split into "could never work" vs "not right now" so the caller can answer honestly.
+    admit(environment: Environment): AllocationAdmission {
+        if (!this.offersRequested(environment)) {
+            return AllocationAdmission.Incompatible;
+        }
+
+        return this.isReady(environment) ? AllocationAdmission.Allocatable : AllocationAdmission.NotReady;
+    }
+
+    private offersRequested(environment: Environment): boolean {
+        const application = environment.applicationFor(this.predicate.applicationName);
+
+        if (!application || environment.execution !== this.predicate.execution) {
+            return false;
+        }
+
+        return this.predicate.applicationVersion === null
+            || application.version === this.predicate.applicationVersion;
+    }
+
+    private isReady(environment: Environment): boolean {
+        return environment.state === this.predicate.state
+            && environment.busy === this.predicate.busy
+            && environment.lastHeartbeatAt !== null
+            && environment.lastHeartbeatAt >= this.predicate.heartbeatCutoff;
     }
 
     // The order matched candidates should be tried in. An exact-version request matched a single version,

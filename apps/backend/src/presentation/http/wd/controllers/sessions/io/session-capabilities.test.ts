@@ -33,6 +33,22 @@ describe("resolveSessionRequest", () => {
         })).toThrow(/sw:execution/);
     });
 
+    test("reads the targeted environment from sw:environmentId", () => {
+        const params = resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, "sw:environmentId": "env-1" } });
+
+        expect(params.environmentId).toBe("env-1");
+    });
+
+    test("leaves the target unset when sw:environmentId is omitted (pool allocation)", () => {
+        expect(resolveSessionRequest({ alwaysMatch }).environmentId).toBeUndefined();
+    });
+
+    test("rejects an empty sw:environmentId", () => {
+        expect(() => resolveSessionRequest({
+            alwaysMatch: { ...alwaysMatch, "sw:environmentId": "" },
+        })).toThrow(/sw:environmentId/);
+    });
+
     test("reads the sw:* opt-ins as booleans", () => {
         const params = resolveSessionRequest({
             alwaysMatch: { ...alwaysMatch, "sw:logging": true, "sw:video": false },
