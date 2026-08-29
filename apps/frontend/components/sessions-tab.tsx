@@ -34,14 +34,16 @@ export function SessionsTab({
   const queryClient = useQueryClient();
 
   const [sessionId, setSessionId] = useState(initialSessionId ?? "");
-  const [opened, setOpened] = useState(Boolean(initialSessionId));
 
   const id = sessionId.trim();
+  // A session id is base64url(endpoint) + "." + node session id — open the viewer as soon as the
+  // pasted value looks like one (no Open button; the length gate keeps half-typed input quiet).
+  const looksLikeSessionId = id.length > 24 && /^[A-Za-z0-9_-]+\.\S+$/.test(id);
 
   const logs = useQuery({
     queryKey: ["sessionLogs", project, id],
     queryFn: () => getSessionLogs(project, id),
-    enabled: opened && id.length > 0,
+    enabled: looksLikeSessionId,
     retry: false,
   });
 
@@ -60,49 +62,44 @@ export function SessionsTab({
 
   return (
     <Stack>
-      <Group>
-        <TextInput
-          placeholder="session id…"
-          style={{ flex: 1 }}
-          value={sessionId}
-          onChange={(e) => {
-            setSessionId(e.currentTarget.value);
-            setOpened(false);
-            kill.reset();
-          }}
-        />
-        <Button disabled={id.length === 0} onClick={() => setOpened(true)}>
-          Open
-        </Button>
-        <Button
-          color="red"
-          variant="light"
-          leftSection={<IconTrash size={16} />}
-          disabled={id.length === 0}
-          loading={kill.isPending}
-          onClick={() => kill.mutate()}
-        >
-          Kill session
-        </Button>
-      </Group>
+      <TextInput
+        placeholder="session id…"
+        value={sessionId}
+        onChange={(e) => {
+          setSessionId(e.currentTarget.value);
+          kill.reset();
+        }}
+      />
 
-      {kill.isSuccess && <Alert color="green">Session terminated.</Alert>}
+      {kill.isSuccess && <Alert color="green">Session deleted.</Alert>}
       {kill.error && <Alert color="red">{(kill.error as Error).message}</Alert>}
 
-      {!opened && (
+      {!looksLikeSessionId && (
         <Text c="dimmed" size="sm">
           Paste a session id (or come from an environment row) to view its live VNC, logs and video.
           Nothing is stored — access is by possession of the id.
         </Text>
       )}
 
-      {opened && id.length > 0 && (
+      {looksLikeSessionId && (
         <Tabs defaultValue="vnc">
-          <Tabs.List>
-            <Tabs.Tab value="vnc">Live VNC</Tabs.Tab>
-            <Tabs.Tab value="logs">Logs</Tabs.Tab>
-            <Tabs.Tab value="video">Video</Tabs.Tab>
-          </Tabs.List>
+          <Group justify="space-between" align="center">
+            <Tabs.List>
+              <Tabs.Tab value="vnc">Live VNC</Tabs.Tab>
+              <Tabs.Tab value="logs">Logs</Tabs.Tab>
+              <Tabs.Tab value="video">Video</Tabs.Tab>
+            </Tabs.List>
+            <Button
+              color="red"
+              variant="light"
+              size="compact-sm"
+              leftSection={<IconTrash size={14} />}
+              loading={kill.isPending}
+              onClick={() => kill.mutate()}
+            >
+              Delete
+            </Button>
+          </Group>
 
           <Tabs.Panel value="vnc" pt="md">
             <Stack gap="xs">
