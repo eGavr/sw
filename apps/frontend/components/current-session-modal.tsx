@@ -1,7 +1,8 @@
 "use client";
 
 import { Alert, Button, Code, Group, Loader, Modal, Stack, Text } from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
+import { IconEye, IconTrash } from "@tabler/icons-react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { CopyButton } from "@/components/copy-button";
@@ -77,6 +78,15 @@ export function CurrentSessionModal({
               </Text>
             )}
             <Group justify="flex-end">
+              <Button
+                component={Link}
+                href={`/inspect?session=${encodeURIComponent(session.data.sessionId)}&project=${encodeURIComponent(project)}`}
+                variant="default"
+                leftSection={<IconEye size={16} />}
+                onClick={close}
+              >
+                Open in Inspect
+              </Button>
               <Button variant="default" onClick={close}>
                 Close
               </Button>

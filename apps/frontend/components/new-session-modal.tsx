@@ -1,7 +1,8 @@
 "use client";
 
 import { Button, Code, Group, Modal, Stack, Switch, Text } from "@mantine/core";
-import { IconExternalLink } from "@tabler/icons-react";
+import { IconEye } from "@tabler/icons-react";
+import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -73,20 +74,16 @@ export function NewSessionModal({
             <Code style={{ flex: 1, whiteSpace: "nowrap", overflowX: "auto" }}>{created.sessionId}</Code>
             <CopyButton value={created.sessionId} />
           </Group>
-          {created.interactive && (
-            <Button
-              component="a"
-              href={created.interactive}
-              target="_blank"
-              leftSection={<IconExternalLink size={16} />}
-            >
-              Open interactive viewer
-            </Button>
-          )}
           <Group justify="flex-end">
-            <Button variant="default" onClick={close}>
-              Done
+            <Button
+              component={Link}
+              href={`/inspect?session=${encodeURIComponent(created.sessionId)}&project=${encodeURIComponent(project)}`}
+              variant="default"
+              leftSection={<IconEye size={16} />}
+            >
+              Open in Inspect
             </Button>
+            <Button onClick={close}>Done</Button>
           </Group>
         </Stack>
       ) : (
