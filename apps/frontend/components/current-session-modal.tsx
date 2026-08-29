@@ -30,9 +30,11 @@ export function CurrentSessionModal({
 
   const kill = useMutation({
     mutationFn: (sessionId: string) => killSession(sessionId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["environments", project] });
+    // Close right away — the list refresh happens in the background (the busy badge also self-heals
+    // on the next poll anyway).
+    onSuccess: () => {
       close();
+      void queryClient.invalidateQueries({ queryKey: ["environments", project] });
     },
   });
 
