@@ -16,12 +16,11 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconKey, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { CurrentSessionModal } from "@/components/current-session-modal";
-import { CurrentSessionAction } from "@/components/current-session-action";
 import { NewSessionModal } from "@/components/new-session-modal";
 import {
   createEnvironment,
@@ -123,7 +122,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
               <Table.Th>Platform</Table.Th>
               <Table.Th>Apps</Table.Th>
               <Table.Th>Execution</Table.Th>
-              <Table.Th />
+              <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -148,10 +147,14 @@ export function EnvironmentsTab({ project }: { project: string }) {
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    {active && (
+                    {active ? (
                       <Badge color={e.busy ? "orange" : "green"} variant="light">
                         {e.busy ? "busy" : "free"}
                       </Badge>
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        —
+                      </Text>
                     )}
                   </Table.Td>
                   <Table.Td>
@@ -172,12 +175,16 @@ export function EnvironmentsTab({ project }: { project: string }) {
                           </ActionIcon>
                         </Tooltip>
                       )}
-                      {active && e.busy && (
-                        <CurrentSessionAction
-                          project={project}
-                          environment={e}
-                          onOpen={() => setCurrentSessionTarget(e)}
-                        />
+                      {active && e.busy && e.capabilities?.canAccessCurrentSession && (
+                        <Tooltip label="Current session">
+                          <ActionIcon
+                            variant="subtle"
+                            aria-label="Current session"
+                            onClick={() => setCurrentSessionTarget(e)}
+                          >
+                            <IconKey size={16} />
+                          </ActionIcon>
+                        </Tooltip>
                       )}
                       {!gone && (
                         <ActionIcon

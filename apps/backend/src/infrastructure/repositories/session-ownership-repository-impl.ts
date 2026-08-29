@@ -21,6 +21,14 @@ export class SessionOwnershipRepositoryImpl extends SessionOwnershipRepository {
         return data ? SessionOwnership.fromObject(data) : null;
     }
 
+    async listByEnvironments(environmentIds: ReadonlyArray<EnvironmentId>): Promise<Array<SessionOwnership>> {
+        const data = await this.sessionOwnershipDataSource.listByEnvironments(
+            environmentIds.map((id) => id.getValue()),
+        );
+
+        return data.map(SessionOwnership.fromObject);
+    }
+
     async deleteByEnvironment(environmentId: EnvironmentId): Promise<void> {
         await this.sessionOwnershipDataSource.deleteByEnvironment(environmentId.getValue());
     }

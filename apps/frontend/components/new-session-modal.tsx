@@ -55,17 +55,17 @@ export function NewSessionModal({
     <Modal
       opened={environment !== null}
       onClose={close}
+      size="lg"
       title={environment ? `New session on ${shortId(environmentHandle(environment))}` : "New session"}
     >
       {created ? (
         <Stack>
           <Text size="sm" c="dimmed">
-            The session id is the key to this session. While it runs, you can always get it back from
-            the environment row; after it ends the id is unrecoverable — keep it if you will need the
-            session&apos;s logs or video later.
+            Save the id if you&apos;ll need logs or video after the session ends — it cannot be
+            recovered later.
           </Text>
           <Group gap="xs" wrap="nowrap">
-            <Code style={{ flex: 1, overflowWrap: "anywhere" }}>{created.sessionId}</Code>
+            <Code style={{ flex: 1, whiteSpace: "nowrap", overflowX: "auto" }}>{created.sessionId}</Code>
             <CopyButton value={created.sessionId} />
           </Group>
           {created.interactive && (

@@ -45,6 +45,7 @@ export function CurrentSessionModal({
     <Modal
       opened={environment !== null}
       onClose={close}
+      size="lg"
       title={environment ? `Current session on ${shortId(environmentHandle(environment))}` : "Current session"}
     >
       <Stack>
@@ -60,7 +61,7 @@ export function CurrentSessionModal({
         {session.data && (
           <>
             <Group gap="xs" wrap="nowrap">
-              <Code style={{ flex: 1, overflowWrap: "anywhere" }}>{session.data.sessionId}</Code>
+              <Code style={{ flex: 1, whiteSpace: "nowrap", overflowX: "auto" }}>{session.data.sessionId}</Code>
               <CopyButton value={session.data.sessionId} />
             </Group>
             {kill.error && (

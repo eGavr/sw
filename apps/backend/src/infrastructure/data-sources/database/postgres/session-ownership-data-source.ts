@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { DataSource } from "typeorm";
+import { DataSource, In } from "typeorm";
 
 import {
     SessionOwnership as SessionOwnershipEntity,
@@ -22,6 +22,18 @@ export class SessionOwnershipDataSource {
         const ownership = await this.dataSource.getRepository(SessionOwnership).findOne({ where: { environmentId } });
 
         return ownership?.toObject() ?? null;
+    }
+
+    async listByEnvironments(environmentIds: Array<string>): Promise<Array<SessionOwnershipData>> {
+        if (environmentIds.length === 0) {
+            return [];
+        }
+
+        const ownerships = await this.dataSource.getRepository(SessionOwnership).find({
+            where: { environmentId: In(environmentIds) },
+        });
+
+        return ownerships.map((ownership) => ownership.toObject());
     }
 
     async deleteByEnvironment(environmentId: string): Promise<void> {

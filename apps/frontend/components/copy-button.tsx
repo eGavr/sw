@@ -12,6 +12,7 @@ export function CopyButton({ value }: { value: string }) {
     <Button
       variant="default"
       size="compact-sm"
+      w={96}
       leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
       onClick={() => {
         void navigator.clipboard.writeText(value);

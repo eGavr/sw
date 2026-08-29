@@ -4,9 +4,12 @@ import { Presenter } from "../../../../presenters/presenter";
 export class EnvironmentPresenter implements Presenter {
     // `projectHandle` is the identifier the caller used for the project (its human id or uid), echoed in
     // the resource name; the environment is addressed by its own human id when set, else its uid.
+    // `canAccessCurrentSession` is a caller-dependent capability (the Drive files.capabilities pattern):
+    // set only when the caller created the environment's current session.
     constructor(
         private readonly environment: Environment,
         private readonly projectHandle: string,
+        private readonly canAccessCurrentSession: boolean = false,
     ) {}
 
     present(): object {
@@ -24,6 +27,7 @@ export class EnvironmentPresenter implements Presenter {
             // Occupancy is orthogonal to lifecycle (a session never changes `state`); busy/liveness rules
             // live in the entity. Not secrets — the session id is.
             busy: this.environment.isBusy(),
+            ...(this.canAccessCurrentSession ? { capabilities: { canAccessCurrentSession: true } } : {}),
             ...(this.environment.lastHeartbeatAt
                 ? { lastHeartbeatTime: this.environment.lastHeartbeatAt.toISOString() }
                 : {}),

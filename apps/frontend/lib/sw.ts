@@ -19,6 +19,8 @@ export interface Environment {
   applications: Array<{ name: string; version: string }>;
   busy: boolean; // occupancy, orthogonal to state: the agent's last heartbeat word
   lastHeartbeatTime?: string;
+  // Caller-dependent capabilities (the Drive files.capabilities pattern); omitted when empty.
+  capabilities?: { canAccessCurrentSession?: boolean };
   createTime: string;
 }
 

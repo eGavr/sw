@@ -124,6 +124,23 @@ describe("GET /projects/:project/environments/:environment/session", () => {
         return getSession(projectUid, environmentId, owner).expect(HttpStatus.NOT_FOUND);
     });
 
+    // The Drive files.capabilities pattern: the list advertises the door only to whoever can open it.
+    test("GET environments carries capabilities.canAccessCurrentSession only for the creator", async () => {
+        const creator = UserFactory.createId();
+        const { owner, projectUid, environmentId } = await seedExecutingEnvironment(creator);
+        await seedOwnership(environmentId, creator);
+
+        const { body: mine } = await request(app.getHttpServer())
+            .get(`/projects/${projectUid}/environments`).set(owner).expect(HttpStatus.OK);
+        expect(mine.environments[0].capabilities).toEqual({ canAccessCurrentSession: true });
+
+        // Replace the owner with someone else -> the capability disappears from the caller's view.
+        await seedOwnership(environmentId, UserFactory.createId());
+        const { body: foreign } = await request(app.getHttpServer())
+            .get(`/projects/${projectUid}/environments`).set(owner).expect(HttpStatus.OK);
+        expect(foreign.environments[0].capabilities).toBeUndefined();
+    });
+
     test("responds NOT_FOUND for an unknown environment", async () => {
         const creator = UserFactory.createId();
         const { owner, projectUid } = await seedExecutingEnvironment(creator);

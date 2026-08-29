@@ -72,10 +72,12 @@ export class EnvironmentsController {
         @Param("environment") environment: string,
         @BearerToken() token: string,
     ): Promise<EnvironmentPresenter> {
-        return new EnvironmentPresenter(await this.getEnvironmentUseCase.execute({
+        const view = await this.getEnvironmentUseCase.execute({
             creds: { token },
             params: { projectId: project, environmentId: environment },
-        }), project);
+        });
+
+        return new EnvironmentPresenter(view.environment, project, view.canAccessCurrentSession);
     }
 
     // Recovers the live session id for the session's creator (404 to everyone else — existence is not
