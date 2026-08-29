@@ -14,10 +14,12 @@ export function CurrentSessionModal({
   project,
   environment,
   onClose,
+  onKilled,
 }: {
   project: string;
   environment: Environment | null;
   onClose: () => void;
+  onKilled: (environmentUid: string) => void;
 }) {
   const queryClient = useQueryClient();
 
@@ -33,6 +35,9 @@ export function CurrentSessionModal({
     // Close right away — the list refresh happens in the background (the busy badge also self-heals
     // on the next poll anyway).
     onSuccess: () => {
+      if (environment) {
+        onKilled(environment.uid);
+      }
       close();
       void queryClient.invalidateQueries({ queryKey: ["environments", project] });
     },

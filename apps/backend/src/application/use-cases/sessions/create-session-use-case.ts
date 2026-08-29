@@ -86,6 +86,12 @@ export class CreateSessionUseCase {
             createdBy: user.externalId,
         }));
 
+        // Flip the busy hint right away (fresh read to not regress the agent's liveness word) — the UI
+        // should not wait a heartbeat to learn what we just did; the next heartbeat confirms or heals.
+        const occupied = await this.environmentRepository.get(session.environmentId);
+        occupied.occupy();
+        await this.environmentRepository.save(occupied);
+
         return session;
     }
 

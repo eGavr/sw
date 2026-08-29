@@ -2,7 +2,7 @@
 
 import { Button, Code, Group, Modal, Stack, Switch, Text } from "@mantine/core";
 import { IconExternalLink } from "@tabler/icons-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { CopyButton } from "@/components/copy-button";
@@ -21,6 +21,7 @@ export function NewSessionModal({
   environment: Environment | null;
   onClose: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [logging, setLogging] = useState(false);
   const [video, setVideo] = useState(false);
   const [created, setCreated] = useState<CreatedSession | null>(null);
@@ -40,7 +41,12 @@ export function NewSessionModal({
         video,
       });
     },
-    onSuccess: setCreated,
+    // The busy hint is written to the DB on the create path, so an immediate refetch shows it — no
+    // waiting for the next poll tick.
+    onSuccess: (session) => {
+      setCreated(session);
+      void queryClient.invalidateQueries({ queryKey: ["environments", project] });
+    },
   });
 
   const close = (): void => {

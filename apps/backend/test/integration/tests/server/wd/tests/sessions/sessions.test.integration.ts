@@ -428,6 +428,15 @@ describe("/sessions", () => {
             expect(ownership?.isOwnedBy(externalId)).toBe(true);
             expect(ownership?.isOwnedBy(UserFactory.createId())).toBe(false);
         });
+
+        test("flips the busy hint immediately, without waiting for a heartbeat", async () => {
+            const { owner, projectId, environmentId } = await seedExecutingEnvironment();
+
+            await createSession(projectId, owner).expect(HttpStatus.OK);
+
+            const environment = await app.get(EnvironmentRepository).get(EnvironmentId.fromString(environmentId));
+            expect(environment.busy).toBe(true);
+        });
     });
 
     // The proxy is stateless: it decodes the target endpoint from the session id, so it can be tested

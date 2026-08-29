@@ -240,6 +240,18 @@ export class Environment {
         this.touch();
     }
 
+    // Optimistic occupancy right after a session lands on this environment's node: the busy hint flips
+    // immediately instead of waiting for the next agent heartbeat. Liveness is untouched — the heartbeat
+    // timestamp stays the agent's word, and the next heartbeat overwrites busy either way (self-healing).
+    occupy(): void {
+        if (this._state !== EnvironmentState.Executing) {
+            throw new InvalidEnvironmentStateTransitionError(this._state, EnvironmentState.Executing);
+        }
+
+        this._busy = true;
+        this.touch();
+    }
+
     failProvisioning(reason: EnvironmentStateReason): void {
         this.transitionFromProvisioning(EnvironmentState.Failed);
         this._stateReason = reason;
