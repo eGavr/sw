@@ -85,6 +85,7 @@ export function NewSessionModal({
               href={`/projects/${project}?tab=sessions&session=${encodeURIComponent(created.sessionId)}`}
               variant="light"
               leftSection={<IconEye size={16} />}
+              onClick={close}
             >
               Open session
             </Button>
