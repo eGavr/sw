@@ -1,9 +1,11 @@
 "use client";
 
-import { Alert, Button, Code, CopyButton, Group, Loader, Modal, Stack, Text } from "@mantine/core";
-import { IconCheck, IconCopy, IconTrash } from "@tabler/icons-react";
+import { Alert, Button, Code, Group, Loader, Modal, Stack, Text } from "@mantine/core";
+import { IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { CopyButton } from "@/components/copy-button";
+import { shortId } from "@/lib/format";
 import { Environment, environmentHandle, getEnvironmentSession, killSession } from "@/lib/sw";
 
 // Recovers the live session id of a busy environment — the API answers only to the session's creator
@@ -43,7 +45,7 @@ export function CurrentSessionModal({
     <Modal
       opened={environment !== null}
       onClose={close}
-      title={environment ? `Current session on ${environmentHandle(environment)}` : "Current session"}
+      title={environment ? `Current session on ${shortId(environmentHandle(environment))}` : "Current session"}
     >
       <Stack>
         {session.isLoading && <Loader size="sm" />}
@@ -59,18 +61,7 @@ export function CurrentSessionModal({
           <>
             <Group gap="xs" wrap="nowrap">
               <Code style={{ flex: 1, overflowWrap: "anywhere" }}>{session.data.sessionId}</Code>
-              <CopyButton value={session.data.sessionId}>
-                {({ copied, copy }) => (
-                  <Button
-                    variant="default"
-                    size="compact-sm"
-                    leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
-                    onClick={copy}
-                  >
-                    {copied ? "Copied" : "Copy"}
-                  </Button>
-                )}
-              </CopyButton>
+              <CopyButton value={session.data.sessionId} />
             </Group>
             {kill.error && (
               <Text c="red" size="sm">

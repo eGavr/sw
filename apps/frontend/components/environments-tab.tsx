@@ -16,11 +16,12 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconKey, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { CurrentSessionModal } from "@/components/current-session-modal";
+import { CurrentSessionAction } from "@/components/current-session-action";
 import { NewSessionModal } from "@/components/new-session-modal";
 import {
   createEnvironment,
@@ -30,6 +31,7 @@ import {
   listCloudAccounts,
   listEnvironments,
 } from "@/lib/sw";
+import { shortId } from "@/lib/format";
 
 // The wire statuses of GET environments (EnvironmentStatus): ACTIVE is "executing and heartbeating".
 const STATE_COLOR: Record<string, string> = {
@@ -133,7 +135,13 @@ export function EnvironmentsTab({ project }: { project: string }) {
 
               return (
                 <Table.Tr key={e.uid}>
-                  <Table.Td>{handle}</Table.Td>
+                  <Table.Td>
+                    <Tooltip label={handle} disabled={handle === shortId(handle)}>
+                      <Text size="sm" ff="monospace" style={{ cursor: "default", width: "fit-content" }}>
+                        {shortId(handle)}
+                      </Text>
+                    </Tooltip>
+                  </Table.Td>
                   <Table.Td>
                     <Badge color={STATE_COLOR[e.state.toLowerCase()] ?? "gray"} variant="light">
                       {e.state.toLowerCase()}
@@ -165,15 +173,11 @@ export function EnvironmentsTab({ project }: { project: string }) {
                         </Tooltip>
                       )}
                       {active && e.busy && (
-                        <Tooltip label="Current session (creator only)">
-                          <ActionIcon
-                            variant="subtle"
-                            aria-label="Current session"
-                            onClick={() => setCurrentSessionTarget(e)}
-                          >
-                            <IconKey size={16} />
-                          </ActionIcon>
-                        </Tooltip>
+                        <CurrentSessionAction
+                          project={project}
+                          environment={e}
+                          onOpen={() => setCurrentSessionTarget(e)}
+                        />
                       )}
                       {!gone && (
                         <ActionIcon
