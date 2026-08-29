@@ -12,11 +12,13 @@ export interface Project {
 export interface Environment {
   name: string; // "projects/{project}/environments/{handle}"
   uid: string;
-  state: string; // enqueued | starting | preparing | executing | deleting | deleted | failed
+  state: string; // ENQUEUED | PREPARING | ACTIVE | UNHEALTHY | DELETING | DELETED | FAILED
   stateReason?: string;
   platform: { name: string; version: string; deviceModel?: string };
   execution: string;
   applications: Array<{ name: string; version: string }>;
+  busy: boolean; // occupancy, orthogonal to state: the agent's last heartbeat word
+  lastHeartbeatTime?: string;
   createTime: string;
 }
 
@@ -59,11 +61,22 @@ export function environmentHandle(environment: Environment): string {
   return environment.name.replace(/^projects\/[^/]+\/environments\//, "");
 }
 
+// A 401 from the BFF means the session cookie went stale beyond refresh — re-authenticate instead of
+// leaving queries to retry into an eternal spinner.
+function bounceToLogin(): never {
+  window.location.assign("/login");
+  throw new Error("session expired — redirecting to sign-in");
+}
+
 async function swRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api/sw/${path}`, {
     ...init,
     headers: { accept: "application/json", ...init?.headers },
   });
+
+  if (res.status === 401) {
+    bounceToLogin();
+  }
 
   if (!res.ok) {
     let message = `sw ${path} → ${res.status}`;
@@ -145,6 +158,10 @@ export async function createSession(project: string, input: CreateSessionInput):
     }),
   });
 
+  if (res.status === 401) {
+    bounceToLogin();
+  }
+
   const body = (await res.json().catch(() => ({}))) as {
     value?: { sessionId?: string; capabilities?: Record<string, unknown> };
     message?: string;
@@ -166,6 +183,10 @@ export async function createSession(project: string, input: CreateSessionInput):
 // same-origin convenience.
 export async function killSession(sessionId: string): Promise<void> {
   const res = await fetch(`/api/wd/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+
+  if (res.status === 401) {
+    bounceToLogin();
+  }
 
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string };

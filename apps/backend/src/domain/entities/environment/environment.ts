@@ -12,6 +12,7 @@ import { EnvironmentStateReason } from "./environment-state-reason";
 import { EnvironmentStatus } from "./environment-status";
 import { InvalidEnvironmentStateTransitionError } from "./error/invalid-environment-state-transition-error";
 import { defaultExecution, Execution, toExecution } from "./execution";
+import { defaultHeartbeatFreshnessMs } from "./heartbeat-freshness";
 import { Platform, PlatformData } from "./platform/platform";
 
 export type EnvironmentData = {
@@ -278,7 +279,9 @@ export class Environment {
         this.touch();
     }
 
-    effectiveStatus(now: Date, freshnessWindowMs: number): EnvironmentStatus {
+    // The externally observable status, derived from the lifecycle state and heartbeat liveness — the
+    // entity owns the whole rule (clock and freshness window included), callers just ask.
+    effectiveStatus(): EnvironmentStatus {
         switch (this._state) {
             case EnvironmentState.Enqueued:
                 return EnvironmentStatus.Enqueued;
@@ -289,10 +292,16 @@ export class Environment {
             case EnvironmentState.Failed:
                 return EnvironmentStatus.Failed;
             case EnvironmentState.Executing:
-                return this.isFresh(now, freshnessWindowMs) ? EnvironmentStatus.Active : EnvironmentStatus.Unhealthy;
+                return this.hasFreshHeartbeat() ? EnvironmentStatus.Active : EnvironmentStatus.Unhealthy;
             case EnvironmentState.Deleting:
-                return this.isFresh(now, freshnessWindowMs) ? EnvironmentStatus.Deleting : EnvironmentStatus.Deleted;
+                return this.hasFreshHeartbeat() ? EnvironmentStatus.Deleting : EnvironmentStatus.Deleted;
         }
+    }
+
+    // Busy is the agent's word, and it only counts while the agent is provably alive: once the
+    // heartbeat goes stale the environment is not "busy" — it is unhealthy (see effectiveStatus).
+    isBusy(): boolean {
+        return this._busy && this.hasFreshHeartbeat();
     }
 
     toObject(): EnvironmentData {
@@ -316,8 +325,9 @@ export class Environment {
         };
     }
 
-    private isFresh(now: Date, freshnessWindowMs: number): boolean {
-        return this._lastHeartbeatAt !== null && now.getTime() - this._lastHeartbeatAt.getTime() <= freshnessWindowMs;
+    private hasFreshHeartbeat(): boolean {
+        return this._lastHeartbeatAt !== null
+            && Date.now() - this._lastHeartbeatAt.getTime() <= defaultHeartbeatFreshnessMs;
     }
 
     private transition(from: EnvironmentState, to: EnvironmentState): void {

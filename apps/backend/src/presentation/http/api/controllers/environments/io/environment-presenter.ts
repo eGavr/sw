@@ -1,5 +1,4 @@
 import { Environment } from "../../../../../../domain/entities/environment/environment";
-import { defaultHeartbeatFreshnessMs } from "../../../../../../domain/entities/environment/heartbeat-freshness";
 import { Presenter } from "../../../../presenters/presenter";
 
 export class EnvironmentPresenter implements Presenter {
@@ -17,11 +16,17 @@ export class EnvironmentPresenter implements Presenter {
         return {
             name: `projects/${this.projectHandle}/environments/${handle}`,
             uid: this.environment.id,
-            state: this.environment.effectiveStatus(new Date(), defaultHeartbeatFreshnessMs),
+            state: this.environment.effectiveStatus(),
             ...(reason ? { stateReason: reason } : {}),
             platform: this.environment.platform.toObject(),
             execution: this.environment.execution,
             applications: this.environment.applications.toArray(),
+            // Occupancy is orthogonal to lifecycle (a session never changes `state`); busy/liveness rules
+            // live in the entity. Not secrets — the session id is.
+            busy: this.environment.isBusy(),
+            ...(this.environment.lastHeartbeatAt
+                ? { lastHeartbeatTime: this.environment.lastHeartbeatAt.toISOString() }
+                : {}),
             createTime: this.environment.createdAt.toISOString(),
         };
     }

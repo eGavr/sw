@@ -2,6 +2,11 @@ import { HttpStatus } from "@nestjs/common";
 import request from "supertest";
 import { v4 as uuidv4 } from "uuid";
 
+import {
+    EnvironmentRepository,
+} from "../../../../../../../src/application/interfaces/repositories/environment-repository";
+import { EnvironmentEndpoint } from "../../../../../../../src/domain/entities/environment/environment-endpoint";
+import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
 import { ApiModule } from "../../../../../../../src/presentation/http/api/api-module";
 import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
@@ -59,6 +64,7 @@ describe("/projects/:project/environments", () => {
                 platform: { name: "linux", version: "latest", deviceModel: "desktop" },
                 execution: "container",
                 applications: [{ name: "chrome", version: "126" }],
+                busy: false,
                 createTime: expect.any(String),
             });
         });
@@ -163,6 +169,48 @@ describe("/projects/:project/environments", () => {
                 .set(owner)
                 .send({ ...validEnvironmentBody, applications: [{ name: "chrome", version: "latest" }] })
                 .expect(HttpStatus.BAD_REQUEST);
+        });
+    });
+
+    describe("occupancy (busy + heartbeat freshness)", () => {
+        // Occupancy is orthogonal to lifecycle: a session never changes `state`, only the agent's
+        // heartbeat flips `busy`. The heartbeat itself arrives on the internal server, so the agent's
+        // report is seeded through the repository here and asserted through the public read.
+        test("exposes busy and the heartbeat time reported by the agent", async () => {
+            const { owner, projectId } = await createProject();
+            const { body: created } = await createEnvironment(projectId, owner).expect(HttpStatus.CREATED);
+
+            const environmentRepository = app.app.get(EnvironmentRepository);
+            const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());
+
+            if (!claimed) {
+                throw new Error("expected an enqueued environment to claim");
+            }
+
+            claimed.markDispatched();
+            claimed.register(new EnvironmentEndpoint("http://127.0.0.1:45454"), new Date());
+            claimed.heartbeat(true, new Date());
+            await environmentRepository.save(claimed);
+
+            const { body } = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/environments/${created.uid}`)
+                .set(owner)
+                .expect(HttpStatus.OK);
+
+            expect(body.state).toBe("ACTIVE");
+            expect(body.busy).toBe(true);
+            expect(body.lastHeartbeatTime).toEqual(expect.any(String));
+
+            const freed = await environmentRepository.get(EnvironmentId.fromString(created.uid));
+            freed.heartbeat(false, new Date());
+            await environmentRepository.save(freed);
+
+            const { body: after } = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/environments/${created.uid}`)
+                .set(owner)
+                .expect(HttpStatus.OK);
+
+            expect(after.busy).toBe(false);
         });
     });
 
