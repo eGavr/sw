@@ -30,11 +30,12 @@ import {
   listEnvironments,
 } from "@/lib/sw";
 
+// The wire statuses of GET environments (EnvironmentStatus): ACTIVE is "executing and heartbeating".
 const STATE_COLOR: Record<string, string> = {
   enqueued: "blue",
-  starting: "yellow",
   preparing: "yellow",
-  executing: "green",
+  active: "green",
+  unhealthy: "orange",
   deleting: "gray",
   deleted: "gray",
   failed: "red",
@@ -141,7 +142,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   <Table.Td>{e.execution}</Table.Td>
                   <Table.Td>
                     <Group gap={4} wrap="nowrap">
-                      {e.state.toLowerCase() === "executing" && (
+                      {e.state.toLowerCase() === "active" && (
                         <Tooltip label="New session on this environment">
                           <ActionIcon
                             variant="subtle"
