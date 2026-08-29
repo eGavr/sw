@@ -113,7 +113,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
         <Table striped highlightOnHover withTableBorder>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Name</Table.Th>
+              <Table.Th>Id</Table.Th>
               <Table.Th>State</Table.Th>
               <Table.Th>Occupancy</Table.Th>
               <Table.Th>Platform</Table.Th>
