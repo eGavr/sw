@@ -53,7 +53,7 @@ describe("Environment", () => {
             expect(environment.state).toBe(EnvironmentState.Enqueued);
             expect(environment.busy).toBe(false);
             expect(environment.endpoint).toBeNull();
-            expect(environment.effectiveStatus(new Date(), freshnessMs)).toBe(EnvironmentStatus.Enqueued);
+            expect(environment.effectiveStatus()).toBe(EnvironmentStatus.Enqueued);
         });
     });
 
@@ -128,17 +128,15 @@ describe("Environment", () => {
 
             expect(environment.state).toBe(EnvironmentState.Executing);
             expect(environment.endpoint).toBe("http://host:4444");
-            expect(environment.effectiveStatus(now, freshnessMs)).toBe(EnvironmentStatus.Active);
+            expect(environment.effectiveStatus()).toBe(EnvironmentStatus.Active);
         });
 
         test("should report UNHEALTHY once the heartbeat goes stale", () => {
             const environment = makePreparing();
-            const registeredAt = new Date(0);
-            environment.register(new EnvironmentEndpoint("http://host:4444"), registeredAt);
+            const staleRegisteredAt = new Date(Date.now() - freshnessMs - 1_000);
+            environment.register(new EnvironmentEndpoint("http://host:4444"), staleRegisteredAt);
 
-            const later = new Date(registeredAt.getTime() + freshnessMs + 1);
-
-            expect(environment.effectiveStatus(later, freshnessMs)).toBe(EnvironmentStatus.Unhealthy);
+            expect(environment.effectiveStatus()).toBe(EnvironmentStatus.Unhealthy);
         });
 
         test("should reject registering an environment that was not preparing", () => {
@@ -161,6 +159,30 @@ describe("Environment", () => {
             expect(environment.busy).toBe(true);
         });
 
+        test("isBusy is the word of a LIVE agent: true only while busy and fresh", () => {
+            const environment = makePreparing();
+            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date());
+            environment.heartbeat(true, new Date());
+
+            expect(environment.isBusy()).toBe(true);
+        });
+
+        test("isBusy is false for a free environment", () => {
+            const environment = makePreparing();
+            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date());
+            environment.heartbeat(false, new Date());
+
+            expect(environment.isBusy()).toBe(false);
+        });
+
+        test("isBusy is false once the heartbeat goes stale — a dead agent's busy does not count", () => {
+            const environment = makePreparing();
+            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date());
+            environment.heartbeat(true, new Date(Date.now() - freshnessMs - 1_000));
+
+            expect(environment.isBusy()).toBe(false);
+        });
+
         test("should reject a heartbeat before the environment is executing", () => {
             const environment = makeEnvironment();
 
@@ -177,7 +199,7 @@ describe("Environment", () => {
 
             expect(environment.state).toBe(EnvironmentState.Failed);
             expect(environment.stateReason).toBe(EnvironmentStateReason.PermissionDenied);
-            expect(environment.effectiveStatus(new Date(), freshnessMs)).toBe(EnvironmentStatus.Failed);
+            expect(environment.effectiveStatus()).toBe(EnvironmentStatus.Failed);
         });
 
         test("should fail from preparing", () => {
@@ -261,17 +283,20 @@ describe("Environment", () => {
             expect(environment.state).toBe(EnvironmentState.Deleting);
         });
 
-        test("should read as DELETING while fresh and DELETED once stale", () => {
+        test("should read as DELETING while the heartbeat is fresh", () => {
             const environment = makePreparing();
-            const registeredAt = new Date(0);
-            environment.register(new EnvironmentEndpoint("http://host:4444"), registeredAt);
+            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date());
             environment.startDeletion();
 
-            expect(environment.effectiveStatus(registeredAt, freshnessMs)).toBe(EnvironmentStatus.Deleting);
+            expect(environment.effectiveStatus()).toBe(EnvironmentStatus.Deleting);
+        });
 
-            const later = new Date(registeredAt.getTime() + freshnessMs + 1);
+        test("should read as DELETED once the heartbeat goes stale", () => {
+            const environment = makePreparing();
+            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date(Date.now() - freshnessMs - 1_000));
+            environment.startDeletion();
 
-            expect(environment.effectiveStatus(later, freshnessMs)).toBe(EnvironmentStatus.Deleted);
+            expect(environment.effectiveStatus()).toBe(EnvironmentStatus.Deleted);
         });
 
         test("should read as DELETED when it never had a heartbeat", () => {
@@ -279,7 +304,7 @@ describe("Environment", () => {
 
             environment.startDeletion();
 
-            expect(environment.effectiveStatus(new Date(), freshnessMs)).toBe(EnvironmentStatus.Deleted);
+            expect(environment.effectiveStatus()).toBe(EnvironmentStatus.Deleted);
         });
     });
 });

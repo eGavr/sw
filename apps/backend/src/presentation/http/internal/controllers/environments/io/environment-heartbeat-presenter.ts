@@ -1,5 +1,4 @@
 import { Environment } from "../../../../../../domain/entities/environment/environment";
-import { defaultHeartbeatFreshnessMs } from "../../../../../../domain/entities/environment/heartbeat-freshness";
 import { Presenter } from "../../../../presenters/presenter";
 
 export class EnvironmentHeartbeatPresenter implements Presenter {
@@ -8,7 +7,7 @@ export class EnvironmentHeartbeatPresenter implements Presenter {
     present(): object {
         return {
             uid: this.environment.id,
-            state: this.environment.effectiveStatus(new Date(), defaultHeartbeatFreshnessMs),
+            state: this.environment.effectiveStatus(),
         };
     }
 }
