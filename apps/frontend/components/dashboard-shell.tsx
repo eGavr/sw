@@ -5,7 +5,6 @@ import {
   AppShell,
   Avatar,
   Burger,
-  Divider,
   Group,
   Loader,
   Menu,
@@ -14,7 +13,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconEye, IconLogout, IconPlus } from "@tabler/icons-react";
+import { IconLogout, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -107,17 +106,6 @@ export function DashboardShell({
           </Text>
         )}
 
-        <Divider my="sm" />
-        <Text size="xs" fw={600} c="dimmed" tt="uppercase" px="xs" pb={4}>
-          Session
-        </Text>
-        <NavLink
-          component={Link}
-          href="/inspect"
-          label="Inspect session"
-          leftSection={<IconEye size={18} />}
-          active={pathname.startsWith("/inspect")}
-        />
       </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>

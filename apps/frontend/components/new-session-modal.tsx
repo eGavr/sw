@@ -77,11 +77,11 @@ export function NewSessionModal({
           <Group justify="flex-end">
             <Button
               component={Link}
-              href={`/inspect?session=${encodeURIComponent(created.sessionId)}&project=${encodeURIComponent(project)}`}
+              href={`/projects/${project}?tab=sessions&session=${encodeURIComponent(created.sessionId)}`}
               variant="default"
               leftSection={<IconEye size={16} />}
             >
-              Open in Inspect
+              Open session
             </Button>
             <Button onClick={close}>Done</Button>
           </Group>

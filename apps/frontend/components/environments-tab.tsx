@@ -16,11 +16,11 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconEye, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { CurrentSessionModal } from "@/components/current-session-modal";
+import { BusySessionLink } from "@/components/busy-session-link";
 import { NewSessionModal } from "@/components/new-session-modal";
 import {
   createEnvironment,
@@ -30,7 +30,7 @@ import {
   listCloudAccounts,
   listEnvironments,
 } from "@/lib/sw";
-import { addFreeing, freeingTtlMs, loadFreeing, removeFreeing } from "@/lib/freeing-store";
+import { loadFreeing } from "@/lib/freeing-store";
 import { shortId } from "@/lib/format";
 
 // The wire statuses of GET environments (EnvironmentStatus): ACTIVE is "executing and heartbeating".
@@ -54,40 +54,6 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const [appVersion, setAppVersion] = useState("128");
   const [execution, setExecution] = useState("container");
   const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);
-  const [currentSessionTarget, setCurrentSessionTarget] = useState<Environment | null>(null);
-  // Environments whose session we just killed: the busy hint clears with the next agent heartbeat
-  // (~3s), so until then the row shows "freeing" instead of a stale busy. Persisted (localStorage) so
-  // a reload right after the kill does not resurrect "busy"; every entry expires by TTL — if the agent
-  // never reports back (env crashed mid-kill), the marker must not stick forever.
-  const [freeing, setFreeing] = useState<ReadonlySet<string>>(new Set());
-
-  const unmarkFreeing = (uid: string): void => {
-    removeFreeing(uid);
-    setFreeing((current) => {
-      const next = new Set(current);
-      next.delete(uid);
-      return next;
-    });
-  };
-
-  const markFreeing = (uid: string): void => {
-    addFreeing(uid);
-    setFreeing((current) => new Set(current).add(uid));
-    setTimeout(() => unmarkFreeing(uid), freeingTtlMs);
-  };
-
-  // Restore markers that survived a reload; each still dies by its TTL.
-  useEffect(() => {
-    const restored = loadFreeing();
-
-    if (restored.size === 0) {
-      return;
-    }
-
-    setFreeing(restored);
-    restored.forEach((uid) => setTimeout(() => unmarkFreeing(uid), freeingTtlMs));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time hydration from storage
-  }, []);
 
   const environments = useQuery({
     queryKey: ["environments", project],
@@ -125,6 +91,9 @@ export function EnvironmentsTab({ project }: { project: string }) {
   });
 
   const rows = environments.data ?? [];
+  // Sessions we just killed (marker written by the Sessions tab): read per render — the store prunes
+  // expired entries on every read, so nothing sticks and the 3s list poll doubles as the refresh.
+  const freeing = loadFreeing();
 
   return (
     <Stack>
@@ -187,9 +156,14 @@ export function EnvironmentsTab({ project }: { project: string }) {
                           freeing
                         </Badge>
                       ) : (
-                        <Badge color={e.busy ? "orange" : "green"} variant="light">
-                          {e.busy ? "busy" : "free"}
-                        </Badge>
+                        <Group gap={2} wrap="nowrap">
+                          <Badge color={e.busy ? "orange" : "green"} variant="light">
+                            {e.busy ? "busy" : "free"}
+                          </Badge>
+                          {e.busy && e.capabilities?.canAccessCurrentSession && (
+                            <BusySessionLink project={project} environmentUid={e.uid} />
+                          )}
+                        </Group>
                       )
                     ) : (
                       <Text size="sm" c="dimmed">
@@ -212,17 +186,6 @@ export function EnvironmentsTab({ project }: { project: string }) {
                             onClick={() => setSessionTarget(e)}
                           >
                             <IconPlayerPlay size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                      )}
-                      {active && e.busy && e.capabilities?.canAccessCurrentSession && (
-                        <Tooltip label="Current session">
-                          <ActionIcon
-                            variant="subtle"
-                            aria-label="Current session"
-                            onClick={() => setCurrentSessionTarget(e)}
-                          >
-                            <IconEye size={16} />
                           </ActionIcon>
                         </Tooltip>
                       )}
@@ -265,12 +228,6 @@ export function EnvironmentsTab({ project }: { project: string }) {
         onClose={() => setSessionTarget(null)}
       />
 
-      <CurrentSessionModal
-        project={project}
-        environment={currentSessionTarget}
-        onClose={() => setCurrentSessionTarget(null)}
-        onKilled={markFreeing}
-      />
 
       <Modal opened={opened} onClose={close} title="New environment">
         <Stack>
