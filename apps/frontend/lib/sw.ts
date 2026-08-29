@@ -179,6 +179,14 @@ export async function createSession(project: string, input: CreateSessionInput):
   };
 }
 
+// The live capability id of the environment's current session — served only to the session's creator
+// (404 to everyone else, including "no session at all": existence is not revealed).
+export function getEnvironmentSession(project: string, environment: string): Promise<{ sessionId: string }> {
+  return swRequest<{ sessionId: string }>(
+    `v1/projects/${project}/environments/${environment}/session`,
+  );
+}
+
 // Session teardown is authorized by possession of the id (capability) — the proxy ride is only for
 // same-origin convenience.
 export async function killSession(sessionId: string): Promise<void> {

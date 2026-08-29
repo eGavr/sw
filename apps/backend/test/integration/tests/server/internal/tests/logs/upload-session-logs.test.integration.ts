@@ -12,6 +12,9 @@ import {
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
 import {
+    SessionOwnershipRepository,
+} from "../../../../../../../src/application/interfaces/repositories/session-ownership-repository";
+import {
     StorageDestinationRepository,
 } from "../../../../../../../src/application/interfaces/repositories/storage-destination-repository";
 import {
@@ -38,6 +41,9 @@ import {
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
 import {
+    SessionOwnershipDataSource,
+} from "../../../../../../../src/infrastructure/data-sources/database/postgres/session-ownership-data-source";
+import {
     StorageDestinationDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/storage-destination-data-source";
 import { PostgresModule } from "../../../../../../../src/infrastructure/data-sources/database/postgres/typeorm/postgres-module";
@@ -49,6 +55,9 @@ import {
     EnvironmentRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/environment-repository-impl";
 import { ProjectRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
+import {
+    SessionOwnershipRepositoryImpl,
+} from "../../../../../../../src/infrastructure/repositories/session-ownership-repository-impl";
 import {
     StorageDestinationRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/storage-destination-repository-impl";
@@ -92,9 +101,11 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionLogs", () =
                 UploadSessionVideoUseCase,
                 ProjectDataSource,
                 EnvironmentDataSource,
+                SessionOwnershipDataSource,
                 StorageDestinationDataSource,
                 { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
+                { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
                 { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
                 { provide: ObjectStorageGateway, useValue: objectStorage },
                 AgentTokenServiceProvider,

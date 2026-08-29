@@ -16,10 +16,11 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconKey, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { CurrentSessionModal } from "@/components/current-session-modal";
 import { NewSessionModal } from "@/components/new-session-modal";
 import {
   createEnvironment,
@@ -51,6 +52,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const [appVersion, setAppVersion] = useState("128");
   const [execution, setExecution] = useState("container");
   const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);
+  const [currentSessionTarget, setCurrentSessionTarget] = useState<Environment | null>(null);
 
   const environments = useQuery({
     queryKey: ["environments", project],
@@ -151,17 +153,25 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   <Table.Td>{e.execution}</Table.Td>
                   <Table.Td>
                     <Group gap={4} wrap="nowrap">
-                      {active && (
-                        <Tooltip
-                          label={e.busy ? "Environment is busy with a session" : "New session on this environment"}
-                        >
+                      {active && !e.busy && (
+                        <Tooltip label="New session on this environment">
                           <ActionIcon
                             variant="subtle"
                             aria-label="New session"
-                            data-disabled={e.busy || undefined}
-                            onClick={() => !e.busy && setSessionTarget(e)}
+                            onClick={() => setSessionTarget(e)}
                           >
                             <IconPlayerPlay size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+                      {active && e.busy && (
+                        <Tooltip label="Current session (creator only)">
+                          <ActionIcon
+                            variant="subtle"
+                            aria-label="Current session"
+                            onClick={() => setCurrentSessionTarget(e)}
+                          >
+                            <IconKey size={16} />
                           </ActionIcon>
                         </Tooltip>
                       )}
@@ -198,6 +208,12 @@ export function EnvironmentsTab({ project }: { project: string }) {
         project={project}
         environment={sessionTarget}
         onClose={() => setSessionTarget(null)}
+      />
+
+      <CurrentSessionModal
+        project={project}
+        environment={currentSessionTarget}
+        onClose={() => setCurrentSessionTarget(null)}
       />
 
       <Modal opened={opened} onClose={close} title="New environment">

@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Alert,
   Button,
   Code,
   CopyButton,
@@ -66,10 +65,11 @@ export function NewSessionModal({
     >
       {created ? (
         <Stack>
-          <Alert color="yellow" title="Shown only once">
-            The session id is the key to this session. It is not stored anywhere — copy it now; you
-            will need it to inspect or reconnect.
-          </Alert>
+          <Text size="sm" c="dimmed">
+            The session id is the key to this session. While it runs, you can always get it back from
+            the environment row; after it ends the id is unrecoverable — keep it if you will need the
+            session&apos;s logs or video later.
+          </Text>
           <Group gap="xs" wrap="nowrap">
             <Code style={{ flex: 1, overflowWrap: "anywhere" }}>{created.sessionId}</Code>
             <CopyButton value={created.sessionId}>

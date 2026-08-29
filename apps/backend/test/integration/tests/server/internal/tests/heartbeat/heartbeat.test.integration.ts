@@ -11,6 +11,9 @@ import {
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
 import {
+    SessionOwnershipRepository,
+} from "../../../../../../../src/application/interfaces/repositories/session-ownership-repository";
+import {
     StorageDestinationRepository,
 } from "../../../../../../../src/application/interfaces/repositories/storage-destination-repository";
 import {
@@ -29,6 +32,7 @@ import { EnvironmentState } from "../../../../../../../src/domain/entities/envir
 import { EnvironmentStatus } from "../../../../../../../src/domain/entities/environment/environment-status";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
+import { SessionOwnership } from "../../../../../../../src/domain/entities/session/session-ownership";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
 import {
@@ -38,6 +42,9 @@ import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
+import {
+    SessionOwnershipDataSource,
+} from "../../../../../../../src/infrastructure/data-sources/database/postgres/session-ownership-data-source";
 import {
     StorageDestinationDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/storage-destination-data-source";
@@ -50,6 +57,9 @@ import {
     EnvironmentRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/environment-repository-impl";
 import { ProjectRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
+import {
+    SessionOwnershipRepositoryImpl,
+} from "../../../../../../../src/infrastructure/repositories/session-ownership-repository-impl";
 import {
     StorageDestinationRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/storage-destination-repository-impl";
@@ -86,9 +96,11 @@ describe("/internal/environments/:id:heartbeat", () => {
                 UploadSessionVideoUseCase,
                 ProjectDataSource,
                 EnvironmentDataSource,
+                SessionOwnershipDataSource,
                 StorageDestinationDataSource,
                 { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
+                { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
                 { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
                 { provide: ObjectStorageGateway, useClass: InMemoryObjectStorageGateway },
                 AgentTokenServiceProvider,
@@ -228,6 +240,28 @@ describe("/internal/environments/:id:heartbeat", () => {
 
     test("responds INVALID_ARGUMENT for a malformed environment id", () => {
         return heartbeat("not-a-uuid", { endpoint, busy: false }).expect(400);
+    });
+
+    // The ownership row follows the session's life: it survives busy heartbeats and dies on the
+    // busy->false transition — however the session ended (idle-kill, capability DELETE, crash).
+    test("drops the session ownership metadata when the agent reports the environment free", async () => {
+        const id = await seedPreparingEnvironment();
+        await heartbeat(id, { endpoint, busy: false }).expect(200);
+        await heartbeat(id, { busy: true }).expect(200);
+
+        const ownershipRepository = app.get(SessionOwnershipRepository);
+        await ownershipRepository.save(SessionOwnership.create({
+            environmentId: EnvironmentId.fromString(id),
+            createdBy: "user-1",
+        }));
+
+        // Still busy -> the row survives.
+        await heartbeat(id, { busy: true }).expect(200);
+        expect(await ownershipRepository.findByEnvironment(EnvironmentId.fromString(id))).not.toBeNull();
+
+        // The session ended (busy -> false) -> the row dies with it.
+        await heartbeat(id, { busy: false }).expect(200);
+        expect(await ownershipRepository.findByEnvironment(EnvironmentId.fromString(id))).toBeNull();
     });
 
     test("responds NOT_FOUND for an unknown custom verb", async () => {

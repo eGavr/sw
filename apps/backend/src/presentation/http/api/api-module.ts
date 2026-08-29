@@ -5,9 +5,15 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
 import { CloudCatalog } from "../../../application/interfaces/cloud-catalog";
+import {
+    WebDriverSessionGateway,
+} from "../../../application/interfaces/gateways/webdriver-session-gateway";
 import { CloudAccountRepository } from "../../../application/interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../application/interfaces/repositories/project-repository";
+import {
+    SessionOwnershipRepository,
+} from "../../../application/interfaces/repositories/session-ownership-repository";
 import {
     StorageDestinationRepository,
 } from "../../../application/interfaces/repositories/storage-destination-repository";
@@ -42,6 +48,9 @@ import {
     SetProjectIamPolicyUseCase,
 } from "../../../application/use-cases/projects/set-project-iam-policy-use-case";
 import { TestProjectPermissionsUseCase } from "../../../application/use-cases/projects/test-project-permissions-use-case";
+import {
+    GetEnvironmentSessionUseCase,
+} from "../../../application/use-cases/sessions/get-environment-session-use-case";
 import { GetSessionLogsUseCase } from "../../../application/use-cases/sessions/get-session-logs-use-case";
 import { GetSessionVideoUseCase } from "../../../application/use-cases/sessions/get-session-video-use-case";
 import {
@@ -60,6 +69,9 @@ import {
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../infrastructure/data-sources/database/postgres/project-data-source";
 import {
+    SessionOwnershipDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/session-ownership-data-source";
+import {
     StorageDestinationDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/storage-destination-data-source";
 import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
@@ -70,10 +82,17 @@ import {
 import {
     ObjectStorageGatewayProvider,
 } from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
+import { WebDriverClient } from "../../../infrastructure/gateways/webdriver-session/webdriver-client";
+import {
+    WebDriverSessionGatewayImpl,
+} from "../../../infrastructure/gateways/webdriver-session/webdriver-session-gateway-impl";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { CloudAccountRepositoryImpl } from "../../../infrastructure/repositories/cloud-account-repository-impl";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
+import {
+    SessionOwnershipRepositoryImpl,
+} from "../../../infrastructure/repositories/session-ownership-repository-impl";
 import {
     StorageDestinationRepositoryImpl,
 } from "../../../infrastructure/repositories/storage-destination-repository-impl";
@@ -135,6 +154,7 @@ import {
 
         GetSessionLogsUseCase,
         GetSessionVideoUseCase,
+        GetEnvironmentSessionUseCase,
 
         AccessControl,
 
@@ -143,12 +163,16 @@ import {
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: CloudAccountRepository, useClass: CloudAccountRepositoryImpl },
         { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
+        { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
+        { provide: WebDriverSessionGateway, useClass: WebDriverSessionGatewayImpl },
         { provide: CloudCatalog, useClass: RegisteredCloudCatalog },
         ObjectStorageGatewayProvider,
 
         ProjectDataSource,
         EnvironmentDataSource,
         CloudAccountDataSource,
+        SessionOwnershipDataSource,
+        WebDriverClient,
         StorageDestinationDataSource,
         AuthUserDataSourceProvider,
         PgUserDataSource,

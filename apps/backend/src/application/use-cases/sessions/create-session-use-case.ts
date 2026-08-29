@@ -13,10 +13,12 @@ import { SessionAllocationCriteria } from "../../../domain/entities/environment/
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { Session } from "../../../domain/entities/session/session";
+import { SessionOwnership } from "../../../domain/entities/session/session-ownership";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { WebDriverSessionGateway, WebDriverSessionOptions } from "../../interfaces/gateways/webdriver-session-gateway";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
+import { SessionOwnershipRepository } from "../../interfaces/repositories/session-ownership-repository";
 import { AccessControl } from "../../services/access-control";
 
 type CreateSessionInput = {
@@ -49,6 +51,7 @@ export class CreateSessionUseCase {
         private readonly accessControl: AccessControl,
         private readonly projectRepository: ProjectRepository,
         private readonly environmentRepository: EnvironmentRepository,
+        private readonly sessionOwnershipRepository: SessionOwnershipRepository,
         private readonly webDriverSessionGateway: WebDriverSessionGateway,
     ) {}
 
@@ -71,10 +74,19 @@ export class CreateSessionUseCase {
             ? await this.targetedCandidate(projectId, params.environmentId, criteria)
             : await this.poolCandidates(projectId, criteria);
 
-        return this.allocate(candidates, requested, {
+        const session = await this.allocate(candidates, requested, {
             logging: params.logging ?? false,
             video: params.video ?? false,
         });
+
+        // Ownership metadata (no secrets): who created the environment's current session — the upsert
+        // replaces the previous session's owner. Only the creator may recover the live id later.
+        await this.sessionOwnershipRepository.save(SessionOwnership.create({
+            environmentId: session.environmentId,
+            createdBy: user.externalId,
+        }));
+
+        return session;
     }
 
     // An empty pool is refused with a diagnosis: the domain decides whether the shortage is transient

@@ -13,12 +13,16 @@ import {
     EnvironmentRepository,
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
+import {
+    SessionOwnershipRepository,
+} from "../../../../../../../src/application/interfaces/repositories/session-ownership-repository";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { EnvironmentEndpoint } from "../../../../../../../src/domain/entities/environment/environment-endpoint";
 import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
 import { Execution } from "../../../../../../../src/domain/entities/environment/execution";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
+import { SessionOwnership } from "../../../../../../../src/domain/entities/session/session-ownership";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { SessionRoute } from "../../../../../../../src/presentation/http/session-route";
 import { WdModule } from "../../../../../../../src/presentation/http/wd/wd-module";
@@ -399,6 +403,30 @@ describe("/sessions", () => {
             createSessionOnNode.mockRejectedValue(new Error("node full"));
 
             return createSession(projectId, owner, chrome, { environmentId }).expect(HttpStatus.CONFLICT);
+        });
+    });
+
+    // Ownership metadata (no secrets) lets the session's creator recover the live id later; a new
+    // session on the same environment replaces the owner.
+    describe("session ownership metadata", () => {
+        const ownershipFor = (environmentId: string): Promise<SessionOwnership | null> =>
+            app.get(SessionOwnershipRepository).findByEnvironment(EnvironmentId.fromString(environmentId));
+
+        test("records who created the environment's current session", async () => {
+            const externalId = UserFactory.createId();
+            const projectRepository = app.get(ProjectRepository);
+            const project = await projectRepository.create({
+                name: `team-${externalId}`,
+                createdBy: User.create({ externalId, providerType: "local" }),
+            });
+            await projectRepository.save(project);
+            const environmentId = await registerExecutingEnvironment(project.id, chromeVersion);
+
+            await createSession(project.id, Authorization.forUser(externalId)).expect(HttpStatus.OK);
+
+            const ownership = await ownershipFor(environmentId);
+            expect(ownership?.isOwnedBy(externalId)).toBe(true);
+            expect(ownership?.isOwnedBy(UserFactory.createId())).toBe(false);
         });
     });
 
