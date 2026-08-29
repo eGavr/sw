@@ -115,6 +115,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
             <Table.Tr>
               <Table.Th>Name</Table.Th>
               <Table.Th>State</Table.Th>
+              <Table.Th>Occupancy</Table.Th>
               <Table.Th>Platform</Table.Th>
               <Table.Th>Apps</Table.Th>
               <Table.Th>Execution</Table.Th>
@@ -126,6 +127,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
               const handle = environmentHandle(e);
               // Soft-deleted rows linger in the list until GC removes them — nothing left to delete.
               const gone = ["deleting", "deleted"].includes(e.state.toLowerCase());
+              const active = e.state.toLowerCase() === "active";
 
               return (
                 <Table.Tr key={e.uid}>
@@ -136,18 +138,28 @@ export function EnvironmentsTab({ project }: { project: string }) {
                     </Badge>
                   </Table.Td>
                   <Table.Td>
+                    {active && (
+                      <Badge color={e.busy ? "orange" : "green"} variant="light">
+                        {e.busy ? "busy" : "free"}
+                      </Badge>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
                     {e.platform.name} {e.platform.version}
                   </Table.Td>
                   <Table.Td>{e.applications.map((a) => `${a.name} ${a.version}`).join(", ")}</Table.Td>
                   <Table.Td>{e.execution}</Table.Td>
                   <Table.Td>
                     <Group gap={4} wrap="nowrap">
-                      {e.state.toLowerCase() === "active" && (
-                        <Tooltip label="New session on this environment">
+                      {active && (
+                        <Tooltip
+                          label={e.busy ? "Environment is busy with a session" : "New session on this environment"}
+                        >
                           <ActionIcon
                             variant="subtle"
                             aria-label="New session"
-                            onClick={() => setSessionTarget(e)}
+                            data-disabled={e.busy || undefined}
+                            onClick={() => !e.busy && setSessionTarget(e)}
                           >
                             <IconPlayerPlay size={16} />
                           </ActionIcon>
@@ -171,7 +183,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
             })}
             {rows.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={6}>
+                <Table.Td colSpan={7}>
                   <Text c="dimmed" size="sm" ta="center" py="sm">
                     No environments yet
                   </Text>

@@ -22,6 +22,12 @@ export class EnvironmentPresenter implements Presenter {
             platform: this.environment.platform.toObject(),
             execution: this.environment.execution,
             applications: this.environment.applications.toArray(),
+            // Occupancy is orthogonal to lifecycle (a session never changes `state`): busy is the agent's
+            // last word, lastHeartbeatTime tells how fresh that word is. Not secrets — the session id is.
+            busy: this.environment.busy,
+            ...(this.environment.lastHeartbeatAt
+                ? { lastHeartbeatTime: this.environment.lastHeartbeatAt.toISOString() }
+                : {}),
             createTime: this.environment.createdAt.toISOString(),
         };
     }
