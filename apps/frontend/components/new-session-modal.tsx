@@ -74,9 +74,9 @@ export function NewSessionModal({
             <Code style={{ flex: 1, whiteSpace: "nowrap", overflowX: "auto" }}>{created.sessionId}</Code>
             <CopyButton value={created.sessionId} />
           </Group>
-          {/* One action per corner: a quiet exit on the left, the main "go watch it" on the right —
-              Copy stays up with the id it copies. No filled primary: nothing here is a form submit. */}
-          <Group justify="space-between" mt="xs">
+          {/* The dialog convention: both actions right-aligned, the main one rightmost; hierarchy
+              comes from the variant, not geography. Copy stays up with the id it copies. */}
+          <Group justify="flex-end" mt="xs">
             <Button variant="subtle" color="gray" onClick={close}>
               Done
             </Button>
