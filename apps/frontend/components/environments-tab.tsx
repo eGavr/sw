@@ -16,23 +16,26 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { NewSessionModal } from "@/components/new-session-modal";
 import {
   createEnvironment,
   deleteEnvironment,
+  Environment,
   environmentHandle,
   listCloudAccounts,
   listEnvironments,
 } from "@/lib/sw";
 
+// The wire statuses of GET environments (EnvironmentStatus): ACTIVE is "executing and heartbeating".
 const STATE_COLOR: Record<string, string> = {
   enqueued: "blue",
-  starting: "yellow",
   preparing: "yellow",
-  executing: "green",
+  active: "green",
+  unhealthy: "orange",
   deleting: "gray",
   deleted: "gray",
   failed: "red",
@@ -47,6 +50,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const [appName, setAppName] = useState("chrome");
   const [appVersion, setAppVersion] = useState("128");
   const [execution, setExecution] = useState("container");
+  const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);
 
   const environments = useQuery({
     queryKey: ["environments", project],
@@ -98,9 +102,6 @@ export function EnvironmentsTab({ project }: { project: string }) {
             New environment
           </Button>
         </Tooltip>
-        <Button leftSection={<IconPlus size={16} />} disabled>
-          New session
-        </Button>
       </Group>
 
       {environments.error && <Alert color="red">{(environments.error as Error).message}</Alert>}
@@ -140,17 +141,30 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   <Table.Td>{e.applications.map((a) => `${a.name} ${a.version}`).join(", ")}</Table.Td>
                   <Table.Td>{e.execution}</Table.Td>
                   <Table.Td>
-                    {!gone && (
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        aria-label="Delete environment"
-                        loading={remove.isPending && remove.variables === handle}
-                        onClick={() => remove.mutate(handle)}
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    )}
+                    <Group gap={4} wrap="nowrap">
+                      {e.state.toLowerCase() === "active" && (
+                        <Tooltip label="New session on this environment">
+                          <ActionIcon
+                            variant="subtle"
+                            aria-label="New session"
+                            onClick={() => setSessionTarget(e)}
+                          >
+                            <IconPlayerPlay size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+                      {!gone && (
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          aria-label="Delete environment"
+                          loading={remove.isPending && remove.variables === handle}
+                          onClick={() => remove.mutate(handle)}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      )}
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               );
@@ -167,6 +181,12 @@ export function EnvironmentsTab({ project }: { project: string }) {
           </Table.Tbody>
         </Table>
       )}
+
+      <NewSessionModal
+        project={project}
+        environment={sessionTarget}
+        onClose={() => setSessionTarget(null)}
+      />
 
       <Modal opened={opened} onClose={close} title="New environment">
         <Stack>

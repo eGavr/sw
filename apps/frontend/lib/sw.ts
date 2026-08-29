@@ -111,6 +111,68 @@ export function deleteEnvironment(project: string, environment: string): Promise
   return swRequest<void>(`v1/projects/${project}/environments/${environment}`, { method: "DELETE" });
 }
 
+export interface CreateSessionInput {
+  environmentId: string;
+  application: { name: string; version: string };
+  logging: boolean;
+  video: boolean;
+}
+
+// The one-time session result: the id is a capability secret shown once and stored nowhere;
+// `interactive` is the ready-to-open hosted viewer page the wd host advertises.
+export interface CreatedSession {
+  sessionId: string;
+  interactive?: string;
+}
+
+// W3C New Session through the wd BFF proxy: the requested application rides as browserName/Version,
+// our opt-ins as vendor sw:* capabilities, and sw:environmentId pins the session to the chosen row.
+export async function createSession(project: string, input: CreateSessionInput): Promise<CreatedSession> {
+  const res = await fetch("/api/wd/sessions", {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({
+      capabilities: {
+        alwaysMatch: {
+          browserName: input.application.name,
+          browserVersion: input.application.version,
+          "sw:projectId": project,
+          "sw:environmentId": input.environmentId,
+          "sw:logging": input.logging,
+          "sw:video": input.video,
+        },
+      },
+    }),
+  });
+
+  const body = (await res.json().catch(() => ({}))) as {
+    value?: { sessionId?: string; capabilities?: Record<string, unknown> };
+    message?: string;
+  };
+
+  if (!res.ok || !body.value?.sessionId) {
+    throw new Error(body.message ?? `wd sessions → ${res.status}`);
+  }
+
+  const interactive = body.value.capabilities?.["sw:interactive"];
+
+  return {
+    sessionId: body.value.sessionId,
+    interactive: typeof interactive === "string" ? interactive : undefined,
+  };
+}
+
+// Session teardown is authorized by possession of the id (capability) — the proxy ride is only for
+// same-origin convenience.
+export async function killSession(sessionId: string): Promise<void> {
+  const res = await fetch(`/api/wd/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(body.message ?? `wd sessions → ${res.status}`);
+  }
+}
+
 export function listCloudTypes(): Promise<Array<CloudType>> {
   return swRequest<{ cloudTypes?: Array<CloudType> }>("v1/cloudTypes").then((d) => d.cloudTypes ?? []);
 }
