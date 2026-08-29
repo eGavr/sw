@@ -9,6 +9,9 @@ import type { NextFunction, Request, Response } from "express";
 import { WebDriverSessionGateway } from "../../../application/interfaces/gateways/webdriver-session-gateway";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../application/interfaces/repositories/project-repository";
+import {
+    SessionOwnershipRepository,
+} from "../../../application/interfaces/repositories/session-ownership-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
 import { CreateSessionUseCase } from "../../../application/use-cases/sessions/create-session-use-case";
@@ -18,6 +21,9 @@ import {
 } from "../../../infrastructure/data-sources/auth/user-data-source-provider";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import { ProjectDataSource } from "../../../infrastructure/data-sources/database/postgres/project-data-source";
+import {
+    SessionOwnershipDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/session-ownership-data-source";
 import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../infrastructure/data-sources/database/postgres/user-data-source";
 import { WebDriverClient } from "../../../infrastructure/gateways/webdriver-session/webdriver-client";
@@ -27,6 +33,9 @@ import {
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
+import {
+    SessionOwnershipRepositoryImpl,
+} from "../../../infrastructure/repositories/session-ownership-repository-impl";
 import { UserRepositoryImpl } from "../../../infrastructure/repositories/user-repository-impl";
 import { ErrorInterceptor } from "../interceptors/error-interceptor";
 import { ResponseInterceptor } from "../interceptors/response-interceptor";
@@ -81,10 +90,12 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: UserRepository, useClass: UserRepositoryImpl },
         { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
+        { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
         { provide: WebDriverSessionGateway, useClass: WebDriverSessionGatewayImpl },
 
         WebDriverClient,
         EnvironmentDataSource,
+        SessionOwnershipDataSource,
         AuthUserDataSourceProvider,
         PgUserDataSource,
         ProjectDataSource,

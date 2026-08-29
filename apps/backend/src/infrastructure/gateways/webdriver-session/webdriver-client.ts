@@ -56,6 +56,48 @@ export class WebDriverClient {
         await fetch(`${endpoint}/session/${webDriverSessionId}`, { method: "DELETE" });
     }
 
+    // The node's current session id, read from /status. Same approach as the in-node agent: a recursive
+    // descent over the status document (so it survives cosmetic Grid shape changes), skipping the
+    // transient "reserved" placeholder a Grid slot briefly reports before the real id lands. Null when
+    // the node is unreachable or holds no session.
+    async fetchCurrentSession(endpoint: string): Promise<string | null> {
+        try {
+            const response = await fetch(`${endpoint}/status`);
+
+            if (!response.ok) {
+                return null;
+            }
+
+            return this.findSessionId(await response.json());
+        } catch {
+            return null;
+        }
+    }
+
+    private findSessionId(node: unknown): string | null {
+        if (typeof node !== "object" || node === null) {
+            return null;
+        }
+
+        const record = node as Record<string, unknown>;
+        const session = record.session as Record<string, unknown> | undefined;
+        const sessionId = session?.sessionId;
+
+        if (typeof sessionId === "string" && sessionId !== "reserved") {
+            return sessionId;
+        }
+
+        for (const value of Object.values(record)) {
+            const found = this.findSessionId(value);
+
+            if (found) {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
     // Capability dialect by platform: an Android environment is driven by Appium (platformName +
     // appium:*), a browser by its browserName. The vendor sw:* opt-ins are added on top for both.
     private alwaysMatch(target: SessionTarget): Record<string, unknown> {

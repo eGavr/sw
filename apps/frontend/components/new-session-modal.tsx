@@ -1,24 +1,17 @@
 "use client";
 
-import {
-  Alert,
-  Button,
-  Code,
-  CopyButton,
-  Group,
-  Modal,
-  Stack,
-  Switch,
-  Text,
-} from "@mantine/core";
-import { IconCheck, IconCopy, IconExternalLink } from "@tabler/icons-react";
-import { useMutation } from "@tanstack/react-query";
+import { Button, Code, Group, Modal, Stack, Switch, Text } from "@mantine/core";
+import { IconExternalLink } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { CopyButton } from "@/components/copy-button";
+import { shortId } from "@/lib/format";
 import { CreatedSession, createSession, Environment, environmentHandle } from "@/lib/sw";
 
 // Creates a session pinned to one environment (sw:environmentId). The returned session id is a
-// capability secret: it is shown exactly once here and stored nowhere — copy it or lose it.
+// capability secret stored nowhere at rest: while the session lives its creator can recover it from
+// the environment row; after it ends the id is gone for good.
 export function NewSessionModal({
   project,
   environment,
@@ -28,6 +21,7 @@ export function NewSessionModal({
   environment: Environment | null;
   onClose: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [logging, setLogging] = useState(false);
   const [video, setVideo] = useState(false);
   const [created, setCreated] = useState<CreatedSession | null>(null);
@@ -47,7 +41,12 @@ export function NewSessionModal({
         video,
       });
     },
-    onSuccess: setCreated,
+    // The busy hint is written to the DB on the create path, so an immediate refetch shows it — no
+    // waiting for the next poll tick.
+    onSuccess: (session) => {
+      setCreated(session);
+      void queryClient.invalidateQueries({ queryKey: ["environments", project] });
+    },
   });
 
   const close = (): void => {
@@ -62,28 +61,17 @@ export function NewSessionModal({
     <Modal
       opened={environment !== null}
       onClose={close}
-      title={environment ? `New session on ${environmentHandle(environment)}` : "New session"}
+      size="lg"
+      title={environment ? `New session on ${shortId(environmentHandle(environment))}` : "New session"}
     >
       {created ? (
         <Stack>
-          <Alert color="yellow" title="Shown only once">
-            The session id is the key to this session. It is not stored anywhere — copy it now; you
-            will need it to inspect or reconnect.
-          </Alert>
+          <Text size="sm" c="dimmed">
+            Save the id if you&apos;ll need logs or video after the session ends.
+          </Text>
           <Group gap="xs" wrap="nowrap">
-            <Code style={{ flex: 1, overflowWrap: "anywhere" }}>{created.sessionId}</Code>
-            <CopyButton value={created.sessionId}>
-              {({ copied, copy }) => (
-                <Button
-                  variant="default"
-                  size="compact-sm"
-                  leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
-                  onClick={copy}
-                >
-                  {copied ? "Copied" : "Copy"}
-                </Button>
-              )}
-            </CopyButton>
+            <Code style={{ flex: 1, whiteSpace: "nowrap", overflowX: "auto" }}>{created.sessionId}</Code>
+            <CopyButton value={created.sessionId} />
           </Group>
           {created.interactive && (
             <Button

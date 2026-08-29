@@ -26,4 +26,8 @@ export class WebDriverSessionGatewayImpl extends WebDriverSessionGateway {
             options,
         );
     }
+
+    async fetchCurrent(endpoint: string): Promise<string | null> {
+        return this.webDriverClient.fetchCurrentSession(endpoint);
+    }
 }

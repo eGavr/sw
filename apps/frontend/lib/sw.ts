@@ -19,6 +19,8 @@ export interface Environment {
   applications: Array<{ name: string; version: string }>;
   busy: boolean; // occupancy, orthogonal to state: the agent's last heartbeat word
   lastHeartbeatTime?: string;
+  // Caller-dependent capabilities (the Drive files.capabilities pattern); omitted when empty.
+  capabilities?: { canAccessCurrentSession?: boolean };
   createTime: string;
 }
 
@@ -177,6 +179,14 @@ export async function createSession(project: string, input: CreateSessionInput):
     sessionId: body.value.sessionId,
     interactive: typeof interactive === "string" ? interactive : undefined,
   };
+}
+
+// The live capability id of the environment's current session — served only to the session's creator
+// (404 to everyone else, including "no session at all": existence is not revealed).
+export function getEnvironmentSession(project: string, environment: string): Promise<{ sessionId: string }> {
+  return swRequest<{ sessionId: string }>(
+    `v1/projects/${project}/environments/${environment}/session`,
+  );
 }
 
 // Session teardown is authorized by possession of the id (capability) — the proxy ride is only for

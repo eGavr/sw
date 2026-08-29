@@ -21,4 +21,8 @@ export abstract class WebDriverSessionGateway {
         platformName: string,
         options?: WebDriverSessionOptions,
     ): Promise<string>;
+
+    // The WebDriver session id of the node's CURRENT session, read live from its /status — the node is
+    // the session's source of truth (nothing persisted on our side). Null when no session is active.
+    abstract fetchCurrent(endpoint: string): Promise<string | null>;
 }

@@ -5,6 +5,9 @@ import { raw } from "express";
 
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import {
+    SessionOwnershipRepository,
+} from "../../../application/interfaces/repositories/session-ownership-repository";
+import {
     StorageDestinationRepository,
 } from "../../../application/interfaces/repositories/storage-destination-repository";
 import {
@@ -22,6 +25,9 @@ import {
 } from "../../../infrastructure/agent-token/agent-token-service-provider";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import {
+    SessionOwnershipDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/session-ownership-data-source";
+import {
     StorageDestinationDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/storage-destination-data-source";
 import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
@@ -30,6 +36,9 @@ import {
 } from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
+import {
+    SessionOwnershipRepositoryImpl,
+} from "../../../infrastructure/repositories/session-ownership-repository-impl";
 import {
     StorageDestinationRepositoryImpl,
 } from "../../../infrastructure/repositories/storage-destination-repository-impl";
@@ -62,10 +71,12 @@ import { InternalAgentTokenGuard } from "./guards/internal-agent-token-guard";
         UploadSessionVideoUseCase,
 
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
+        { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
         { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
         ObjectStorageGatewayProvider,
 
         EnvironmentDataSource,
+        SessionOwnershipDataSource,
         StorageDestinationDataSource,
         AgentTokenServiceProvider,
 

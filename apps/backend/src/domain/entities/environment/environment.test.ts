@@ -183,6 +183,21 @@ describe("Environment", () => {
             expect(environment.isBusy()).toBe(false);
         });
 
+        test("occupy flips busy immediately without touching the agent's liveness word", () => {
+            const environment = makePreparing();
+            const registeredAt = new Date();
+            environment.register(new EnvironmentEndpoint("http://host:4444"), registeredAt);
+
+            environment.occupy();
+
+            expect(environment.busy).toBe(true);
+            expect(environment.lastHeartbeatAt).toEqual(registeredAt);
+        });
+
+        test("occupy is rejected before the environment is executing", () => {
+            expect(() => makeEnvironment().occupy()).toThrow(InvalidEnvironmentStateTransitionError);
+        });
+
         test("should reject a heartbeat before the environment is executing", () => {
             const environment = makeEnvironment();
 

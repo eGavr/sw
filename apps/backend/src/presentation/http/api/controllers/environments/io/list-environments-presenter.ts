@@ -1,11 +1,11 @@
-import { Environment } from "../../../../../../domain/entities/environment/environment";
+import { EnvironmentView } from "../../../../../../application/use-cases/environments/environment-view";
 import { Presenter } from "../../../../presenters/presenter";
 
 import { EnvironmentPresenter } from "./environment-presenter";
 
 export class ListEnvironmentsPresenter implements Presenter {
     constructor(
-        private readonly environments: Array<Environment>,
+        private readonly environments: Array<EnvironmentView>,
         private readonly projectHandle: string,
         private readonly nextPageToken?: string,
     ) {}
@@ -13,7 +13,8 @@ export class ListEnvironmentsPresenter implements Presenter {
     present(): object {
         return {
             environments: this.environments.map(
-                (environment) => new EnvironmentPresenter(environment, this.projectHandle).present(),
+                (view) => new EnvironmentPresenter(view.environment, this.projectHandle, view.canAccessCurrentSession)
+                    .present(),
             ),
             nextPageToken: this.nextPageToken,
         };

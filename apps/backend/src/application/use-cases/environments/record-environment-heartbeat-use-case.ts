@@ -6,6 +6,7 @@ import { EnvironmentId } from "../../../domain/entities/environment/environment-
 import { EnvironmentState } from "../../../domain/entities/environment/environment-state";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
+import { SessionOwnershipRepository } from "../../interfaces/repositories/session-ownership-repository";
 
 export type RecordEnvironmentHeartbeatParams = {
     readonly environmentId: string;
@@ -19,7 +20,10 @@ export type RecordEnvironmentHeartbeatParams = {
 // are rejected by the domain as a state conflict, so the agent simply retries.
 @Injectable()
 export class RecordEnvironmentHeartbeatUseCase {
-    constructor(private readonly environmentRepository: EnvironmentRepository) {}
+    constructor(
+        private readonly environmentRepository: EnvironmentRepository,
+        private readonly sessionOwnershipRepository: SessionOwnershipRepository,
+    ) {}
 
     async execute(params: RecordEnvironmentHeartbeatParams): Promise<Environment> {
         const environment = await this.environmentRepository.get(EnvironmentId.fromString(params.environmentId));
@@ -33,8 +37,16 @@ export class RecordEnvironmentHeartbeatUseCase {
             environment.register(new EnvironmentEndpoint(params.endpoint), now);
         }
 
+        const sessionEnded = environment.busy && !params.busy;
+
         environment.heartbeat(params.busy, now);
         await this.environmentRepository.save(environment);
+
+        // The session's end is observed here whatever killed it (idle-kill by the node, a capability
+        // DELETE straight to wd, a crash) — so this is where its ownership metadata dies too.
+        if (sessionEnded) {
+            await this.sessionOwnershipRepository.deleteByEnvironment(EnvironmentId.fromString(environment.id));
+        }
 
         return environment;
     }
