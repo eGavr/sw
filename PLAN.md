@@ -914,7 +914,7 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 - **`displayName` проекта должен принимать свободный текст** («Alice demo» сейчас → 400): regex `^[a-zA-Z0-9-]+$` уместен для `projectId`, но не для отображаемого имени (AIP: display_name — свободный текст для людей). Бэковый фикс валидации.
 
 **Backend follow-ups для occupancy (ОТДЕЛЬНЫМИ шагами, НЕ во фронт-PR):**
-- **Отдать `busy` (bool) + `lastHeartbeatAt` в GET environments.** Presenter сейчас отдаёт только `state`. Занятость **ортогональна** lifecycle: и свободное, и занятое окружение — оба `state=executing` (сессия не меняет lifecycle, `busy` ставит хартбит агента) → из `state` не вывести. `busy` — не секрет. Нужно для колонки Occupancy (`busy`/`free` + свежесть хартбита).
+- **Отдать `busy` (bool) + `lastHeartbeatAt` в GET environments.** Presenter сейчас отдаёт только `state`. Занятость **ортогональна** lifecycle: и свободное, и занятое окружение — оба `state=executing`/`ACTIVE` (сессия не меняет lifecycle, `busy` ставит хартбит агента) → из `state` не вывести. `busy` — не секрет. Два потребителя в UI: (1) колонка Occupancy (`busy`/`free` + свежесть хартбита); (2) **гард кнопки «New session» на строке окружения — занятый env дизейблить с подсказкой**, а не вести пользователя к отказу (как гард «New environment без облака»). Сервер занятый таргет и так отбивает 409 (`TargetEnvironmentNotReadyError` / reject ноды) — это UX-гард, не замена серверной проверки.
 - **Таймстемпы перехода `busy↔free`** («стало занято/свободно в HH:MM»): бэкенд сейчас НЕ пишет момент перехода (только `updatedAt`/`lastHeartbeatAt`) → нужна доп-колонка/событие. Для UI «busy since / free since».
 
 ## Рефактор `CloudAccount` × compute — СДЕЛАНО (PR #55, #56, UI PR feat.cloud-types-and-clouds-ui)
