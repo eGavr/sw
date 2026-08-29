@@ -186,7 +186,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                           </ActionIcon>
                         </Tooltip>
                       )}
-                      {!gone && (
+                      {!gone ? (
                         <ActionIcon
                           variant="subtle"
                           color="red"
@@ -196,6 +196,10 @@ export function EnvironmentsTab({ project }: { project: string }) {
                         >
                           <IconTrash size={16} />
                         </ActionIcon>
+                      ) : (
+                        <Text size="sm" c="dimmed">
+                          —
+                        </Text>
                       )}
                     </Group>
                   </Table.Td>
