@@ -115,7 +115,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
             <Table.Tr>
               <Table.Th>Name</Table.Th>
               <Table.Th>State</Table.Th>
-              <Table.Th>Occupancy</Table.Th>
+              <Table.Th>Usage</Table.Th>
               <Table.Th>Platform</Table.Th>
               <Table.Th>Apps</Table.Th>
               <Table.Th>Execution</Table.Th>
@@ -140,7 +140,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   <Table.Td>
                     {active && (
                       <Badge color={e.busy ? "orange" : "green"} variant="light">
-                        {e.busy ? "busy" : "free"}
+                        {e.busy ? "in use" : "free"}
                       </Badge>
                     )}
                   </Table.Td>
