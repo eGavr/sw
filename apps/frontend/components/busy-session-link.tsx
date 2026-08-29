@@ -25,6 +25,7 @@ export function BusySessionLink({ project, environmentUid }: { project: string; 
     <Tooltip label={open.error ? "Session not found — it may have just ended" : "Open the session"}>
       <ActionIcon
         variant="subtle"
+        color="gray"
         size="sm"
         aria-label="Open the session"
         loading={open.isPending}
