@@ -14,7 +14,7 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
   });
 
   const accessToken = token?.accessToken;
-  if (!accessToken) {
+  if (!accessToken || token?.error) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
