@@ -4,7 +4,8 @@ import { Button } from "@mantine/core";
 import { IconCheck, IconCopy } from "@tabler/icons-react";
 import { useState } from "react";
 
-// Copy with a persistent confirmation: once copied it stays "Copied" — no timer flipping it back.
+// Copy with a brief confirmation: flips to "Copied" for a moment and back. Fixed width so the
+// label change never shifts the layout.
 export function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -17,6 +18,7 @@ export function CopyButton({ value }: { value: string }) {
       onClick={() => {
         void navigator.clipboard.writeText(value);
         setCopied(true);
+        setTimeout(() => setCopied(false), 1_500);
       }}
     >
       {copied ? "Copied" : "Copy"}
