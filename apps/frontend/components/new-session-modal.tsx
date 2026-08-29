@@ -74,16 +74,20 @@ export function NewSessionModal({
             <Code style={{ flex: 1, whiteSpace: "nowrap", overflowX: "auto" }}>{created.sessionId}</Code>
             <CopyButton value={created.sessionId} />
           </Group>
-          <Group justify="flex-end">
+          {/* One action per corner: a quiet exit on the left, the main "go watch it" on the right —
+              Copy stays up with the id it copies. No filled primary: nothing here is a form submit. */}
+          <Group justify="space-between" mt="xs">
+            <Button variant="subtle" color="gray" onClick={close}>
+              Done
+            </Button>
             <Button
               component={Link}
               href={`/projects/${project}?tab=sessions&session=${encodeURIComponent(created.sessionId)}`}
-              variant="default"
+              variant="light"
               leftSection={<IconEye size={16} />}
             >
               Open session
             </Button>
-            <Button onClick={close}>Done</Button>
           </Group>
         </Stack>
       ) : (
