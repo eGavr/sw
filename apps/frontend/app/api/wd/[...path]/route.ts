@@ -46,3 +46,7 @@ type Ctx = { params: Promise<{ path: string[] }> };
 export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   return proxy(req, (await ctx.params).path);
 }
+
+export async function DELETE(req: NextRequest, ctx: Ctx): Promise<Response> {
+  return proxy(req, (await ctx.params).path);
+}

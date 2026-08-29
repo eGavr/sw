@@ -162,6 +162,17 @@ export async function createSession(project: string, input: CreateSessionInput):
   };
 }
 
+// Session teardown is authorized by possession of the id (capability) — the proxy ride is only for
+// same-origin convenience.
+export async function killSession(sessionId: string): Promise<void> {
+  const res = await fetch(`/api/wd/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(body.message ?? `wd sessions → ${res.status}`);
+  }
+}
+
 export function listCloudTypes(): Promise<Array<CloudType>> {
   return swRequest<{ cloudTypes?: Array<CloudType> }>("v1/cloudTypes").then((d) => d.cloudTypes ?? []);
 }
