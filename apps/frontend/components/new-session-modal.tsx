@@ -61,8 +61,7 @@ export function NewSessionModal({
       {created ? (
         <Stack>
           <Text size="sm" c="dimmed">
-            Save the id if you&apos;ll need logs or video after the session ends — it cannot be
-            recovered later.
+            Save the id if you&apos;ll need logs or video after the session ends.
           </Text>
           <Group gap="xs" wrap="nowrap">
             <Code style={{ flex: 1, whiteSpace: "nowrap", overflowX: "auto" }}>{created.sessionId}</Code>

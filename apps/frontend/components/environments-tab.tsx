@@ -16,7 +16,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconKey, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconEye, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -182,7 +182,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                             aria-label="Current session"
                             onClick={() => setCurrentSessionTarget(e)}
                           >
-                            <IconKey size={16} />
+                            <IconEye size={16} />
                           </ActionIcon>
                         </Tooltip>
                       )}
