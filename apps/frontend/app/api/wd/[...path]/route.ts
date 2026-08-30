@@ -43,6 +43,11 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
 
 type Ctx = { params: Promise<{ path: string[] }> };
 
+// Read-only session commands ride through too (e.g. Get Current URL as the cheap liveness probe).
+export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
+  return proxy(req, (await ctx.params).path);
+}
+
 export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   return proxy(req, (await ctx.params).path);
 }

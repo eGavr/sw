@@ -7,6 +7,7 @@ import {
   Button,
   Group,
   Loader,
+  Menu,
   Modal,
   Select,
   Stack,
@@ -16,9 +17,10 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
+import { IconDots, IconPlayerPlay, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { BusySessionLink } from "@/components/busy-session-link";
 import { NewSessionModal } from "@/components/new-session-modal";
@@ -27,10 +29,12 @@ import {
   deleteEnvironment,
   Environment,
   environmentHandle,
+  getEnvironmentSession,
+  killSession,
   listCloudAccounts,
   listEnvironments,
 } from "@/lib/sw";
-import { loadFreeing } from "@/lib/freeing-store";
+import { addFreeing, loadFreeing, removeFreeing } from "@/lib/freeing-store";
 import { shortId } from "@/lib/format";
 
 // The wire statuses of GET environments (EnvironmentStatus): ACTIVE is "executing and heartbeating".
@@ -90,9 +94,36 @@ export function EnvironmentsTab({ project }: { project: string }) {
     onSuccess: invalidate,
   });
 
+  // Kill the row's current session from here: recover its id (creator-only endpoint) and send the
+  // capability DELETE — same path the Sessions tab uses, minus the detour.
+  const killCurrentSession = useMutation({
+    mutationFn: async (environmentUid: string) => {
+      const { sessionId } = await getEnvironmentSession(project, environmentUid);
+
+      await killSession(sessionId);
+    },
+    onSuccess: (_, environmentUid) => {
+      // Bridge the heartbeat gap: the row shows "freeing" until the agent's word clears busy (~3s).
+      addFreeing(environmentUid);
+      void invalidate();
+    },
+    onError: (error) =>
+      notifications.show({ color: "red", title: "Delete session", message: (error as Error).message }),
+  });
+
   const rows = environments.data ?? [];
-  // Sessions we just killed (marker written by the Sessions tab): read per render — the store prunes
-  // expired entries on every read, so nothing sticks and the 3s list poll doubles as the refresh.
+
+  // A freeing marker only bridges the kill -> heartbeat gap: the moment the row is seen non-busy the
+  // bridge has done its job, so retire the marker then — not by TTL. Otherwise a session created
+  // within the TTL window would wear the stale "freeing" badge over its honest "busy".
+  useEffect(() => {
+    rows
+      .filter((environment) => environment.occupancy !== "BUSY")
+      .forEach((environment) => removeFreeing(environment.uid));
+  }, [rows]);
+
+  // Sessions we just killed (marker written on kill): read per render — the store prunes expired
+  // entries on every read, so nothing sticks and the 3s list poll doubles as the refresh.
   const freeing = loadFreeing();
 
   return (
@@ -198,16 +229,48 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   <Table.Td>{e.applications.map((a) => `${a.name} ${a.version}`).join(", ")}</Table.Td>
                   <Table.Td>{e.execution}</Table.Td>
                   <Table.Td>
+                    {/* The destructive actions gather behind one kebab, sectioned by blast radius:
+                        killing the session frees the row, deleting the environment takes the
+                        container (and any session on it) down with it. */}
                     {!gone ? (
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        aria-label="Delete environment"
-                        loading={remove.isPending && remove.variables === handle}
-                        onClick={() => remove.mutate(handle)}
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
+                      <Menu position="bottom-end" withinPortal>
+                        <Menu.Target>
+                          <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            aria-label="Actions"
+                            loading={
+                              (remove.isPending && remove.variables === handle)
+                              || (killCurrentSession.isPending && killCurrentSession.variables === e.uid)
+                            }
+                          >
+                            <IconDots size={16} />
+                          </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          {busy && e.capabilities?.canAccessCurrentSession && (
+                            <>
+                              <Menu.Label>Session</Menu.Label>
+                              <Menu.Item
+                                color="red"
+                                leftSection={<IconX size={14} />}
+                                onClick={() => killCurrentSession.mutate(e.uid)}
+                              >
+                                Delete session
+                              </Menu.Item>
+                              <Menu.Divider />
+                            </>
+                          )}
+                          <Menu.Label>Environment</Menu.Label>
+                          <Menu.Item
+                            color="red"
+                            leftSection={<IconTrash size={14} />}
+                            onClick={() => remove.mutate(handle)}
+                          >
+                            Delete environment
+                          </Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
                     ) : (
                       <Text size="sm" c="dimmed">
                         —

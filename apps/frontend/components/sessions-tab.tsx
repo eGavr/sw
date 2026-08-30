@@ -1,36 +1,24 @@
 "use client";
 
-import {
-  Alert,
-  Button,
-  Code,
-  Group,
-  Loader,
-  Stack,
-  Tabs,
-  Text,
-  TextInput,
-} from "@mantine/core";
-import { IconExternalLink, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Button, Loader, Stack, Tabs, Text, TextInput } from "@mantine/core";
+import { IconMaximize } from "@tabler/icons-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
+import { SessionLiveView } from "@/components/session-live-view";
+import { SessionLogs } from "@/components/session-logs";
+import { SessionVideo } from "@/components/session-video";
 import { addFreeing } from "@/lib/freeing-store";
-import {
-  getEnvironmentSession,
-  getSessionLogs,
-  interactiveViewerUrl,
-  killSession,
-  sessionVideoUrl,
-} from "@/lib/sw";
+import { getEnvironmentSession, isSessionAlive } from "@/lib/sw";
 
 // The project's session viewer — stateless capability access: whoever holds a session id may watch it.
 // Works for the live session (VNC) and for past ones (logs/video, which only exist after a session
-// ends). Killing also lives here: possession of the id is the authorization.
+// ends). Session control (delete, navigate) lives with the live view, on the VNC tab.
 export function SessionsTab({
   project,
   initialSessionId,
   environmentUid,
+  initialView,
 }: {
   project: string;
   initialSessionId?: string;
@@ -38,10 +26,14 @@ export function SessionsTab({
   // the row's live one itself (which is what makes the busy arrow a real, new-tab-able link), and a
   // kill marks that row as "freeing".
   environmentUid?: string;
+  // A deep link may ask for a specific view (e.g. Back from full screen lands on logs); otherwise
+  // liveness decides.
+  initialView?: string;
 }) {
   const queryClient = useQueryClient();
 
   const [sessionId, setSessionId] = useState(initialSessionId ?? "");
+  const [killed, setKilled] = useState(false);
 
   // Deep-linked by environment only: ask the api for the environment's current session (creator-only
   // endpoint) and seed the input with it, as if the user pasted the id.
@@ -63,26 +55,30 @@ export function SessionsTab({
   // pasted value looks like one (no Open button; the length gate keeps half-typed input quiet).
   const looksLikeSessionId = id.length > 24 && /^[A-Za-z0-9_-]+\.\S+$/.test(id);
 
-  const logs = useQuery({
-    queryKey: ["sessionLogs", project, id],
-    queryFn: () => getSessionLogs(project, id),
-    enabled: looksLikeSessionId,
+  // Which tab to land on is decided by whether the session actually lives, not by how we got here: a
+  // recovered id is alive by construction, anything else gets the cheap probe (one read-only WebDriver
+  // command through the stateless proxy). Alive -> the live view; over -> its logs.
+  const recovered = Boolean(recovery.data && sessionId === recovery.data.sessionId);
+  const probe = useQuery({
+    queryKey: ["sessionAlive", id],
+    queryFn: () => isSessionAlive(id),
+    enabled: looksLikeSessionId && !recovered,
     retry: false,
+    staleTime: Infinity,
   });
+  const alive = recovered ? true : probe.isError ? false : probe.data;
 
-  const kill = useMutation({
-    mutationFn: () => killSession(id),
-    onSuccess: () => {
-      // Bridge the heartbeat gap on the environments table: the busy hint clears in ~3s, until then
-      // the row shows "freeing" (only when we know which row this session lived on — whether the id
-      // arrived in the deep link or was recovered from the row).
-      if (environmentUid && (sessionId === initialSessionId || sessionId === recovery.data?.sessionId)) {
-        addFreeing(environmentUid);
-      }
+  const onKilled = (): void => {
+    // Bridge the heartbeat gap on the environments table: the busy hint clears in ~3s, until then
+    // the row shows "freeing" (only when we know which row this session lived on — whether the id
+    // arrived in the deep link or was recovered from the row).
+    if (environmentUid && (sessionId === initialSessionId || sessionId === recovery.data?.sessionId)) {
+      addFreeing(environmentUid);
+    }
 
-      void queryClient.invalidateQueries({ queryKey: ["environments", project] });
-    },
-  });
+    setKilled(true);
+    void queryClient.invalidateQueries({ queryKey: ["environments", project] });
+  };
 
   return (
     <Stack>
@@ -91,15 +87,16 @@ export function SessionsTab({
         value={sessionId}
         onChange={(e) => {
           setSessionId(e.currentTarget.value);
-          kill.reset();
+          setKilled(false);
         }}
       />
 
-      {kill.isSuccess && <Alert color="green">Session deleted.</Alert>}
-      {kill.error && <Alert color="red">{(kill.error as Error).message}</Alert>}
+      {killed && <Alert color="green">Session deleted.</Alert>}
       {recovery.isLoading && <Loader size="sm" />}
       {recovery.error && (
-        <Alert color="gray">Session not found — it may have just ended.</Alert>
+        <Text c="dimmed" size="sm">
+          Session not found — it may have just ended.
+        </Text>
       )}
 
       {!looksLikeSessionId && !recovery.isLoading && (
@@ -109,77 +106,51 @@ export function SessionsTab({
         </Text>
       )}
 
-      {looksLikeSessionId && (
-        <Tabs defaultValue="vnc">
-          <Group justify="space-between" align="center">
-            <Tabs.List>
-              <Tabs.Tab value="vnc">Live VNC</Tabs.Tab>
-              <Tabs.Tab value="logs">Logs</Tabs.Tab>
-              <Tabs.Tab value="video">Video</Tabs.Tab>
-            </Tabs.List>
-            <Button
-              color="red"
-              variant="light"
-              size="compact-sm"
-              leftSection={<IconTrash size={14} />}
-              loading={kill.isPending}
-              onClick={() => kill.mutate()}
-            >
-              Delete
-            </Button>
-          </Group>
+      {looksLikeSessionId && alive === undefined && <Loader size="sm" />}
 
-          <Tabs.Panel value="vnc" pt="md">
-            <Stack gap="xs">
-              <Group justify="flex-end">
-                <Button
-                  component="a"
-                  href={interactiveViewerUrl(id)}
-                  target="_blank"
-                  variant="default"
-                  size="compact-sm"
-                  leftSection={<IconExternalLink size={14} />}
-                >
-                  Open in new tab
-                </Button>
-              </Group>
-              {/* Live only: once the session ends the node is gone and the frame goes dark. */}
-              <iframe
-                src={interactiveViewerUrl(id)}
-                style={{ width: "100%", height: "60vh", border: "1px solid var(--mantine-color-gray-3)" }}
-                title="Live VNC"
-              />
-            </Stack>
-          </Tabs.Panel>
+      {looksLikeSessionId && alive !== undefined && (
+        <Tabs defaultValue={initialView ?? (alive ? "vnc" : "logs")}>
+          <Tabs.List>
+            <Tabs.Tab value="logs">Logs</Tabs.Tab>
+            <Tabs.Tab value="video">Video</Tabs.Tab>
+            <Tabs.Tab value="vnc">VNC</Tabs.Tab>
+          </Tabs.List>
 
           <Tabs.Panel value="logs" pt="md">
-            {logs.isLoading && <Loader size="sm" />}
-            {!logs.isLoading && (logs.data === null || logs.data === undefined) && (
-              <Alert color="gray">
-                No logs yet — they appear after the session ends, and only when it was created with
-                sw:logging.
-              </Alert>
-            )}
-            {typeof logs.data === "string" && (
-              <Code block style={{ maxHeight: "60vh", overflow: "auto", whiteSpace: "pre" }}>
-                {logs.data}
-              </Code>
-            )}
+            <SessionLogs project={project} sessionId={id} />
           </Tabs.Panel>
 
           <Tabs.Panel value="video" pt="md">
-            <Stack gap="xs">
-              <Alert color="gray">
-                The recording appears after the session ends, and only when it was created with
-                sw:video — if the player below stays empty, there is nothing recorded (yet).
-              </Alert>
-              {/* The BFF streams the mp4 with auth; the browser only needs its session cookie. */}
-              <video
-                controls
-                src={sessionVideoUrl(project, id)}
-                style={{ width: "100%", maxHeight: "60vh", background: "black" }}
-              />
-            </Stack>
+            <SessionVideo key={id} project={project} sessionId={id} />
+          </Tabs.Panel>
+
+          <Tabs.Panel value="vnc" pt="md">
+            {!alive && (
+              <Text c="dimmed" size="sm">
+                The session is not active — there is no live screen.
+              </Text>
+            )}
+            {/* The same live layout as the full-screen page, at tab scale: the screen with the whole
+                command rail beside it; full screen is one click away. */}
+            {alive && <SessionLiveView
+              sessionId={id}
+              onKilled={onKilled}
+              height="calc(100vh - 26rem)"
+              railHeader={
+                <Button
+                  component="a"
+                  href={`/projects/${project}/viewer?${
+                    environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(id)}`
+                  }`}
+                  target="_blank"
+                  variant="default"
+                  size="compact-sm"
+                  leftSection={<IconMaximize size={14} />}
+                >
+                  Open full screen
+                </Button>
+              }
+            />}
           </Tabs.Panel>
         </Tabs>
       )}
