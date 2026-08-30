@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Anchor, Box, Button, Center, Group, Loader, Stack, Text } from "@mantine/core";
+import { Alert, Anchor, Box, Button, Center, Group, Loader, Stack } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -81,17 +81,12 @@ export function SessionViewer({
         onKilled={onKilled}
         height="100%"
         railHeader={
-          <>
-            <Anchor component={Link} href={backHref} size="sm" c="dimmed">
-              <Group gap={4} wrap="nowrap">
-                <IconArrowLeft size={14} />
-                Back
-              </Group>
-            </Anchor>
-            <Text size="xs" c="dimmed" ff="monospace" truncate title={sessionId}>
-              {sessionId}
-            </Text>
-          </>
+          <Anchor component={Link} href={backHref} size="sm" c="dimmed">
+            <Group gap={4} wrap="nowrap">
+              <IconArrowLeft size={14} />
+              Back
+            </Group>
+          </Anchor>
         }
       />
     </Box>
