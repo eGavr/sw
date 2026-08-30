@@ -99,7 +99,9 @@ export function SessionsTab({
       {killed && <Alert color="green">Session deleted.</Alert>}
       {recovery.isLoading && <Loader size="sm" />}
       {recovery.error && (
-        <Alert color="gray">Session not found — it may have just ended.</Alert>
+        <Text c="dimmed" size="sm">
+          Session not found — it may have just ended.
+        </Text>
       )}
 
       {!looksLikeSessionId && !recovery.isLoading && (
