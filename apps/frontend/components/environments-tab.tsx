@@ -256,10 +256,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                                 leftSection={<IconX size={14} />}
                                 onClick={() => killCurrentSession.mutate(e.uid)}
                               >
-                                <Text size="sm">Delete session</Text>
-                                <Text size="xs" c="dimmed">
-                                  frees the environment
-                                </Text>
+                                Delete session
                               </Menu.Item>
                               <Menu.Divider />
                             </>
@@ -270,12 +267,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                             leftSection={<IconTrash size={14} />}
                             onClick={() => remove.mutate(handle)}
                           >
-                            <Text size="sm">Delete environment</Text>
-                            {busy && (
-                              <Text size="xs" c="dimmed">
-                                kills its running session
-                              </Text>
-                            )}
+                            Delete environment
                           </Menu.Item>
                         </Menu.Dropdown>
                       </Menu>

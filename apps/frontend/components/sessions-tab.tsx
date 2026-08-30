@@ -1,13 +1,15 @@
 "use client";
 
-import { Alert, Button, Code, Loader, Stack, Tabs, Text, TextInput } from "@mantine/core";
+import { Alert, Button, Loader, Stack, Tabs, Text, TextInput } from "@mantine/core";
 import { IconMaximize } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { SessionLiveView } from "@/components/session-live-view";
+import { SessionLogs } from "@/components/session-logs";
+import { SessionVideo } from "@/components/session-video";
 import { addFreeing } from "@/lib/freeing-store";
-import { getEnvironmentSession, getSessionLogs, isSessionAlive, sessionVideoUrl } from "@/lib/sw";
+import { getEnvironmentSession, isSessionAlive } from "@/lib/sw";
 
 // The project's session viewer — stateless capability access: whoever holds a session id may watch it.
 // Works for the live session (VNC) and for past ones (logs/video, which only exist after a session
@@ -28,9 +30,6 @@ export function SessionsTab({
 
   const [sessionId, setSessionId] = useState(initialSessionId ?? "");
   const [killed, setKilled] = useState(false);
-  // null = the <video> element is still probing its source; it renders only once real data loaded,
-  // so a session without a recording never shows a dead black player.
-  const [videoAvailable, setVideoAvailable] = useState<boolean | null>(null);
 
   // Deep-linked by environment only: ask the api for the environment's current session (creator-only
   // endpoint) and seed the input with it, as if the user pasted the id.
@@ -65,13 +64,6 @@ export function SessionsTab({
   });
   const alive = recovered ? true : probe.isError ? false : probe.data;
 
-  const logs = useQuery({
-    queryKey: ["sessionLogs", project, id],
-    queryFn: () => getSessionLogs(project, id),
-    enabled: looksLikeSessionId,
-    retry: false,
-  });
-
   const onKilled = (): void => {
     // Bridge the heartbeat gap on the environments table: the busy hint clears in ~3s, until then
     // the row shows "freeing" (only when we know which row this session lived on — whether the id
@@ -92,7 +84,6 @@ export function SessionsTab({
         onChange={(e) => {
           setSessionId(e.currentTarget.value);
           setKilled(false);
-          setVideoAvailable(null);
         }}
       />
 
@@ -122,43 +113,11 @@ export function SessionsTab({
           </Tabs.List>
 
           <Tabs.Panel value="logs" pt="md">
-            {logs.isLoading && <Loader size="sm" />}
-            {!logs.isLoading && (logs.data === null || logs.data === undefined) && (
-              <Text c="dimmed" size="sm">
-                No logs — they appear after the session ends, and only when it was created with
-                sw:logging.
-              </Text>
-            )}
-            {typeof logs.data === "string" && (
-              <Code block style={{ maxHeight: "60vh", overflow: "auto", whiteSpace: "pre" }}>
-                {logs.data}
-              </Code>
-            )}
+            <SessionLogs project={project} sessionId={id} />
           </Tabs.Panel>
 
           <Tabs.Panel value="video" pt="md">
-            {videoAvailable === null && <Loader size="sm" />}
-            {videoAvailable === false && (
-              <Text c="dimmed" size="sm">
-                No video — the recording appears after the session ends, and only when it was created
-                with sw:video.
-              </Text>
-            )}
-            {/* The BFF streams the mp4 with auth; the browser only needs its session cookie. The
-                element probes its source itself and only shows once real data arrived. */}
-            <video
-              key={id}
-              controls
-              src={sessionVideoUrl(project, id)}
-              onLoadedData={() => setVideoAvailable(true)}
-              onError={() => setVideoAvailable(false)}
-              style={{
-                width: "100%",
-                maxHeight: "60vh",
-                background: "black",
-                display: videoAvailable === true ? "block" : "none",
-              }}
-            />
+            <SessionVideo key={id} project={project} sessionId={id} />
           </Tabs.Panel>
 
           <Tabs.Panel value="vnc" pt="md">

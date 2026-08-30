@@ -1,17 +1,19 @@
 "use client";
 
-import { Alert, Anchor, Box, Button, Center, Group, Loader, Stack } from "@mantine/core";
+import { Alert, Anchor, Box, Button, Center, Group, Loader, Stack, Tabs, Text } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { SessionLiveView } from "@/components/session-live-view";
+import { SessionLogs } from "@/components/session-logs";
+import { SessionVideo } from "@/components/session-video";
 import { addFreeing } from "@/lib/freeing-store";
 import { getEnvironmentSession } from "@/lib/sw";
 
-// The full-screen live view: nothing but the session's screen and its command rail — navigation back
-// lands on the project's Sessions tab, which re-opens this session's view.
+// The full-screen live view: nothing but the session's screen and its command rail. After a delete
+// the page stays put and turns into the session's afterlife — its logs and video, right here.
 export function SessionViewer({
   project,
   initialSessionId,
@@ -21,7 +23,7 @@ export function SessionViewer({
   initialSessionId?: string;
   environmentUid?: string;
 }) {
-  const router = useRouter();
+  const [killed, setKilled] = useState(false);
 
   // Deep-linked by environment: recover its current session (creator-only endpoint) on open.
   const recovery = useQuery({
@@ -36,8 +38,6 @@ export function SessionViewer({
     environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(sessionId)}`
   }`;
 
-  // Delete leads straight back to the project — the freeing row there is the receipt; there is
-  // nothing left to look at here.
   const onKilled = (): void => {
     // Bridge the heartbeat gap on the environments table: the row shows "freeing" until the agent's
     // word clears busy (~3s).
@@ -45,8 +45,17 @@ export function SessionViewer({
       addFreeing(environmentUid);
     }
 
-    router.push(`/projects/${project}`);
+    setKilled(true);
   };
+
+  const back = (
+    <Anchor component={Link} href={backHref} size="sm" c="dimmed">
+      <Group gap={4} wrap="nowrap">
+        <IconArrowLeft size={14} />
+        Back
+      </Group>
+    </Anchor>
+  );
 
   if (recovery.isLoading) {
     return (
@@ -74,21 +83,34 @@ export function SessionViewer({
     );
   }
 
+  if (killed) {
+    return (
+      <Box p="md" maw={960} mx="auto">
+        <Stack gap="sm">
+          {back}
+          <Text c="green" size="sm">
+            Session deleted — its logs and video (if recorded) stay available.
+          </Text>
+          <Tabs defaultValue="logs">
+            <Tabs.List>
+              <Tabs.Tab value="logs">Logs</Tabs.Tab>
+              <Tabs.Tab value="video">Video</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="logs" pt="md">
+              <SessionLogs project={project} sessionId={sessionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="video" pt="md">
+              <SessionVideo key={sessionId} project={project} sessionId={sessionId} />
+            </Tabs.Panel>
+          </Tabs>
+        </Stack>
+      </Box>
+    );
+  }
+
   return (
     <Box p="sm" h="100vh">
-      <SessionLiveView
-        sessionId={sessionId}
-        onKilled={onKilled}
-        height="100%"
-        railHeader={
-          <Anchor component={Link} href={backHref} size="sm" c="dimmed">
-            <Group gap={4} wrap="nowrap">
-              <IconArrowLeft size={14} />
-              Back
-            </Group>
-          </Anchor>
-        }
-      />
+      <SessionLiveView sessionId={sessionId} onKilled={onKilled} height="100%" railHeader={back} />
     </Box>
   );
 }
