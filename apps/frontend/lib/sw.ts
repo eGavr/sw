@@ -240,12 +240,15 @@ export function killSession(sessionId: string): Promise<void> {
   return wdRequest(`sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
 }
 
-// W3C Navigate To — plain WebDriver traffic, same as any client of the session would send.
+// W3C Navigate To — plain WebDriver traffic, same as any client of the session would send. Navigate
+// wants an absolute URL, so a pasted bare host gets the obvious scheme.
 export function navigateSession(sessionId: string, url: string): Promise<void> {
+  const absolute = /^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`;
+
   return wdRequest(`sessions/${encodeURIComponent(sessionId)}/url`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url: absolute }),
   });
 }
 

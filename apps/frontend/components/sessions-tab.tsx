@@ -1,9 +1,8 @@
 "use client";
 
 import { Alert, Button, Code, Group, Loader, Stack, Tabs, Text, TextInput } from "@mantine/core";
-import { IconExternalLink, IconTrash, IconWorld } from "@tabler/icons-react";
+import { IconMaximize, IconTrash, IconWorld } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { SessionCommand, SessionCommandBar } from "@/components/session-command-bar";
@@ -17,11 +16,6 @@ import {
   navigateSession,
   sessionVideoUrl,
 } from "@/lib/sw";
-
-// WebDriver's Navigate To wants an absolute URL; a pasted bare host gets the obvious scheme.
-function absoluteUrl(url: string): string {
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`;
-}
 
 // The project's session viewer — stateless capability access: whoever holds a session id may watch it.
 // Works for the live session (VNC) and for past ones (logs/video, which only exist after a session
@@ -39,7 +33,6 @@ export function SessionsTab({
   environmentUid?: string;
 }) {
   const queryClient = useQueryClient();
-  const pathname = usePathname();
 
   const [sessionId, setSessionId] = useState(initialSessionId ?? "");
   const [killed, setKilled] = useState(false);
@@ -102,12 +95,13 @@ export function SessionsTab({
       label: "Open URL",
       placeholder: "https://…",
       inputIcon: <IconWorld size={14} />,
-      run: (url) => navigateSession(id, absoluteUrl(url)),
+      run: (url) => navigateSession(id, url),
     },
     {
       key: "delete",
       label: "Delete",
       color: "red",
+      destructive: true,
       icon: <IconTrash size={14} />,
       run: () => killSession(id),
       onSuccess: onKilled,
@@ -184,19 +178,19 @@ export function SessionsTab({
                   viewer affordance on the right. */}
               <Group justify="space-between" align="center">
                 <SessionCommandBar commands={commands} />
-                {/* Our own page, not the bare noVNC viewer — the new tab keeps the whole control
-                    surface (commands, logs, video), at full window height. */}
+                {/* The dedicated viewer page: the session's screen at full window height with the
+                    command rail beside it. */}
                 <Button
                   component="a"
-                  href={`${pathname}?tab=sessions&${
+                  href={`/projects/${project}/viewer?${
                     environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(id)}`
                   }`}
                   target="_blank"
                   variant="default"
                   size="compact-sm"
-                  leftSection={<IconExternalLink size={14} />}
+                  leftSection={<IconMaximize size={14} />}
                 >
-                  Open in new tab
+                  Open viewer
                 </Button>
               </Group>
               {/* Live only: once the session ends the node is gone and the frame goes dark. */}
