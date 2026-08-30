@@ -1,21 +1,13 @@
 "use client";
 
-import { Alert, Button, Code, Group, Loader, Stack, Tabs, Text, TextInput } from "@mantine/core";
-import { IconMaximize, IconTrash, IconWorld } from "@tabler/icons-react";
+import { Alert, Button, Code, Loader, Stack, Tabs, Text, TextInput } from "@mantine/core";
+import { IconMaximize } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { SessionCommand, SessionCommandBar } from "@/components/session-command-bar";
+import { SessionLiveView } from "@/components/session-live-view";
 import { addFreeing } from "@/lib/freeing-store";
-import {
-  getEnvironmentSession,
-  getSessionLogs,
-  interactiveViewerUrl,
-  isSessionAlive,
-  killSession,
-  navigateSession,
-  sessionVideoUrl,
-} from "@/lib/sw";
+import { getEnvironmentSession, getSessionLogs, isSessionAlive, sessionVideoUrl } from "@/lib/sw";
 
 // The project's session viewer — stateless capability access: whoever holds a session id may watch it.
 // Works for the live session (VNC) and for past ones (logs/video, which only exist after a session
@@ -89,25 +81,6 @@ export function SessionsTab({
     void queryClient.invalidateQueries({ queryKey: ["environments", project] });
   };
 
-  const commands: Array<SessionCommand> = [
-    {
-      key: "navigate",
-      label: "Open URL",
-      placeholder: "https://…",
-      inputIcon: <IconWorld size={14} />,
-      run: (url) => navigateSession(id, url),
-    },
-    {
-      key: "delete",
-      label: "Delete",
-      color: "red",
-      destructive: true,
-      icon: <IconTrash size={14} />,
-      run: () => killSession(id),
-      onSuccess: onKilled,
-    },
-  ];
-
   return (
     <Stack>
       <TextInput
@@ -173,13 +146,13 @@ export function SessionsTab({
           </Tabs.Panel>
 
           <Tabs.Panel value="vnc" pt="md">
-            <Stack gap="xs">
-              {/* Session control belongs to the live view: plain WebDriver commands on the left, the
-                  viewer affordance on the right. */}
-              <Group justify="space-between" align="center">
-                <SessionCommandBar commands={commands} />
-                {/* The dedicated viewer page: the session's screen at full window height with the
-                    command rail beside it. */}
+            {/* The same live layout as the full-screen page, at tab scale: the screen with the whole
+                command rail beside it; full screen is one click away. */}
+            <SessionLiveView
+              sessionId={id}
+              onKilled={onKilled}
+              height="calc(100vh - 26rem)"
+              railHeader={
                 <Button
                   component="a"
                   href={`/projects/${project}/viewer?${
@@ -190,21 +163,10 @@ export function SessionsTab({
                   size="compact-sm"
                   leftSection={<IconMaximize size={14} />}
                 >
-                  Open viewer
+                  Open full screen
                 </Button>
-              </Group>
-              {/* Live only: once the session ends the node is gone and the frame goes dark. */}
-              <iframe
-                src={interactiveViewerUrl(id)}
-                style={{
-                  width: "100%",
-                  height: "calc(100vh - 22rem)",
-                  minHeight: 480,
-                  border: "1px solid var(--mantine-color-gray-3)",
-                }}
-                title="Live VNC"
-              />
-            </Stack>
+              }
+            />
           </Tabs.Panel>
         </Tabs>
       )}

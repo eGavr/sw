@@ -1,19 +1,17 @@
 "use client";
 
-import { Alert, Anchor, Button, Center, Group, Loader, Stack, Text } from "@mantine/core";
-import { IconArrowLeft, IconTrash, IconWorld } from "@tabler/icons-react";
+import { Alert, Anchor, Box, Button, Center, Group, Loader, Stack, Text } from "@mantine/core";
+import { IconArrowLeft } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
-import { SessionCommand, SessionCommandBar } from "@/components/session-command-bar";
+import { SessionLiveView } from "@/components/session-live-view";
 import { addFreeing } from "@/lib/freeing-store";
-import { getEnvironmentSession, interactiveViewerUrl, killSession, navigateSession } from "@/lib/sw";
+import { getEnvironmentSession } from "@/lib/sw";
 
-const railWidth = 260;
-
-// The dedicated live view: nothing but the session's screen, full height, with a slim command rail on
-// the right — commands scale downward in the rail, so however many arrive, the screen stays the star.
+// The full-screen live view: nothing but the session's screen and its command rail — navigation back
+// lands on the project's Sessions tab, which re-opens this session's view.
 export function SessionViewer({
   project,
   initialSessionId,
@@ -34,8 +32,7 @@ export function SessionViewer({
   });
 
   const sessionId = initialSessionId ?? recovery.data?.sessionId ?? "";
-  const projectHref = `/projects/${project}`;
-  const sessionsHref = `${projectHref}?tab=sessions&${
+  const backHref = `/projects/${project}?tab=sessions&${
     environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(sessionId)}`
   }`;
 
@@ -48,25 +45,6 @@ export function SessionViewer({
 
     setKilled(true);
   };
-
-  const commands: Array<SessionCommand> = [
-    {
-      key: "navigate",
-      label: "Open URL",
-      placeholder: "https://…",
-      inputIcon: <IconWorld size={14} />,
-      run: (url) => navigateSession(sessionId, url),
-    },
-    {
-      key: "delete",
-      label: "Delete session",
-      color: "red",
-      destructive: true,
-      icon: <IconTrash size={14} />,
-      run: () => killSession(sessionId),
-      onSuccess: onKilled,
-    },
-  ];
 
   if (recovery.isLoading) {
     return (
@@ -85,11 +63,11 @@ export function SessionViewer({
           </Alert>
           <Button
             component={Link}
-            href={projectHref}
+            href={backHref}
             variant="default"
             leftSection={<IconArrowLeft size={16} />}
           >
-            Back to project
+            Back
           </Button>
         </Stack>
       </Center>
@@ -97,34 +75,25 @@ export function SessionViewer({
   }
 
   return (
-    <Group align="stretch" gap="sm" wrap="nowrap" p="sm" h="100vh">
-      <iframe
-        src={interactiveViewerUrl(sessionId)}
-        style={{ flex: 1, height: "100%", border: "1px solid var(--mantine-color-gray-3)" }}
-        title="Live VNC"
+    <Box p="sm" h="100vh">
+      <SessionLiveView
+        sessionId={sessionId}
+        onKilled={onKilled}
+        height="100%"
+        railHeader={
+          <>
+            <Anchor component={Link} href={backHref} size="sm" c="dimmed">
+              <Group gap={4} wrap="nowrap">
+                <IconArrowLeft size={14} />
+                Back
+              </Group>
+            </Anchor>
+            <Text size="xs" c="dimmed" ff="monospace" truncate title={sessionId}>
+              {sessionId}
+            </Text>
+          </>
+        }
       />
-
-      <Stack w={railWidth} gap="sm" style={{ flexShrink: 0 }}>
-        <Anchor component={Link} href={projectHref} size="sm" c="dimmed">
-          <Group gap={4} wrap="nowrap">
-            <IconArrowLeft size={14} />
-            Back to project
-          </Group>
-        </Anchor>
-
-        <Text fw={600} size="sm">
-          Session
-        </Text>
-        <Text size="xs" c="dimmed" ff="monospace" truncate title={sessionId}>
-          {sessionId}
-        </Text>
-
-        <SessionCommandBar vertical commands={commands} />
-
-        <Anchor component={Link} href={sessionsHref} size="xs" c="dimmed">
-          Logs &amp; video
-        </Anchor>
-      </Stack>
-    </Group>
+    </Box>
   );
 }
