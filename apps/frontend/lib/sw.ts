@@ -17,7 +17,8 @@ export interface Environment {
   platform: { name: string; version: string; deviceModel?: string };
   execution: string;
   applications: Array<{ name: string; version: string }>;
-  busy: boolean; // occupancy, orthogonal to state: the agent's last heartbeat word
+  // Orthogonal to state: FREE | RESERVED (a session create is in flight) | BUSY (a session runs).
+  occupancy: "FREE" | "RESERVED" | "BUSY";
   lastHeartbeatTime?: string;
   // Caller-dependent capabilities (the Drive files.capabilities pattern); omitted when empty.
   capabilities?: { canAccessCurrentSession?: boolean };

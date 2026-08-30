@@ -5,6 +5,7 @@ import {
     WebDriverSessionOptions,
 } from "../../../application/interfaces/gateways/webdriver-session-gateway";
 import { Application } from "../../../domain/entities/environment/application/application";
+import { SessionNotCreatedError } from "../../../domain/entities/session/error/session-not-created-error";
 
 import { WebDriverClient } from "./webdriver-client";
 
@@ -14,17 +15,23 @@ export class WebDriverSessionGatewayImpl extends WebDriverSessionGateway {
         super();
     }
 
+    // Client/protocol failures are translated at this boundary (W3C wording, real cause kept) so the
+    // scenario surfaces an honest "session not created" instead of a swallowed or backend-shaped error.
     async create(
         endpoint: string,
         application: Application,
         platformName: string,
         options?: WebDriverSessionOptions,
     ): Promise<string> {
-        return this.webDriverClient.createSession(
-            endpoint,
-            { name: application.name, version: application.version, platformName },
-            options,
-        );
+        try {
+            return await this.webDriverClient.createSession(
+                endpoint,
+                { name: application.name, version: application.version, platformName },
+                options,
+            );
+        } catch (error) {
+            throw new SessionNotCreatedError(error instanceof Error ? error.message : String(error));
+        }
     }
 
     async fetchCurrent(endpoint: string): Promise<string | null> {

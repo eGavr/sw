@@ -1,12 +1,14 @@
 import { Injectable } from "@nestjs/common";
 
-import { latestApplicationVersion } from "../../../domain/entities/environment/application/application-version";
 import { RequestedApplication } from "../../../domain/entities/environment/application/requested-application";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import {
-    NoAllocatableEnvironmentError,
-} from "../../../domain/entities/environment/error/no-allocatable-environment-error";
+    InvalidEnvironmentOccupancyTransitionError,
+} from "../../../domain/entities/environment/error/invalid-environment-occupancy-transition-error";
+import {
+    TargetEnvironmentNotReadyError,
+} from "../../../domain/entities/environment/error/target-environment-not-ready-error";
 import { toExecution } from "../../../domain/entities/environment/execution";
 import { defaultHeartbeatFreshnessMs } from "../../../domain/entities/environment/heartbeat-freshness";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
@@ -38,11 +40,15 @@ type CreateSessionInput = {
     },
 }
 
-// Pool allocation by default: the caller asks for an application and we pick a free, fresh, matching
-// environment from the project. With sw:environmentId the session is targeted at that one environment
-// instead (strict match — the domain verdict splits "can never work" from "not right now"). Either way
-// the node is the real 1:1 arbiter, so the DB `busy` is only a hint — we try candidates until one
-// accepts and never write to the DB here (the next agent heartbeat reports the new busy state).
+// How often the reserving wd re-confirms its hold while the node is creating the session — the
+// worker's sweep frees a reservation whose confirmation went silent (its wd died mid-create).
+const reservationConfirmIntervalMs = 3_000;
+
+// Pessimistic allocation. The caller asks for an application (or targets one environment with
+// sw:environmentId) and the scenario reserves a matching free environment under the storage lock, so
+// no other request can take it, then sends exactly ONE create to the node: success turns the
+// reservation into busy, failure releases it and surfaces the node's real error — no retries, no
+// swallowed causes. The node's own 1:1 limit stays as the last-resort arbiter, not the allocator.
 @Injectable()
 export class CreateSessionUseCase {
     private readonly permissionName = UserPermissionName.Session.Create;
@@ -64,7 +70,9 @@ export class CreateSessionUseCase {
         const projectId = ProjectId.fromString(project.id);
 
         const requested = RequestedApplication.create(params.application);
-        const criteria = SessionAllocationCriteria.from({
+        // Explicitly typed so `refuseTransientShortage(): never` narrows the reserved candidate below
+        // (TS only honours never-returning calls on explicitly annotated references).
+        const criteria: SessionAllocationCriteria = SessionAllocationCriteria.from({
             now: new Date(),
             freshnessMs: defaultHeartbeatFreshnessMs,
             execution: toExecution(params.execution),
@@ -74,7 +82,20 @@ export class CreateSessionUseCase {
             ? await this.targetedCandidate(projectId, params.environmentId, criteria)
             : await this.poolCandidates(projectId, criteria);
 
-        const session = await this.allocate(candidates, requested, {
+        const reserved = await this.reserveFirst(candidates);
+
+        // Every candidate was taken between listing and reserving: for a targeted request that is the
+        // target's transient not-ready; for the pool it is the same transient shortage as an empty list
+        // of free environments (they provably exist — they were listed a moment ago).
+        if (!reserved) {
+            if (params.environmentId) {
+                throw new TargetEnvironmentNotReadyError(params.environmentId);
+            }
+
+            criteria.refuseTransientShortage();
+        }
+
+        const session = await this.openReservedSession(reserved, requested, {
             logging: params.logging ?? false,
             video: params.video ?? false,
         });
@@ -85,12 +106,6 @@ export class CreateSessionUseCase {
             environmentId: session.environmentId,
             createdBy: user.externalId,
         }));
-
-        // Flip the busy hint right away (fresh read to not regress the agent's liveness word) — the UI
-        // should not wait a heartbeat to learn what we just did; the next heartbeat confirms or heals.
-        const occupied = await this.environmentRepository.get(session.environmentId);
-        occupied.occupy();
-        await this.environmentRepository.save(occupied);
 
         return session;
     }
@@ -128,36 +143,49 @@ export class CreateSessionUseCase {
         return [environment];
     }
 
-    private async allocate(
-        candidates: Array<Environment>,
-        requested: RequestedApplication,
-        options: WebDriverSessionOptions,
-    ): Promise<Session> {
+    // Reserve the first candidate still free under the storage lock. A lost race is the domain's
+    // occupancy conflict — move on to the next candidate; a vanished row (deleted meanwhile) is
+    // skipped the same way.
+    private async reserveFirst(candidates: Array<Environment>): Promise<Environment | null> {
         for (const candidate of candidates) {
-            const session = await this.tryAllocate(candidate, requested, options);
+            try {
+                const reserved = await this.environmentRepository.with(
+                    EnvironmentId.fromString(candidate.id),
+                    (environment) => environment.reserve(new Date()),
+                );
 
-            if (session) {
-                return session;
+                if (reserved) {
+                    return reserved;
+                }
+            } catch (error) {
+                if (!(error instanceof InvalidEnvironmentOccupancyTransitionError)) {
+                    throw error;
+                }
             }
         }
 
-        throw new NoAllocatableEnvironmentError(requested.name, requested.version() ?? latestApplicationVersion);
+        return null;
     }
 
-    // Opens the session with the environment's own installed application, so a "latest" request runs (and
-    // reports) the concrete version the chosen environment actually offers, not the "latest" placeholder.
-    private async tryAllocate(
+    // Exactly one create against the reserved environment's node, with the reserving wd heartbeating
+    // for as long as the node takes. Success: the reservation becomes busy. Failure: the reservation is
+    // released and the node's real error surfaces to the caller — a failed create must not read as
+    // "no environments available".
+    private async openReservedSession(
         environment: Environment,
         requested: RequestedApplication,
         options: WebDriverSessionOptions,
-    ): Promise<Session | null> {
-        const application = environment.applicationFor(requested.name);
-
-        if (!environment.endpoint || !application) {
-            return null;
-        }
+    ): Promise<Session> {
+        const environmentId = EnvironmentId.fromString(environment.id);
+        const stopHeartbeat = this.keepReservationAlive(environmentId);
 
         try {
+            const application = environment.applicationFor(requested.name);
+
+            if (!environment.endpoint || !application) {
+                throw new TargetEnvironmentNotReadyError(environment.id);
+            }
+
             const webDriverSessionId = await this.webDriverSessionGateway.create(
                 environment.endpoint,
                 application,
@@ -165,14 +193,34 @@ export class CreateSessionUseCase {
                 options,
             );
 
+            await this.environmentRepository.with(environmentId, (reserved) => reserved.occupy());
+
             return Session.create({
-                environmentId: EnvironmentId.fromString(environment.id),
+                environmentId,
                 application,
                 endpoint: environment.endpoint,
                 webDriverSessionId,
             });
-        } catch {
-            return null;
+        } catch (error) {
+            await this.environmentRepository
+                .with(environmentId, (reserved) => reserved.releaseReservation())
+                .catch(() => undefined);
+
+            throw error;
+        } finally {
+            stopHeartbeat();
         }
+    }
+
+    private keepReservationAlive(environmentId: EnvironmentId): () => void {
+        const timer = setInterval(() => {
+            void this.environmentRepository
+                .with(environmentId, (environment) => environment.confirmReservation(new Date()))
+                .catch(() => undefined);
+        }, reservationConfirmIntervalMs);
+
+        timer.unref();
+
+        return () => clearInterval(timer);
     }
 }

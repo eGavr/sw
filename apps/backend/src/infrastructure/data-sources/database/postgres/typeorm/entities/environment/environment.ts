@@ -26,8 +26,9 @@ export class Environment {
         environment.deviceName = data.platform.deviceModel;
         environment.execution = data.execution ?? defaultExecution;
         environment.endpoint = data.endpoint ?? null;
-        environment.busy = data.busy;
+        environment.occupancy = data.occupancy;
         environment.lastHeartbeatAt = data.lastHeartbeatAt ?? null;
+        environment.occupancyLastConfirmedAt = data.occupancyLastConfirmedAt ?? null;
         environment.createdAt = data.createdAt;
         environment.updatedAt = data.updatedAt;
         environment.applications = data.applications.map((application) => EnvironmentApplication.from(data.id, application));
@@ -78,15 +79,20 @@ export class Environment {
     @Column({ type: "varchar", nullable: true })
     endpoint: string | null;
 
-    @Column({ default: false })
-    busy: boolean;
+    @Column({ default: "free" })
+    occupancy: string;
 
     // Provisioning attempts, incremented by the worker's claim; the reaper caps retries with it.
     @Column({ type: "int", default: 0 })
     attempts: number;
 
+    // The agent's liveness word (the node is alive), refreshed by every agent heartbeat.
     @Column({ type: "timestamptz", nullable: true })
     lastHeartbeatAt: Date | null;
+
+    // The reserving wd's liveness word (still creating a session), present only while reserved.
+    @Column({ type: "timestamptz", nullable: true })
+    occupancyLastConfirmedAt: Date | null;
 
     @DateColumn()
     createdAt: Date;
@@ -119,9 +125,10 @@ export class Environment {
                 version: application.applicationVersion,
             })),
             endpoint: this.endpoint,
-            busy: this.busy,
+            occupancy: this.occupancy,
             attempts: this.attempts,
             lastHeartbeatAt: this.lastHeartbeatAt,
+            occupancyLastConfirmedAt: this.occupancyLastConfirmedAt,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
         };

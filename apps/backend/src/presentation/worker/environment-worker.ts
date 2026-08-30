@@ -17,15 +17,19 @@ import {
 import {
     ReclaimStuckEnvironmentsUseCase,
 } from "../../application/use-cases/environments/reclaim-stuck-environments-use-case";
+import {
+    ReleaseStaleReservationsUseCase,
+} from "../../application/use-cases/environments/release-stale-reservations-use-case";
 import { defaultHeartbeatFreshnessMs } from "../../domain/entities/environment/heartbeat-freshness";
 import { Logger } from "../../infrastructure/logging/logger";
 
 const channel = "environment_work";
 
 // Session-scoped advisory-lock keys so that, with N workers, only one runs each time-based sweep
-// (reaper / GC) at a time (the others skip it); they never block the LISTEN/pump path.
+// (reaper / GC / reservation) at a time (the others skip it); they never block the LISTEN/pump path.
 const reaperLockKey = 0x53574b52;
 const gcLockKey = 0x53574743;
+const reservationLockKey = 0x53575253;
 
 const defaultReaperIntervalMs = 10_000;
 const defaultStartingTimeoutMs = 15_000;
@@ -33,6 +37,11 @@ const defaultPreparingTimeoutMs = 120_000;
 const defaultMaxAttempts = 3;
 const defaultGcIntervalMs = 30_000;
 const defaultFailedTtlMs = 3_600_000;
+
+// The reservation sweep ticks faster than the reaper: a dead reserver should return its environment
+// to the pool in seconds (staleness ~3 missed reservation heartbeats + at most one tick).
+const defaultReservationSweepIntervalMs = 3_000;
+const defaultReservationStalenessMs = 10_000;
 
 // Presentation runtime of the worker: holds a raw pg LISTEN connection (the doorbell) and, on each
 // wakeup, drives the use cases. It does no SQL/locks itself — that lives in the data source; the
@@ -44,6 +53,7 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     private pending = false;
     private reaperTimer: NodeJS.Timeout | null = null;
     private gcTimer: NodeJS.Timeout | null = null;
+    private reservationTimer: NodeJS.Timeout | null = null;
 
     private readonly reaperIntervalMs: number;
     private readonly startingTimeoutMs: number;
@@ -52,6 +62,8 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     private readonly gcIntervalMs: number;
     private readonly freshnessMs: number;
     private readonly failedTtlMs: number;
+    private readonly reservationSweepIntervalMs: number;
+    private readonly reservationStalenessMs: number;
 
     constructor(
         private readonly configService: ConfigService,
@@ -61,6 +73,7 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         private readonly reclaimStuckEnvironments: ReclaimStuckEnvironmentsUseCase,
         private readonly reclaimCrashedEnvironments: ReclaimCrashedEnvironmentsUseCase,
         private readonly collectGarbageEnvironments: CollectGarbageEnvironmentsUseCase,
+        private readonly releaseStaleReservations: ReleaseStaleReservationsUseCase,
     ) {
         this.reaperIntervalMs = this.number("WORKER_REAPER_INTERVAL_MS", defaultReaperIntervalMs);
         this.startingTimeoutMs = this.number("WORKER_STARTING_TIMEOUT_MS", defaultStartingTimeoutMs);
@@ -69,6 +82,11 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         this.gcIntervalMs = this.number("WORKER_GC_INTERVAL_MS", defaultGcIntervalMs);
         this.freshnessMs = this.number("HEARTBEAT_FRESHNESS_MS", defaultHeartbeatFreshnessMs);
         this.failedTtlMs = this.number("WORKER_FAILED_TTL_MS", defaultFailedTtlMs);
+        this.reservationSweepIntervalMs = this.number(
+            "WORKER_RESERVATION_SWEEP_INTERVAL_MS",
+            defaultReservationSweepIntervalMs,
+        );
+        this.reservationStalenessMs = this.number("RESERVATION_STALENESS_MS", defaultReservationStalenessMs);
     }
 
     private number(key: string, fallback: number): number {
@@ -100,6 +118,12 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         this.gcTimer = setInterval(() => void this.collect(), this.gcIntervalMs);
         this.gcTimer.unref();
 
+        // A reservation going stale is silence, not an event (the reserving wd just stops heartbeating),
+        // so it too is a periodic sweep — on its own faster tick, to return the environment to the pool
+        // within seconds of its reserver dying.
+        this.reservationTimer = setInterval(() => void this.sweepReservations(), this.reservationSweepIntervalMs);
+        this.reservationTimer.unref();
+
         // NOTIFY is not durable: catch up on whatever is already waiting.
         await this.pump();
     }
@@ -115,6 +139,11 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         if (this.gcTimer) {
             clearInterval(this.gcTimer);
             this.gcTimer = null;
+        }
+
+        if (this.reservationTimer) {
+            clearInterval(this.reservationTimer);
+            this.reservationTimer = null;
         }
 
         await this.client?.end();
@@ -168,6 +197,12 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         await this.underLock(gcLockKey, () => this.collectGarbageEnvironments.execute({
             freshnessMs: this.freshnessMs,
             failedTtlMs: this.failedTtlMs,
+        }));
+    }
+
+    private async sweepReservations(): Promise<void> {
+        await this.underLock(reservationLockKey, () => this.releaseStaleReservations.execute({
+            stalenessMs: this.reservationStalenessMs,
         }));
     }
 

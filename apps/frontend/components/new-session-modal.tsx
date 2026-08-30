@@ -1,18 +1,18 @@
 "use client";
 
-import { Button, Code, Group, Modal, Stack, Switch, Text } from "@mantine/core";
-import { IconEye } from "@tabler/icons-react";
-import Link from "next/link";
+import { Button, Group, Modal, Stack, Switch, Text } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { CopyButton } from "@/components/copy-button";
 import { shortId } from "@/lib/format";
-import { CreatedSession, createSession, Environment, environmentHandle } from "@/lib/sw";
+import { createSession, Environment, environmentHandle } from "@/lib/sw";
 
-// Creates a session pinned to one environment (sw:environmentId). The returned session id is a
-// capability secret stored nowhere at rest: while the session lives its creator can recover it from
-// the environment row; after it ends the id is gone for good.
+// Creates a session pinned to one environment (sw:environmentId), fire-and-forget: the modal closes on
+// the click and the environment row tells the story (reserved while the node creates, then busy). The
+// session id is a capability secret stored nowhere at rest — while the session lives its creator can
+// jump to it from the busy row's arrow, so nothing needs showing here. A failed create, having no
+// modal left to land in, surfaces as a notification.
 export function NewSessionModal({
   project,
   environment,
@@ -25,7 +25,6 @@ export function NewSessionModal({
   const queryClient = useQueryClient();
   const [logging, setLogging] = useState(false);
   const [video, setVideo] = useState(false);
-  const [created, setCreated] = useState<CreatedSession | null>(null);
 
   const application = environment?.applications[0];
 
@@ -42,88 +41,58 @@ export function NewSessionModal({
         video,
       });
     },
-    // The busy hint is written to the DB on the create path, so an immediate refetch shows it — no
-    // waiting for the next poll tick.
-    onSuccess: (session) => {
-      setCreated(session);
-      void queryClient.invalidateQueries({ queryKey: ["environments", project] });
-    },
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        title: "Session not created",
+        message: (error as Error).message,
+      }),
+    // Occupancy is written on both outcomes (reserved->busy or released back to free), so an immediate
+    // refetch keeps the row honest — no waiting for the next poll tick.
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["environments", project] }),
   });
 
   const close = (): void => {
     onClose();
-    setCreated(null);
     setLogging(false);
     setVideo(false);
-    create.reset();
+  };
+
+  const start = (): void => {
+    create.mutate();
+    close();
   };
 
   return (
     <Modal
       opened={environment !== null}
       onClose={close}
-      size="lg"
       title={environment ? `New session on ${shortId(environmentHandle(environment))}` : "New session"}
     >
-      {created ? (
-        <Stack>
-          <Text size="sm" c="dimmed">
-            Save the id if you&apos;ll need logs or video after the session ends.
+      <Stack>
+        {environment && application && (
+          <Text size="sm">
+            {application.name} {application.version} · {environment.platform.name} ·{" "}
+            {environment.execution}
           </Text>
-          <Group gap="xs" wrap="nowrap">
-            <Code style={{ flex: 1, whiteSpace: "nowrap", overflowX: "auto" }}>{created.sessionId}</Code>
-            <CopyButton value={created.sessionId} />
-          </Group>
-          {/* The dialog convention: both actions right-aligned, the main one rightmost; hierarchy
-              comes from the variant, not geography. Copy stays up with the id it copies. */}
-          <Group justify="flex-end" mt="xs">
-            <Button variant="subtle" color="gray" onClick={close}>
-              Done
-            </Button>
-            <Button
-              component={Link}
-              href={`/projects/${project}?tab=sessions&session=${encodeURIComponent(created.sessionId)}`}
-              variant="light"
-              leftSection={<IconEye size={16} />}
-              onClick={close}
-            >
-              Open session
-            </Button>
-          </Group>
-        </Stack>
-      ) : (
-        <Stack>
-          {environment && application && (
-            <Text size="sm">
-              {application.name} {application.version} · {environment.platform.name} ·{" "}
-              {environment.execution}
-            </Text>
-          )}
-          <Switch
-            label="Collect logs (sw:logging)"
-            checked={logging}
-            onChange={(e) => setLogging(e.currentTarget.checked)}
-          />
-          <Switch
-            label="Record video (sw:video)"
-            checked={video}
-            onChange={(e) => setVideo(e.currentTarget.checked)}
-          />
-          {create.error && (
-            <Text c="red" size="sm">
-              {(create.error as Error).message}
-            </Text>
-          )}
-          <Group justify="flex-end">
-            <Button variant="default" onClick={close}>
-              Cancel
-            </Button>
-            <Button loading={create.isPending} onClick={() => create.mutate()}>
-              Create session
-            </Button>
-          </Group>
-        </Stack>
-      )}
+        )}
+        <Switch
+          label="Collect logs (sw:logging)"
+          checked={logging}
+          onChange={(e) => setLogging(e.currentTarget.checked)}
+        />
+        <Switch
+          label="Record video (sw:video)"
+          checked={video}
+          onChange={(e) => setVideo(e.currentTarget.checked)}
+        />
+        <Group justify="flex-end">
+          <Button variant="default" onClick={close}>
+            Cancel
+          </Button>
+          <Button onClick={start}>Create session</Button>
+        </Group>
+      </Stack>
     </Modal>
   );
 }

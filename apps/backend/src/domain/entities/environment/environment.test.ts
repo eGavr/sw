@@ -4,9 +4,13 @@ import { Application } from "./application/application";
 import { ApplicationList } from "./application/application-list";
 import { Environment } from "./environment";
 import { EnvironmentEndpoint } from "./environment-endpoint";
+import { EnvironmentOccupancy } from "./environment-occupancy";
 import { EnvironmentState } from "./environment-state";
 import { EnvironmentStateReason } from "./environment-state-reason";
 import { EnvironmentStatus } from "./environment-status";
+import {
+    InvalidEnvironmentOccupancyTransitionError,
+} from "./error/invalid-environment-occupancy-transition-error";
 import { InvalidEnvironmentStateTransitionError } from "./error/invalid-environment-state-transition-error";
 import { Platform } from "./platform/platform";
 
@@ -38,11 +42,19 @@ function makeStuck(state: EnvironmentState, attempts: number): Environment {
         state,
         platform: { name: "linux", version: "6", deviceModel: "desktop" },
         applications: [{ name: "chrome", version: "100" }],
-        busy: false,
+        occupancy: EnvironmentOccupancy.Free,
         attempts,
         createdAt: new Date(0),
         updatedAt: new Date(0),
     });
+}
+
+// enqueued -> ... -> executing with a fresh agent heartbeat
+function makeExecuting(): Environment {
+    const environment = makePreparing();
+    environment.register(new EnvironmentEndpoint("http://host:4444"), new Date());
+
+    return environment;
 }
 
 describe("Environment", () => {
@@ -51,7 +63,7 @@ describe("Environment", () => {
             const environment = makeEnvironment();
 
             expect(environment.state).toBe(EnvironmentState.Enqueued);
-            expect(environment.busy).toBe(false);
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Free);
             expect(environment.endpoint).toBeNull();
             expect(environment.effectiveStatus()).toBe(EnvironmentStatus.Enqueued);
         });
@@ -149,59 +161,183 @@ describe("Environment", () => {
     });
 
     describe("#heartbeat", () => {
-        test("should update busy while executing", () => {
-            const environment = makePreparing();
-            const now = new Date();
-            environment.register(new EnvironmentEndpoint("http://host:4444"), now);
+        test("should record busy while executing", () => {
+            const environment = makeExecuting();
 
-            environment.heartbeat(true, now);
+            environment.heartbeat(true, new Date());
 
-            expect(environment.busy).toBe(true);
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Busy);
         });
 
         test("isBusy is the word of a LIVE agent: true only while busy and fresh", () => {
-            const environment = makePreparing();
-            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date());
+            const environment = makeExecuting();
             environment.heartbeat(true, new Date());
 
             expect(environment.isBusy()).toBe(true);
         });
 
         test("isBusy is false for a free environment", () => {
-            const environment = makePreparing();
-            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date());
+            const environment = makeExecuting();
             environment.heartbeat(false, new Date());
 
             expect(environment.isBusy()).toBe(false);
         });
 
         test("isBusy is false once the heartbeat goes stale — a dead agent's busy does not count", () => {
-            const environment = makePreparing();
-            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date());
+            const environment = makeExecuting();
             environment.heartbeat(true, new Date(Date.now() - freshnessMs - 1_000));
 
             expect(environment.isBusy()).toBe(false);
+            expect(environment.effectiveOccupancy()).toBe(EnvironmentOccupancy.Free);
         });
 
-        test("occupy flips busy immediately without touching the agent's liveness word", () => {
-            const environment = makePreparing();
-            const registeredAt = new Date();
-            environment.register(new EnvironmentEndpoint("http://host:4444"), registeredAt);
+        test("busy=false does NOT clear a reservation — the agent cannot know about the session being created", () => {
+            const environment = makeExecuting();
+            environment.reserve(new Date());
 
-            environment.occupy();
+            environment.heartbeat(false, new Date());
 
-            expect(environment.busy).toBe(true);
-            expect(environment.lastHeartbeatAt).toEqual(registeredAt);
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Reserved);
         });
 
-        test("occupy is rejected before the environment is executing", () => {
-            expect(() => makeEnvironment().occupy()).toThrow(InvalidEnvironmentStateTransitionError);
+        test("busy=true wins over a reservation — the agent saw the session land", () => {
+            const environment = makeExecuting();
+            environment.reserve(new Date());
+            const now = new Date();
+
+            environment.heartbeat(true, now);
+
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Busy);
+            expect(environment.occupancyLastConfirmedAt).toEqual(now);
+        });
+
+        test("busy=false at a reservation does NOT re-confirm it — a dead reserver's hold must go stale", () => {
+            const environment = makeExecuting();
+            const reservedAt = new Date(Date.now() - 3_000);
+            environment.reserve(reservedAt);
+
+            environment.heartbeat(false, new Date());
+
+            expect(environment.occupancyLastConfirmedAt).toEqual(reservedAt);
         });
 
         test("should reject a heartbeat before the environment is executing", () => {
             const environment = makeEnvironment();
 
             expect(() => environment.heartbeat(true, new Date())).toThrow(InvalidEnvironmentStateTransitionError);
+        });
+    });
+
+    describe("reservation protocol (#reserve / #occupy / #releaseReservation)", () => {
+        test("reserve takes a live free executing environment and confirms the new occupancy", () => {
+            const environment = makeExecuting();
+            const now = new Date();
+
+            environment.reserve(now);
+
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Reserved);
+            expect(environment.occupancyLastConfirmedAt).toEqual(now);
+        });
+
+        test("reserve loses the race against an existing reservation", () => {
+            const environment = makeExecuting();
+            environment.reserve(new Date());
+
+            expect(() => environment.reserve(new Date())).toThrow(InvalidEnvironmentOccupancyTransitionError);
+        });
+
+        test("reserve refuses a busy environment", () => {
+            const environment = makeExecuting();
+            environment.heartbeat(true, new Date());
+
+            expect(() => environment.reserve(new Date())).toThrow(InvalidEnvironmentOccupancyTransitionError);
+        });
+
+        test("reserve refuses an environment whose agent heartbeat went stale", () => {
+            const environment = makePreparing();
+            environment.register(new EnvironmentEndpoint("http://host:4444"), new Date(Date.now() - freshnessMs - 1_000));
+
+            expect(() => environment.reserve(new Date())).toThrow(InvalidEnvironmentOccupancyTransitionError);
+        });
+
+        test("reserve refuses an environment that is not executing", () => {
+            expect(() => makeEnvironment().reserve(new Date())).toThrow(InvalidEnvironmentOccupancyTransitionError);
+        });
+
+        test("occupy turns the reservation into busy without touching the agent's liveness word", () => {
+            const environment = makePreparing();
+            const registeredAt = new Date();
+            environment.register(new EnvironmentEndpoint("http://host:4444"), registeredAt);
+            environment.reserve(new Date());
+
+            environment.occupy();
+
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Busy);
+            expect(environment.lastHeartbeatAt).toEqual(registeredAt);
+        });
+
+        test("occupy without a reservation is rejected — the protocol starts with reserve", () => {
+            expect(() => makeExecuting().occupy()).toThrow(InvalidEnvironmentOccupancyTransitionError);
+        });
+
+        test("occupy is idempotent when the agent's busy heartbeat arrived first — both words mean success", () => {
+            const environment = makeExecuting();
+            environment.reserve(new Date());
+            environment.heartbeat(true, new Date());
+
+            environment.occupy();
+
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Busy);
+        });
+
+        test("releaseReservation returns the environment to the pool", () => {
+            const environment = makeExecuting();
+            environment.reserve(new Date());
+
+            environment.releaseReservation();
+
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Free);
+        });
+
+        test("releaseReservation is idempotent for an already-free environment", () => {
+            const environment = makeExecuting();
+
+            environment.releaseReservation();
+
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Free);
+        });
+
+        test("releaseReservation refuses a busy environment — the session is real", () => {
+            const environment = makeExecuting();
+            environment.heartbeat(true, new Date());
+
+            expect(() => environment.releaseReservation()).toThrow(InvalidEnvironmentOccupancyTransitionError);
+        });
+
+        test("confirmReservation refreshes the reserver's liveness word", () => {
+            const environment = makeExecuting();
+            environment.reserve(new Date(Date.now() - 3_000));
+            const now = new Date();
+
+            environment.confirmReservation(now);
+
+            expect(environment.occupancyLastConfirmedAt).toEqual(now);
+        });
+
+        test("confirmReservation is rejected once the reservation is gone", () => {
+            const environment = makeExecuting();
+
+            expect(() => environment.confirmReservation(new Date())).toThrow(
+                InvalidEnvironmentOccupancyTransitionError,
+            );
+        });
+
+        test("a reservation reads as reserved — not takeable is the honest answer until the sweep frees it", () => {
+            const environment = makeExecuting();
+            environment.reserve(new Date());
+
+            expect(environment.effectiveOccupancy()).toBe(EnvironmentOccupancy.Reserved);
+            expect(environment.isBusy()).toBe(false);
         });
     });
 

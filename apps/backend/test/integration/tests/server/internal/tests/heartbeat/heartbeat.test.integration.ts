@@ -28,6 +28,9 @@ import {
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { Environment } from "../../../../../../../src/domain/entities/environment/environment";
 import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
+import {
+    EnvironmentOccupancy,
+} from "../../../../../../../src/domain/entities/environment/environment-occupancy";
 import { EnvironmentState } from "../../../../../../../src/domain/entities/environment/environment-state";
 import { EnvironmentStatus } from "../../../../../../../src/domain/entities/environment/environment-status";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
@@ -206,16 +209,33 @@ describe("/internal/environments/:id:heartbeat", () => {
         const environment = await reload(id);
         expect(environment.state).toBe(EnvironmentState.Executing);
         expect(environment.endpoint).toBe(endpoint);
-        expect(environment.busy).toBe(false);
+        expect(environment.occupancy).toBe(EnvironmentOccupancy.Free);
     });
 
-    test("a later heartbeat updates busy and refreshes liveness", async () => {
+    test("a later heartbeat updates occupancy and refreshes liveness", async () => {
         const id = await seedPreparingEnvironment();
         await heartbeat(id, { endpoint, busy: false }).expect(200);
 
         await heartbeat(id, { busy: true }).expect(200);
 
-        expect((await reload(id)).busy).toBe(true);
+        expect((await reload(id)).occupancy).toBe(EnvironmentOccupancy.Busy);
+    });
+
+    // The reservation belongs to the wd that is still creating the session: the agent cannot know about
+    // it yet, so its "no session" word must not free the environment — while "session running" wins.
+    test("a busy=false heartbeat does not wipe a reservation; busy=true turns it into busy", async () => {
+        const id = await seedPreparingEnvironment();
+        await heartbeat(id, { endpoint, busy: false }).expect(200);
+        await environmentRepository.with(
+            EnvironmentId.fromString(id),
+            (environment) => environment.reserve(new Date()),
+        );
+
+        await heartbeat(id, { busy: false }).expect(200);
+        expect((await reload(id)).occupancy).toBe(EnvironmentOccupancy.Reserved);
+
+        await heartbeat(id, { busy: true }).expect(200);
+        expect((await reload(id)).occupancy).toBe(EnvironmentOccupancy.Busy);
     });
 
     test("responds INVALID_ARGUMENT when the registration heartbeat omits the endpoint", async () => {

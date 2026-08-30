@@ -64,7 +64,7 @@ describe("/projects/:project/environments", () => {
                 platform: { name: "linux", version: "latest", deviceModel: "desktop" },
                 execution: "container",
                 applications: [{ name: "chrome", version: "126" }],
-                busy: false,
+                occupancy: "FREE",
                 createTime: expect.any(String),
             });
         });
@@ -172,11 +172,11 @@ describe("/projects/:project/environments", () => {
         });
     });
 
-    describe("occupancy (busy + heartbeat freshness)", () => {
+    describe("occupancy (agent's word + heartbeat freshness)", () => {
         // Occupancy is orthogonal to lifecycle: a session never changes `state`, only the agent's
-        // heartbeat flips `busy`. The heartbeat itself arrives on the internal server, so the agent's
-        // report is seeded through the repository here and asserted through the public read.
-        test("exposes busy and the heartbeat time reported by the agent", async () => {
+        // heartbeat flips the occupancy word. The heartbeat itself arrives on the internal server, so
+        // the agent's report is seeded through the repository here and asserted through the public read.
+        test("exposes occupancy and the heartbeat time reported by the agent", async () => {
             const { owner, projectId } = await createProject();
             const { body: created } = await createEnvironment(projectId, owner).expect(HttpStatus.CREATED);
 
@@ -198,7 +198,7 @@ describe("/projects/:project/environments", () => {
                 .expect(HttpStatus.OK);
 
             expect(body.state).toBe("ACTIVE");
-            expect(body.busy).toBe(true);
+            expect(body.occupancy).toBe("BUSY");
             expect(body.lastHeartbeatTime).toEqual(expect.any(String));
 
             const freed = await environmentRepository.get(EnvironmentId.fromString(created.uid));
@@ -210,7 +210,7 @@ describe("/projects/:project/environments", () => {
                 .set(owner)
                 .expect(HttpStatus.OK);
 
-            expect(after.busy).toBe(false);
+            expect(after.occupancy).toBe("FREE");
         });
     });
 

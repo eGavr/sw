@@ -17,6 +17,11 @@ type SessionTarget = {
 const androidPlatformName = "android";
 const androidNewCommandTimeoutSeconds = 600;
 
+// A generous single fuse for the create call, not a per-platform estimate: a live reservation is kept
+// alive by heartbeats, so this only bounds a node that stopped answering (the caller then releases the
+// reservation instead of holding it forever).
+const newSessionTimeoutMs = 60_000;
+
 @Injectable()
 export class WebDriverClient {
     async createSession(endpoint: string, target: SessionTarget, options?: WebDriverSessionOptions): Promise<string> {
@@ -36,6 +41,7 @@ export class WebDriverClient {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ capabilities: { alwaysMatch } }),
+            signal: AbortSignal.timeout(newSessionTimeoutMs),
         });
 
         if (!response.ok) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { MantineProvider } from "@mantine/core";
+import { Notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
 import { useState } from "react";
@@ -21,7 +22,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     // the cookie. Without it only navigations refresh, and a parked tab goes stale into 401s.
     <SessionProvider refetchInterval={60}>
       <QueryClientProvider client={queryClient}>
-        <MantineProvider theme={theme}>{children}</MantineProvider>
+        <MantineProvider theme={theme}>
+          <Notifications position="top-right" />
+          {children}
+        </MantineProvider>
       </QueryClientProvider>
     </SessionProvider>
   );

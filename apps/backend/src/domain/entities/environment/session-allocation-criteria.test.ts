@@ -5,6 +5,7 @@ import { ApplicationList } from "./application/application-list";
 import { RequestedApplication, RequestedApplicationParams } from "./application/requested-application";
 import { Environment } from "./environment";
 import { EnvironmentEndpoint } from "./environment-endpoint";
+import { EnvironmentOccupancy } from "./environment-occupancy";
 import { EnvironmentState } from "./environment-state";
 import { IncompatibleSessionTargetError } from "./error/incompatible-session-target-error";
 import { NoAllocatableEnvironmentError } from "./error/no-allocatable-environment-error";
@@ -33,7 +34,7 @@ describe("SessionAllocationCriteria", () => {
 
         expect(predicate).toEqual({
             state: EnvironmentState.Executing,
-            busy: false,
+            occupancy: EnvironmentOccupancy.Free,
             heartbeatCutoff: new Date(4_000),
             execution: Execution.Container,
             applicationName: "chrome",
@@ -73,6 +74,10 @@ describe("SessionAllocationCriteria", () => {
         test("nothing offering the request is a failed precondition — retrying is pointless", () => {
             expect(() => criteria.refuseAllocation(false)).toThrow(NoEnvironmentOffersApplicationError);
             expect(() => criteria.refuseAllocation(false)).toThrow(/create one first/);
+        });
+
+        test("a pool taken in the race is refused as the same transient shortage", () => {
+            expect(() => criteria.refuseTransientShortage()).toThrow(NoAllocatableEnvironmentError);
         });
     });
 

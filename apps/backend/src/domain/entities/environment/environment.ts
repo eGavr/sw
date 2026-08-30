@@ -7,9 +7,13 @@ import { Application, ApplicationData } from "./application/application";
 import { ApplicationList } from "./application/application-list";
 import { EnvironmentEndpoint } from "./environment-endpoint";
 import { EnvironmentId } from "./environment-id";
+import { EnvironmentOccupancy, toEnvironmentOccupancy } from "./environment-occupancy";
 import { EnvironmentState } from "./environment-state";
 import { EnvironmentStateReason } from "./environment-state-reason";
 import { EnvironmentStatus } from "./environment-status";
+import {
+    InvalidEnvironmentOccupancyTransitionError,
+} from "./error/invalid-environment-occupancy-transition-error";
 import { InvalidEnvironmentStateTransitionError } from "./error/invalid-environment-state-transition-error";
 import { defaultExecution, Execution, toExecution } from "./execution";
 import { defaultHeartbeatFreshnessMs } from "./heartbeat-freshness";
@@ -27,9 +31,10 @@ export type EnvironmentData = {
     execution?: string;
     applications: Array<ApplicationData>;
     endpoint?: string | null;
-    busy: boolean;
+    occupancy: string;
     attempts?: number;
     lastHeartbeatAt?: Date | null;
+    occupancyLastConfirmedAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
 };
@@ -58,9 +63,10 @@ type EnvironmentConstructorParams = {
     execution?: Execution;
     applications: ApplicationList;
     endpoint?: EnvironmentEndpoint | null;
-    busy?: boolean;
+    occupancy?: EnvironmentOccupancy;
     attempts?: number;
     lastHeartbeatAt?: Date | null;
+    occupancyLastConfirmedAt?: Date | null;
     createdAt?: Date;
     updatedAt?: Date;
 };
@@ -83,9 +89,10 @@ export class Environment {
             execution: data.execution ? toExecution(data.execution) : defaultExecution,
             applications: ApplicationList.fromObject(data.applications),
             endpoint: data.endpoint ? new EnvironmentEndpoint(data.endpoint) : null,
-            busy: data.busy,
+            occupancy: Environment.toOccupancy(data.occupancy),
             attempts: data.attempts ?? 0,
             lastHeartbeatAt: data.lastHeartbeatAt ?? null,
+            occupancyLastConfirmedAt: data.occupancyLastConfirmedAt ?? null,
             createdAt: data.createdAt,
             updatedAt: data.updatedAt,
         });
@@ -111,6 +118,16 @@ export class Environment {
         return reason;
     }
 
+    private static toOccupancy(value: string): EnvironmentOccupancy {
+        const occupancy = toEnvironmentOccupancy(value);
+
+        if (!occupancy) {
+            throw new InvalidArgumentError(`environment occupancy: ${value}: unknown`);
+        }
+
+        return occupancy;
+    }
+
     readonly platform: Platform;
     readonly execution: Execution;
     readonly applications: ApplicationList;
@@ -124,9 +141,10 @@ export class Environment {
     private _state: EnvironmentState;
     private _stateReason: EnvironmentStateReason | null;
     private _endpoint: EnvironmentEndpoint | null;
-    private _busy: boolean;
+    private _occupancy: EnvironmentOccupancy;
     private readonly _attempts: number;
     private _lastHeartbeatAt: Date | null;
+    private _occupancyLastConfirmedAt: Date | null;
     private _updatedAt: Date;
 
     private constructor(params: EnvironmentConstructorParams) {
@@ -141,9 +159,10 @@ export class Environment {
         this.execution = params.execution ?? defaultExecution;
         this.applications = params.applications;
         this._endpoint = params.endpoint ?? null;
-        this._busy = params.busy ?? false;
+        this._occupancy = params.occupancy ?? EnvironmentOccupancy.Free;
         this._attempts = params.attempts ?? 0;
         this._lastHeartbeatAt = params.lastHeartbeatAt ?? null;
+        this._occupancyLastConfirmedAt = params.occupancyLastConfirmedAt ?? null;
         this.createdAt = params.createdAt ?? new Date();
         this._updatedAt = params.updatedAt ?? this.createdAt;
     }
@@ -182,8 +201,8 @@ export class Environment {
         return this._endpoint?.getValue() ?? null;
     }
 
-    get busy(): boolean {
-        return this._busy;
+    get occupancy(): EnvironmentOccupancy {
+        return this._occupancy;
     }
 
     get attempts(): number {
@@ -192,6 +211,10 @@ export class Environment {
 
     get lastHeartbeatAt(): Date | null {
         return this._lastHeartbeatAt;
+    }
+
+    get occupancyLastConfirmedAt(): Date | null {
+        return this._occupancyLastConfirmedAt;
     }
 
     get updatedAt(): Date {
@@ -230,25 +253,70 @@ export class Environment {
         this._lastHeartbeatAt = now;
     }
 
+    // Every heartbeat refreshes the agent's liveness word and reports whether a session is running.
+    // Occupancy merges rather than copies: `reserved` belongs to the wd that is still creating the
+    // session, and the agent cannot know about it yet — so "no session" keeps the reservation AND does
+    // not confirm it (that silence is how a dead reserver's hold goes stale), while "session running"
+    // always wins (the agent saw it land, the reservation fulfilled its purpose).
     heartbeat(busy: boolean, now: Date): void {
         if (this._state !== EnvironmentState.Executing) {
             throw new InvalidEnvironmentStateTransitionError(this._state, EnvironmentState.Executing);
         }
 
-        this._busy = busy;
+        if (busy || this._occupancy !== EnvironmentOccupancy.Reserved) {
+            this.confirmOccupancy(busy ? EnvironmentOccupancy.Busy : EnvironmentOccupancy.Free, now);
+        }
+
         this._lastHeartbeatAt = now;
         this.touch();
     }
 
-    // Optimistic occupancy right after a session lands on this environment's node: the busy hint flips
-    // immediately instead of waiting for the next agent heartbeat. Liveness is untouched — the heartbeat
-    // timestamp stays the agent's word, and the next heartbeat overwrites busy either way (self-healing).
-    occupy(): void {
-        if (this._state !== EnvironmentState.Executing) {
-            throw new InvalidEnvironmentStateTransitionError(this._state, EnvironmentState.Executing);
+    // Pessimistic allocation, step 1: take the environment for one upcoming session create. Only a
+    // live free executing environment can be reserved; run under the storage row lock (`with`), the
+    // failed guard IS the lost race — the caller moves on to the next candidate.
+    reserve(now: Date): void {
+        if (this._state !== EnvironmentState.Executing || this._occupancy !== EnvironmentOccupancy.Free
+            || !this.hasFreshHeartbeat()) {
+            throw new InvalidEnvironmentOccupancyTransitionError(this._occupancy, EnvironmentOccupancy.Reserved);
         }
 
-        this._busy = true;
+        this.confirmOccupancy(EnvironmentOccupancy.Reserved, now);
+        this.touch();
+    }
+
+    // The reserving wd keeps vouching for its hold while it waits for the node — re-confirmed every few
+    // seconds so the sweep can tell a slow create (android takes tens of seconds) from a dead reserver.
+    confirmReservation(now: Date): void {
+        if (this._occupancy !== EnvironmentOccupancy.Reserved) {
+            throw new InvalidEnvironmentOccupancyTransitionError(this._occupancy, EnvironmentOccupancy.Reserved);
+        }
+
+        this.confirmOccupancy(EnvironmentOccupancy.Reserved, now);
+        this.touch();
+    }
+
+    // Pessimistic allocation, success: the session landed on the node — the reservation becomes real
+    // occupancy. Idempotent for an already-busy environment: the agent's heartbeat may report the new
+    // session before the reserving wd gets here, and both words mean the same success. Only occupying
+    // out of thin air (free, no reservation) breaks the protocol.
+    occupy(): void {
+        if (this._occupancy === EnvironmentOccupancy.Free) {
+            throw new InvalidEnvironmentOccupancyTransitionError(this._occupancy, EnvironmentOccupancy.Busy);
+        }
+
+        this.confirmOccupancy(EnvironmentOccupancy.Busy, new Date());
+        this.touch();
+    }
+
+    // Pessimistic allocation, failure (or the sweep reclaiming a dead reserver's hold): the environment
+    // returns to the pool. Idempotent for an already-free environment — release can race the sweep, and
+    // both mean the same thing. A busy environment is not releasable: the session is real.
+    releaseReservation(): void {
+        if (this._occupancy === EnvironmentOccupancy.Busy) {
+            throw new InvalidEnvironmentOccupancyTransitionError(this._occupancy, EnvironmentOccupancy.Free);
+        }
+
+        this.confirmOccupancy(EnvironmentOccupancy.Free, new Date());
         this.touch();
     }
 
@@ -310,10 +378,20 @@ export class Environment {
         }
     }
 
-    // Busy is the agent's word, and it only counts while the agent is provably alive: once the
-    // heartbeat goes stale the environment is not "busy" — it is unhealthy (see effectiveStatus).
+    // The externally observable occupancy. Busy is the agent's word and only counts while the agent is
+    // provably alive (a stale-heartbeat environment is unhealthy, not busy). Reserved is reported as
+    // stored: it is transient by construction — the sweep frees a dead reserver's hold within seconds,
+    // and until then the environment is genuinely not takeable, so "reserved" stays the honest answer.
+    effectiveOccupancy(): EnvironmentOccupancy {
+        if (this._occupancy === EnvironmentOccupancy.Busy && !this.hasFreshHeartbeat()) {
+            return EnvironmentOccupancy.Free;
+        }
+
+        return this._occupancy;
+    }
+
     isBusy(): boolean {
-        return this._busy && this.hasFreshHeartbeat();
+        return this.effectiveOccupancy() === EnvironmentOccupancy.Busy;
     }
 
     toObject(): EnvironmentData {
@@ -329,12 +407,19 @@ export class Environment {
             execution: this.execution,
             applications: this.applications.toArray(),
             endpoint: this.endpoint,
-            busy: this._busy,
+            occupancy: this._occupancy,
             attempts: this._attempts,
             lastHeartbeatAt: this._lastHeartbeatAt,
+            occupancyLastConfirmedAt: this._occupancyLastConfirmedAt,
             createdAt: this.createdAt,
             updatedAt: this._updatedAt,
         };
+    }
+
+    // Occupancy and its confirmation move together: setting the word IS vouching for it.
+    private confirmOccupancy(occupancy: EnvironmentOccupancy, now: Date): void {
+        this._occupancy = occupancy;
+        this._occupancyLastConfirmedAt = now;
     }
 
     private hasFreshHeartbeat(): boolean {

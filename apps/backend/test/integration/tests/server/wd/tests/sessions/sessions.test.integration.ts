@@ -7,9 +7,6 @@ import request from "supertest";
 import { v4 as uuidv4 } from "uuid";
 
 import {
-    WebDriverSessionGateway,
-} from "../../../../../../../src/application/interfaces/gateways/webdriver-session-gateway";
-import {
     EnvironmentRepository,
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
@@ -19,11 +16,17 @@ import {
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { EnvironmentEndpoint } from "../../../../../../../src/domain/entities/environment/environment-endpoint";
 import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
+import {
+    EnvironmentOccupancy,
+} from "../../../../../../../src/domain/entities/environment/environment-occupancy";
 import { Execution } from "../../../../../../../src/domain/entities/environment/execution";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
 import { SessionOwnership } from "../../../../../../../src/domain/entities/session/session-ownership";
 import { User } from "../../../../../../../src/domain/entities/user/user";
+import {
+    WebDriverClient,
+} from "../../../../../../../src/infrastructure/gateways/webdriver-session/webdriver-client";
 import { SessionRoute } from "../../../../../../../src/presentation/http/session-route";
 import { WdModule } from "../../../../../../../src/presentation/http/wd/wd-module";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
@@ -44,9 +47,11 @@ describe("/sessions", () => {
     beforeEach(async () => {
         createSessionOnNode = jest.fn(async (): Promise<string> => wdSessionId);
 
+        // Only the final client wrapper over the external node is mocked — the gateway's own error
+        // translation (node failure -> "session not created") stays under test.
         const moduleRef = await Test.createTestingModule({ imports: [WdModule] })
-            .overrideProvider(WebDriverSessionGateway)
-            .useValue({ create: createSessionOnNode })
+            .overrideProvider(WebDriverClient)
+            .useValue({ createSession: createSessionOnNode, deleteSession: jest.fn(), fetchCurrentSession: jest.fn() })
             .compile();
 
         app = moduleRef.createNestApplication();
@@ -178,7 +183,11 @@ describe("/sessions", () => {
 
             await createSession(projectId, owner, chrome, { logging: true }).expect(HttpStatus.OK);
 
-            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), "linux", { logging: true, video: false });
+            expect(createSessionOnNode).toHaveBeenCalledWith(
+                nodeEndpoint,
+                expect.objectContaining({ platformName: "linux" }),
+                { logging: true, video: false },
+            );
         });
 
         test("threads the video opt-in through to the node session", async () => {
@@ -186,7 +195,11 @@ describe("/sessions", () => {
 
             await createSession(projectId, owner, chrome, { video: true }).expect(HttpStatus.OK);
 
-            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), "linux", { logging: false, video: true });
+            expect(createSessionOnNode).toHaveBeenCalledWith(
+                nodeEndpoint,
+                expect.objectContaining({ platformName: "linux" }),
+                { logging: false, video: true },
+            );
         });
 
         test("defaults the logging and video opt-ins to false when omitted", async () => {
@@ -194,7 +207,11 @@ describe("/sessions", () => {
 
             await createSession(projectId, owner).expect(HttpStatus.OK);
 
-            expect(createSessionOnNode).toHaveBeenCalledWith(nodeEndpoint, expect.anything(), "linux", { logging: false, video: false });
+            expect(createSessionOnNode).toHaveBeenCalledWith(
+                nodeEndpoint,
+                expect.objectContaining({ platformName: "linux" }),
+                { logging: false, video: false },
+            );
         });
 
         test("responds UNAUTHORIZED for an unauthenticated request", () => {
@@ -312,9 +329,28 @@ describe("/sessions", () => {
             return createSession(projectId, owner).expect(HttpStatus.BAD_REQUEST);
         });
 
-        test("responds CONFLICT when the node rejects the session (busy)", async () => {
-            const { owner, projectId } = await seedExecutingEnvironment();
+        // The node's failure surfaces as W3C "session not created" with the real cause — not as a
+        // swallowed "no environments available" — and the reservation returns to the pool right away.
+        test("surfaces the node's rejection as session-not-created and releases the reservation", async () => {
+            const { owner, projectId, environmentId } = await seedExecutingEnvironment();
             createSessionOnNode.mockRejectedValue(new Error("node full"));
+
+            await createSession(projectId, owner)
+                .expect(HttpStatus.INTERNAL_SERVER_ERROR)
+                .expect((response) => expect(JSON.stringify(response.body)).toMatch(/session not created.*node full/));
+
+            const environment = await app.get(EnvironmentRepository).get(EnvironmentId.fromString(environmentId));
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Free);
+        });
+
+        // A reservation held by another in-flight create hides the environment from the pool: with
+        // nothing else free the shortage is the transient retryable conflict.
+        test("responds CONFLICT while the only matching environment is reserved", async () => {
+            const { owner, projectId, environmentId } = await seedExecutingEnvironment();
+            await app.get(EnvironmentRepository).with(
+                EnvironmentId.fromString(environmentId),
+                (environment) => environment.reserve(new Date()),
+            );
 
             return createSession(projectId, owner).expect(HttpStatus.CONFLICT);
         });
@@ -398,9 +434,21 @@ describe("/sessions", () => {
                 .expect(HttpStatus.CONFLICT);
         });
 
-        test("responds CONFLICT when the targeted node rejects the session", async () => {
+        test("surfaces the targeted node's rejection as session-not-created", async () => {
             const { owner, projectId, environmentId } = await seedExecutingEnvironment();
             createSessionOnNode.mockRejectedValue(new Error("node full"));
+
+            return createSession(projectId, owner, chrome, { environmentId })
+                .expect(HttpStatus.INTERNAL_SERVER_ERROR)
+                .expect((response) => expect(JSON.stringify(response.body)).toMatch(/session not created/));
+        });
+
+        test("responds CONFLICT when the target is reserved by another in-flight create", async () => {
+            const { owner, projectId, environmentId } = await seedExecutingEnvironment();
+            await app.get(EnvironmentRepository).with(
+                EnvironmentId.fromString(environmentId),
+                (environment) => environment.reserve(new Date()),
+            );
 
             return createSession(projectId, owner, chrome, { environmentId }).expect(HttpStatus.CONFLICT);
         });
@@ -429,13 +477,14 @@ describe("/sessions", () => {
             expect(ownership?.isOwnedBy(UserFactory.createId())).toBe(false);
         });
 
-        test("flips the busy hint immediately, without waiting for a heartbeat", async () => {
+        test("occupies the environment immediately, without waiting for a heartbeat", async () => {
             const { owner, projectId, environmentId } = await seedExecutingEnvironment();
 
             await createSession(projectId, owner).expect(HttpStatus.OK);
 
             const environment = await app.get(EnvironmentRepository).get(EnvironmentId.fromString(environmentId));
-            expect(environment.busy).toBe(true);
+            expect(environment.occupancy).toBe(EnvironmentOccupancy.Busy);
+            expect(environment.occupancyLastConfirmedAt).not.toBeNull();
         });
     });
 

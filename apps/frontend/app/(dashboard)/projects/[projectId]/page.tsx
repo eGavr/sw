@@ -40,9 +40,10 @@ function ProjectContent() {
         </Tabs.Panel>
 
         <Tabs.Panel value="sessions" pt="md">
-          {/* Keyed by the deep-linked session so a new link re-seeds the input. */}
+          {/* Keyed by the deep link (explicit session or environment to recover from) so a new link
+              re-seeds the input. */}
           <SessionsTab
-            key={session ?? "manual"}
+            key={session ?? environmentUid ?? "manual"}
             project={projectId}
             initialSessionId={session}
             environmentUid={environmentUid}

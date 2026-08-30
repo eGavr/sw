@@ -134,6 +134,8 @@ export function EnvironmentsTab({ project }: { project: string }) {
               // Soft-deleted rows linger in the list until GC removes them — nothing left to delete.
               const gone = ["deleting", "deleted"].includes(e.state.toLowerCase());
               const active = e.state.toLowerCase() === "active";
+              const busy = e.occupancy === "BUSY";
+              const reserved = e.occupancy === "RESERVED";
 
               return (
                 <Table.Tr key={e.uid}>
@@ -150,18 +152,37 @@ export function EnvironmentsTab({ project }: { project: string }) {
                     </Badge>
                   </Table.Td>
                   <Table.Td>
+                    {/* Session actions live next to the occupancy word they depend on: start on a
+                        free row, jump to the running session on a busy one. */}
                     {active ? (
-                      e.busy && freeing.has(e.uid) ? (
+                      busy && freeing.has(e.uid) ? (
                         <Badge color="gray" variant="light" leftSection={<Loader size={8} color="gray" />}>
                           freeing
                         </Badge>
+                      ) : reserved ? (
+                        <Badge color="gray" variant="light" leftSection={<Loader size={8} color="gray" />}>
+                          reserved
+                        </Badge>
                       ) : (
                         <Group gap={2} wrap="nowrap">
-                          <Badge color={e.busy ? "orange" : "green"} variant="light">
-                            {e.busy ? "busy" : "free"}
+                          <Badge color={busy ? "orange" : "green"} variant="light">
+                            {busy ? "busy" : "free"}
                           </Badge>
-                          {e.busy && e.capabilities?.canAccessCurrentSession && (
-                            <BusySessionLink project={project} environmentUid={e.uid} />
+                          {busy && e.capabilities?.canAccessCurrentSession && (
+                            <BusySessionLink environmentUid={e.uid} />
+                          )}
+                          {!busy && (
+                            <Tooltip label="New session on this environment">
+                              <ActionIcon
+                                variant="subtle"
+                                color="gray"
+                                size="sm"
+                                aria-label="New session"
+                                onClick={() => setSessionTarget(e)}
+                              >
+                                <IconPlayerPlay size={14} />
+                              </ActionIcon>
+                            </Tooltip>
                           )}
                         </Group>
                       )
@@ -177,34 +198,21 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   <Table.Td>{e.applications.map((a) => `${a.name} ${a.version}`).join(", ")}</Table.Td>
                   <Table.Td>{e.execution}</Table.Td>
                   <Table.Td>
-                    <Group gap={4} wrap="nowrap">
-                      {active && !e.busy && (
-                        <Tooltip label="New session on this environment">
-                          <ActionIcon
-                            variant="subtle"
-                            aria-label="New session"
-                            onClick={() => setSessionTarget(e)}
-                          >
-                            <IconPlayerPlay size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                      )}
-                      {!gone ? (
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          aria-label="Delete environment"
-                          loading={remove.isPending && remove.variables === handle}
-                          onClick={() => remove.mutate(handle)}
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      ) : (
-                        <Text size="sm" c="dimmed">
-                          —
-                        </Text>
-                      )}
-                    </Group>
+                    {!gone ? (
+                      <ActionIcon
+                        variant="subtle"
+                        color="red"
+                        aria-label="Delete environment"
+                        loading={remove.isPending && remove.variables === handle}
+                        onClick={() => remove.mutate(handle)}
+                      >
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        —
+                      </Text>
+                    )}
                   </Table.Td>
                 </Table.Tr>
               );
