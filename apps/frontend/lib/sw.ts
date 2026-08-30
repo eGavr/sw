@@ -133,11 +133,9 @@ export interface CreateSessionInput {
   video: boolean;
 }
 
-// The one-time session result: the id is a capability secret shown once and stored nowhere;
-// `interactive` is the ready-to-open hosted viewer page the wd host advertises.
+// The created session's capability id — everything else (viewer, logs, video) hangs off it via Inspect.
 export interface CreatedSession {
   sessionId: string;
-  interactive?: string;
 }
 
 // W3C New Session through the wd BFF proxy: the requested application rides as browserName/Version,
@@ -165,7 +163,7 @@ export async function createSession(project: string, input: CreateSessionInput):
   }
 
   const body = (await res.json().catch(() => ({}))) as {
-    value?: { sessionId?: string; capabilities?: Record<string, unknown> };
+    value?: { sessionId?: string };
     message?: string;
   };
 
@@ -173,12 +171,7 @@ export async function createSession(project: string, input: CreateSessionInput):
     throw new Error(body.message ?? `wd sessions → ${res.status}`);
   }
 
-  const interactive = body.value.capabilities?.["sw:interactive"];
-
-  return {
-    sessionId: body.value.sessionId,
-    interactive: typeof interactive === "string" ? interactive : undefined,
-  };
+  return { sessionId: body.value.sessionId };
 }
 
 // The live capability id of the environment's current session — served only to the session's creator
@@ -187,6 +180,44 @@ export function getEnvironmentSession(project: string, environment: string): Pro
   return swRequest<{ sessionId: string }>(
     `v1/projects/${project}/environments/${environment}/session`,
   );
+}
+
+// The session's captured log, or null while it does not exist yet (logs ship when the session ends,
+// and only when sw:logging was on) — the caller renders a placeholder, not an error.
+export async function getSessionLogs(project: string, sessionId: string): Promise<string | null> {
+  const res = await fetch(
+    `/api/sw/v1/projects/${project}/sessions/${encodeURIComponent(sessionId)}/logs`,
+    { headers: { accept: "application/json" } },
+  );
+
+  if (res.status === 401) {
+    bounceToLogin();
+  }
+
+  if (res.status === 404) {
+    return null;
+  }
+
+  if (!res.ok) {
+    throw new Error(`session logs → ${res.status}`);
+  }
+
+  const body = (await res.json()) as { content?: string };
+
+  return body.content ?? "";
+}
+
+// The same-origin (BFF-proxied) video URL a <video> tag can play directly — the browser sends the
+// session cookie, the proxy adds the bearer and streams the bytes through.
+export function sessionVideoUrl(project: string, sessionId: string): string {
+  return `/api/sw/v1/projects/${project}/sessions/${encodeURIComponent(sessionId)}/video`;
+}
+
+// The wd host's hosted noVNC viewer for a live session — capability access, embeddable as an iframe.
+export function interactiveViewerUrl(sessionId: string): string {
+  const wdUrl = process.env.NEXT_PUBLIC_WD_URL ?? "http://localhost:3001";
+
+  return `${wdUrl}/interactive?path=sessions/${encodeURIComponent(sessionId)}/se/vnc`;
 }
 
 // Session teardown is authorized by possession of the id (capability) — the proxy ride is only for

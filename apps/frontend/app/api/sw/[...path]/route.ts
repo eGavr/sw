@@ -33,9 +33,8 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
     redirect: "manual",
   });
 
-  const body = await upstream.text();
-
-  return new NextResponse(body, {
+  // Pass the body through as a stream — session video is binary, buffering it as text would corrupt it.
+  return new NextResponse(upstream.body, {
     status: upstream.status,
     headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" },
   });

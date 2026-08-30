@@ -1,7 +1,8 @@
 "use client";
 
 import { Button, Code, Group, Modal, Stack, Switch, Text } from "@mantine/core";
-import { IconExternalLink } from "@tabler/icons-react";
+import { IconEye } from "@tabler/icons-react";
+import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -73,19 +74,20 @@ export function NewSessionModal({
             <Code style={{ flex: 1, whiteSpace: "nowrap", overflowX: "auto" }}>{created.sessionId}</Code>
             <CopyButton value={created.sessionId} />
           </Group>
-          {created.interactive && (
-            <Button
-              component="a"
-              href={created.interactive}
-              target="_blank"
-              leftSection={<IconExternalLink size={16} />}
-            >
-              Open interactive viewer
-            </Button>
-          )}
-          <Group justify="flex-end">
-            <Button variant="default" onClick={close}>
+          {/* The dialog convention: both actions right-aligned, the main one rightmost; hierarchy
+              comes from the variant, not geography. Copy stays up with the id it copies. */}
+          <Group justify="flex-end" mt="xs">
+            <Button variant="subtle" color="gray" onClick={close}>
               Done
+            </Button>
+            <Button
+              component={Link}
+              href={`/projects/${project}?tab=sessions&session=${encodeURIComponent(created.sessionId)}`}
+              variant="light"
+              leftSection={<IconEye size={16} />}
+              onClick={close}
+            >
+              Open session
             </Button>
           </Group>
         </Stack>
