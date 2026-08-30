@@ -4,7 +4,7 @@ import { Alert, Anchor, Box, Button, Center, Group, Loader, Stack } from "@manti
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { SessionLiveView } from "@/components/session-live-view";
 import { addFreeing } from "@/lib/freeing-store";
@@ -21,7 +21,7 @@ export function SessionViewer({
   initialSessionId?: string;
   environmentUid?: string;
 }) {
-  const [killed, setKilled] = useState(false);
+  const router = useRouter();
 
   // Deep-linked by environment: recover its current session (creator-only endpoint) on open.
   const recovery = useQuery({
@@ -36,6 +36,8 @@ export function SessionViewer({
     environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(sessionId)}`
   }`;
 
+  // Delete leads straight back to the project — the freeing row there is the receipt; there is
+  // nothing left to look at here.
   const onKilled = (): void => {
     // Bridge the heartbeat gap on the environments table: the row shows "freeing" until the agent's
     // word clears busy (~3s).
@@ -43,7 +45,7 @@ export function SessionViewer({
       addFreeing(environmentUid);
     }
 
-    setKilled(true);
+    router.push(`/projects/${project}`);
   };
 
   if (recovery.isLoading) {
@@ -54,13 +56,11 @@ export function SessionViewer({
     );
   }
 
-  if (killed || !sessionId) {
+  if (!sessionId) {
     return (
       <Center h="100vh">
         <Stack align="center" gap="sm">
-          <Alert color={killed ? "green" : "gray"}>
-            {killed ? "Session deleted." : "Session not found — it may have just ended."}
-          </Alert>
+          <Alert color="gray">Session not found — it may have just ended.</Alert>
           <Button
             component={Link}
             href={backHref}

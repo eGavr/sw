@@ -28,6 +28,9 @@ export function SessionsTab({
 
   const [sessionId, setSessionId] = useState(initialSessionId ?? "");
   const [killed, setKilled] = useState(false);
+  // null = the <video> element is still probing its source; it renders only once real data loaded,
+  // so a session without a recording never shows a dead black player.
+  const [videoAvailable, setVideoAvailable] = useState<boolean | null>(null);
 
   // Deep-linked by environment only: ask the api for the environment's current session (creator-only
   // endpoint) and seed the input with it, as if the user pasted the id.
@@ -89,6 +92,7 @@ export function SessionsTab({
         onChange={(e) => {
           setSessionId(e.currentTarget.value);
           setKilled(false);
+          setVideoAvailable(null);
         }}
       />
 
@@ -112,16 +116,16 @@ export function SessionsTab({
           <Tabs.List>
             <Tabs.Tab value="logs">Logs</Tabs.Tab>
             <Tabs.Tab value="video">Video</Tabs.Tab>
-            <Tabs.Tab value="vnc">Live VNC</Tabs.Tab>
+            <Tabs.Tab value="vnc">VNC</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="logs" pt="md">
             {logs.isLoading && <Loader size="sm" />}
             {!logs.isLoading && (logs.data === null || logs.data === undefined) && (
-              <Alert color="gray">
-                No logs yet — they appear after the session ends, and only when it was created with
+              <Text c="dimmed" size="sm">
+                No logs — they appear after the session ends, and only when it was created with
                 sw:logging.
-              </Alert>
+              </Text>
             )}
             {typeof logs.data === "string" && (
               <Code block style={{ maxHeight: "60vh", overflow: "auto", whiteSpace: "pre" }}>
@@ -131,24 +135,39 @@ export function SessionsTab({
           </Tabs.Panel>
 
           <Tabs.Panel value="video" pt="md">
-            <Stack gap="xs">
-              <Alert color="gray">
-                The recording appears after the session ends, and only when it was created with
-                sw:video — if the player below stays empty, there is nothing recorded (yet).
-              </Alert>
-              {/* The BFF streams the mp4 with auth; the browser only needs its session cookie. */}
-              <video
-                controls
-                src={sessionVideoUrl(project, id)}
-                style={{ width: "100%", maxHeight: "60vh", background: "black" }}
-              />
-            </Stack>
+            {videoAvailable === null && <Loader size="sm" />}
+            {videoAvailable === false && (
+              <Text c="dimmed" size="sm">
+                No video — the recording appears after the session ends, and only when it was created
+                with sw:video.
+              </Text>
+            )}
+            {/* The BFF streams the mp4 with auth; the browser only needs its session cookie. The
+                element probes its source itself and only shows once real data arrived. */}
+            <video
+              key={id}
+              controls
+              src={sessionVideoUrl(project, id)}
+              onLoadedData={() => setVideoAvailable(true)}
+              onError={() => setVideoAvailable(false)}
+              style={{
+                width: "100%",
+                maxHeight: "60vh",
+                background: "black",
+                display: videoAvailable === true ? "block" : "none",
+              }}
+            />
           </Tabs.Panel>
 
           <Tabs.Panel value="vnc" pt="md">
+            {!alive && (
+              <Text c="dimmed" size="sm">
+                The session is over — there is no live screen. Its logs and video live in their tabs.
+              </Text>
+            )}
             {/* The same live layout as the full-screen page, at tab scale: the screen with the whole
                 command rail beside it; full screen is one click away. */}
-            <SessionLiveView
+            {alive && <SessionLiveView
               sessionId={id}
               onKilled={onKilled}
               height="calc(100vh - 26rem)"
@@ -166,7 +185,7 @@ export function SessionsTab({
                   Open full screen
                 </Button>
               }
-            />
+            />}
           </Tabs.Panel>
         </Tabs>
       )}
