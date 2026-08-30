@@ -127,8 +127,7 @@ export function SessionsTab({
           <Tabs.Panel value="vnc" pt="md">
             {!alive && (
               <Text c="dimmed" size="sm">
-                The session is not active — there is no live screen. Logs and video, if any, are in
-                their tabs.
+                The session is not active — there is no live screen.
               </Text>
             )}
             {/* The same live layout as the full-screen page, at tab scale: the screen with the whole
