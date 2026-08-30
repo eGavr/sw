@@ -1,6 +1,6 @@
 "use client";
 
-import { Group, Stack } from "@mantine/core";
+import { Divider, Group, Stack } from "@mantine/core";
 import { IconTrash, IconWorld } from "@tabler/icons-react";
 import { ReactNode } from "react";
 
@@ -54,7 +54,14 @@ export function SessionLiveView({
       />
 
       <Stack w={railWidth} gap="sm" style={{ flexShrink: 0 }}>
-        {railHeader}
+        {/* The header is view chrome (full screen, back), not session control — a divider keeps the
+            two zones from reading as one block. */}
+        {railHeader && (
+          <>
+            {railHeader}
+            <Divider />
+          </>
+        )}
         <SessionCommandBar vertical commands={commands} />
         {railFooter}
       </Stack>
