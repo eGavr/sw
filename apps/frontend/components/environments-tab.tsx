@@ -20,7 +20,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconDots, IconPlayerPlay, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { BusySessionLink } from "@/components/busy-session-link";
 import { NewSessionModal } from "@/components/new-session-modal";
@@ -34,7 +34,7 @@ import {
   listCloudAccounts,
   listEnvironments,
 } from "@/lib/sw";
-import { addFreeing, loadFreeing } from "@/lib/freeing-store";
+import { addFreeing, loadFreeing, removeFreeing } from "@/lib/freeing-store";
 import { shortId } from "@/lib/format";
 
 // The wire statuses of GET environments (EnvironmentStatus): ACTIVE is "executing and heartbeating".
@@ -112,8 +112,18 @@ export function EnvironmentsTab({ project }: { project: string }) {
   });
 
   const rows = environments.data ?? [];
-  // Sessions we just killed (marker written by the Sessions tab): read per render — the store prunes
-  // expired entries on every read, so nothing sticks and the 3s list poll doubles as the refresh.
+
+  // A freeing marker only bridges the kill -> heartbeat gap: the moment the row is seen non-busy the
+  // bridge has done its job, so retire the marker then — not by TTL. Otherwise a session created
+  // within the TTL window would wear the stale "freeing" badge over its honest "busy".
+  useEffect(() => {
+    rows
+      .filter((environment) => environment.occupancy !== "BUSY")
+      .forEach((environment) => removeFreeing(environment.uid));
+  }, [rows]);
+
+  // Sessions we just killed (marker written on kill): read per render — the store prunes expired
+  // entries on every read, so nothing sticks and the 3s list poll doubles as the refresh.
   const freeing = loadFreeing();
 
   return (
