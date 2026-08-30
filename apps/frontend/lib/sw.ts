@@ -221,19 +221,32 @@ export function interactiveViewerUrl(sessionId: string): string {
   return `${wdUrl}/interactive?path=sessions/${encodeURIComponent(sessionId)}/se/vnc`;
 }
 
-// Session teardown is authorized by possession of the id (capability) — the proxy ride is only for
-// same-origin convenience.
-export async function killSession(sessionId: string): Promise<void> {
-  const res = await fetch(`/api/wd/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+// A WebDriver command against a live session, authorized by possession of the id (capability) — the
+// proxy ride is only for same-origin convenience.
+async function wdRequest(path: string, init: RequestInit): Promise<void> {
+  const res = await fetch(`/api/wd/${path}`, init);
 
   if (res.status === 401) {
     bounceToLogin();
   }
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message ?? `wd sessions → ${res.status}`);
+    const body = (await res.json().catch(() => ({}))) as { message?: string; value?: { message?: string } };
+    throw new Error(body.value?.message ?? body.message ?? `wd ${path} → ${res.status}`);
   }
+}
+
+export function killSession(sessionId: string): Promise<void> {
+  return wdRequest(`sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+}
+
+// W3C Navigate To — plain WebDriver traffic, same as any client of the session would send.
+export function navigateSession(sessionId: string, url: string): Promise<void> {
+  return wdRequest(`sessions/${encodeURIComponent(sessionId)}/url`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
 }
 
 export function listCloudTypes(): Promise<Array<CloudType>> {
