@@ -1,8 +1,9 @@
 "use client";
 
 import { Alert, Button, Code, Group, Loader, Stack, Tabs, Text, TextInput } from "@mantine/core";
-import { IconExternalLink, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { IconExternalLink, IconTrash, IconWorld } from "@tabler/icons-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { SessionCommand, SessionCommandBar } from "@/components/session-command-bar";
@@ -11,6 +12,7 @@ import {
   getEnvironmentSession,
   getSessionLogs,
   interactiveViewerUrl,
+  isSessionAlive,
   killSession,
   navigateSession,
   sessionVideoUrl,
@@ -37,6 +39,7 @@ export function SessionsTab({
   environmentUid?: string;
 }) {
   const queryClient = useQueryClient();
+  const pathname = usePathname();
 
   const [sessionId, setSessionId] = useState(initialSessionId ?? "");
   const [killed, setKilled] = useState(false);
@@ -61,9 +64,18 @@ export function SessionsTab({
   // pasted value looks like one (no Open button; the length gate keeps half-typed input quiet).
   const looksLikeSessionId = id.length > 24 && /^[A-Za-z0-9_-]+\.\S+$/.test(id);
 
-  // A deep link means a live session (the row was busy) — land on its live view; a hand-pasted id is
-  // usually a finished session someone came to inspect — land on the logs.
-  const deepLinked = Boolean(initialSessionId ?? environmentUid);
+  // Which tab to land on is decided by whether the session actually lives, not by how we got here: a
+  // recovered id is alive by construction, anything else gets the cheap probe (one read-only WebDriver
+  // command through the stateless proxy). Alive -> the live view; over -> its logs.
+  const recovered = Boolean(recovery.data && sessionId === recovery.data.sessionId);
+  const probe = useQuery({
+    queryKey: ["sessionAlive", id],
+    queryFn: () => isSessionAlive(id),
+    enabled: looksLikeSessionId && !recovered,
+    retry: false,
+    staleTime: Infinity,
+  });
+  const alive = recovered ? true : probe.isError ? false : probe.data;
 
   const logs = useQuery({
     queryKey: ["sessionLogs", project, id],
@@ -87,8 +99,9 @@ export function SessionsTab({
   const commands: Array<SessionCommand> = [
     {
       key: "navigate",
-      label: "Go",
-      placeholder: "https://example.com",
+      label: "Open URL",
+      placeholder: "https://…",
+      inputIcon: <IconWorld size={14} />,
       run: (url) => navigateSession(id, absoluteUrl(url)),
     },
     {
@@ -125,8 +138,10 @@ export function SessionsTab({
         </Text>
       )}
 
-      {looksLikeSessionId && (
-        <Tabs defaultValue={deepLinked ? "vnc" : "logs"}>
+      {looksLikeSessionId && alive === undefined && <Loader size="sm" />}
+
+      {looksLikeSessionId && alive !== undefined && (
+        <Tabs defaultValue={alive ? "vnc" : "logs"}>
           <Tabs.List>
             <Tabs.Tab value="logs">Logs</Tabs.Tab>
             <Tabs.Tab value="video">Video</Tabs.Tab>
@@ -169,9 +184,13 @@ export function SessionsTab({
                   viewer affordance on the right. */}
               <Group justify="space-between" align="center">
                 <SessionCommandBar commands={commands} />
+                {/* Our own page, not the bare noVNC viewer — the new tab keeps the whole control
+                    surface (commands, logs, video), at full window height. */}
                 <Button
                   component="a"
-                  href={interactiveViewerUrl(id)}
+                  href={`${pathname}?tab=sessions&${
+                    environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(id)}`
+                  }`}
                   target="_blank"
                   variant="default"
                   size="compact-sm"
@@ -183,7 +202,12 @@ export function SessionsTab({
               {/* Live only: once the session ends the node is gone and the frame goes dark. */}
               <iframe
                 src={interactiveViewerUrl(id)}
-                style={{ width: "100%", height: "60vh", border: "1px solid var(--mantine-color-gray-3)" }}
+                style={{
+                  width: "100%",
+                  height: "calc(100vh - 22rem)",
+                  minHeight: 480,
+                  border: "1px solid var(--mantine-color-gray-3)",
+                }}
                 title="Live VNC"
               />
             </Stack>

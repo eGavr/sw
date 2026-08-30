@@ -249,6 +249,14 @@ export function navigateSession(sessionId: string, url: string): Promise<void> {
   });
 }
 
+// The cheap liveness probe: one read-only WebDriver command (Get Current URL) through the stateless
+// proxy — a live session answers 200, a dead one (or a torn-down node) errors. No DB, no state.
+export async function isSessionAlive(sessionId: string): Promise<boolean> {
+  const res = await fetch(`/api/wd/sessions/${encodeURIComponent(sessionId)}/url`);
+
+  return res.ok;
+}
+
 export function listCloudTypes(): Promise<Array<CloudType>> {
   return swRequest<{ cloudTypes?: Array<CloudType> }>("v1/cloudTypes").then((d) => d.cloudTypes ?? []);
 }

@@ -13,6 +13,7 @@ export type SessionCommand = {
   color?: string;
   icon?: ReactNode;
   placeholder?: string;
+  inputIcon?: ReactNode;
   run: (argument: string) => Promise<void>;
   onSuccess?: () => void;
 };
@@ -42,7 +43,8 @@ export function SessionCommandBar({ commands }: { commands: Array<SessionCommand
             {command.placeholder !== undefined && (
               <TextInput
                 size="xs"
-                w={280}
+                w={300}
+                leftSection={command.inputIcon}
                 placeholder={command.placeholder}
                 value={argumentByKey[command.key] ?? ""}
                 onChange={(e) =>
@@ -57,8 +59,10 @@ export function SessionCommandBar({ commands }: { commands: Array<SessionCommand
             )}
             <Button
               size="compact-sm"
-              variant="light"
-              color={command.color ?? "gray"}
+              // A coloured command (destructive red) reads fine as a light button; a neutral one needs
+              // the bordered default look, or its enabled state is indistinguishable from disabled.
+              variant={command.color ? "light" : "default"}
+              color={command.color}
               leftSection={command.icon}
               loading={execute.isPending && execute.variables?.command.key === command.key}
               disabled={!runnable}
