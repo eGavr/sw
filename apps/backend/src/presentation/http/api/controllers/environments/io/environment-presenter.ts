@@ -24,9 +24,9 @@ export class EnvironmentPresenter implements Presenter {
             platform: this.environment.platform.toObject(),
             execution: this.environment.execution,
             applications: this.environment.applications.toArray(),
-            // Occupancy is orthogonal to lifecycle (a session never changes `state`); busy/liveness rules
+            // Occupancy is orthogonal to lifecycle (a session never changes `state`); the liveness rules
             // live in the entity. Not secrets — the session id is.
-            busy: this.environment.isBusy(),
+            occupancy: this.environment.effectiveOccupancy().toUpperCase(),
             ...(this.canAccessCurrentSession ? { capabilities: { canAccessCurrentSession: true } } : {}),
             ...(this.environment.lastHeartbeatAt
                 ? { lastHeartbeatTime: this.environment.lastHeartbeatAt.toISOString() }

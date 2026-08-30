@@ -28,9 +28,45 @@ export class EnvironmentDataSource {
             state: data.state,
             stateReason: data.stateReason ?? null,
             endpoint: data.endpoint ?? null,
-            busy: data.busy,
+            occupancy: data.occupancy,
             lastHeartbeatAt: data.lastHeartbeatAt ?? null,
+            occupancyLastConfirmedAt: data.occupancyLastConfirmedAt ?? null,
             updatedAt: data.updatedAt,
+        });
+    }
+
+    // Atomically read one environment under a row lock, apply the caller's transition and persist it.
+    // The lock serialises concurrent occupancy moves (reserve vs heartbeat vs release): each transition
+    // runs against the freshest row, and a domain guard that throws rolls the transaction back — that IS
+    // the lost race, surfaced as the domain error.
+    async withOne(
+        id: string,
+        apply: (data: EnvironmentData) => EnvironmentData,
+    ): Promise<EnvironmentData | null> {
+        return this.dataSource.transaction(async (manager) => {
+            const locked = (await manager.query(
+                "SELECT id FROM environment WHERE id = $1 FOR UPDATE",
+                [id],
+            )) as Array<{ id: string }>;
+
+            if (locked.length === 0) {
+                return null;
+            }
+
+            const entity = await manager.getRepository(Environment).findOneOrFail({ where: { id } });
+            const next = apply(entity.toObject());
+
+            await manager.getRepository(Environment).update(id, {
+                state: next.state,
+                stateReason: next.stateReason ?? null,
+                endpoint: next.endpoint ?? null,
+                occupancy: next.occupancy,
+                lastHeartbeatAt: next.lastHeartbeatAt ?? null,
+                occupancyLastConfirmedAt: next.occupancyLastConfirmedAt ?? null,
+                updatedAt: next.updatedAt,
+            });
+
+            return next;
         });
     }
 
@@ -145,7 +181,7 @@ export class EnvironmentDataSource {
         projectId: string,
         predicate: {
             state: string;
-            busy: boolean;
+            occupancy: string;
             heartbeatCutoff: Date;
             execution: string;
             applicationName: string;
@@ -158,7 +194,7 @@ export class EnvironmentDataSource {
             .select("environment.id", "id")
             .where("environment.projectId = :projectId", { projectId })
             .andWhere("environment.state = :state", { state: predicate.state })
-            .andWhere("environment.busy = :busy", { busy: predicate.busy })
+            .andWhere("environment.occupancy = :occupancy", { occupancy: predicate.occupancy })
             .andWhere("environment.execution = :execution", { execution: predicate.execution })
             .andWhere("environment.lastHeartbeatAt > :cutoff", { cutoff: predicate.heartbeatCutoff });
 
@@ -190,6 +226,21 @@ export class EnvironmentDataSource {
 
         return ids.map((id) => byId.get(id)).filter((environment): environment is Environment => environment !== undefined)
             .map((environment) => environment.toObject());
+    }
+
+    // Rows matching the (occupancy, cutoff) predicate: reservations whose reservation heartbeat lapsed.
+    // The occupancy value and the staleness cutoff are decided upstream (the domain criteria); this only
+    // translates them into SQL.
+    async findStaleReservations(
+        predicate: { occupancy: string; confirmationCutoff: Date },
+    ): Promise<Array<EnvironmentData>> {
+        const environments = await this.dataSource.getRepository(Environment)
+            .createQueryBuilder("environment")
+            .where("environment.occupancy = :occupancy", { occupancy: predicate.occupancy })
+            .andWhere("environment.occupancyLastConfirmedAt < :cutoff", { cutoff: predicate.confirmationCutoff })
+            .getMany();
+
+        return environments.map((environment) => environment.toObject());
     }
 
     // A narrow existence probe (the states/substrate/application predicate arrives ready from the

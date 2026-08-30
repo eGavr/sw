@@ -1,6 +1,7 @@
 import { latestApplicationVersion } from "./application/application-version";
 import { RequestedApplication } from "./application/requested-application";
 import { Environment } from "./environment";
+import { EnvironmentOccupancy } from "./environment-occupancy";
 import { EnvironmentState } from "./environment-state";
 import {
     IncompatibleSessionTargetError,
@@ -18,7 +19,7 @@ import { Execution } from "./execution";
 
 export type AllocatableEnvironmentPredicate = {
     readonly state: EnvironmentState;
-    readonly busy: boolean;
+    readonly occupancy: EnvironmentOccupancy;
     readonly heartbeatCutoff: Date;
     readonly execution: Execution;
     readonly applicationName: string;
@@ -49,15 +50,15 @@ const statesEventuallyServing: ReadonlyArray<EnvironmentState> = [
     EnvironmentState.Executing,
 ];
 
-// Which environments a session may be allocated onto: `executing`, not busy, with a fresh heartbeat, on
-// the requested execution substrate, and offering the requested application. What "free" and "fresh" mean
-// is a domain decision expressed here as a ready predicate; the data source only translates it into a
-// query. A null `applicationVersion` means "latest" — match by name and let `rank` order by newest.
+// Which environments a session may be allocated onto: `executing`, free, with a fresh agent heartbeat,
+// on the requested execution substrate, and offering the requested application. What "free" and "fresh"
+// mean is a domain decision expressed here as a ready predicate; the data source only translates it into
+// a query. A null `applicationVersion` means "latest" — match by name and let `rank` order by newest.
 export class SessionAllocationCriteria {
     static from(params: SessionAllocationParams): SessionAllocationCriteria {
         return new SessionAllocationCriteria(params.application, {
             state: EnvironmentState.Executing,
-            busy: false,
+            occupancy: EnvironmentOccupancy.Free,
             heartbeatCutoff: new Date(params.now.getTime() - params.freshnessMs),
             execution: params.execution,
             applicationName: params.application.name,
@@ -89,13 +90,21 @@ export class SessionAllocationCriteria {
     // (busy/provisioning — retry helps); with nothing offering it, only creating an environment will —
     // a failed precondition, not a conflict.
     refuseAllocation(anythingOffers: boolean): never {
-        const version = this.application.version() ?? latestApplicationVersion;
-
         if (anythingOffers) {
-            throw new NoAllocatableEnvironmentError(this.application.name, version);
+            this.refuseTransientShortage();
         }
 
-        throw new NoEnvironmentOffersApplicationError(this.application.name, version, this.predicate.execution);
+        throw new NoEnvironmentOffersApplicationError(
+            this.application.name,
+            this.requestedVersion(),
+            this.predicate.execution,
+        );
+    }
+
+    // The pool provably offers the request but nothing is takable right now (busy, or every listed
+    // candidate was reserved in the race) — a retryable conflict.
+    refuseTransientShortage(): never {
+        throw new NoAllocatableEnvironmentError(this.application.name, this.requestedVersion());
     }
 
     // The same rule as the pool predicate, enforced against one targeted environment. Refusal splits
@@ -103,16 +112,16 @@ export class SessionAllocationCriteria {
     // invalid request; one that merely cannot right now (provisioning/busy/stale) is a transient conflict.
     admit(environment: Environment): void {
         if (!this.offersRequested(environment)) {
-            throw new IncompatibleSessionTargetError(
-                environment.id,
-                this.application.name,
-                this.application.version() ?? latestApplicationVersion,
-            );
+            throw new IncompatibleSessionTargetError(environment.id, this.application.name, this.requestedVersion());
         }
 
         if (!this.isReady(environment)) {
             throw new TargetEnvironmentNotReadyError(environment.id);
         }
+    }
+
+    private requestedVersion(): string {
+        return this.application.version() ?? latestApplicationVersion;
     }
 
     private offersRequested(environment: Environment): boolean {
@@ -128,7 +137,7 @@ export class SessionAllocationCriteria {
 
     private isReady(environment: Environment): boolean {
         return environment.state === this.predicate.state
-            && environment.busy === this.predicate.busy
+            && environment.occupancy === this.predicate.occupancy
             && environment.lastHeartbeatAt !== null
             && environment.lastHeartbeatAt >= this.predicate.heartbeatCutoff;
     }

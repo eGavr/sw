@@ -19,6 +19,9 @@ import {
 import {
     ReclaimStuckEnvironmentsUseCase,
 } from "../../application/use-cases/environments/reclaim-stuck-environments-use-case";
+import {
+    ReleaseStaleReservationsUseCase,
+} from "../../application/use-cases/environments/release-stale-reservations-use-case";
 import { AgentTokenServiceProvider } from "../../infrastructure/agent-token/agent-token-service-provider";
 import {
     CloudAccountDataSource,
@@ -52,6 +55,7 @@ import { EnvironmentWorker } from "./environment-worker";
         ReclaimStuckEnvironmentsUseCase,
         ReclaimCrashedEnvironmentsUseCase,
         CollectGarbageEnvironmentsUseCase,
+        ReleaseStaleReservationsUseCase,
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: CloudAccountRepository, useClass: CloudAccountRepositoryImpl },
         { provide: ApplicationLogger, useExisting: Logger },

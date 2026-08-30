@@ -12,6 +12,7 @@ import { EnvironmentState } from "../../domain/entities/environment/environment-
 import { EnvironmentNotFoundError } from "../../domain/entities/environment/error/environment-not-found-error";
 import { GarbageCollectionCriteria } from "../../domain/entities/environment/garbage-collection-criteria";
 import { SessionAllocationCriteria } from "../../domain/entities/environment/session-allocation-criteria";
+import { StaleReservationCriteria } from "../../domain/entities/environment/stale-reservation-criteria";
 import { StuckProvisioningCriteria } from "../../domain/entities/environment/stuck-provisioning-criteria";
 import { ProjectId } from "../../domain/entities/project/project-id";
 import { EnvironmentDataSource } from "../data-sources/database/postgres/environment-data-source";
@@ -78,7 +79,7 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
             projectId.getValue(),
             {
                 state: predicate.state,
-                busy: predicate.busy,
+                occupancy: predicate.occupancy,
                 heartbeatCutoff: predicate.heartbeatCutoff,
                 execution: predicate.execution,
                 applicationName: predicate.applicationName,
@@ -86,6 +87,17 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
             },
             allocationCandidateLimit,
         );
+
+        return data.map(Environment.fromObject);
+    }
+
+    async listStaleReservations(criteria: StaleReservationCriteria): Promise<Array<Environment>> {
+        const predicate = criteria.toPredicate();
+
+        const data = await this.environmentDataSource.findStaleReservations({
+            occupancy: predicate.occupancy,
+            confirmationCutoff: predicate.confirmationCutoff,
+        });
 
         return data.map(Environment.fromObject);
     }
@@ -137,6 +149,18 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
     // if the queue is empty (returns null).
     async withNextEnqueued(mutate: (environment: Environment) => void): Promise<Environment | null> {
         const data = await this.environmentDataSource.withNext(EnvironmentState.Enqueued, (row) => {
+            const environment = Environment.fromObject(row);
+
+            mutate(environment);
+
+            return environment.toObject();
+        });
+
+        return data ? Environment.fromObject(data) : null;
+    }
+
+    async with(environmentId: EnvironmentId, mutate: (environment: Environment) => void): Promise<Environment | null> {
+        const data = await this.environmentDataSource.withOne(environmentId.getValue(), (row) => {
             const environment = Environment.fromObject(row);
 
             mutate(environment);

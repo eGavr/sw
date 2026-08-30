@@ -8,6 +8,7 @@ import { Execution } from "../../../domain/entities/environment/execution";
 import { GarbageCollectionCriteria } from "../../../domain/entities/environment/garbage-collection-criteria";
 import { Platform } from "../../../domain/entities/environment/platform/platform";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
+import { StaleReservationCriteria } from "../../../domain/entities/environment/stale-reservation-criteria";
 import { StuckProvisioningCriteria } from "../../../domain/entities/environment/stuck-provisioning-criteria";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { Page, PageRequest } from "../../pagination";
@@ -46,9 +47,17 @@ export abstract class EnvironmentRepository {
     // state) — the narrow probe behind the retryable-vs-pointless refusal, not an aggregate load.
     abstract existsOffering(projectId: ProjectId, criteria: SessionAllocationCriteria): Promise<boolean>;
 
+    // Reservations whose reserving wd stopped heartbeating — the sweep's work list.
+    abstract listStaleReservations(criteria: StaleReservationCriteria): Promise<Array<Environment>>;
+
     abstract deleteCollectable(criteria: GarbageCollectionCriteria): Promise<void>;
 
     abstract withNextEnqueued(mutate: (environment: Environment) => void): Promise<Environment | null>;
+
+    // Read one environment under the storage lock, run the domain transition, save atomically — the
+    // occupancy protocol (reserve/occupy/release, agent heartbeats) runs through here so concurrent
+    // moves serialise on the freshest row. Null when the environment is gone.
+    abstract with(environmentId: EnvironmentId, mutate: (environment: Environment) => void): Promise<Environment | null>;
 
     abstract save(environment: Environment): Promise<void>;
 }
