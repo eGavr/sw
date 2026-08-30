@@ -34,9 +34,11 @@ export function SessionViewer({
   });
 
   const sessionId = initialSessionId ?? recovery.data?.sessionId ?? "";
-  const backHref = `/projects/${project}?tab=sessions&${
-    environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(sessionId)}`
-  }`;
+  // Back returns to the Sessions tab with this very session pre-filled, landing on its logs — the
+  // live view was just here, the reason to go back is everything else.
+  const backHref = sessionId
+    ? `/projects/${project}?tab=sessions&session=${encodeURIComponent(sessionId)}&view=logs`
+    : `/projects/${project}?tab=sessions`;
 
   const onKilled = (): void => {
     // Bridge the heartbeat gap on the environments table: the row shows "freeing" until the agent's

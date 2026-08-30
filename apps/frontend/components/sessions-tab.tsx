@@ -18,6 +18,7 @@ export function SessionsTab({
   project,
   initialSessionId,
   environmentUid,
+  initialView,
 }: {
   project: string;
   initialSessionId?: string;
@@ -25,6 +26,9 @@ export function SessionsTab({
   // the row's live one itself (which is what makes the busy arrow a real, new-tab-able link), and a
   // kill marks that row as "freeing".
   environmentUid?: string;
+  // A deep link may ask for a specific view (e.g. Back from full screen lands on logs); otherwise
+  // liveness decides.
+  initialView?: string;
 }) {
   const queryClient = useQueryClient();
 
@@ -105,7 +109,7 @@ export function SessionsTab({
       {looksLikeSessionId && alive === undefined && <Loader size="sm" />}
 
       {looksLikeSessionId && alive !== undefined && (
-        <Tabs defaultValue={alive ? "vnc" : "logs"}>
+        <Tabs defaultValue={initialView ?? (alive ? "vnc" : "logs")}>
           <Tabs.List>
             <Tabs.Tab value="logs">Logs</Tabs.Tab>
             <Tabs.Tab value="video">Video</Tabs.Tab>
