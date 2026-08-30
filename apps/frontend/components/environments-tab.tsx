@@ -169,7 +169,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                             {busy ? "busy" : "free"}
                           </Badge>
                           {busy && e.capabilities?.canAccessCurrentSession && (
-                            <BusySessionLink project={project} environmentUid={e.uid} />
+                            <BusySessionLink environmentUid={e.uid} />
                           )}
                           {!busy && (
                             <Tooltip label="New session on this environment">

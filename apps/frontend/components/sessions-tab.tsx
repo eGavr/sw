@@ -13,10 +13,16 @@ import {
 } from "@mantine/core";
 import { IconExternalLink, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { addFreeing } from "@/lib/freeing-store";
-import { getSessionLogs, interactiveViewerUrl, killSession, sessionVideoUrl } from "@/lib/sw";
+import {
+  getEnvironmentSession,
+  getSessionLogs,
+  interactiveViewerUrl,
+  killSession,
+  sessionVideoUrl,
+} from "@/lib/sw";
 
 // The project's session viewer — stateless capability access: whoever holds a session id may watch it.
 // Works for the live session (VNC) and for past ones (logs/video, which only exist after a session
@@ -28,12 +34,29 @@ export function SessionsTab({
 }: {
   project: string;
   initialSessionId?: string;
-  // Known when deep-linked from an environment row — lets a kill mark that row as "freeing".
+  // Known when deep-linked from an environment row: without an explicit session id the tab recovers
+  // the row's live one itself (which is what makes the busy arrow a real, new-tab-able link), and a
+  // kill marks that row as "freeing".
   environmentUid?: string;
 }) {
   const queryClient = useQueryClient();
 
   const [sessionId, setSessionId] = useState(initialSessionId ?? "");
+
+  // Deep-linked by environment only: ask the api for the environment's current session (creator-only
+  // endpoint) and seed the input with it, as if the user pasted the id.
+  const recovery = useQuery({
+    queryKey: ["environmentSession", project, environmentUid],
+    queryFn: () => getEnvironmentSession(project, environmentUid as string),
+    enabled: !initialSessionId && !!environmentUid,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (recovery.data) {
+      setSessionId(recovery.data.sessionId);
+    }
+  }, [recovery.data]);
 
   const id = sessionId.trim();
   // A session id is base64url(endpoint) + "." + node session id — open the viewer as soon as the
@@ -51,8 +74,9 @@ export function SessionsTab({
     mutationFn: () => killSession(id),
     onSuccess: () => {
       // Bridge the heartbeat gap on the environments table: the busy hint clears in ~3s, until then
-      // the row shows "freeing" (only when we know which row this session lived on).
-      if (environmentUid && sessionId === initialSessionId) {
+      // the row shows "freeing" (only when we know which row this session lived on — whether the id
+      // arrived in the deep link or was recovered from the row).
+      if (environmentUid && (sessionId === initialSessionId || sessionId === recovery.data?.sessionId)) {
         addFreeing(environmentUid);
       }
 
@@ -73,8 +97,12 @@ export function SessionsTab({
 
       {kill.isSuccess && <Alert color="green">Session deleted.</Alert>}
       {kill.error && <Alert color="red">{(kill.error as Error).message}</Alert>}
+      {recovery.isLoading && <Loader size="sm" />}
+      {recovery.error && (
+        <Alert color="gray">Session not found — it may have just ended.</Alert>
+      )}
 
-      {!looksLikeSessionId && (
+      {!looksLikeSessionId && !recovery.isLoading && (
         <Text c="dimmed" size="sm">
           Paste a session id (or come from an environment row) to view its live VNC, logs and video.
           Nothing is stored — access is by possession of the id.
