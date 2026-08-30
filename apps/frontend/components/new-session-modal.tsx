@@ -1,15 +1,18 @@
 "use client";
 
 import { Button, Group, Modal, Stack, Switch, Text } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { shortId } from "@/lib/format";
 import { createSession, Environment, environmentHandle } from "@/lib/sw";
 
-// Creates a session pinned to one environment (sw:environmentId) and simply closes: the session id is
-// a capability secret stored nowhere at rest, and while the session lives its creator can jump to it
-// from the busy row's arrow — so nothing needs showing here. The refreshed row (busy) is the receipt.
+// Creates a session pinned to one environment (sw:environmentId), fire-and-forget: the modal closes on
+// the click and the environment row tells the story (reserved while the node creates, then busy). The
+// session id is a capability secret stored nowhere at rest — while the session lives its creator can
+// jump to it from the busy row's arrow, so nothing needs showing here. A failed create, having no
+// modal left to land in, surfaces as a notification.
 export function NewSessionModal({
   project,
   environment,
@@ -38,19 +41,26 @@ export function NewSessionModal({
         video,
       });
     },
-    // Occupancy is written on the create path, so an immediate refetch shows the busy row — no
-    // waiting for the next poll tick.
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["environments", project] });
-      close();
-    },
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        title: "Session not created",
+        message: (error as Error).message,
+      }),
+    // Occupancy is written on both outcomes (reserved->busy or released back to free), so an immediate
+    // refetch keeps the row honest — no waiting for the next poll tick.
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["environments", project] }),
   });
 
   const close = (): void => {
     onClose();
     setLogging(false);
     setVideo(false);
-    create.reset();
+  };
+
+  const start = (): void => {
+    create.mutate();
+    close();
   };
 
   return (
@@ -76,18 +86,11 @@ export function NewSessionModal({
           checked={video}
           onChange={(e) => setVideo(e.currentTarget.checked)}
         />
-        {create.error && (
-          <Text c="red" size="sm">
-            {(create.error as Error).message}
-          </Text>
-        )}
         <Group justify="flex-end">
           <Button variant="default" onClick={close}>
             Cancel
           </Button>
-          <Button loading={create.isPending} onClick={() => create.mutate()}>
-            Create session
-          </Button>
+          <Button onClick={start}>Create session</Button>
         </Group>
       </Stack>
     </Modal>
