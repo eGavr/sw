@@ -1,12 +1,13 @@
 "use client";
 
-import { Button, Group, Modal, Stack, Switch, Text } from "@mantine/core";
+import { Anchor, Button, Group, Modal, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 
 import { shortId } from "@/lib/format";
-import { createSession, Environment, environmentHandle } from "@/lib/sw";
+import { createSession, Environment, environmentHandle, getStorageDestination } from "@/lib/sw";
 
 // Creates a session pinned to one environment (sw:environmentId), fire-and-forget: the modal closes on
 // the click and the environment row tells the story (reserved while the node creates, then busy). The
@@ -25,6 +26,16 @@ export function NewSessionModal({
   const queryClient = useQueryClient();
   const [logging, setLogging] = useState(false);
   const [video, setVideo] = useState(false);
+
+  // Logs/video are only saved when the project has a storage destination — without one the toggles do
+  // nothing, so disable them (and point at where to fix it) instead of silently dropping the artifacts.
+  const storage = useQuery({
+    queryKey: ["storageDestination", project],
+    queryFn: () => getStorageDestination(project),
+    enabled: environment !== null,
+    retry: false,
+  });
+  const noStorage = storage.data === null && !storage.isLoading;
 
   const application = environment?.applications[0];
 
@@ -76,16 +87,31 @@ export function NewSessionModal({
             {environment.execution}
           </Text>
         )}
-        <Switch
-          label="Collect logs (sw:logging)"
-          checked={logging}
-          onChange={(e) => setLogging(e.currentTarget.checked)}
-        />
-        <Switch
-          label="Record video (sw:video)"
-          checked={video}
-          onChange={(e) => setVideo(e.currentTarget.checked)}
-        />
+        <Tooltip label="Configure a storage destination in Settings first" disabled={!noStorage}>
+          <Switch
+            label="Collect logs (sw:logging)"
+            checked={logging && !noStorage}
+            disabled={noStorage}
+            onChange={(e) => setLogging(e.currentTarget.checked)}
+          />
+        </Tooltip>
+        <Tooltip label="Configure a storage destination in Settings first" disabled={!noStorage}>
+          <Switch
+            label="Record video (sw:video)"
+            checked={video && !noStorage}
+            disabled={noStorage}
+            onChange={(e) => setVideo(e.currentTarget.checked)}
+          />
+        </Tooltip>
+        {noStorage && (
+          <Text size="xs" c="dimmed">
+            Logs and video need a storage destination —{" "}
+            <Anchor component={Link} href={`/projects/${project}?tab=settings`} onClick={close}>
+              set one in Settings
+            </Anchor>
+            .
+          </Text>
+        )}
         <Group justify="flex-end">
           <Button variant="default" onClick={close}>
             Cancel

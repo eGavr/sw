@@ -108,16 +108,17 @@ export function StorageSettings({ project }: { project: string }) {
         </Tooltip>
       )}
       {editing && current && (
-        <Button
-          variant="subtle"
-          color="red"
-          size="compact-sm"
-          leftSection={<IconTrash size={14} />}
-          loading={remove.isPending}
-          onClick={() => remove.mutate()}
-        >
-          Remove
-        </Button>
+        <Tooltip label="Remove storage">
+          <ActionIcon
+            variant="subtle"
+            color="red"
+            aria-label="Remove storage"
+            loading={remove.isPending}
+            onClick={() => remove.mutate()}
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
+        </Tooltip>
       )}
     </Group>
   );

@@ -1004,6 +1004,12 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 
 Родственно [[этому же PLAN]] пункту «строка прыгает free → busy минуя reserved» — та же семья лага occupancy-подсказки. Решить оба вместе.
 
+## Follow-up: sw:logging/sw:video запрошены, но storageDestination не настроен — честный сигнал (API-first) — НЕ начато
+
+Вопрос юзера (2026-08-31) + уточнение «сервис в основном по API, не через UI». Сейчас: сессия создаётся, логи/видео пишутся на ноде, а upload видит `destination=null` → тихий no-op (`stored:false`), агент дропает. Для API-клиента (главная аудитория) это худший вариант: 200 на создание, а логов нет — узнаёт только при чтении (404).
+- **Основное (API): fail-fast.** Если запрос содержит `sw:logging`/`sw:video`, а у проекта нет storageDestination → отклонять создание сессии **400 FAILED_PRECONDITION** («requested logging/video but no storage destination configured»). Предсказуемо и честно к явному opt-in. Минус — session-create (wd) начнёт читать storage-конфиг проекта (сейчас не касается); это законная проверка предусловия. **Реализация:** в `CreateSessionUseCase` (или отдельной проверке) при `logging||video` дёрнуть `StorageDestinationRepository.exists/find` по проекту → нет → доменная `...FailedPrecondition`-ошибка.
+- **Минимум в UI (решение юзера «хотя бы в UI дизейблить»):** в New session модалке дизейблить тумблеры sw:logging/sw:video, если у проекта нет destination, с подсказкой «configure storage first». — СДЕЛАНО в рамках `feat.settings-storage-ui`.
+
 ## Follow-up: удаление проекта (API + UI) — НЕ начато
 
 Вопрос юзера (2026-08-31): удаления проекта нет нигде — ни `DELETE /v1/projects/{p}` в api, ни в UI. Сделать:
