@@ -321,6 +321,14 @@ export function clearStorageDestination(project: string): Promise<void> {
   return swRequest<void>(`v1/projects/${project}/storageDestination`, { method: "DELETE" });
 }
 
+// A real write probe under our identity — { ok: true } if reachable and we can write, else the
+// backend's error. So a wrong bucket or missing bucket policy is caught here, not silently later.
+export function testStorageDestination(project: string): Promise<{ ok: boolean; message?: string }> {
+  return swRequest<{ ok: boolean; message?: string }>(`v1/projects/${project}/storageDestination/test`, {
+    method: "POST",
+  });
+}
+
 export function listCloudTypes(): Promise<Array<CloudType>> {
   return swRequest<{ cloudTypes?: Array<CloudType> }>("v1/cloudTypes").then((d) => d.cloudTypes ?? []);
 }

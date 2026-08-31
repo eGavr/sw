@@ -107,6 +107,47 @@ describe("/projects/:project/storageDestination", () => {
         expect(get.body.bucket).toBe("other-logs");
     });
 
+    test("test-probe succeeds against the configured destination (in-memory write)", async () => {
+        const owner = Authorization.forUser(UserFactory.createId());
+        const project = await createProject(owner);
+
+        await request(app.getHttpServer()).patch(path(project)).set(owner).send(destinationBody()).expect(HttpStatus.OK);
+
+        const probe = await request(app.getHttpServer()).post(`${path(project)}/test`).set(owner).expect(HttpStatus.OK);
+
+        expect(probe.body).toEqual({ ok: true });
+    });
+
+    test("test-probe is NOT_FOUND when no destination is configured", async () => {
+        const owner = Authorization.forUser(UserFactory.createId());
+        const project = await createProject(owner);
+
+        return request(app.getHttpServer()).post(`${path(project)}/test`).set(owner).expect(HttpStatus.NOT_FOUND);
+    });
+
+    test("responds INVALID_ARGUMENT for a malformed bucket (uppercase/spaces)", async () => {
+        const owner = Authorization.forUser(UserFactory.createId());
+        const project = await createProject(owner);
+
+        return request(app.getHttpServer())
+            .patch(path(project))
+            .set(owner)
+            .send(destinationBody({ bucket: "Not A Bucket!" }))
+            .expect(HttpStatus.BAD_REQUEST)
+            .expect((response) => expect(response.body.error.status).toBe("INVALID_ARGUMENT"));
+    });
+
+    test("responds INVALID_ARGUMENT for a non-URL endpoint", async () => {
+        const owner = Authorization.forUser(UserFactory.createId());
+        const project = await createProject(owner);
+
+        return request(app.getHttpServer())
+            .patch(path(project))
+            .set(owner)
+            .send(destinationBody({ endpoint: "not-a-url" }))
+            .expect(HttpStatus.BAD_REQUEST);
+    });
+
     test("responds INVALID_ARGUMENT when bucket is missing", async () => {
         const owner = Authorization.forUser(UserFactory.createId());
         const project = await createProject(owner);

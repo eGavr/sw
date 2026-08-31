@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from "@nestjs/common";
 
 import {
     DeleteProjectStorageDestinationUseCase,
@@ -9,6 +9,10 @@ import {
 import {
     SetProjectStorageDestinationUseCase,
 } from "../../../../../application/use-cases/storage-destinations/set-project-storage-destination-use-case";
+import {
+    StorageDestinationProbe,
+    TestProjectStorageDestinationUseCase,
+} from "../../../../../application/use-cases/storage-destinations/test-project-storage-destination-use-case";
 import { BearerToken } from "../../../decorators/param/bearer-token";
 
 import { SetStorageDestinationRequestModel } from "./io/set-storage-destination-request-model";
@@ -23,6 +27,7 @@ export class StorageDestinationController {
         private readonly getUseCase: GetProjectStorageDestinationUseCase,
         private readonly setUseCase: SetProjectStorageDestinationUseCase,
         private readonly deleteUseCase: DeleteProjectStorageDestinationUseCase,
+        private readonly testUseCase: TestProjectStorageDestinationUseCase,
     ) {}
 
     @Get()
@@ -56,5 +61,16 @@ export class StorageDestinationController {
     @HttpCode(HttpStatus.NO_CONTENT)
     async clear(@Param("project") project: string, @BearerToken() token: string): Promise<void> {
         await this.deleteUseCase.execute({ creds: { token }, params: { projectId: project } });
+    }
+
+    // A connectivity check the user runs after configuring: a real write under our identity, so a bad
+    // bucket or a missing bucket policy is caught here — not silently at the next session's upload.
+    @Post("test")
+    @HttpCode(HttpStatus.OK)
+    async test(
+        @Param("project") project: string,
+        @BearerToken() token: string,
+    ): Promise<StorageDestinationProbe> {
+        return this.testUseCase.execute({ creds: { token }, params: { projectId: project } });
     }
 }

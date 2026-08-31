@@ -13,6 +13,14 @@ import { StorageDestination } from "../../../domain/entities/storage/storage-des
 
 const defaultRegion = "us-east-1";
 
+// Bound every call so a misconfigured or unreachable destination fails fast instead of hanging: a dead
+// endpoint would otherwise stall on the OS TCP timeout, retried by the SDK default (3x) — and there is
+// one upload per session end, so under load those pile up. Uploads are best-effort; failing quickly and
+// dropping is correct. requestTimeout is generous (a real video upload streams for a while).
+const connectionTimeoutMs = 3_000;
+const requestTimeoutMs = 60_000;
+const maxAttempts = 2;
+
 // Real adapter over any S3-compatible backend (AWS, Yandex Object Storage). Access is DELEGATED: we
 // authenticate as our own service identity (the SDK's default credential provider chain — instance role
 // / service-project token / env), and the user grants that identity write access to their bucket via a
@@ -97,6 +105,8 @@ export class S3ObjectStorageGateway extends ObjectStorageGateway {
             endpoint: destination.endpoint,
             region: destination.region ?? defaultRegion,
             forcePathStyle: true,
+            maxAttempts,
+            requestHandler: { connectionTimeout: connectionTimeoutMs, requestTimeout: requestTimeoutMs },
         });
     }
 

@@ -59,6 +59,9 @@ import {
 import {
     SetProjectStorageDestinationUseCase,
 } from "../../../application/use-cases/storage-destinations/set-project-storage-destination-use-case";
+import {
+    TestProjectStorageDestinationUseCase,
+} from "../../../application/use-cases/storage-destinations/test-project-storage-destination-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
@@ -145,6 +148,7 @@ import {
         GetProjectStorageDestinationUseCase,
         SetProjectStorageDestinationUseCase,
         DeleteProjectStorageDestinationUseCase,
+        TestProjectStorageDestinationUseCase,
 
         CreateCloudAccountUseCase,
         ListCloudAccountsUseCase,
