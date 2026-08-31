@@ -1,3 +1,4 @@
+import { CloudCredential } from "../../../application/interfaces/gateways/cloud-credential";
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
 import { Environment } from "../../../domain/entities/environment/environment";
@@ -19,8 +20,12 @@ export class RoutingEnvironmentProviderGateway extends EnvironmentProviderGatewa
         super();
     }
 
-    async provision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
-        await this.gatewayFor(environment).provision(environment, cloudAccount);
+    async provision(
+        environment: Environment,
+        cloudAccount: CloudAccount | null,
+        credential: CloudCredential | null,
+    ): Promise<void> {
+        await this.gatewayFor(environment).provision(environment, cloudAccount, credential);
     }
 
     async deprovision(environment: Environment): Promise<void> {

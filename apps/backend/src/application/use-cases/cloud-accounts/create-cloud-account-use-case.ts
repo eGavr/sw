@@ -7,6 +7,7 @@ import { InvalidArgumentError } from "../../../domain/entities/error/invalid-arg
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { CloudCatalog } from "../../interfaces/cloud-catalog";
+import { SecretStore } from "../../interfaces/gateways/secret-store";
 import { CloudAccountRepository } from "../../interfaces/repositories/cloud-account-repository";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
@@ -19,6 +20,9 @@ type CreateCloudAccountInput = {
         projectId: string;
         type: string;
         config?: CloudConfig;
+        // The cloud's own credentials (e.g. a service-account key) the adapter will provision with. Opaque
+        // here: it goes straight to the secret store and only its reference is persisted, never the secret.
+        credential?: string;
     },
 }
 
@@ -31,6 +35,7 @@ export class CreateCloudAccountUseCase {
         private readonly projectRepository: ProjectRepository,
         private readonly cloudAccountRepository: CloudAccountRepository,
         private readonly cloudCatalog: CloudCatalog,
+        private readonly secretStore: SecretStore,
     ) {}
 
     async execute({ creds, params }: CreateCloudAccountInput): Promise<CloudAccount> {
@@ -46,20 +51,27 @@ export class CreateCloudAccountUseCase {
         }
 
         const projectId = ProjectId.fromString(project.id);
-        const cloudAccount = CloudAccount.create({
-            projectId,
-            type: params.type,
-            provides: this.cloudCatalog.providesFor(params.type),
-            config: params.config,
-        });
-
-        // Keep the project's clouds non-overlapping so every (platform, execution) resolves to one cloud.
         const connected = await this.cloudAccountRepository.listByProject(projectId);
-        const conflict = CloudAccountList.of(connected).conflictWith(cloudAccount);
+
+        // The overlap check needs only type/provides, so run it before touching the secret store — a
+        // conflict must not leave a stored secret behind.
+        const provides = this.cloudCatalog.providesFor(params.type);
+        const conflict = CloudAccountList.of(connected).conflictWith(
+            CloudAccount.create({ projectId, type: params.type, provides }),
+        );
 
         if (conflict) {
             throw new CloudAccountOverlapError(params.type, conflict.type);
         }
+
+        const credentialRef = params.credential ? await this.secretStore.store(params.credential) : null;
+        const cloudAccount = CloudAccount.create({
+            projectId,
+            type: params.type,
+            provides,
+            config: params.config,
+            credentialRef,
+        });
 
         await this.cloudAccountRepository.save(cloudAccount);
 

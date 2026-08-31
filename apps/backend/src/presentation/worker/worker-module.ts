@@ -31,6 +31,7 @@ import { PostgresModule } from "../../infrastructure/data-sources/database/postg
 import {
     EnvironmentProviderGatewayProvider,
 } from "../../infrastructure/gateways/environment-provider/environment-provider-gateway-provider";
+import { SecretStoreProvider } from "../../infrastructure/gateways/secret-store/secret-store-provider";
 import { Logger } from "../../infrastructure/logging/logger";
 import { LoggerModule } from "../../infrastructure/logging/logger-module";
 import {
@@ -63,6 +64,7 @@ import { EnvironmentWorker } from "./environment-worker";
         CloudAccountDataSource,
         AgentTokenServiceProvider,
         EnvironmentProviderGatewayProvider,
+        SecretStoreProvider,
     ],
 })
 export class WorkerModule {}

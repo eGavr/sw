@@ -14,6 +14,7 @@ import {
   Stack,
   Table,
   Text,
+  Textarea,
   Title,
   Tooltip,
 } from "@mantine/core";
@@ -52,10 +53,13 @@ export function CloudsTab({ project }: { project: string }) {
   // STAGED — connecting adds a pending row, the trash marks a row for removal — and applied on Save, so
   // the block reads like the others (pencil to edit, Cancel/Save to leave).
   const [managing, setManaging] = useState(false);
-  const [pendingConnect, setPendingConnect] = useState<Array<string>>([]);
+  // A staged connection carries its credential (a service-account key, etc.) until Save; the secret rides
+  // in memory only and is posted to the server on Save, never stored client-side.
+  const [pendingConnect, setPendingConnect] = useState<Array<{ type: string; credential?: string }>>([]);
   const [pendingRemove, setPendingRemove] = useState<Set<string>>(new Set());
 
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [credential, setCredential] = useState("");
   const [selected, setSelected] = useState<CloudAccount | null>(null);
 
   const clouds = useQuery({
@@ -100,7 +104,7 @@ export function CloudsTab({ project }: { project: string }) {
     mutationFn: async () => {
       const results = await Promise.allSettled([
         ...[...pendingRemove].map((uid) => disconnectCloud(project, uid)),
-        ...pendingConnect.map((type) => connectCloud(project, type)),
+        ...pendingConnect.map((pending) => connectCloud(project, pending.type, pending.credential)),
       ]);
       const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
       if (failed) {
@@ -118,10 +122,11 @@ export function CloudsTab({ project }: { project: string }) {
 
   const addPending = (): void => {
     if (selectedType) {
-      setPendingConnect([...pendingConnect, selectedType]);
+      setPendingConnect([...pendingConnect, { type: selectedType, credential: credential.trim() || undefined }]);
     }
     closeConnect();
     setSelectedType(null);
+    setCredential("");
   };
 
   const cancel = (): void => {
@@ -218,20 +223,20 @@ export function CloudsTab({ project }: { project: string }) {
               );
             })}
             {managing &&
-              pendingConnect.map((type, index) => (
+              pendingConnect.map((pending, index) => (
                 <Table.Tr key={`pending-${index}`}>
                   <Table.Td>
                     <Group gap={6} wrap="nowrap">
                       <Badge variant="light" color="green">
-                        {type}
+                        {pending.type}
                       </Badge>
                       <Text size="xs" c="dimmed">
-                        will connect
+                        {pending.credential ? "will connect · with credential" : "will connect"}
                       </Text>
                     </Group>
                   </Table.Td>
                   <Table.Td>
-                    <SubstrateBadges provides={providesFor(type)} />
+                    <SubstrateBadges provides={providesFor(pending.type)} />
                   </Table.Td>
                   <Table.Td>—</Table.Td>
                   <Table.Td>
@@ -279,6 +284,7 @@ export function CloudsTab({ project }: { project: string }) {
         onClose={() => {
           closeConnect();
           setSelectedType(null);
+          setCredential("");
         }}
         title="Connect cloud"
       >
@@ -298,6 +304,16 @@ export function CloudsTab({ project }: { project: string }) {
               <SubstrateBadges provides={selectedCatalogueEntry.provides} />
             </Box>
           )}
+          <Textarea
+            label="Credentials"
+            description="The cloud's own secret (e.g. a service-account key). Held only until Save, then stored in a secret store — never shown again. Leave empty for a cloud that needs none."
+            placeholder="Paste a service-account key…"
+            autosize
+            minRows={2}
+            maxRows={6}
+            value={credential}
+            onChange={(e) => setCredential(e.currentTarget.value)}
+          />
           <Text size="xs" c="dimmed">
             Added to the list — it is connected when you Save.
           </Text>

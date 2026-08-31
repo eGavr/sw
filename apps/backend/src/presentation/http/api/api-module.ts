@@ -85,6 +85,7 @@ import {
 import {
     ObjectStorageGatewayProvider,
 } from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
+import { SecretStoreProvider } from "../../../infrastructure/gateways/secret-store/secret-store-provider";
 import { WebDriverClient } from "../../../infrastructure/gateways/webdriver-session/webdriver-client";
 import {
     WebDriverSessionGatewayImpl,
@@ -172,6 +173,7 @@ import {
         { provide: WebDriverSessionGateway, useClass: WebDriverSessionGatewayImpl },
         { provide: CloudCatalog, useClass: RegisteredCloudCatalog },
         ObjectStorageGatewayProvider,
+        SecretStoreProvider,
 
         ProjectDataSource,
         EnvironmentDataSource,

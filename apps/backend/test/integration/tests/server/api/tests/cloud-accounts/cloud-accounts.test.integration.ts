@@ -1,6 +1,10 @@
 import { HttpStatus } from "@nestjs/common";
 import request from "supertest";
 
+import { SecretStore } from "../../../../../../../src/application/interfaces/gateways/secret-store";
+import {
+    CloudAccountDataSource,
+} from "../../../../../../../src/infrastructure/data-sources/database/postgres/cloud-account-data-source";
 import { ApiModule } from "../../../../../../../src/presentation/http/api/api-module";
 import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
@@ -107,6 +111,45 @@ describe("/projects/:project/cloudAccounts", () => {
 
         // A second local provides the same linux/container -> overlaps the first -> rejected.
         return connect(uid, owner, "local").expect(HttpStatus.CONFLICT);
+    });
+
+    test("stores the connect credential in the secret store, persisting only a reference, never the secret", async () => {
+        const { owner, uid } = await seedProject();
+        const material = "yc-service-account-key-json-blob";
+
+        const created = (await request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts`).set(owner)
+            .send({ type: "local", credential: material }).expect(HttpStatus.CREATED)).body;
+
+        // The secret is never on the wire — not on create, get, or list.
+        expect(created).not.toHaveProperty("credential");
+        expect(created).not.toHaveProperty("credentialRef");
+        const fetched = (await request(app.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
+        expect(fetched).not.toHaveProperty("credential");
+        expect(fetched).not.toHaveProperty("credentialRef");
+
+        // What is persisted is a reference, not the secret; the reference resolves back to the material.
+        const stored = await app.app.get(CloudAccountDataSource).findOne(created.uid);
+        expect(stored?.credentialRef).toEqual(expect.any(String));
+        expect(stored?.credentialRef).not.toEqual(material);
+        expect(await app.app.get(SecretStore).resolve(stored!.credentialRef!)).toEqual(material);
+    });
+
+    test("connects a credential-free cloud without a reference", async () => {
+        const { owner, uid } = await seedProject();
+        const created = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
+
+        const stored = await app.app.get(CloudAccountDataSource).findOne(created.uid);
+        expect(stored?.credentialRef).toBeNull();
+    });
+
+    test("rejects an empty credential with INVALID_ARGUMENT", async () => {
+        const { owner, uid } = await seedProject();
+
+        return request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts`).set(owner)
+            .send({ type: "local", credential: "" }).expect(HttpStatus.BAD_REQUEST);
     });
 
     test("rejects an unknown cloud type with INVALID_ARGUMENT", async () => {

@@ -7,3 +7,4 @@ node_modules
 # Static ffmpeg binaries served to environments for video recording (large, fetched, not source).
 **/bin/ffmpeg/ffmpeg-*
 .dev-storage/
+.dev-secrets/

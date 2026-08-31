@@ -356,11 +356,13 @@ export function listCloudAccounts(project: string): Promise<Array<CloudAccount>>
   ).then((d) => d.cloudAccounts ?? []);
 }
 
-export function connectCloud(project: string, type: string): Promise<CloudAccount> {
+// `credential` is the cloud's own secret (e.g. a service-account key); it goes to the secret store on the
+// server and is never persisted or returned — omit it for a cloud that needs none (e.g. local docker).
+export function connectCloud(project: string, type: string, credential?: string): Promise<CloudAccount> {
   return swRequest<CloudAccount>(`v1/projects/${project}/cloudAccounts`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ type }),
+    body: JSON.stringify(credential ? { type, credential } : { type }),
   });
 }
 

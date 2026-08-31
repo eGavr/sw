@@ -4,7 +4,9 @@ import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-accou
 import { CloudAccountId } from "../../../domain/entities/cloud-account/cloud-account-id";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentStateReason } from "../../../domain/entities/environment/environment-state-reason";
+import { CloudCredential } from "../../interfaces/gateways/cloud-credential";
 import { EnvironmentProviderGateway } from "../../interfaces/gateways/environment-provider-gateway";
+import { SecretStore } from "../../interfaces/gateways/secret-store";
 import { Logger } from "../../interfaces/logger";
 import { CloudAccountRepository } from "../../interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
@@ -18,6 +20,7 @@ export class PrepareNextEnvironmentUseCase {
         private readonly environmentRepository: EnvironmentRepository,
         private readonly cloudAccountRepository: CloudAccountRepository,
         private readonly environmentProviderGateway: EnvironmentProviderGateway,
+        private readonly secretStore: SecretStore,
         private readonly logger: Logger,
     ) {}
 
@@ -31,7 +34,13 @@ export class PrepareNextEnvironmentUseCase {
         this.logger.log(`prepare: provisioning environment ${environment.id}`);
 
         try {
-            await this.environmentProviderGateway.provision(environment, await this.cloudAccountFor(environment));
+            const cloudAccount = await this.cloudAccountFor(environment);
+
+            await this.environmentProviderGateway.provision(
+                environment,
+                cloudAccount,
+                await this.credentialFor(cloudAccount),
+            );
             environment.markDispatched();
             await this.environmentRepository.save(environment);
             this.logger.log(`prepare: environment ${environment.id} dispatched, awaiting agent`);
@@ -52,6 +61,16 @@ export class PrepareNextEnvironmentUseCase {
         }
 
         return this.cloudAccountRepository.get(CloudAccountId.fromString(environment.cloudAccountId));
+    }
+
+    private async credentialFor(cloudAccount: CloudAccount | null): Promise<CloudCredential | null> {
+        if (!cloudAccount?.credentialRef) {
+            return null;
+        }
+
+        const material = await this.secretStore.resolve(cloudAccount.credentialRef);
+
+        return material === null ? null : CloudCredential.of(material);
     }
 }
 

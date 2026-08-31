@@ -35,7 +35,7 @@ export class CloudAccountsController {
     ): Promise<CloudAccountPresenter> {
         return new CloudAccountPresenter(await this.createCloudAccountUseCase.execute({
             creds: { token },
-            params: { projectId: project, type: body.type, config: body.config },
+            params: { projectId: project, type: body.type, config: body.config, credential: body.credential },
         }));
     }
 
