@@ -1,5 +1,8 @@
-import { Body, Controller, Get, Param, Patch } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch } from "@nestjs/common";
 
+import {
+    DeleteProjectStorageDestinationUseCase,
+} from "../../../../../application/use-cases/storage-destinations/delete-project-storage-destination-use-case";
 import {
     GetProjectStorageDestinationUseCase,
 } from "../../../../../application/use-cases/storage-destinations/get-project-storage-destination-use-case";
@@ -12,12 +15,14 @@ import { SetStorageDestinationRequestModel } from "./io/set-storage-destination-
 import { StorageDestinationPresenter } from "./io/storage-destination-presenter";
 
 // AIP-156 singleton sub-resource: projects/{project}/storageDestination. It has no id and no Create/List
-// — Get reads it and Update (PATCH) registers or replaces it (the first PATCH configures it).
+// — Get reads it, Update (PATCH) registers or replaces it (the first PATCH configures it), and Delete
+// clears it (back to unconfigured — nothing written until set again).
 @Controller("projects/:project/storageDestination")
 export class StorageDestinationController {
     constructor(
         private readonly getUseCase: GetProjectStorageDestinationUseCase,
         private readonly setUseCase: SetProjectStorageDestinationUseCase,
+        private readonly deleteUseCase: DeleteProjectStorageDestinationUseCase,
     ) {}
 
     @Get()
@@ -45,5 +50,11 @@ export class StorageDestinationController {
         });
 
         return new StorageDestinationPresenter(destination, project);
+    }
+
+    @Delete()
+    @HttpCode(HttpStatus.NO_CONTENT)
+    async clear(@Param("project") project: string, @BearerToken() token: string): Promise<void> {
+        await this.deleteUseCase.execute({ creds: { token }, params: { projectId: project } });
     }
 }

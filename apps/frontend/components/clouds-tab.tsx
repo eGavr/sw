@@ -14,6 +14,7 @@ import {
   Stack,
   Table,
   Text,
+  Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
@@ -88,12 +89,13 @@ export function CloudsTab({ project }: { project: string }) {
   };
 
   return (
-    <Stack>
-      <Group justify="flex-end">
-        <Button leftSection={<IconPlus size={16} />} onClick={openConnect}>
-          Connect cloud
-        </Button>
-      </Group>
+    <Stack gap="sm">
+      <Box>
+        <Title order={4}>Cloud</Title>
+        <Text size="sm" c="dimmed">
+          Where this project&apos;s environments run. Connect a cloud to create environments on it.
+        </Text>
+      </Box>
 
       {clouds.error && <Alert color="red">{(clouds.error as Error).message}</Alert>}
       {disconnect.error && <Alert color="red">{(disconnect.error as Error).message}</Alert>}
@@ -146,6 +148,17 @@ export function CloudsTab({ project }: { project: string }) {
         </Table>
       )}
 
+      <Group>
+        <Button
+          variant="light"
+          size="compact-sm"
+          leftSection={<IconPlus size={14} />}
+          onClick={openConnect}
+        >
+          Connect a cloud
+        </Button>
+      </Group>
+
       <Modal
         opened={connectOpened}
         onClose={() => {
@@ -180,6 +193,7 @@ export function CloudsTab({ project }: { project: string }) {
               Cancel
             </Button>
             <Button
+              variant="light"
               disabled={!selectedType}
               loading={connect.isPending}
               onClick={() => selectedType && connect.mutate(selectedType)}

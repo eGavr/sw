@@ -316,6 +316,11 @@ export function updateStorageDestination(
   });
 }
 
+// Clears the destination — the project keeps no storage (logs/video are not saved) until one is set.
+export function clearStorageDestination(project: string): Promise<void> {
+  return swRequest<void>(`v1/projects/${project}/storageDestination`, { method: "DELETE" });
+}
+
 export function listCloudTypes(): Promise<Array<CloudType>> {
   return swRequest<{ cloudTypes?: Array<CloudType> }>("v1/cloudTypes").then((d) => d.cloudTypes ?? []);
 }

@@ -19,4 +19,8 @@ export class StorageDestinationRepositoryWithDefault extends StorageDestinationR
     save(projectId: ProjectId, destination: StorageDestination): Promise<void> {
         return this.base.save(projectId, destination);
     }
+
+    delete(projectId: ProjectId): Promise<void> {
+        return this.base.delete(projectId);
+    }
 }

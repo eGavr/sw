@@ -7,4 +7,7 @@ export abstract class StorageDestinationRepository {
     abstract find(projectId: ProjectId): Promise<StorageDestination | null>;
 
     abstract save(projectId: ProjectId, destination: StorageDestination): Promise<void>;
+
+    // Clears the project's destination (back to unconfigured — no artifacts stored). Idempotent.
+    abstract delete(projectId: ProjectId): Promise<void>;
 }

@@ -74,6 +74,23 @@ describe("/projects/:project/storageDestination", () => {
         expect(get.body).toEqual(set.body);
     });
 
+    test("DELETE clears the destination — Get is NOT_FOUND again", async () => {
+        const owner = Authorization.forUser(UserFactory.createId());
+        const project = await createProject(owner);
+
+        await request(app.getHttpServer()).patch(path(project)).set(owner).send(destinationBody()).expect(HttpStatus.OK);
+        await request(app.getHttpServer()).delete(path(project)).set(owner).expect(HttpStatus.NO_CONTENT);
+
+        await request(app.getHttpServer()).get(path(project)).set(owner).expect(HttpStatus.NOT_FOUND);
+    });
+
+    test("DELETE is idempotent — clearing an unconfigured destination is fine", async () => {
+        const owner = Authorization.forUser(UserFactory.createId());
+        const project = await createProject(owner);
+
+        await request(app.getHttpServer()).delete(path(project)).set(owner).expect(HttpStatus.NO_CONTENT);
+    });
+
     test("PATCH replaces an existing destination", async () => {
         const owner = Authorization.forUser(UserFactory.createId());
         const project = await createProject(owner);
