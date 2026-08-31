@@ -147,8 +147,8 @@ export function SessionsTab({
               onKilled={onKilled}
               height="calc(100vh - 26rem)"
               controls={alive !== false}
-              fullScreenHref={`/projects/${project}/viewer?${
-                environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(id)}`
+              fullScreenHref={`/projects/${project}/viewer?session=${encodeURIComponent(id)}${
+                environmentUid ? `&env=${environmentUid}` : ""
               }`}
             />}
           </Tabs.Panel>

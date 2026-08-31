@@ -48,7 +48,9 @@ export function SessionViewer({
   // Back lands on the Sessions tab with this very session pre-filled; liveness decides the tab there
   // (a live session reopens its view, a finished one lands on the logs).
   const backHref = sessionId
-    ? `/projects/${project}?tab=sessions&session=${encodeURIComponent(sessionId)}`
+    ? `/projects/${project}?tab=sessions&session=${encodeURIComponent(sessionId)}${
+        environmentUid ? `&env=${environmentUid}` : ""
+      }`
     : `/projects/${project}?tab=sessions`;
 
   const onKilled = (): void => {
