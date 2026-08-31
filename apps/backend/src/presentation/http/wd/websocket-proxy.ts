@@ -52,6 +52,10 @@ export function resolveWebSocketUpgrade(url: string): WebSocketUpgrade | null {
 @Injectable()
 export class WebSocketProxy {
     private readonly server = new WebSocketServer({ noServer: true });
+    // This instance's own pipes, by session — plain in-process bookkeeping (the sockets already live
+    // here), so a delete handled by this instance can sever them the same moment. Pipes held by other
+    // wd instances are the watchdog's job; there is deliberately no shared state to signal across.
+    private readonly pipes = new Map<string, Set<WebSocket>>();
     private readonly pipeLivenessIntervalMs: number;
 
     constructor(
@@ -90,9 +94,30 @@ export class WebSocketProxy {
         this.server.handleUpgrade(request, socket, head, (client) => this.pipe(client, upgrade));
     }
 
+    // Instantly close every pipe this instance holds for the session (the delete moment); each close
+    // cascades to its upstream through the regular close forwarding.
+    severFor(endpoint: string, webDriverSessionId: string): void {
+        const key = this.pipeKey(endpoint, webDriverSessionId);
+
+        for (const client of this.pipes.get(key) ?? []) {
+            client.close(1000, "session ended");
+        }
+
+        this.pipes.delete(key);
+    }
+
+    private pipeKey(endpoint: string, webDriverSessionId: string): string {
+        return `${endpoint}|${webDriverSessionId}`;
+    }
+
     private pipe(client: WebSocket, upgrade: WebSocketUpgrade): void {
         const upstream = new WebSocket(upgrade.target);
         const pending: Array<{ data: RawData; isBinary: boolean }> = [];
+        const key = this.pipeKey(upgrade.endpoint, upgrade.webDriverSessionId);
+        const siblings = this.pipes.get(key) ?? new Set<WebSocket>();
+
+        siblings.add(client);
+        this.pipes.set(key, siblings);
 
         // The pipe lives exactly as long as its session: once the session dies the capability that
         // opened this pipe is spent, whatever the display underneath keeps showing.
@@ -130,6 +155,12 @@ export class WebSocketProxy {
 
         client.on("close", (code, reason) => {
             clearInterval(watchdog);
+            siblings.delete(client);
+
+            if (siblings.size === 0) {
+                this.pipes.delete(key);
+            }
+
             this.forwardClose(upstream, code, reason);
         });
         upstream.on("close", (code, reason) => {

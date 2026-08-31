@@ -3,6 +3,7 @@ import { AddressInfo } from "node:net";
 
 import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import request from "supertest";
 import { WebSocket, WebSocketServer } from "ws";
 
 import {
@@ -36,7 +37,11 @@ describe("websocket pipe liveness", () => {
 
     beforeEach(async () => {
         upstreamConnections = 0;
-        upstream = createServer();
+        // Answers HTTP too (the session DELETE the severing test proxies through to the node).
+        upstream = createServer((request, response) => {
+            response.writeHead(200, { "content-type": "application/json" });
+            response.end("{\"value\":null}");
+        });
         upstreamSockets = new WebSocketServer({ server: upstream });
         upstreamSockets.on("connection", () => {
             upstreamConnections += 1;
@@ -99,6 +104,20 @@ describe("websocket pipe liveness", () => {
 
         await closedWith(client);
         expect(upstreamConnections).toBe(0);
+    });
+
+    test("a delete through this instance severs its pipes the same moment", async () => {
+        const client = connect();
+        await new Promise<void>((resolve) => client.on("open", () => resolve()));
+        await until(() => upstreamConnections === 1);
+
+        // The probe keeps answering "alive", so a close can only come from the delete-severing path,
+        // never from the watchdog.
+        const sessionId = SessionRoute.encode(`http://127.0.0.1:${upstreamPort}`, wdSessionId);
+        const closing = closedWith(client);
+        await request(app.getHttpServer()).delete(`/sessions/${sessionId}`).expect(200);
+
+        expect(await closing).toBe(1000);
     });
 
     test("tears an established pipe down once its session dies", async () => {
