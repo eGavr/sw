@@ -1,7 +1,7 @@
 "use client";
 
-import { Alert, Button, Loader, Stack, Tabs, Text, TextInput } from "@mantine/core";
-import { IconMaximize } from "@tabler/icons-react";
+import { Loader, Stack, Tabs, Text, TextInput } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -33,7 +33,6 @@ export function SessionsTab({
   const queryClient = useQueryClient();
 
   const [sessionId, setSessionId] = useState(initialSessionId ?? "");
-  const [killed, setKilled] = useState(false);
 
   // Deep-linked by environment only: ask the api for the environment's current session (creator-only
   // endpoint) and seed the input with it, as if the user pasted the id.
@@ -76,7 +75,8 @@ export function SessionsTab({
       addFreeing(environmentUid);
     }
 
-    setKilled(true);
+    // A receipt, not page state: a toast appears and leaves on its own — the layout never jumps.
+    notifications.show({ color: "green", message: "Session deleted", autoClose: 4_000 });
     void queryClient.invalidateQueries({ queryKey: ["environments", project] });
   };
 
@@ -85,13 +85,9 @@ export function SessionsTab({
       <TextInput
         placeholder="session id…"
         value={sessionId}
-        onChange={(e) => {
-          setSessionId(e.currentTarget.value);
-          setKilled(false);
-        }}
+        onChange={(e) => setSessionId(e.currentTarget.value)}
       />
 
-      {killed && <Alert color="green">Session deleted.</Alert>}
       {recovery.isLoading && <Loader size="sm" />}
       {recovery.error && (
         <Text c="dimmed" size="sm">
@@ -136,20 +132,9 @@ export function SessionsTab({
               sessionId={id}
               onKilled={onKilled}
               height="calc(100vh - 26rem)"
-              railHeader={
-                <Button
-                  component="a"
-                  href={`/projects/${project}/viewer?${
-                    environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(id)}`
-                  }`}
-                  target="_blank"
-                  variant="default"
-                  size="compact-sm"
-                  leftSection={<IconMaximize size={14} />}
-                >
-                  Open full screen
-                </Button>
-              }
+              fullScreenHref={`/projects/${project}/viewer?${
+                environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(id)}`
+              }`}
             />}
           </Tabs.Panel>
         </Tabs>
