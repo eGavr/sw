@@ -15,6 +15,9 @@ import {
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
 import { CreateSessionUseCase } from "../../../application/use-cases/sessions/create-session-use-case";
+import {
+    ProbeSessionLivenessUseCase,
+} from "../../../application/use-cases/sessions/probe-session-liveness-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
@@ -84,6 +87,7 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
     controllers: [SessionsController, InteractiveController],
     providers: [
         CreateSessionUseCase,
+        ProbeSessionLivenessUseCase,
 
         AccessControl,
 
