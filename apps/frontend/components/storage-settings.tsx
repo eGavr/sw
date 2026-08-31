@@ -2,7 +2,7 @@
 
 import { ActionIcon, Alert, Anchor, Box, Button, Group, Loader, Stack, Text, TextInput, Title, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconPencil, IconPlus } from "@tabler/icons-react";
+import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -107,6 +107,18 @@ export function StorageSettings({ project }: { project: string }) {
           </ActionIcon>
         </Tooltip>
       )}
+      {editing && current && (
+        <Button
+          variant="subtle"
+          color="red"
+          size="compact-sm"
+          leftSection={<IconTrash size={14} />}
+          loading={remove.isPending}
+          onClick={() => remove.mutate()}
+        >
+          Remove
+        </Button>
+      )}
     </Group>
   );
 
@@ -204,17 +216,6 @@ export function StorageSettings({ project }: { project: string }) {
           How to grant access with a bucket policy
         </Anchor>
         <Group gap="xs">
-          {current && (
-            <Button
-              variant="subtle"
-              color="red"
-              size="compact-sm"
-              loading={remove.isPending}
-              onClick={() => remove.mutate()}
-            >
-              Remove
-            </Button>
-          )}
           <Button
             variant="default"
             size="compact-sm"

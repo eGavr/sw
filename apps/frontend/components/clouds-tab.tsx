@@ -15,9 +15,10 @@ import {
   Table,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -46,6 +47,9 @@ export function CloudsTab({ project }: { project: string }) {
   const queryClient = useQueryClient();
   const [connectOpened, { open: openConnect, close: closeConnect }] = useDisclosure(false);
   const [detailsOpened, { open: openDetails, close: closeDetails }] = useDisclosure(false);
+  // Quiet by default: the connect/disconnect affordances only show while managing (pencil), so the
+  // block reads the same as the others — pencil to edit, done to return to read mode.
+  const [managing, setManaging] = useState(false);
 
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selected, setSelected] = useState<CloudAccount | null>(null);
@@ -90,12 +94,25 @@ export function CloudsTab({ project }: { project: string }) {
 
   return (
     <Stack gap="sm">
-      <Box>
-        <Title order={4}>Cloud</Title>
-        <Text size="sm" c="dimmed">
-          Where this project&apos;s environments run. Connect a cloud to create environments on it.
-        </Text>
-      </Box>
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <Box>
+          <Title order={4}>Cloud</Title>
+          <Text size="sm" c="dimmed">
+            Where this project&apos;s environments run. Connect a cloud to create environments on it.
+          </Text>
+        </Box>
+        {managing ? (
+          <Button variant="subtle" color="gray" size="compact-sm" onClick={() => setManaging(false)}>
+            Done
+          </Button>
+        ) : (
+          <Tooltip label="Edit">
+            <ActionIcon variant="subtle" color="gray" aria-label="Edit clouds" onClick={() => setManaging(true)}>
+              <IconPencil size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+      </Group>
 
       {clouds.error && <Alert color="red">{(clouds.error as Error).message}</Alert>}
       {disconnect.error && <Alert color="red">{(disconnect.error as Error).message}</Alert>}
@@ -109,7 +126,7 @@ export function CloudsTab({ project }: { project: string }) {
               <Table.Th>Cloud</Table.Th>
               <Table.Th>Provides</Table.Th>
               <Table.Th>Connected</Table.Th>
-              <Table.Th />
+              {managing && <Table.Th />}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -122,22 +139,24 @@ export function CloudsTab({ project }: { project: string }) {
                   <SubstrateBadges provides={cloud.provides} />
                 </Table.Td>
                 <Table.Td>{new Date(cloud.createTime).toLocaleDateString()}</Table.Td>
-                <Table.Td onClick={(e) => e.stopPropagation()}>
-                  <ActionIcon
-                    variant="subtle"
-                    color="red"
-                    aria-label="Disconnect cloud"
-                    loading={disconnect.isPending && disconnect.variables === cloud.uid}
-                    onClick={() => disconnect.mutate(cloud.uid)}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Table.Td>
+                {managing && (
+                  <Table.Td onClick={(e) => e.stopPropagation()}>
+                    <ActionIcon
+                      variant="subtle"
+                      color="red"
+                      aria-label="Disconnect cloud"
+                      loading={disconnect.isPending && disconnect.variables === cloud.uid}
+                      onClick={() => disconnect.mutate(cloud.uid)}
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Table.Td>
+                )}
               </Table.Tr>
             ))}
             {rows.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={4}>
+                <Table.Td colSpan={managing ? 4 : 3}>
                   <Text c="dimmed" size="sm" ta="center" py="sm">
                     No clouds connected — connect one to create environments
                   </Text>
@@ -148,16 +167,18 @@ export function CloudsTab({ project }: { project: string }) {
         </Table>
       )}
 
-      <Group>
-        <Button
-          variant="light"
-          size="compact-sm"
-          leftSection={<IconPlus size={14} />}
-          onClick={openConnect}
-        >
-          Connect a cloud
-        </Button>
-      </Group>
+      {managing && (
+        <Group>
+          <Button
+            variant="light"
+            size="compact-sm"
+            leftSection={<IconPlus size={14} />}
+            onClick={openConnect}
+          >
+            Connect a cloud
+          </Button>
+        </Group>
+      )}
 
       <Modal
         opened={connectOpened}
