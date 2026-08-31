@@ -17,6 +17,9 @@ import {
     SessionOwnershipRepository,
 } from "../../../../../../../src/application/interfaces/repositories/session-ownership-repository";
 import {
+    StorageDestinationRepository,
+} from "../../../../../../../src/application/interfaces/repositories/storage-destination-repository";
+import {
     RecordEnvironmentHeartbeatUseCase,
 } from "../../../../../../../src/application/use-cases/environments/record-environment-heartbeat-use-case";
 import {
@@ -28,6 +31,7 @@ import {
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
+import { StorageDestination } from "../../../../../../../src/domain/entities/storage/storage-destination";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
 import {
@@ -155,8 +159,8 @@ describe("local dev storage (LOG_STORAGE=fs)", () => {
         await apiApp.close();
     });
 
-    // A project (grant-all owner) with one environment, seeded through the shared Postgres — no
-    // storage destination configured, which is the whole point.
+    // A project (grant-all owner) with a configured storage destination and one environment, seeded
+    // through the shared Postgres — the honest dev flow (storage is configured, not defaulted).
     const seed = async (): Promise<{ owner: { authorization: string }, projectUid: string, environmentId: string }> => {
         const externalId = UserFactory.createId();
         const projectRepository = internalApp.get(ProjectRepository);
@@ -165,6 +169,11 @@ describe("local dev storage (LOG_STORAGE=fs)", () => {
             createdBy: User.create({ externalId, providerType: "local" }),
         });
         await projectRepository.save(project);
+
+        await internalApp.get(StorageDestinationRepository).save(
+            ProjectId.fromString(project.id),
+            StorageDestination.create({ bucket: "dev-artifacts" }),
+        );
 
         const environment = await internalApp.get(EnvironmentRepository).create({
             projectId: ProjectId.fromString(project.id),
@@ -175,7 +184,7 @@ describe("local dev storage (LOG_STORAGE=fs)", () => {
         return { owner: Authorization.forUser(externalId), projectUid: project.id, environmentId: environment.id };
     };
 
-    test("logs uploaded by the agent are read back through the api, no destination configured", async () => {
+    test("logs uploaded by the agent are read back through the api across processes", async () => {
         const { owner, projectUid, environmentId } = await seed();
 
         const { body: uploaded } = await request(internalApp.getHttpServer())
@@ -195,7 +204,7 @@ describe("local dev storage (LOG_STORAGE=fs)", () => {
         expect(body).toEqual({ content: logs });
     });
 
-    test("video uploaded by the agent streams back through the api, no destination configured", async () => {
+    test("video uploaded by the agent streams back through the api across processes", async () => {
         const { owner, projectUid, environmentId } = await seed();
 
         await request(internalApp.getHttpServer())

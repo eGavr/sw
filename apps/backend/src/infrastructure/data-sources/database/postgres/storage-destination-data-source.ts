@@ -21,4 +21,8 @@ export class StorageDestinationDataSource {
 
         return row?.toObject() ?? null;
     }
+
+    async delete(projectId: string): Promise<void> {
+        await this.dataSource.getRepository(StorageDestination).delete({ projectId });
+    }
 }

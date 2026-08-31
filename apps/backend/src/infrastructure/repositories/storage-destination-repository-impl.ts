@@ -29,4 +29,8 @@ export class StorageDestinationRepositoryImpl extends StorageDestinationReposito
     async save(projectId: ProjectId, destination: StorageDestination): Promise<void> {
         await this.storageDestinationDataSource.save(projectId.getValue(), destination);
     }
+
+    async delete(projectId: ProjectId): Promise<void> {
+        await this.storageDestinationDataSource.delete(projectId.getValue());
+    }
 }

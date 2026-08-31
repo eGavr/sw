@@ -14,9 +14,12 @@ import {
   Stack,
   Table,
   Text,
+  Title,
+  Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
+import { IconArrowBackUp, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -45,6 +48,12 @@ export function CloudsTab({ project }: { project: string }) {
   const queryClient = useQueryClient();
   const [connectOpened, { open: openConnect, close: closeConnect }] = useDisclosure(false);
   const [detailsOpened, { open: openDetails, close: closeDetails }] = useDisclosure(false);
+  // Quiet by default: the connect/disconnect affordances only show while managing (pencil). Changes are
+  // STAGED — connecting adds a pending row, the trash marks a row for removal — and applied on Save, so
+  // the block reads like the others (pencil to edit, Cancel/Save to leave).
+  const [managing, setManaging] = useState(false);
+  const [pendingConnect, setPendingConnect] = useState<Array<string>>([]);
+  const [pendingRemove, setPendingRemove] = useState<Set<string>>(new Set());
 
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selected, setSelected] = useState<CloudAccount | null>(null);
@@ -61,26 +70,64 @@ export function CloudsTab({ project }: { project: string }) {
     staleTime: Infinity,
   });
 
-  const invalidate = (): Promise<void> =>
-    queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] });
-
-  const connect = useMutation({
-    mutationFn: (type: string) => connectCloud(project, type),
-    onSuccess: async () => {
-      await invalidate();
-      closeConnect();
-      setSelectedType(null);
-    },
-  });
-
-  const disconnect = useMutation({
-    mutationFn: (cloudAccount: string) => disconnectCloud(project, cloudAccount),
-    onSuccess: invalidate,
-  });
-
   const rows = clouds.data ?? [];
   const catalogue = cloudTypes.data ?? [];
   const selectedCatalogueEntry = catalogue.find((t) => t.type === selectedType);
+  const providesFor = (type: string): Array<Substrate> =>
+    catalogue.find((t) => t.type === type)?.provides ?? [];
+
+  const hasChanges = pendingConnect.length > 0 || pendingRemove.size > 0;
+
+  const clearPending = (): void => {
+    setPendingConnect([]);
+    setPendingRemove(new Set());
+  };
+
+  const toggleRemove = (uid: string): void => {
+    const next = new Set(pendingRemove);
+    if (next.has(uid)) {
+      next.delete(uid);
+    } else {
+      next.add(uid);
+    }
+    setPendingRemove(next);
+  };
+
+  // Apply the staged changes on Save: removals then connections, all attempted, the first failure
+  // surfaced. Whatever the outcome, refresh from the server and leave managing — the table then shows
+  // the real state.
+  const save = useMutation({
+    mutationFn: async () => {
+      const results = await Promise.allSettled([
+        ...[...pendingRemove].map((uid) => disconnectCloud(project, uid)),
+        ...pendingConnect.map((type) => connectCloud(project, type)),
+      ]);
+      const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+      if (failed) {
+        throw failed.reason instanceof Error ? failed.reason : new Error(String(failed.reason));
+      }
+    },
+    onError: (error) =>
+      notifications.show({ color: "red", title: "Some cloud changes failed", message: (error as Error).message }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] });
+      clearPending();
+      setManaging(false);
+    },
+  });
+
+  const addPending = (): void => {
+    if (selectedType) {
+      setPendingConnect([...pendingConnect, selectedType]);
+    }
+    closeConnect();
+    setSelectedType(null);
+  };
+
+  const cancel = (): void => {
+    clearPending();
+    setManaging(false);
+  };
 
   const show = (cloud: CloudAccount): void => {
     setSelected(cloud);
@@ -88,15 +135,39 @@ export function CloudsTab({ project }: { project: string }) {
   };
 
   return (
-    <Stack>
-      <Group justify="flex-end">
-        <Button leftSection={<IconPlus size={16} />} onClick={openConnect}>
-          Connect cloud
-        </Button>
+    <Stack gap="sm">
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <Box>
+          <Title order={4}>Cloud</Title>
+          <Text size="sm" c="dimmed">
+            Where this project&apos;s environments run. Connect a cloud to create environments on it.
+          </Text>
+        </Box>
+        {managing ? (
+          <Group gap="xs">
+            <Button variant="default" size="compact-sm" onClick={cancel}>
+              Cancel
+            </Button>
+            <Button
+              variant="light"
+              size="compact-sm"
+              loading={save.isPending}
+              disabled={!hasChanges}
+              onClick={() => save.mutate()}
+            >
+              Save
+            </Button>
+          </Group>
+        ) : (
+          <Tooltip label="Edit">
+            <ActionIcon variant="subtle" color="gray" aria-label="Edit clouds" onClick={() => setManaging(true)}>
+              <IconPencil size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
       </Group>
 
       {clouds.error && <Alert color="red">{(clouds.error as Error).message}</Alert>}
-      {disconnect.error && <Alert color="red">{(disconnect.error as Error).message}</Alert>}
 
       {clouds.isLoading ? (
         <Loader size="sm" />
@@ -107,35 +178,79 @@ export function CloudsTab({ project }: { project: string }) {
               <Table.Th>Cloud</Table.Th>
               <Table.Th>Provides</Table.Th>
               <Table.Th>Connected</Table.Th>
-              <Table.Th />
+              {managing && <Table.Th />}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {rows.map((cloud) => (
-              <Table.Tr key={cloud.uid} style={{ cursor: "pointer" }} onClick={() => show(cloud)}>
-                <Table.Td>
-                  <Badge variant="light">{cloud.type}</Badge>
-                </Table.Td>
-                <Table.Td>
-                  <SubstrateBadges provides={cloud.provides} />
-                </Table.Td>
-                <Table.Td>{new Date(cloud.createTime).toLocaleDateString()}</Table.Td>
-                <Table.Td onClick={(e) => e.stopPropagation()}>
-                  <ActionIcon
-                    variant="subtle"
-                    color="red"
-                    aria-label="Disconnect cloud"
-                    loading={disconnect.isPending && disconnect.variables === cloud.uid}
-                    onClick={() => disconnect.mutate(cloud.uid)}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-            {rows.length === 0 && (
+            {rows.map((cloud) => {
+              const removing = pendingRemove.has(cloud.uid);
+
+              return (
+                <Table.Tr
+                  key={cloud.uid}
+                  style={{ cursor: managing ? "default" : "pointer", opacity: removing ? 0.45 : 1 }}
+                  onClick={() => !managing && show(cloud)}
+                >
+                  <Table.Td>
+                    <Badge variant="light" td={removing ? "line-through" : undefined}>
+                      {cloud.type}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <SubstrateBadges provides={cloud.provides} />
+                  </Table.Td>
+                  <Table.Td>{new Date(cloud.createTime).toLocaleDateString()}</Table.Td>
+                  {managing && (
+                    <Table.Td onClick={(e) => e.stopPropagation()}>
+                      <Tooltip label={removing ? "Keep" : "Disconnect"}>
+                        <ActionIcon
+                          variant="subtle"
+                          color={removing ? "gray" : "red"}
+                          aria-label={removing ? "Keep cloud" : "Disconnect cloud"}
+                          onClick={() => toggleRemove(cloud.uid)}
+                        >
+                          {removing ? <IconArrowBackUp size={16} /> : <IconTrash size={16} />}
+                        </ActionIcon>
+                      </Tooltip>
+                    </Table.Td>
+                  )}
+                </Table.Tr>
+              );
+            })}
+            {managing &&
+              pendingConnect.map((type, index) => (
+                <Table.Tr key={`pending-${index}`}>
+                  <Table.Td>
+                    <Group gap={6} wrap="nowrap">
+                      <Badge variant="light" color="green">
+                        {type}
+                      </Badge>
+                      <Text size="xs" c="dimmed">
+                        will connect
+                      </Text>
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <SubstrateBadges provides={providesFor(type)} />
+                  </Table.Td>
+                  <Table.Td>—</Table.Td>
+                  <Table.Td>
+                    <Tooltip label="Remove">
+                      <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        aria-label="Remove pending cloud"
+                        onClick={() => setPendingConnect(pendingConnect.filter((_, i) => i !== index))}
+                      >
+                        <IconArrowBackUp size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            {rows.length === 0 && pendingConnect.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={4}>
+                <Table.Td colSpan={managing ? 4 : 3}>
                   <Text c="dimmed" size="sm" ta="center" py="sm">
                     No clouds connected — connect one to create environments
                   </Text>
@@ -146,11 +261,24 @@ export function CloudsTab({ project }: { project: string }) {
         </Table>
       )}
 
+      {managing && (
+        <Group>
+          <Button
+            variant="light"
+            size="compact-sm"
+            leftSection={<IconPlus size={14} />}
+            onClick={openConnect}
+          >
+            Connect a cloud
+          </Button>
+        </Group>
+      )}
+
       <Modal
         opened={connectOpened}
         onClose={() => {
           closeConnect();
-          connect.reset();
+          setSelectedType(null);
         }}
         title="Connect cloud"
       >
@@ -170,21 +298,15 @@ export function CloudsTab({ project }: { project: string }) {
               <SubstrateBadges provides={selectedCatalogueEntry.provides} />
             </Box>
           )}
-          {connect.error && (
-            <Text c="red" size="sm">
-              {(connect.error as Error).message}
-            </Text>
-          )}
+          <Text size="xs" c="dimmed">
+            Added to the list — it is connected when you Save.
+          </Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={closeConnect}>
               Cancel
             </Button>
-            <Button
-              disabled={!selectedType}
-              loading={connect.isPending}
-              onClick={() => selectedType && connect.mutate(selectedType)}
-            >
-              Connect
+            <Button variant="light" disabled={!selectedType} onClick={addPending}>
+              Add
             </Button>
           </Group>
         </Stack>

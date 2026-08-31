@@ -51,11 +51,17 @@ import {
 import { GetSessionLogsUseCase } from "../../../application/use-cases/sessions/get-session-logs-use-case";
 import { GetSessionVideoUseCase } from "../../../application/use-cases/sessions/get-session-video-use-case";
 import {
+    DeleteProjectStorageDestinationUseCase,
+} from "../../../application/use-cases/storage-destinations/delete-project-storage-destination-use-case";
+import {
     GetProjectStorageDestinationUseCase,
 } from "../../../application/use-cases/storage-destinations/get-project-storage-destination-use-case";
 import {
     SetProjectStorageDestinationUseCase,
 } from "../../../application/use-cases/storage-destinations/set-project-storage-destination-use-case";
+import {
+    TestProjectStorageDestinationUseCase,
+} from "../../../application/use-cases/storage-destinations/test-project-storage-destination-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
@@ -141,6 +147,8 @@ import {
 
         GetProjectStorageDestinationUseCase,
         SetProjectStorageDestinationUseCase,
+        DeleteProjectStorageDestinationUseCase,
+        TestProjectStorageDestinationUseCase,
 
         CreateCloudAccountUseCase,
         ListCloudAccountsUseCase,
