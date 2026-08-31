@@ -19,7 +19,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconDots, IconPlayerPlay, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { BusySessionLink } from "@/components/busy-session-link";
@@ -32,7 +32,7 @@ import {
   getEnvironmentSession,
   killSession,
   listCloudAccounts,
-  listEnvironments,
+  listEnvironmentsPage,
 } from "@/lib/sw";
 import { addFreeing, loadFreeing, removeFreeing } from "@/lib/freeing-store";
 import { shortId } from "@/lib/format";
@@ -62,9 +62,14 @@ export function EnvironmentsTab({ project }: { project: string }) {
   // and its logs/video die unshipped (the agent uploads them on session end — here it dies too).
   const [confirmTarget, setConfirmTarget] = useState<Environment | null>(null);
 
-  const environments = useQuery({
+  // The 3s poll refetches every loaded page (react-query re-runs the whole page chain on interval), so
+  // state/occupancy stay live across all loaded pages — and the freeing-marker effect and mutation
+  // invalidations below keep working over the flattened union of those pages.
+  const environments = useInfiniteQuery({
     queryKey: ["environments", project],
-    queryFn: () => listEnvironments(project),
+    queryFn: ({ pageParam }) => listEnvironmentsPage(project, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextPageToken,
     refetchInterval: 3_000,
   });
 
@@ -114,7 +119,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
       notifications.show({ color: "red", title: "Delete session", message: (error as Error).message }),
   });
 
-  const rows = environments.data ?? [];
+  const rows = environments.data?.pages.flatMap((page) => page.items) ?? [];
 
   // A freeing marker only bridges the kill -> heartbeat gap: the moment the row is seen non-busy the
   // bridge has done its job, so retire the marker then — not by TTL. Otherwise a session created
@@ -289,6 +294,21 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   <Text c="dimmed" size="sm" ta="center" py="sm">
                     No environments yet
                   </Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
+            {environments.hasNextPage && (
+              <Table.Tr>
+                <Table.Td colSpan={7} ta="center">
+                  <Button
+                    variant="subtle"
+                    color="gray"
+                    size="compact-sm"
+                    loading={environments.isFetchingNextPage}
+                    onClick={() => void environments.fetchNextPage()}
+                  >
+                    Load more
+                  </Button>
                 </Table.Td>
               </Table.Tr>
             )}

@@ -97,8 +97,24 @@ async function swRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-export function listProjects(): Promise<Array<Project>> {
-  return swRequest<{ projects?: Array<Project> }>("v1/projects").then((d) => d.projects ?? []);
+// One page of a keyset-paginated list: the items plus the token to fetch the next page (absent on the
+// last page). The API caps a page at 50 by default, so callers must follow nextPageToken to see the
+// rest — dropping it silently hides everything past the first page.
+export interface Page<T> {
+  items: Array<T>;
+  nextPageToken?: string;
+}
+
+// The keyset cursor rides as ?pageToken=; kept in one place so the param name and encoding are not
+// spelled out at every list call site.
+function pageQuery(pageToken?: string): string {
+  return pageToken ? `?pageToken=${encodeURIComponent(pageToken)}` : "";
+}
+
+export function listProjectsPage(pageToken?: string): Promise<Page<Project>> {
+  return swRequest<{ projects?: Array<Project>; nextPageToken?: string }>(
+    `v1/projects${pageQuery(pageToken)}`,
+  ).then((d) => ({ items: d.projects ?? [], nextPageToken: d.nextPageToken }));
 }
 
 export function createProject(input: { displayName: string; projectId?: string }): Promise<Project> {
@@ -109,10 +125,10 @@ export function createProject(input: { displayName: string; projectId?: string }
   });
 }
 
-export function listEnvironments(project: string): Promise<Array<Environment>> {
-  return swRequest<{ environments?: Array<Environment> }>(
-    `v1/projects/${project}/environments`,
-  ).then((d) => d.environments ?? []);
+export function listEnvironmentsPage(project: string, pageToken?: string): Promise<Page<Environment>> {
+  return swRequest<{ environments?: Array<Environment>; nextPageToken?: string }>(
+    `v1/projects/${project}/environments${pageQuery(pageToken)}`,
+  ).then((d) => ({ items: d.environments ?? [], nextPageToken: d.nextPageToken }));
 }
 
 export function createEnvironment(project: string, input: CreateEnvironmentInput): Promise<Environment> {
