@@ -12,6 +12,7 @@ import {
 import { toExecution } from "../../../domain/entities/environment/execution";
 import { defaultHeartbeatFreshnessMs } from "../../../domain/entities/environment/heartbeat-freshness";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
+import { ConflictError } from "../../../domain/entities/error/conflict-error";
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { Session } from "../../../domain/entities/session/session";
@@ -22,6 +23,15 @@ import { EnvironmentRepository } from "../../interfaces/repositories/environment
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { SessionOwnershipRepository } from "../../interfaces/repositories/session-ownership-repository";
 import { AccessControl } from "../../services/access-control";
+
+// How long allocation keeps retrying a transient shortage, and how long it waits between attempts.
+// The budget must cover one agent heartbeat interval so a just-freed environment is always caught:
+// when a caller deletes a session and immediately asks for another, the freed environment reappears
+// as free within one interval, and this retry rides over that gap instead of returning a 409 the
+// caller would retry by hand. Provided by the composition root (env-tunable).
+export class SessionAllocationRetry {
+    constructor(readonly budgetMs: number, readonly backoffMs: number) {}
+}
 
 type CreateSessionInput = {
     creds: {
@@ -47,8 +57,11 @@ const reservationConfirmIntervalMs = 3_000;
 // Pessimistic allocation. The caller asks for an application (or targets one environment with
 // sw:environmentId) and the scenario reserves a matching free environment under the storage lock, so
 // no other request can take it, then sends exactly ONE create to the node: success turns the
-// reservation into busy, failure releases it and surfaces the node's real error — no retries, no
-// swallowed causes. The node's own 1:1 limit stays as the last-resort arbiter, not the allocator.
+// reservation into busy, failure releases it and surfaces the node's real error — no create retries,
+// no swallowed causes. The node's own 1:1 limit stays as the last-resort arbiter, not the allocator.
+// Only the *find-and-reserve* phase retries, over a bounded budget, while the shortage is transient:
+// a caller who legitimately holds capacity (freed an environment a moment ago) must get a session,
+// not a 409 to retry by hand. The domain's transient(409)/permanent(400) split decides what retries.
 @Injectable()
 export class CreateSessionUseCase {
     private readonly permissionName = UserPermissionName.Session.Create;
@@ -59,6 +72,7 @@ export class CreateSessionUseCase {
         private readonly environmentRepository: EnvironmentRepository,
         private readonly sessionOwnershipRepository: SessionOwnershipRepository,
         private readonly webDriverSessionGateway: WebDriverSessionGateway,
+        private readonly retry: SessionAllocationRetry,
     ) {}
 
     async execute({ creds, params }: CreateSessionInput): Promise<Session> {
@@ -68,10 +82,57 @@ export class CreateSessionUseCase {
         await this.accessControl.authorize(user, project, this.permissionName);
 
         const projectId = ProjectId.fromString(project.id);
-
         const requested = RequestedApplication.create(params.application);
-        // Explicitly typed so `refuseTransientShortage(): never` narrows the reserved candidate below
-        // (TS only honours never-returning calls on explicitly annotated references).
+
+        const reserved = await this.reserveWithinBudget(projectId, params, requested);
+
+        const session = await this.openReservedSession(reserved, requested, {
+            logging: params.logging ?? false,
+            video: params.video ?? false,
+        });
+
+        // Ownership metadata (no secrets): who created the environment's current session — the upsert
+        // replaces the previous session's owner. Only the creator may recover the live id later.
+        await this.sessionOwnershipRepository.save(SessionOwnership.create({
+            environmentId: session.environmentId,
+            createdBy: user.externalId,
+        }));
+
+        return session;
+    }
+
+    // Keep trying to reserve a matching environment until one is taken or the budget runs out. A
+    // transient shortage (everything momentarily busy/reserved — a 409) is retried with backoff, so a
+    // just-freed environment's next heartbeat lands within the budget and gets caught. A permanent
+    // refusal (nothing offers the request, or an incompatible target — a 400) is thrown at once, and
+    // once the budget is spent the transient 409 is finally surfaced (the pool is genuinely saturated).
+    private async reserveWithinBudget(
+        projectId: ProjectId,
+        params: CreateSessionInput["params"],
+        requested: RequestedApplication,
+    ): Promise<Environment> {
+        const deadline = Date.now() + this.retry.budgetMs;
+
+        for (;;) {
+            try {
+                return await this.reserveOnce(projectId, params, requested);
+            } catch (error) {
+                if (!(error instanceof ConflictError) || Date.now() >= deadline) {
+                    throw error;
+                }
+
+                await this.wait(this.retry.backoffMs);
+            }
+        }
+    }
+
+    private async reserveOnce(
+        projectId: ProjectId,
+        params: CreateSessionInput["params"],
+        requested: RequestedApplication,
+    ): Promise<Environment> {
+        // Rebuilt each attempt so the freshness cutoff moves forward and a newly-arrived heartbeat is
+        // seen. Explicitly typed so `refuseTransientShortage(): never` narrows the reserved candidate.
         const criteria: SessionAllocationCriteria = SessionAllocationCriteria.from({
             now: new Date(),
             freshnessMs: defaultHeartbeatFreshnessMs,
@@ -95,19 +156,11 @@ export class CreateSessionUseCase {
             criteria.refuseTransientShortage();
         }
 
-        const session = await this.openReservedSession(reserved, requested, {
-            logging: params.logging ?? false,
-            video: params.video ?? false,
-        });
+        return reserved;
+    }
 
-        // Ownership metadata (no secrets): who created the environment's current session — the upsert
-        // replaces the previous session's owner. Only the creator may recover the live id later.
-        await this.sessionOwnershipRepository.save(SessionOwnership.create({
-            environmentId: session.environmentId,
-            createdBy: user.externalId,
-        }));
-
-        return session;
+    private wait(ms: number): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     // An empty pool is refused with a diagnosis: the domain decides whether the shortage is transient
