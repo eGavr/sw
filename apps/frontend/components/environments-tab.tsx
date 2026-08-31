@@ -58,6 +58,9 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const [appVersion, setAppVersion] = useState("128");
   const [execution, setExecution] = useState("container");
   const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);
+  // A busy environment's delete asks first: deprovision kills the running session with the container,
+  // and its logs/video die unshipped (the agent uploads them on session end — here it dies too).
+  const [confirmTarget, setConfirmTarget] = useState<Environment | null>(null);
 
   const environments = useQuery({
     queryKey: ["environments", project],
@@ -265,7 +268,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                           <Menu.Item
                             color="red"
                             leftSection={<IconTrash size={14} />}
-                            onClick={() => remove.mutate(handle)}
+                            onClick={() => (busy ? setConfirmTarget(e) : remove.mutate(handle))}
                           >
                             Delete environment
                           </Menu.Item>
@@ -298,6 +301,38 @@ export function EnvironmentsTab({ project }: { project: string }) {
         environment={sessionTarget}
         onClose={() => setSessionTarget(null)}
       />
+
+      <Modal
+        opened={confirmTarget !== null}
+        onClose={() => setConfirmTarget(null)}
+        title="Delete a busy environment?"
+      >
+        <Stack>
+          <Text size="sm">
+            This environment is running a session. Deleting the environment kills the session with
+            it, and the session&apos;s logs and video will not be saved.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              variant="light"
+              loading={remove.isPending}
+              onClick={() => {
+                if (confirmTarget) {
+                  remove.mutate(environmentHandle(confirmTarget));
+                }
+
+                setConfirmTarget(null);
+              }}
+            >
+              Delete environment
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
 
       <Modal opened={opened} onClose={close} title="New environment">
