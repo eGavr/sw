@@ -66,6 +66,19 @@ export function SessionsTab({
   });
   const alive = probe.isError ? false : probe.data;
 
+  // The VNC panel's shape is decided ONCE per session, by the first liveness answer, and never swaps
+  // under the user: landing on a live session keeps its raw frame for good (a death only withdraws
+  // the controls — no content yanked away), landing on a dead one shows the plain line.
+  const [verdict, setVerdict] = useState<{ id: string; live: boolean } | null>(null);
+
+  useEffect(() => {
+    if (looksLikeSessionId && alive !== undefined && verdict?.id !== id) {
+      setVerdict({ id, live: alive });
+    }
+  }, [looksLikeSessionId, alive, id, verdict]);
+
+  const landedLive = verdict?.id === id ? verdict.live : undefined;
+
   const onKilled = (): void => {
     // Bridge the heartbeat gap on the environments table: the busy hint clears in ~3s, until then
     // the row shows "freeing" (only when we know which row this session lived on — whether the id
@@ -122,17 +135,18 @@ export function SessionsTab({
           </Tabs.Panel>
 
           <Tabs.Panel value="vnc" pt="md">
-            {!alive && (
+            {landedLive === false && (
               <Text c="dimmed" size="sm">
                 The session is not active — there is no live screen.
               </Text>
             )}
             {/* The same live layout as the full-screen page, at tab scale: the screen with the whole
                 command rail beside it; full screen is one click away. */}
-            {alive && <SessionLiveView
+            {landedLive && <SessionLiveView
               sessionId={id}
               onKilled={onKilled}
               height="calc(100vh - 26rem)"
+              controls={alive !== false}
               fullScreenHref={`/projects/${project}/viewer?${
                 environmentUid ? `env=${environmentUid}` : `session=${encodeURIComponent(id)}`
               }`}
