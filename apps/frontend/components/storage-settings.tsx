@@ -32,24 +32,11 @@ function isUrl(value: string): boolean {
   }
 }
 
-// A read-only row of the configured destination.
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <Box>
-      <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-        {label}
-      </Text>
-      <Text size="sm" ff="monospace">
-        {value || "—"}
-      </Text>
-    </Box>
-  );
-}
-
-// Where the project's session logs/video are written. Quiet by default — the current destination reads
-// as a summary; a pencil opens the editable form. We never take credentials: access is delegated to our
-// identity via a bucket policy, so the form is only the location. Not configuring one is fine (removing
-// one is the "I don't want storage" path). A Test probe verifies the config actually works.
+// Where the project's session logs/video are written. The same form is shown read-only by default and
+// editable behind the pencil, so the layout does not jump — read mode is bare fields, edit mode adds the
+// hints. We never take credentials: access is delegated to our identity via a bucket policy, so the form
+// is only the location. Not configuring one is fine (removing it is the "I don't want storage" path). A
+// write probe runs on load and shows the destination's health.
 export function StorageSettings({ project }: { project: string }) {
   const queryClient = useQueryClient();
 
@@ -73,7 +60,7 @@ export function StorageSettings({ project }: { project: string }) {
     setRegion(c?.region ?? "");
   };
 
-  // Keep the form seeded from the loaded destination while not editing.
+  // Keep the read-only fields showing the loaded destination while not editing.
   useEffect(() => {
     if (!editing) {
       seedForm();
@@ -102,6 +89,13 @@ export function StorageSettings({ project }: { project: string }) {
     region: region.trim() === "" || regionPattern.test(region.trim()) ? null : "Lowercase letters, digits, hyphens",
   };
   const valid = !errors.bucket && !errors.prefix && !errors.endpoint && !errors.region;
+
+  // Dirty = the form differs from what is stored — Save stays disabled until something actually changes.
+  const dirty =
+    bucket.trim() !== (destination.data?.bucket ?? "")
+    || prefix.trim() !== (destination.data?.prefix ?? "")
+    || endpoint.trim() !== (destination.data?.endpoint ?? "")
+    || region.trim() !== (destination.data?.region ?? "");
 
   const save = useMutation({
     mutationFn: () =>
@@ -135,15 +129,20 @@ export function StorageSettings({ project }: { project: string }) {
 
   const current = destination.data;
 
-  // A real write probe, run automatically whenever the configured destination is shown — so access that
-  // was lost, or a bucket that no longer exists, surfaces as a red health badge instead of silently
-  // failing at the next session's upload. Refetchable on demand and re-run after a save.
+  // A real write probe, run automatically whenever the configured destination is shown — so lost access
+  // or a bucket that no longer exists surfaces as a red health line instead of failing silently at the
+  // next session's upload. Refetchable on demand and re-run after a save.
   const probe = useQuery({
     queryKey: ["storageProbe", project],
     queryFn: () => testStorageDestination(project),
     enabled: !editing && !!current,
     retry: false,
   });
+
+  const cancel = (): void => {
+    seedForm();
+    setEditing(false);
+  };
 
   const header = (
     <Group justify="space-between" align="flex-start" wrap="nowrap">
@@ -163,21 +162,14 @@ export function StorageSettings({ project }: { project: string }) {
       {/* The pencil turns into the edit controls in place — Cancel/Save where it was. */}
       {editing && (
         <Group gap="xs">
-          <Button
-            variant="default"
-            size="compact-sm"
-            onClick={() => {
-              seedForm();
-              setEditing(false);
-            }}
-          >
+          <Button variant="default" size="compact-sm" onClick={cancel}>
             Cancel
           </Button>
           <Button
             variant="light"
             size="compact-sm"
             loading={save.isPending}
-            disabled={!valid}
+            disabled={!valid || !dirty}
             onClick={() => save.mutate()}
           >
             Save
@@ -196,7 +188,7 @@ export function StorageSettings({ project }: { project: string }) {
     );
   }
 
-  // View: not configured — a quiet note and a subtle way to set one.
+  // Not configured and not editing — a quiet note and a subtle way to set one.
   if (!editing && !current) {
     return (
       <Stack gap="sm">
@@ -213,40 +205,91 @@ export function StorageSettings({ project }: { project: string }) {
     );
   }
 
-  // View: configured — a compact read-only summary and a live health check.
-  if (!editing && current) {
-    const health = probe.isFetching ? (
-      <Group gap={6} c="dimmed">
-        <Loader size={14} />
-        <Text size="sm">Checking storage…</Text>
-      </Group>
-    ) : probe.isError ? (
-      <Group gap={6} c="red">
-        <IconAlertTriangle size={16} />
-        <Text size="sm">{(probe.error as Error).message}</Text>
-      </Group>
-    ) : probe.data?.ok ? (
-      <Group gap={6} c="green">
-        <IconCircleCheck size={16} />
-        <Text size="sm">Reachable — we can write to it</Text>
-      </Group>
-    ) : probe.data ? (
-      <Group gap={6} c="red">
-        <IconAlertTriangle size={16} />
-        <Text size="sm">Not reachable: {probe.data.message ?? "the write probe failed"}</Text>
-      </Group>
-    ) : null;
+  const health = probe.isFetching ? (
+    <Group gap={6} c="dimmed">
+      <Loader size={14} />
+      <Text size="sm">Checking storage…</Text>
+    </Group>
+  ) : probe.isError ? (
+    <Group gap={6} c="red">
+      <IconAlertTriangle size={16} />
+      <Text size="sm">{(probe.error as Error).message}</Text>
+    </Group>
+  ) : probe.data?.ok ? (
+    <Group gap={6} c="green">
+      <IconCircleCheck size={16} />
+      <Text size="sm">Reachable — we can write to it</Text>
+    </Group>
+  ) : probe.data ? (
+    <Group gap={6} c="red">
+      <IconAlertTriangle size={16} />
+      <Text size="sm">Not reachable: {probe.data.message ?? "the write probe failed"}</Text>
+    </Group>
+  ) : null;
 
-    return (
-      <Stack gap="sm">
-        {header}
-        <Group gap="xl">
-          <Field label="Bucket" value={current.bucket} />
-          <Field label="Prefix" value={current.prefix} />
-          <Field label="Endpoint" value={current.endpoint ?? ""} />
-          <Field label="Region" value={current.region ?? ""} />
-        </Group>
-        <Group justify="space-between" align="center">
+  // The one form, read-only or editable — same layout so switching does not jump the page.
+  return (
+    <Stack gap="sm">
+      {header}
+
+      {editing &&
+        (localDev ? (
+          <Alert color="gray" variant="light" icon={<IconPlant size={16} />}>
+            Local development — the bucket is just a folder under the dev storage directory; endpoint and
+            region are ignored.
+          </Alert>
+        ) : (
+          <Alert color="gray" variant="light">
+            We write under our own identity — grant it access with a bucket policy on your bucket. No
+            credentials are entered or stored here. Works with AWS S3 and S3-compatible endpoints (e.g.
+            Yandex Object Storage).
+          </Alert>
+        ))}
+
+      <TextInput
+        label="Bucket"
+        placeholder={editing ? "my-sessions-bucket" : undefined}
+        readOnly={!editing}
+        required={editing}
+        value={bucket}
+        error={editing && bucket !== "" ? errors.bucket : null}
+        onChange={(e) => setBucket(e.currentTarget.value)}
+      />
+      <TextInput
+        label="Prefix"
+        description={editing ? "Optional path prefix under the bucket." : undefined}
+        placeholder={editing ? "sw/" : undefined}
+        readOnly={!editing}
+        value={prefix}
+        error={editing ? errors.prefix : null}
+        onChange={(e) => setPrefix(e.currentTarget.value)}
+      />
+      <Group grow align="flex-start">
+        <TextInput
+          label="Endpoint"
+          placeholder={editing ? "https://storage.yandexcloud.net" : undefined}
+          readOnly={!editing}
+          value={endpoint}
+          error={editing ? errors.endpoint : null}
+          onChange={(e) => setEndpoint(e.currentTarget.value)}
+        />
+        <TextInput
+          label="Region"
+          placeholder={editing ? "ru-central1" : undefined}
+          readOnly={!editing}
+          value={region}
+          error={editing ? errors.region : null}
+          onChange={(e) => setRegion(e.currentTarget.value)}
+        />
+      </Group>
+      {editing && (
+        <Text size="xs" c="dimmed">
+          Endpoint is optional — leave it empty for AWS S3.
+        </Text>
+      )}
+
+      {!editing && current && (
+        <Group gap="xs" align="center">
           {health}
           <Tooltip label="Re-check">
             <ActionIcon
@@ -260,88 +303,34 @@ export function StorageSettings({ project }: { project: string }) {
             </ActionIcon>
           </Tooltip>
         </Group>
-      </Stack>
-    );
-  }
-
-  // Edit: the location form (no credentials).
-  return (
-    <Stack gap="sm">
-      {header}
-
-      {localDev ? (
-        <Alert color="gray" variant="light" icon={<IconPlant size={16} />}>
-          Local development — the bucket is just a folder under the dev storage directory; endpoint and
-          region are ignored.
-        </Alert>
-      ) : (
-        <Alert color="gray" variant="light">
-          We write under our own identity — grant it access with a bucket policy on your bucket. No
-          credentials are entered or stored here. Works with AWS S3 and S3-compatible endpoints (e.g.
-          Yandex Object Storage).
-        </Alert>
       )}
 
-      <TextInput
-        label="Bucket"
-        placeholder="my-sessions-bucket"
-        required
-        value={bucket}
-        error={bucket !== "" ? errors.bucket : null}
-        onChange={(e) => setBucket(e.currentTarget.value)}
-      />
-      <TextInput
-        label="Prefix"
-        description="Optional path prefix under the bucket."
-        placeholder="sw/"
-        value={prefix}
-        error={errors.prefix}
-        onChange={(e) => setPrefix(e.currentTarget.value)}
-      />
-      <Group grow align="flex-start">
-        <TextInput
-          label="Endpoint"
-          placeholder="https://storage.yandexcloud.net"
-          value={endpoint}
-          error={errors.endpoint}
-          onChange={(e) => setEndpoint(e.currentTarget.value)}
-        />
-        <TextInput
-          label="Region"
-          placeholder="ru-central1"
-          value={region}
-          error={errors.region}
-          onChange={(e) => setRegion(e.currentTarget.value)}
-        />
-      </Group>
-      <Text size="xs" c="dimmed">
-        Endpoint is optional — leave it empty for AWS S3.
-      </Text>
-
       {/* The destructive action sits apart, bottom-right, away from Save. */}
-      <Group justify="space-between" align="center" mt="xs">
-        <Anchor
-          href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-policies.html"
-          target="_blank"
-          size="xs"
-          c="dimmed"
-        >
-          How to grant access with a bucket policy
-        </Anchor>
-        {current && (
-          <Tooltip label="Remove storage">
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              aria-label="Remove storage"
-              loading={remove.isPending}
-              onClick={() => remove.mutate()}
-            >
-              <IconTrash size={16} />
-            </ActionIcon>
-          </Tooltip>
-        )}
-      </Group>
+      {editing && (
+        <Group justify="space-between" align="center" mt="xs">
+          <Anchor
+            href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-policies.html"
+            target="_blank"
+            size="xs"
+            c="dimmed"
+          >
+            How to grant access with a bucket policy
+          </Anchor>
+          {current && (
+            <Tooltip label="Remove storage">
+              <ActionIcon
+                variant="subtle"
+                color="red"
+                aria-label="Remove storage"
+                loading={remove.isPending}
+                onClick={() => remove.mutate()}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      )}
     </Stack>
   );
 }
