@@ -8,6 +8,7 @@ import {
 import { BearerToken } from "../../../decorators/param/bearer-token";
 import { SessionRoute } from "../../../session-route";
 import { WebDriverProxy } from "../../webdriver-proxy";
+import { WebSocketProxy } from "../../websocket-proxy";
 
 import { CreateSessionRequestModel } from "./io/create-session-request-model";
 import { resolveSessionRequest } from "./io/session-capabilities";
@@ -21,6 +22,7 @@ export class SessionsController {
         private readonly createSessionUseCase: CreateSessionUseCase,
         private readonly probeSessionLivenessUseCase: ProbeSessionLivenessUseCase,
         private readonly webDriverProxy: WebDriverProxy,
+        private readonly webSocketProxy: WebSocketProxy,
     ) {}
 
     // W3C New Session returns 200 (not 201); the response is shaped to match (see SessionPresenter).
@@ -102,6 +104,12 @@ export class SessionsController {
             });
 
             response.status(upstream.status).set(upstream.headers).send(upstream.body);
+
+            // The one wd instance that witnesses the session's delete severs its own pipes the same
+            // moment (other instances' pipes are the watchdog's job — no shared state by design).
+            if (request.method === "DELETE" && tail === "" && upstream.status < 300) {
+                this.webSocketProxy.severFor(route.endpoint, route.webDriverSessionId);
+            }
         } catch {
             response.status(502).json({ error: "webdriver proxy failed" });
         }

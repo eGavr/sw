@@ -291,6 +291,11 @@ while true; do
         if [ "${recording}" = "false" ] && session_wants_video && start_recording; then recording=true; fi
     else
         if [ "${prev_busy}" = "true" ]; then
+            # FIRST thing on the session-end edge, before any artifact shipping (video finalizing can
+            # take seconds while the environment is already allocatable again): cut every VNC pipe.
+            # x11vnc serves the DISPLAY, not the session — a surviving viewer would watch the
+            # environment's next session. supervisord brings x11vnc back. Best effort.
+            pkill -x x11vnc 2>/dev/null || true
             if [ "${capture}" = "true" ] && [ -n "${session_id}" ]; then
                 ship_session_logs "${log_offset}" "${session_id}"
             elif [ "${capture}" = "true" ]; then
