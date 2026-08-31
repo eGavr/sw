@@ -17,6 +17,7 @@ export function SessionLiveView({
   onKilled,
   height,
   fullScreenHref,
+  controls = true,
   railHeader,
   railFooter,
 }: {
@@ -26,6 +27,9 @@ export function SessionLiveView({
   // When set, an arrow overlays the screen's corner and opens the full-screen view in a new tab —
   // the affordance other services use, right where the eye already is.
   fullScreenHref?: string;
+  // Withdrawn once the session is gone: commands against a dead session are noise, only the
+  // navigation chrome stays.
+  controls?: boolean;
   railHeader?: ReactNode;
   railFooter?: ReactNode;
 }) {
@@ -82,7 +86,7 @@ export function SessionLiveView({
             <Divider />
           </>
         )}
-        <SessionCommandBar vertical commands={commands} />
+        {controls && <SessionCommandBar vertical commands={commands} />}
         {railFooter}
       </Stack>
     </Group>

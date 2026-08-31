@@ -252,12 +252,19 @@ export function navigateSession(sessionId: string, url: string): Promise<void> {
   });
 }
 
-// The cheap liveness probe: one read-only WebDriver command (Get Current URL) through the stateless
-// proxy — a live session answers 200, a dead one (or a torn-down node) errors. No DB, no state.
+// The liveness probe asks the NODE's status (the wd vendor route), never the session itself: a
+// session command would count as the user's traffic and reset the idle timeout — a watcher must not
+// keep an abandoned session alive. No DB, no state, nothing done on the user's behalf.
 export async function isSessionAlive(sessionId: string): Promise<boolean> {
-  const res = await fetch(`/api/wd/sessions/${encodeURIComponent(sessionId)}/url`);
+  const res = await fetch(`/api/wd/sessions/${encodeURIComponent(sessionId)}/sw/alive`);
 
-  return res.ok;
+  if (!res.ok) {
+    return false;
+  }
+
+  const body = (await res.json()) as { alive?: boolean };
+
+  return body.alive === true;
 }
 
 export function listCloudTypes(): Promise<Array<CloudType>> {

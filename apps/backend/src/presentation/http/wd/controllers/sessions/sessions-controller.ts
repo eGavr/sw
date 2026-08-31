@@ -1,7 +1,10 @@
-import { All, Body, Controller, HttpCode, HttpStatus, Post, Req, Res } from "@nestjs/common";
+import { All, Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 
 import { CreateSessionUseCase } from "../../../../../application/use-cases/sessions/create-session-use-case";
+import {
+    ProbeSessionLivenessUseCase,
+} from "../../../../../application/use-cases/sessions/probe-session-liveness-use-case";
 import { BearerToken } from "../../../decorators/param/bearer-token";
 import { SessionRoute } from "../../../session-route";
 import { WebDriverProxy } from "../../webdriver-proxy";
@@ -16,6 +19,7 @@ import { SessionPresenter } from "./io/session-presenter";
 export class SessionsController {
     constructor(
         private readonly createSessionUseCase: CreateSessionUseCase,
+        private readonly probeSessionLivenessUseCase: ProbeSessionLivenessUseCase,
         private readonly webDriverProxy: WebDriverProxy,
     ) {}
 
@@ -43,6 +47,26 @@ export class SessionsController {
     // The same host as an http(s) origin — the hosted interactive viewer page a human opens.
     private httpBaseUrl(request: Request): string {
         return `${request.protocol}://${request.get("host") ?? ""}`;
+    }
+
+    // Vendor liveness probe (the sw/ namespace, like the se/ websocket routes): answered from the
+    // NODE's status, never by a session command — a watcher must not reset the session's idle timer
+    // or leave phantom traffic in its logs. Declared before the catch-all proxy routes.
+    @Get(":sessionId/sw/alive")
+    async sessionAlive(@Param("sessionId") sessionId: string): Promise<{ alive: boolean }> {
+        const route = SessionRoute.decode(sessionId);
+
+        // A value that does not even decode is no live session — same answer, no format lecture.
+        if (!route) {
+            return { alive: false };
+        }
+
+        return {
+            alive: await this.probeSessionLivenessUseCase.execute({
+                endpoint: route.endpoint,
+                webDriverSessionId: route.webDriverSessionId,
+            }),
+        };
     }
 
     @All(":sessionId")

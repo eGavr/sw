@@ -43,15 +43,21 @@ const wdSessionId = "wd-node-session-1";
 describe("/sessions", () => {
     let app: INestApplication;
     let createSessionOnNode: jest.Mock;
+    let fetchCurrentSessionOnNode: jest.Mock;
 
     beforeEach(async () => {
         createSessionOnNode = jest.fn(async (): Promise<string> => wdSessionId);
+        fetchCurrentSessionOnNode = jest.fn(async (): Promise<string | null> => null);
 
         // Only the final client wrapper over the external node is mocked — the gateway's own error
         // translation (node failure -> "session not created") stays under test.
         const moduleRef = await Test.createTestingModule({ imports: [WdModule] })
             .overrideProvider(WebDriverClient)
-            .useValue({ createSession: createSessionOnNode, deleteSession: jest.fn(), fetchCurrentSession: jest.fn() })
+            .useValue({
+                createSession: createSessionOnNode,
+                deleteSession: jest.fn(),
+                fetchCurrentSession: fetchCurrentSessionOnNode,
+            })
             .compile();
 
         app = moduleRef.createNestApplication();
@@ -485,6 +491,41 @@ describe("/sessions", () => {
             const environment = await app.get(EnvironmentRepository).get(EnvironmentId.fromString(environmentId));
             expect(environment.occupancy).toBe(EnvironmentOccupancy.Busy);
             expect(environment.occupancyLastConfirmedAt).not.toBeNull();
+        });
+    });
+
+    // The vendor liveness probe answers from the node's status — never a session command, so watching
+    // a session does not reset its idle timer. Capability access: whoever holds the id may ask.
+    describe("GET /sessions/:sessionId/sw/alive", () => {
+        const sessionId = SessionRoute.encode(nodeEndpoint, wdSessionId);
+
+        test("reports alive while the node holds this very session", async () => {
+            fetchCurrentSessionOnNode.mockResolvedValue(wdSessionId);
+
+            const { body } = await request(app.getHttpServer())
+                .get(`/sessions/${sessionId}/sw/alive`)
+                .expect(HttpStatus.OK);
+
+            expect(body).toEqual({ alive: true });
+            expect(fetchCurrentSessionOnNode).toHaveBeenCalledWith(nodeEndpoint);
+        });
+
+        test("reports not alive when the node holds no session (or another one)", async () => {
+            fetchCurrentSessionOnNode.mockResolvedValue(null);
+
+            const { body } = await request(app.getHttpServer())
+                .get(`/sessions/${sessionId}/sw/alive`)
+                .expect(HttpStatus.OK);
+
+            expect(body).toEqual({ alive: false });
+        });
+
+        test("reports not alive for a value that does not even decode", async () => {
+            const { body } = await request(app.getHttpServer())
+                .get("/sessions/not-a-session-id/sw/alive")
+                .expect(HttpStatus.OK);
+
+            expect(body).toEqual({ alive: false });
         });
     });
 

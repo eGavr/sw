@@ -19,7 +19,6 @@ function ProjectContent() {
   const tab = params.get("tab") ?? "environments";
   const session = params.get("session") ?? undefined;
   const environmentUid = params.get("env") ?? undefined;
-  const view = params.get("view") ?? undefined;
 
   const switchTab = (next: string | null): void => {
     router.replace(next && next !== "environments" ? `${pathname}?tab=${next}` : pathname);
@@ -48,7 +47,6 @@ function ProjectContent() {
             project={projectId}
             initialSessionId={session}
             environmentUid={environmentUid}
-            initialView={view}
           />
         </Tabs.Panel>
 
