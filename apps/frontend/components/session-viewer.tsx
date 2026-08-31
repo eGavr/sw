@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Anchor, Box, Button, Center, Group, Loader, Stack } from "@mantine/core";
+import { Anchor, Box, Center, Group, Loader } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useQuery } from "@tanstack/react-query";
@@ -60,31 +60,15 @@ export function SessionViewer({
     );
   }
 
-  if (!sessionId) {
-    return (
-      <Center h="100vh">
-        <Stack align="center" gap="sm">
-          <Alert color="gray">Session not found — it may have just ended.</Alert>
-          <Button
-            component={Link}
-            href={backHref}
-            variant="default"
-            leftSection={<IconArrowLeft size={16} />}
-          >
-            Back
-          </Button>
-        </Stack>
-      </Center>
-    );
-  }
-
+  // No session recovered (it just ended, or never was): the very same window a delete leaves behind —
+  // the raw frame with noVNC's own placeholder, controls withdrawn, only Back in the rail.
   return (
     <Box p="sm" h="100vh">
       <SessionLiveView
         sessionId={sessionId}
         onKilled={onKilled}
         height="100%"
-        controls={!killed}
+        controls={!killed && sessionId !== ""}
         railHeader={
           <Anchor component={Link} href={backHref} size="sm" c="dimmed">
             <Group gap={4} wrap="nowrap">
