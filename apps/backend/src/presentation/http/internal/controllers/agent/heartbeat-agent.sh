@@ -10,6 +10,13 @@
 # bring the environment down. Video is recorded in-container by a static ffmpeg (fetched from the control
 # plane at startup, no image rebuild) grabbing the X display the browser renders on.
 #
+# Reuse safety: an environment is reused for the next session within seconds (allocation retries a
+# transient shortage, so immediate reuse is the norm). Artifact shipping must therefore never block the
+# heartbeat loop and never share mutable state with the next session. So on the session-end edge the
+# agent only does the FAST, synchronous part (snapshot the log slice, signal the recorder), and the slow
+# uploads run detached; every artifact file is keyed (per recording / per snapshot) so a previous
+# session still uploading never collides with the next session's recording.
+#
 # Self-fencing: if the backend replies 404 the environment is unknown to it (its row is gone), so this
 # container is an orphan — it shuts the whole environment down. Any other failure (network, 5xx, a
 # transient state conflict) is retried, so a brief backend blip never tears live environments down.
@@ -35,13 +42,16 @@ max_log_bytes="${SW_MAX_LOG_BYTES:-10485760}"
 # Video is recorded by a static ffmpeg (fetched once from the control plane) grabbing the X display the
 # browser renders on. The record size matches the node's screen (SE_SCREEN_*), so ffmpeg and Xvfb agree.
 ffmpeg_bin="/tmp/sw-ffmpeg"
-video_file="/tmp/sw-session.mp4"
-video_fifo="/tmp/sw-ffmpeg.fifo"
 video_display=":99"
 video_size="${SE_SCREEN_WIDTH:-1360}x${SE_SCREEN_HEIGHT:-1020}"
 video_fps="${SW_VIDEO_FPS:-15}"
 max_video_seconds="${SW_MAX_VIDEO_SECONDS:-600}"
-ffmpeg_pid=""
+
+# Monotonic counters keying each recording / log snapshot to its own files, so a previous session still
+# uploading never touches the next session's. `current_rec_token` names the recording in flight.
+rec_seq=0
+log_seq=0
+current_rec_token=""
 
 log() { echo "[heartbeat-agent] $*"; }
 
@@ -109,75 +119,93 @@ download_ffmpeg() {
     fi
 }
 
-# Start recording the browser's X display to video_file in the background. Returns non-zero (no recording)
-# if ffmpeg is not available yet (silent — it is retried on the next tick while the session is busy, and
-# download_ffmpeg already logs a failed fetch). ffmpeg is stopped by writing "q" to its stdin (see below),
-# carried over a fifo whose write end is held open on fd 3 for the whole recording — a backgrounded process
-# in a non-interactive shell inherits SIGINT/SIGQUIT as ignored, so signals cannot stop it gracefully, and
-# a hard kill would leave the mp4 unfinalized (no moov atom, unplayable).
-start_recording() {
-    if [ ! -x "${ffmpeg_bin}" ]; then
-        return 1
-    fi
-
-    rm -f "${video_fifo}"
-    mkfifo "${video_fifo}"
-    exec 3<>"${video_fifo}"
-
-    "${ffmpeg_bin}" -hide_banner -loglevel warning \
-        -f x11grab -video_size "${video_size}" -r "${video_fps}" -i "${video_display}" \
-        -c:v libx264 -preset superfast -pix_fmt yuv420p -movflags +faststart \
-        -t "${max_video_seconds}" "${video_file}" -y <"${video_fifo}" >/tmp/sw-ffmpeg.log 2>&1 &
-    ffmpeg_pid=$!
-    log "recording video (pid ${ffmpeg_pid}, ${video_size})"
-}
-
-# Ask ffmpeg to quit and finalize the mp4, then ship it. The wait is bounded so a wedged encoder can never
-# hang the heartbeat loop — as a last resort it is killed (a broken file beats a stuck environment). Best
-# effort: any non-2xx (incl. 404) is logged and ignored — it must never bring the environment down.
-stop_recording_and_ship() {
-    local session_id="$1"
-    if [ -z "${ffmpeg_pid}" ]; then return 0; fi
-
-    printf q >&3 2>/dev/null
-    local waited=0
-    while kill -0 "${ffmpeg_pid}" 2>/dev/null && [ "${waited}" -lt 15 ]; do
-        sleep 1
-        waited=$((waited + 1))
-    done
-    if kill -0 "${ffmpeg_pid}" 2>/dev/null; then
-        log "ffmpeg did not stop in time; killing"
-        kill -9 "${ffmpeg_pid}" 2>/dev/null
-    fi
-    exec 3>&- 2>/dev/null
-    rm -f "${video_fifo}"
-    ffmpeg_pid=""
-
-    if [ ! -s "${video_file}" ]; then
-        log "no video recorded; nothing to ship"
-        return 0
-    fi
-
-    if [ -z "${session_id}" ]; then
-        log "video recorded but no session id captured; dropping this session's video"
-        rm -f "${video_file}"
-        return 0
-    fi
-
-    local size code url
-    size=$(wc -c < "${video_file}" | tr -d '[:space:]')
+# Upload one finished mp4 to the control plane, keyed by the session id. Best effort: any non-2xx is
+# logged and ignored — it must never bring the environment down.
+upload_video() {
+    local file="$1" session_id="$2" size code url
+    size=$(wc -c < "${file}" | tr -d '[:space:]')
     url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/sessions/${session_id}:uploadSessionVideo"
     code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${url}" \
         -H "Authorization: Bearer ${SW_INTERNAL_TOKEN}" \
         -H "content-type: video/mp4" \
-        --max-time 120 --data-binary @"${video_file}")
+        --max-time 120 --data-binary @"${file}")
 
     case "${code}" in
         2*) log "shipped session video (${size} bytes)" ;;
         *) log "session video upload failed (${code}); dropping" ;;
     esac
+}
 
-    rm -f "${video_file}"
+# The detached recorder for one session, keyed by token. It records the X display until the session-end
+# signal (a stop file carrying the session id — reliably known only at the edge) arrives, then finalizes
+# the mp4 and uploads it. Running detached is what keeps the heartbeat loop free: the slow finalize +
+# upload never block it, and the token-keyed fifo/file never collide with the next session's recording.
+# ffmpeg is stopped by writing "q" to its stdin over a fifo held open on fd 9 (a backgrounded process in
+# a non-interactive shell inherits SIGINT/SIGQUIT as ignored, so signals cannot stop it gracefully, and a
+# hard kill would leave the mp4 unfinalized — no moov atom, unplayable).
+record_session() {
+    local token="$1"
+    local fifo="/tmp/sw-rec-${token}.fifo"
+    local file="/tmp/sw-rec-${token}.mp4"
+    local stop="/tmp/sw-rec-${token}.stop"
+    local errlog="/tmp/sw-rec-${token}.err"
+
+    rm -f "${fifo}"
+    mkfifo "${fifo}" || return 0
+    exec 9<>"${fifo}"
+
+    "${ffmpeg_bin}" -hide_banner -loglevel warning \
+        -f x11grab -video_size "${video_size}" -r "${video_fps}" -i "${video_display}" \
+        -c:v libx264 -preset superfast -pix_fmt yuv420p -movflags +faststart \
+        -t "${max_video_seconds}" "${file}" -y <"${fifo}" >"${errlog}" 2>&1 &
+    local pid=$!
+
+    # Wait for the session-end signal; ffmpeg may self-exit first (hit the duration cap), the file is
+    # complete either way and we still wait for the signal to learn the session id to upload under.
+    while [ ! -e "${stop}" ]; do sleep 1; done
+    local session_id
+    session_id=$(cat "${stop}" 2>/dev/null)
+
+    if kill -0 "${pid}" 2>/dev/null; then
+        printf q >&9 2>/dev/null
+        local waited=0
+        while kill -0 "${pid}" 2>/dev/null && [ "${waited}" -lt 30 ]; do
+            sleep 1
+            waited=$((waited + 1))
+        done
+        kill -0 "${pid}" 2>/dev/null && kill -9 "${pid}" 2>/dev/null
+    fi
+
+    exec 9>&-
+    rm -f "${fifo}" "${stop}" "${errlog}"
+
+    if [ -s "${file}" ] && [ -n "${session_id}" ]; then
+        upload_video "${file}" "${session_id}"
+    fi
+    rm -f "${file}"
+}
+
+# Launch a detached recorder for the current session. Returns non-zero (no recording) if ffmpeg is not
+# available yet — it is retried on the next busy tick while the session lasts.
+start_recording() {
+    if [ ! -x "${ffmpeg_bin}" ]; then
+        return 1
+    fi
+
+    rec_seq=$((rec_seq + 1))
+    current_rec_token="${rec_seq}"
+    record_session "${current_rec_token}" &
+    log "recording video (token ${current_rec_token})"
+}
+
+# Signal the active recording to stop, handing it the session id via the stop file; returns immediately.
+# The recorder then finalizes and uploads in the background, so the heartbeat loop is never blocked.
+stop_recording() {
+    local session_id="$1"
+    if [ -z "${current_rec_token}" ]; then return 0; fi
+
+    printf '%s' "${session_id}" > "/tmp/sw-rec-${current_rec_token}.stop"
+    current_rec_token=""
 }
 
 # Total bytes currently in the node log files (0 if none exist yet). The glob is intentionally unquoted
@@ -186,34 +214,43 @@ log_size() {
     cat ${session_log_glob} 2>/dev/null | wc -c | tr -d '[:space:]'
 }
 
-# Ship the bytes appended since start_offset (this session's slice) to the control-plane, keyed by the
-# session id (raw — the control-plane fingerprints it). Best effort: any non-2xx is logged and ignored —
-# it must never bring the environment down (only heartbeat 404 does).
-ship_session_logs() {
-    local start_offset="$1" session_id="$2" total available tail_start code url
+# Upload one finished log snapshot, keyed by the session id. Best effort: non-2xx is logged and ignored.
+upload_logs() {
+    local snapshot="$1" session_id="$2" available="$3" code url
+    url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/sessions/${session_id}:uploadSessionLogs"
+    code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${url}" \
+        -H "Authorization: Bearer ${SW_INTERNAL_TOKEN}" \
+        -H "content-type: application/octet-stream" \
+        --max-time 20 --data-binary @"${snapshot}")
+
+    case "${code}" in
+        2*) log "shipped session logs (${available} bytes)" ;;
+        *) log "session log upload failed (${code}); dropping" ;;
+    esac
+}
+
+# Snapshot this session's log slice (the bytes appended since start_offset) to a keyed file SYNCHRONOUSLY
+# at the edge — so the next session, which starts within seconds, cannot contaminate it — then upload
+# that snapshot in the background so the heartbeat loop is never blocked. Nothing to ship if the slice is
+# empty; oversized slices are tailed to the last max_log_bytes (session end + errors).
+snapshot_and_ship_logs() {
+    local start_offset="$1" session_id="$2" total tail_start snapshot
     total=$(log_size)
 
     if [ "${total:-0}" -le "${start_offset}" ]; then
         return 0
     fi
 
-    available=$((total - start_offset))
     tail_start=$((start_offset + 1))
-    if [ "${available}" -gt "${max_log_bytes}" ]; then
+    if [ $((total - start_offset)) -gt "${max_log_bytes}" ]; then
         tail_start=$((total - max_log_bytes + 1))
     fi
 
-    url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/sessions/${session_id}:uploadSessionLogs"
-    code=$(cat ${session_log_glob} 2>/dev/null | tail -c "+${tail_start}" \
-        | curl -s -o /dev/null -w "%{http_code}" -X POST "${url}" \
-            -H "Authorization: Bearer ${SW_INTERNAL_TOKEN}" \
-            -H "content-type: application/octet-stream" \
-            --max-time 20 --data-binary @-)
+    log_seq=$((log_seq + 1))
+    snapshot="/tmp/sw-session-${log_seq}.log"
+    cat ${session_log_glob} 2>/dev/null | tail -c "+${tail_start}" > "${snapshot}"
 
-    case "${code}" in
-        2*) log "shipped session logs (${available} bytes)" ;;
-        *) log "session log upload failed (${code}); dropping" ;;
-    esac
+    ( upload_logs "${snapshot}" "${session_id}" "$((total - start_offset))"; rm -f "${snapshot}" ) &
 }
 
 # POST a heartbeat and echo the HTTP status code (000 if the backend was unreachable).
@@ -260,10 +297,12 @@ download_ffmpeg &
 
 # Heartbeat loop, tracking session start/end transitions to capture and ship the session's logs and video.
 # `idle_offset` is the log size at the last idle tick; a session's slice starts there (not at the tick
-# that first saw it busy) so the session's own opening lines aren't missed. The per-session opt-ins
-# (`capture`/`recording`) are resolved LAZILY on each busy tick, not only at the busy edge: on a Grid the
-# session's capabilities can land in /status a tick after its slot becomes busy, so an edge-only check
-# would read the opt-in as false and skip the whole session's logs/video.
+# that first saw it busy) so the session's own opening lines aren't missed. Because the edge now only
+# snapshots + signals (uploads are detached), `idle_offset` is captured promptly at the end of a session,
+# before the reused next session writes — so the next session's slice starts at the right place. The
+# per-session opt-ins (`capture`/`recording`) are resolved LAZILY on each busy tick, not only at the busy
+# edge: on a Grid the session's capabilities can land in /status a tick after its slot becomes busy, so an
+# edge-only check would read the opt-in as false and skip the whole session's logs/video.
 prev_busy=false
 capture=false
 recording=false
@@ -291,17 +330,17 @@ while true; do
         if [ "${recording}" = "false" ] && session_wants_video && start_recording; then recording=true; fi
     else
         if [ "${prev_busy}" = "true" ]; then
-            # FIRST thing on the session-end edge, before any artifact shipping (video finalizing can
-            # take seconds while the environment is already allocatable again): cut every VNC pipe.
-            # x11vnc serves the DISPLAY, not the session — a surviving viewer would watch the
-            # environment's next session. supervisord brings x11vnc back. Best effort.
+            # The session-end edge stays FAST — only a synchronous log snapshot and an instant recorder
+            # signal; the slow uploads are detached. First cut every VNC pipe: x11vnc serves the DISPLAY,
+            # not the session, so a surviving viewer would watch the environment's next session.
+            # supervisord brings x11vnc back. Best effort.
             pkill -x x11vnc 2>/dev/null || true
             if [ "${capture}" = "true" ] && [ -n "${session_id}" ]; then
-                ship_session_logs "${log_offset}" "${session_id}"
+                snapshot_and_ship_logs "${log_offset}" "${session_id}"
             elif [ "${capture}" = "true" ]; then
                 log "logging opted in but no session id was captured; dropping this session's logs"
             fi
-            if [ "${recording}" = "true" ]; then stop_recording_and_ship "${session_id}"; fi
+            if [ "${recording}" = "true" ]; then stop_recording "${session_id}"; fi
             capture=false
             recording=false
             session_id=""
