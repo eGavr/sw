@@ -113,7 +113,7 @@ describe("/projects/:project/storageDestination", () => {
 
         await request(app.getHttpServer()).patch(path(project)).set(owner).send(destinationBody()).expect(HttpStatus.OK);
 
-        const probe = await request(app.getHttpServer()).post(`${path(project)}/test`).set(owner).expect(HttpStatus.OK);
+        const probe = await request(app.getHttpServer()).post(`${path(project)}:test`).set(owner).expect(HttpStatus.OK);
 
         expect(probe.body).toEqual({ ok: true });
     });
@@ -122,7 +122,7 @@ describe("/projects/:project/storageDestination", () => {
         const owner = Authorization.forUser(UserFactory.createId());
         const project = await createProject(owner);
 
-        return request(app.getHttpServer()).post(`${path(project)}/test`).set(owner).expect(HttpStatus.NOT_FOUND);
+        return request(app.getHttpServer()).post(`${path(project)}:test`).set(owner).expect(HttpStatus.NOT_FOUND);
     });
 
     test("responds INVALID_ARGUMENT for a malformed bucket (uppercase/spaces)", async () => {

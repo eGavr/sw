@@ -2,7 +2,7 @@
 
 import { ActionIcon, Alert, Anchor, Box, Button, Group, Loader, Stack, Text, TextInput, Title, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconPencil, IconPlant, IconPlugConnected, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCircleCheck, IconPencil, IconPlant, IconPlus, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -115,6 +115,8 @@ export function StorageSettings({ project }: { project: string }) {
       queryClient.setQueryData(["storageDestination", project], saved);
       setEditing(false);
       notifications.show({ color: "green", message: "Storage destination saved", autoClose: 3_000 });
+      // Verify the just-saved config actually works — a wrong bucket or missing policy shows up here.
+      void queryClient.invalidateQueries({ queryKey: ["storageProbe", project] });
     },
     onError: (error) =>
       notifications.show({ color: "red", title: "Save failed", message: (error as Error).message }),
@@ -131,21 +133,17 @@ export function StorageSettings({ project }: { project: string }) {
       notifications.show({ color: "red", title: "Remove failed", message: (error as Error).message }),
   });
 
-  const test = useMutation({
-    mutationFn: () => testStorageDestination(project),
-    onSuccess: (result) =>
-      result.ok
-        ? notifications.show({ color: "green", message: "Storage reachable — we can write to it", autoClose: 3_000 })
-        : notifications.show({
-            color: "red",
-            title: "Storage not reachable",
-            message: result.message ?? "the write probe failed",
-          }),
-    onError: (error) =>
-      notifications.show({ color: "red", title: "Test failed", message: (error as Error).message }),
-  });
-
   const current = destination.data;
+
+  // A real write probe, run automatically whenever the configured destination is shown — so access that
+  // was lost, or a bucket that no longer exists, surfaces as a red health badge instead of silently
+  // failing at the next session's upload. Refetchable on demand and re-run after a save.
+  const probe = useQuery({
+    queryKey: ["storageProbe", project],
+    queryFn: () => testStorageDestination(project),
+    enabled: !editing && !!current,
+    retry: false,
+  });
 
   const header = (
     <Group justify="space-between" align="flex-start" wrap="nowrap">
@@ -162,18 +160,29 @@ export function StorageSettings({ project }: { project: string }) {
           </ActionIcon>
         </Tooltip>
       )}
-      {editing && current && (
-        <Tooltip label="Remove storage">
-          <ActionIcon
-            variant="subtle"
-            color="red"
-            aria-label="Remove storage"
-            loading={remove.isPending}
-            onClick={() => remove.mutate()}
+      {/* The pencil turns into the edit controls in place — Cancel/Save where it was. */}
+      {editing && (
+        <Group gap="xs">
+          <Button
+            variant="default"
+            size="compact-sm"
+            onClick={() => {
+              seedForm();
+              setEditing(false);
+            }}
           >
-            <IconTrash size={16} />
-          </ActionIcon>
-        </Tooltip>
+            Cancel
+          </Button>
+          <Button
+            variant="light"
+            size="compact-sm"
+            loading={save.isPending}
+            disabled={!valid}
+            onClick={() => save.mutate()}
+          >
+            Save
+          </Button>
+        </Group>
       )}
     </Group>
   );
@@ -204,8 +213,30 @@ export function StorageSettings({ project }: { project: string }) {
     );
   }
 
-  // View: configured — a compact read-only summary and a connectivity probe.
+  // View: configured — a compact read-only summary and a live health check.
   if (!editing && current) {
+    const health = probe.isFetching ? (
+      <Group gap={6} c="dimmed">
+        <Loader size={14} />
+        <Text size="sm">Checking storage…</Text>
+      </Group>
+    ) : probe.isError ? (
+      <Group gap={6} c="red">
+        <IconAlertTriangle size={16} />
+        <Text size="sm">{(probe.error as Error).message}</Text>
+      </Group>
+    ) : probe.data?.ok ? (
+      <Group gap={6} c="green">
+        <IconCircleCheck size={16} />
+        <Text size="sm">Reachable — we can write to it</Text>
+      </Group>
+    ) : probe.data ? (
+      <Group gap={6} c="red">
+        <IconAlertTriangle size={16} />
+        <Text size="sm">Not reachable: {probe.data.message ?? "the write probe failed"}</Text>
+      </Group>
+    ) : null;
+
     return (
       <Stack gap="sm">
         {header}
@@ -215,16 +246,19 @@ export function StorageSettings({ project }: { project: string }) {
           <Field label="Endpoint" value={current.endpoint ?? ""} />
           <Field label="Region" value={current.region ?? ""} />
         </Group>
-        <Group>
-          <Button
-            variant="default"
-            size="compact-sm"
-            leftSection={<IconPlugConnected size={14} />}
-            loading={test.isPending}
-            onClick={() => test.mutate()}
-          >
-            Test connection
-          </Button>
+        <Group justify="space-between" align="center">
+          {health}
+          <Tooltip label="Re-check">
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              aria-label="Re-check storage"
+              loading={probe.isFetching}
+              onClick={() => probe.refetch()}
+            >
+              <IconRefresh size={16} />
+            </ActionIcon>
+          </Tooltip>
         </Group>
       </Stack>
     );
@@ -284,6 +318,7 @@ export function StorageSettings({ project }: { project: string }) {
         Endpoint is optional — leave it empty for AWS S3.
       </Text>
 
+      {/* The destructive action sits apart, bottom-right, away from Save. */}
       <Group justify="space-between" align="center" mt="xs">
         <Anchor
           href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-policies.html"
@@ -293,27 +328,19 @@ export function StorageSettings({ project }: { project: string }) {
         >
           How to grant access with a bucket policy
         </Anchor>
-        <Group gap="xs">
-          <Button
-            variant="default"
-            size="compact-sm"
-            onClick={() => {
-              seedForm();
-              setEditing(false);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="light"
-            size="compact-sm"
-            loading={save.isPending}
-            disabled={!valid}
-            onClick={() => save.mutate()}
-          >
-            Save
-          </Button>
-        </Group>
+        {current && (
+          <Tooltip label="Remove storage">
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              aria-label="Remove storage"
+              loading={remove.isPending}
+              onClick={() => remove.mutate()}
+            >
+              <IconTrash size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
       </Group>
     </Stack>
   );

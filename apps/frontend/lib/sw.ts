@@ -324,7 +324,8 @@ export function clearStorageDestination(project: string): Promise<void> {
 // A real write probe under our identity — { ok: true } if reachable and we can write, else the
 // backend's error. So a wrong bucket or missing bucket policy is caught here, not silently later.
 export function testStorageDestination(project: string): Promise<{ ok: boolean; message?: string }> {
-  return swRequest<{ ok: boolean; message?: string }>(`v1/projects/${project}/storageDestination/test`, {
+  // AIP-136 custom method (colon verb on the singleton).
+  return swRequest<{ ok: boolean; message?: string }>(`v1/projects/${project}/storageDestination:test`, {
     method: "POST",
   });
 }
