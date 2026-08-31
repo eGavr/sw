@@ -18,7 +18,6 @@ export function SessionsTab({
   project,
   initialSessionId,
   environmentUid,
-  initialView,
 }: {
   project: string;
   initialSessionId?: string;
@@ -26,9 +25,6 @@ export function SessionsTab({
   // the row's live one itself (which is what makes the busy arrow a real, new-tab-able link), and a
   // kill marks that row as "freeing".
   environmentUid?: string;
-  // A deep link may ask for a specific view (e.g. Back from full screen lands on logs); otherwise
-  // liveness decides.
-  initialView?: string;
 }) {
   const queryClient = useQueryClient();
 
@@ -46,26 +42,29 @@ export function SessionsTab({
   useEffect(() => {
     if (recovery.data) {
       setSessionId(recovery.data.sessionId);
+      // Recovery came off the node's live status — it IS the first liveness answer; seed it so the
+      // viewer opens without waiting for a probe of its own.
+      queryClient.setQueryData(["sessionAlive", recovery.data.sessionId.trim()], true);
     }
-  }, [recovery.data]);
+  }, [recovery.data, queryClient]);
 
   const id = sessionId.trim();
   // A session id is base64url(endpoint) + "." + node session id — open the viewer as soon as the
   // pasted value looks like one (no Open button; the length gate keeps half-typed input quiet).
   const looksLikeSessionId = id.length > 24 && /^[A-Za-z0-9_-]+\.\S+$/.test(id);
 
-  // Which tab to land on is decided by whether the session actually lives, not by how we got here: a
-  // recovered id is alive by construction, anything else gets the cheap probe (one read-only WebDriver
-  // command through the stateless proxy). Alive -> the live view; over -> its logs.
-  const recovered = Boolean(recovery.data && sessionId === recovery.data.sessionId);
+  // Liveness is a watch, not a one-shot probe: the cheap read-only command (Get Current URL through
+  // the stateless proxy) keeps running while the session lives, so a death — ours or external — flips
+  // the live view to its honest text instead of leaving a dark frame. Death is terminal: the poll
+  // stops at false. The first answer also picks the landing tab (alive -> VNC, over -> Logs).
   const probe = useQuery({
     queryKey: ["sessionAlive", id],
     queryFn: () => isSessionAlive(id),
-    enabled: looksLikeSessionId && !recovered,
+    enabled: looksLikeSessionId,
     retry: false,
-    staleTime: Infinity,
+    refetchInterval: (query) => (query.state.data === false ? false : 5_000),
   });
-  const alive = recovered ? true : probe.isError ? false : probe.data;
+  const alive = probe.isError ? false : probe.data;
 
   const onKilled = (): void => {
     // Bridge the heartbeat gap on the environments table: the busy hint clears in ~3s, until then
@@ -77,6 +76,8 @@ export function SessionsTab({
 
     // A receipt, not page state: a toast appears and leaves on its own — the layout never jumps.
     notifications.show({ color: "green", message: "Session deleted", autoClose: 4_000 });
+    // Our own kill needs no probe to be believed — flip the live view right away.
+    queryClient.setQueryData(["sessionAlive", id], false);
     void queryClient.invalidateQueries({ queryKey: ["environments", project] });
   };
 
@@ -105,7 +106,7 @@ export function SessionsTab({
       {looksLikeSessionId && alive === undefined && <Loader size="sm" />}
 
       {looksLikeSessionId && alive !== undefined && (
-        <Tabs defaultValue={initialView ?? (alive ? "vnc" : "logs")}>
+        <Tabs defaultValue={alive ? "vnc" : "logs"}>
           <Tabs.List>
             <Tabs.Tab value="logs">Logs</Tabs.Tab>
             <Tabs.Tab value="video">Video</Tabs.Tab>

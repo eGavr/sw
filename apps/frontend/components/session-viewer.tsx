@@ -2,18 +2,20 @@
 
 import { Alert, Anchor, Box, Button, Center, Group, Loader, Stack, Tabs, Text } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SessionLiveView } from "@/components/session-live-view";
 import { SessionLogs } from "@/components/session-logs";
 import { SessionVideo } from "@/components/session-video";
 import { addFreeing } from "@/lib/freeing-store";
-import { getEnvironmentSession } from "@/lib/sw";
+import { getEnvironmentSession, isSessionAlive } from "@/lib/sw";
 
-// The full-screen live view: nothing but the session's screen and its command rail. After a delete
-// the page stays put and turns into the session's afterlife — its logs and video, right here.
+// The full-screen live view: nothing but the session's screen and its command rail. Liveness is
+// watched, not sampled once — when the session dies (our delete or anything external), the page turns
+// into the session's afterlife (logs and video) instead of leaving noVNC's dark placeholder filling
+// the window.
 export function SessionViewer({
   project,
   initialSessionId,
@@ -23,6 +25,7 @@ export function SessionViewer({
   initialSessionId?: string;
   environmentUid?: string;
 }) {
+  const queryClient = useQueryClient();
   const [killed, setKilled] = useState(false);
 
   // Deep-linked by environment: recover its current session (creator-only endpoint) on open.
@@ -33,11 +36,28 @@ export function SessionViewer({
     retry: false,
   });
 
-  const sessionId = initialSessionId ?? recovery.data?.sessionId ?? "";
-  // Back returns to the Sessions tab with this very session pre-filled, landing on its logs — the
-  // live view was just here, the reason to go back is everything else.
+  const sessionId = (initialSessionId ?? recovery.data?.sessionId ?? "").trim();
+
+  useEffect(() => {
+    if (recovery.data) {
+      // Recovery came off the node's live status — it IS the first liveness answer.
+      queryClient.setQueryData(["sessionAlive", recovery.data.sessionId.trim()], true);
+    }
+  }, [recovery.data, queryClient]);
+
+  const probe = useQuery({
+    queryKey: ["sessionAlive", sessionId],
+    queryFn: () => isSessionAlive(sessionId),
+    enabled: sessionId !== "",
+    retry: false,
+    refetchInterval: (query) => (query.state.data === false ? false : 5_000),
+  });
+  const alive = probe.isError ? false : probe.data;
+
+  // Back lands on the Sessions tab with this very session pre-filled; liveness decides the tab there
+  // (a live session reopens its view, a finished one lands on the logs).
   const backHref = sessionId
-    ? `/projects/${project}?tab=sessions&session=${encodeURIComponent(sessionId)}&view=logs`
+    ? `/projects/${project}?tab=sessions&session=${encodeURIComponent(sessionId)}`
     : `/projects/${project}?tab=sessions`;
 
   const onKilled = (): void => {
@@ -47,6 +67,7 @@ export function SessionViewer({
       addFreeing(environmentUid);
     }
 
+    queryClient.setQueryData(["sessionAlive", sessionId], false);
     setKilled(true);
   };
 
@@ -59,7 +80,7 @@ export function SessionViewer({
     </Anchor>
   );
 
-  if (recovery.isLoading) {
+  if (recovery.isLoading || (sessionId !== "" && alive === undefined)) {
     return (
       <Center h="100vh">
         <Loader size="sm" />
@@ -85,13 +106,13 @@ export function SessionViewer({
     );
   }
 
-  if (killed) {
+  if (killed || alive === false) {
     return (
       <Box p="md" maw={960} mx="auto">
         <Stack gap="sm">
           {back}
-          <Text c="green" size="sm">
-            Session deleted — its logs and video (if recorded) stay available.
+          <Text c={killed ? "green" : "dimmed"} size="sm">
+            {killed ? "Session deleted." : "The session is not active."}
           </Text>
           <Tabs defaultValue="logs">
             <Tabs.List>
