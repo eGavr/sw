@@ -990,7 +990,9 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 
 Наблюдение юзера (2026-08-31): после fire-and-forget создания (закрытия окна) окружение иногда показывается free, а затем сразу busy — reserved не виден. Диагноз (проверить при фиксе): это семплинг, не данные — для linux окно reserved живёт ~1–2с (reserve → create на ноде → occupy), а поллинг списка — 3с, плюс invalidate стреляет по завершении мутации, т.е. уже после occupy → busy. На android (10–20с) reserved виден. Варианты фикса: (а) оптимистичный локальный маркер «reserving» на строке с момента клика Create до подтверждения серверного состояния (симметрично freeing-маркеру); (б) считать поведением by design (reserved — транзит, и honest-состояние в БД корректно) и ничего не делать. Решить с юзером при заходе.
 
-## Follow-up (ВАЖНО под нагрузкой, обсудить отдельно): окно ~3с после DELETE сессии, когда новую поднять нельзя — НЕ начато
+## Follow-up: окно ~3с после DELETE сессии, когда новую поднять нельзя — СДЕЛАНО (ветка feat.allocation-retry, влито)
+
+**РЕШЕНО ретраем аллокации** (выбран вместо eager-free — wd остался чистым проксёром): create-session ретраит транзитный 409 в пределах бюджета (= окно свежести хартбита, ≥ интервала), так что освободившийся env всегда пойман; перманентные 400/404 — сразу. Ниже — исходная запись обсуждения eager-free vs retry.
 
 Наблюдение юзера (2026-08-31): пользователь получил `OK` на DELETE сессии, но ещё несколько секунд не может создать новую — получает отказ «нет свободных env». Критично для tight-loop create→use→delete→create под высокой нагрузкой: клиент, честно дождавшийся ответа на delete, вправе тут же поднять сессию.
 
@@ -1023,7 +1025,9 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 
 Причина была двухслойная: (1) у dev-проекта нет `storageDestination` → upload сознательно no-op'ится; (2) даже с destination дефолтный `LOG_STORAGE=memory` пер-процессный — internal пишет в свою память, api читает из своей. Решение (вариант «а»): **`FsObjectStorageGateway`** (`LOG_STORAGE=fs`, файлы под `LOG_STORAGE_FS_ROOT`, дефолт `.dev-storage/` в gitignore; content-type сайдкаром) — общий диск для всех процессов; **дев-дефолтный destination декоратором в композит-руте** (`StorageDestinationRepositoryWithDefault` поверх impl, включается только при `LOG_STORAGE=fs`; чтения фолбэчатся на per-project область (bucket = uid проекта, без выдуманных констант), записи проходят насквозь — своя настройка выигрывает; use case и data source не тронуты — политика инсталляции живёт в провайдере). `LOG_STORAGE=fs` в `.env.development`. Интеграционный сьют «два приложения, один диск» (internal upload → api readback, без destination). Live: сессия с sw:logging/sw:video → kill → логи и mp4 читаются через api.
 
-## Follow-up: current session окружения по запросу (recover capability, ничего не храня) — НЕ начато
+## Follow-up: current session окружения по запросу (recover capability, ничего не храня) — СДЕЛАНО (current-session PR)
+
+**СДЕЛАНО:** `GET /v1/projects/{p}/environments/{e}/session` (recover live id только создателю сессии; чужим 404), `session_ownership`-синглтон с событийной чисткой, `capabilities.canAccessCurrentSession` в GET environments, UI: серая стрелка на busy-строке → Sessions-таб. Ниже — исходный дизайн.
 
 Идея юзера, согласована: сессию через UI сейчас нельзя ни увидеть, ни убить (id показывается один раз и нигде не хранится — by design). Решение БЕЗ отказа от «не персистим секрет»: **live-восстановление по запросу**. Активный `wdSessionId` уже отдаёт сама нода в `GET {endpoint}/status` (агент не нужен — он сам берёт id оттуда), endpoint окружения в БД есть, а наш session id — детерминированная функция `encode(endpoint, wdSessionId)`. Ручка: `GET /v1/projects/{p}/environments/{e}/session` → env → live-запрос к ноде → id (нет активной сессии → 404). At-rest по-прежнему ничего.
 

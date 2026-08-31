@@ -267,6 +267,55 @@ export async function isSessionAlive(sessionId: string): Promise<boolean> {
   return body.alive === true;
 }
 
+// Where a project's session logs/video are written. Credentials are never here — access is delegated
+// to our service identity by a bucket policy on the user's bucket.
+export interface StorageDestination {
+  name: string;
+  bucket: string;
+  prefix: string;
+  endpoint?: string;
+  region?: string;
+}
+
+export interface StorageDestinationInput {
+  bucket: string;
+  prefix?: string;
+  endpoint?: string;
+  region?: string;
+}
+
+// Null when the project has not configured a destination yet (a 404, not an error).
+export async function getStorageDestination(project: string): Promise<StorageDestination | null> {
+  const res = await fetch(`/api/sw/v1/projects/${project}/storageDestination`, {
+    headers: { accept: "application/json" },
+  });
+
+  if (res.status === 401) {
+    bounceToLogin();
+  }
+
+  if (res.status === 404) {
+    return null;
+  }
+
+  if (!res.ok) {
+    throw new Error(`storage destination → ${res.status}`);
+  }
+
+  return (await res.json()) as StorageDestination;
+}
+
+export function updateStorageDestination(
+  project: string,
+  input: StorageDestinationInput,
+): Promise<StorageDestination> {
+  return swRequest<StorageDestination>(`v1/projects/${project}/storageDestination`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
 export function listCloudTypes(): Promise<Array<CloudType>> {
   return swRequest<{ cloudTypes?: Array<CloudType> }>("v1/cloudTypes").then((d) => d.cloudTypes ?? []);
 }
