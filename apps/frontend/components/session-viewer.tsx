@@ -9,7 +9,7 @@ import { useState } from "react";
 
 import { SessionLiveView } from "@/components/session-live-view";
 import { addFreeing } from "@/lib/freeing-store";
-import { getEnvironmentSession } from "@/lib/sw";
+import { getEnvironmentSession, isSessionAlive } from "@/lib/sw";
 
 // The full-screen view is a dumb window on the session's VNC path (user decision): exactly what a
 // hand-built viewer URL would show — a dead or silent session is noVNC's own placeholder, nothing of
@@ -34,6 +34,16 @@ export function SessionViewer({
   });
 
   const sessionId = (initialSessionId ?? recovery.data?.sessionId ?? "").trim();
+
+  // One-shot, at the door only (this page never watches): a session known dead on entry gets no
+  // controls — commands against it are noise. A recovered id is alive by construction, no probe.
+  const probe = useQuery({
+    queryKey: ["sessionAlive", sessionId],
+    queryFn: () => isSessionAlive(sessionId),
+    enabled: sessionId !== "" && !recovery.data,
+    retry: false,
+  });
+  const aliveOnEntry = recovery.data ? true : probe.data === true;
 
   // Back lands on the Sessions tab with this very session pre-filled; liveness decides the tab there
   // (a live session reopens its view, a finished one lands on the logs).
@@ -68,7 +78,7 @@ export function SessionViewer({
         sessionId={sessionId}
         onKilled={onKilled}
         height="100%"
-        controls={!killed && sessionId !== ""}
+        controls={!killed && aliveOnEntry}
         railHeader={
           <Anchor component={Link} href={backHref} size="sm" c="dimmed">
             <Group gap={4} wrap="nowrap">
