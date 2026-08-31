@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Code, Group, Loader, Text } from "@mantine/core";
+import { Box, Button, Code, Loader, Text } from "@mantine/core";
 import { IconCopy } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -43,22 +43,22 @@ export function SessionLogs({ project, sessionId }: { project: string; sessionId
     });
   };
 
+  // The button overlays the block's corner, like the arrows over the screen and the player.
   return (
-    <>
-      <Group justify="flex-end" mb="xs">
-        <Button
-          variant="default"
-          size="compact-sm"
-          w={96}
-          leftSection={<IconCopy size={14} />}
-          onClick={copy}
-        >
-          {copied ? "Copied" : "Copy"}
-        </Button>
-      </Group>
+    <Box pos="relative">
       <Code block style={{ maxHeight: "60vh", overflow: "auto", whiteSpace: "pre" }}>
         {content}
       </Code>
-    </>
+      <Button
+        variant="default"
+        size="compact-sm"
+        w={96}
+        leftSection={<IconCopy size={14} />}
+        onClick={copy}
+        style={{ position: "absolute", top: 8, right: 8 }}
+      >
+        {copied ? "Copied" : "Copy"}
+      </Button>
+    </Box>
   );
 }
