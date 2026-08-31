@@ -5,6 +5,7 @@ import { IconArrowLeft } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
 import { SessionLiveView } from "@/components/session-live-view";
 import { addFreeing } from "@/lib/freeing-store";
@@ -22,6 +23,8 @@ export function SessionViewer({
   initialSessionId?: string;
   environmentUid?: string;
 }) {
+  const [killed, setKilled] = useState(false);
+
   // Deep-linked by environment: recover its current session (creator-only endpoint) on open.
   const recovery = useQuery({
     queryKey: ["environmentSession", project, environmentUid],
@@ -46,6 +49,7 @@ export function SessionViewer({
     }
 
     notifications.show({ color: "green", message: "Session deleted", autoClose: 4_000 });
+    setKilled(true);
   };
 
   if (recovery.isLoading) {
@@ -80,6 +84,7 @@ export function SessionViewer({
         sessionId={sessionId}
         onKilled={onKilled}
         height="100%"
+        controls={!killed}
         railHeader={
           <Anchor component={Link} href={backHref} size="sm" c="dimmed">
             <Group gap={4} wrap="nowrap">
