@@ -14,13 +14,13 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconLogout, IconPlus } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { signOutAction } from "@/app/actions/auth";
 import { NewProjectModal } from "@/components/new-project-modal";
-import { listProjects, projectHandle } from "@/lib/sw";
+import { listProjectsPage, projectHandle } from "@/lib/sw";
 
 export function DashboardShell({
   children,
@@ -35,10 +35,13 @@ export function DashboardShell({
   const segments = pathname.split("/");
   const selectedProjectId = segments[1] === "projects" ? segments[2] : undefined;
 
-  const { data: projects, isLoading } = useQuery({
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
     queryKey: ["projects"],
-    queryFn: listProjects,
+    queryFn: ({ pageParam }) => listProjectsPage(pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextPageToken,
   });
+  const projects = data?.pages.flatMap((page) => page.items);
 
   return (
     <AppShell
@@ -87,19 +90,29 @@ export function DashboardShell({
             <Loader size="xs" />
           </Group>
         ) : projects && projects.length > 0 ? (
-          projects.map((p) => {
-            const handle = projectHandle(p);
+          <>
+            {projects.map((p) => {
+              const handle = projectHandle(p);
 
-            return (
+              return (
+                <NavLink
+                  key={p.uid}
+                  component={Link}
+                  href={`/projects/${handle}`}
+                  label={p.displayName}
+                  active={handle === selectedProjectId}
+                />
+              );
+            })}
+            {hasNextPage && (
               <NavLink
-                key={p.uid}
-                component={Link}
-                href={`/projects/${handle}`}
-                label={p.displayName}
-                active={handle === selectedProjectId}
+                label="Load more"
+                c="dimmed"
+                rightSection={isFetchingNextPage ? <Loader size="xs" /> : undefined}
+                onClick={() => void fetchNextPage()}
               />
-            );
-          })
+            )}
+          </>
         ) : (
           <Text size="sm" c="dimmed" px="xs" py="xs">
             No projects yet
