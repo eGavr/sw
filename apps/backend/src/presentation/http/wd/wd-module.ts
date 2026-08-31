@@ -1,7 +1,7 @@
 import { dirname } from "node:path";
 
 import { BadRequestException, MiddlewareConsumer, Module, NestModule, ValidationPipe } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { static as serveStatic } from "express";
 import type { NextFunction, Request, Response } from "express";
@@ -14,10 +14,16 @@ import {
 } from "../../../application/interfaces/repositories/session-ownership-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
-import { CreateSessionUseCase } from "../../../application/use-cases/sessions/create-session-use-case";
+import {
+    CreateSessionUseCase,
+    SessionAllocationRetry,
+} from "../../../application/use-cases/sessions/create-session-use-case";
 import {
     ProbeSessionLivenessUseCase,
 } from "../../../application/use-cases/sessions/probe-session-liveness-use-case";
+import {
+    defaultHeartbeatFreshnessMs,
+} from "../../../domain/entities/environment/heartbeat-freshness";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
@@ -88,6 +94,16 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
     providers: [
         CreateSessionUseCase,
         ProbeSessionLivenessUseCase,
+        // Default budget = the heartbeat freshness window (>= one heartbeat interval by construction),
+        // so a just-freed environment's next heartbeat is always caught before the budget elapses.
+        {
+            provide: SessionAllocationRetry,
+            useFactory: (config: ConfigService): SessionAllocationRetry => new SessionAllocationRetry(
+                Number(config.get<string>("SESSION_ALLOCATION_RETRY_BUDGET_MS") ?? String(defaultHeartbeatFreshnessMs)),
+                Number(config.get<string>("SESSION_ALLOCATION_RETRY_BACKOFF_MS") ?? "200"),
+            ),
+            inject: [ConfigService],
+        },
 
         AccessControl,
 
