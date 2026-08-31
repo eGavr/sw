@@ -14,9 +14,6 @@ import { ProjectRepository } from "../../../application/interfaces/repositories/
 import {
     SessionOwnershipRepository,
 } from "../../../application/interfaces/repositories/session-ownership-repository";
-import {
-    StorageDestinationRepository,
-} from "../../../application/interfaces/repositories/storage-destination-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
 import {
@@ -94,8 +91,8 @@ import {
     SessionOwnershipRepositoryImpl,
 } from "../../../infrastructure/repositories/session-ownership-repository-impl";
 import {
-    StorageDestinationRepositoryImpl,
-} from "../../../infrastructure/repositories/storage-destination-repository-impl";
+    StorageDestinationRepositoryProvider,
+} from "../../../infrastructure/repositories/storage-destination-repository-provider";
 import { UserRepositoryImpl } from "../../../infrastructure/repositories/user-repository-impl";
 import { AipExceptionFilter } from "../filters/aip-exception-filter";
 import { ResponseInterceptor } from "../interceptors/response-interceptor";
@@ -162,7 +159,7 @@ import {
         { provide: UserRepository, useClass: UserRepositoryImpl },
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: CloudAccountRepository, useClass: CloudAccountRepositoryImpl },
-        { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
+        StorageDestinationRepositoryProvider,
         { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
         { provide: WebDriverSessionGateway, useClass: WebDriverSessionGatewayImpl },
         { provide: CloudCatalog, useClass: RegisteredCloudCatalog },

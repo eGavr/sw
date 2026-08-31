@@ -8,9 +8,6 @@ import {
     SessionOwnershipRepository,
 } from "../../../application/interfaces/repositories/session-ownership-repository";
 import {
-    StorageDestinationRepository,
-} from "../../../application/interfaces/repositories/storage-destination-repository";
-import {
     RecordEnvironmentHeartbeatUseCase,
 } from "../../../application/use-cases/environments/record-environment-heartbeat-use-case";
 import {
@@ -40,8 +37,8 @@ import {
     SessionOwnershipRepositoryImpl,
 } from "../../../infrastructure/repositories/session-ownership-repository-impl";
 import {
-    StorageDestinationRepositoryImpl,
-} from "../../../infrastructure/repositories/storage-destination-repository-impl";
+    StorageDestinationRepositoryProvider,
+} from "../../../infrastructure/repositories/storage-destination-repository-provider";
 import { AipExceptionFilter } from "../filters/aip-exception-filter";
 import { ResponseInterceptor } from "../interceptors/response-interceptor";
 import { ContextMiddleware } from "../middlewares/contex-middleware";
@@ -72,7 +69,7 @@ import { InternalAgentTokenGuard } from "./guards/internal-agent-token-guard";
 
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
-        { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
+        StorageDestinationRepositoryProvider,
         ObjectStorageGatewayProvider,
 
         EnvironmentDataSource,
