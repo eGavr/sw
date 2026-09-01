@@ -1,9 +1,13 @@
 # Minimum-cost single-host deploy
 
-Runs the whole sw **control plane** on one small amd64 Compute VM: Postgres co-located with the four service
-processes (`api`/`wd`/`internal`/`worker`, all one image) via `docker-compose.yml`. **Environments are not run
-here** — the worker provisions them separately on demand (android → on-demand YC Compute VMs from the golden
-image), so the only always-on cost is this one VM. This is the cheap alternative to the MK8s + managed-PG
+Runs the whole sw stack on one small amd64 Compute VM: Postgres co-located with the four service
+processes (`api`/`wd`/`internal`/`worker`, one backend image) **plus the dashboard** (`frontend`, its own
+image) via `docker-compose.yml`, and Keycloak via `keycloak-compose.yml`. **Environments are not run
+here** — the worker provisions them separately on demand (android and linux browsers → on-demand YC
+Compute VMs from the golden images), so the only always-on cost is this one VM.
+
+Ports mirror local dev: **frontend 3000** (user-facing UI), **api 4000**, **wd 3001**, internal 3002
+(env subnet only), Keycloak 8085. Open 3000/3001/4000/8085 to the world, 3002 to the env subnet. This is the cheap alternative to the MK8s + managed-PG
 topology in `../../docs/deploy/yc-mk8s-android-runbook.md` (which stays the prod-shaped option).
 
 ## Prereqs (reused, already exist in YC)
@@ -21,9 +25,17 @@ topology in `../../docs/deploy/yc-mk8s-android-runbook.md` (which stays the prod
 Build for amd64 (the VMs are x86_64). On a machine with unrestricted internet (e.g. your Mac) this is one
 step — the qemu build works; only building *inside* RU needs the runbook's npm/apt mirror workarounds:
 
-    IMG=cr.yandex/<registry_id>/sw-service:oidc
-    docker build --platform linux/amd64 -t "$IMG" .
-    docker push "$IMG"        # yc credential helper authenticates cr.yandex
+    IMG=cr.yandex/<registry_id>/sw-service:latest
+    docker buildx build --platform linux/amd64 --provenance=false --sbom=false -t "$IMG" --push .
+
+    # The dashboard image. NEXT_PUBLIC_WD_URL is inlined into the client bundle at BUILD time —
+    # rebuild if the public address changes.
+    FE=cr.yandex/<registry_id>/sw-frontend:latest
+    docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
+      -f apps/frontend/Dockerfile --build-arg NEXT_PUBLIC_WD_URL=http://<vm-public-ip>:3001 \
+      -t "$FE" --push .
+
+(`--provenance=false` is required — YC CR rejects OCI attestation manifests.)
 
 ## Bring up the service (one VM)
 
@@ -32,17 +44,32 @@ step — the qemu build works; only building *inside* RU needs the runbook's npm
    `docker` (install via the boot script / apt).
 2. Copy `deploy/single-host/docker-compose.yml` to the VM and set env:
 
-       export SW_IMAGE=cr.yandex/<registry_id>/sw-service:oidc
+       export SW_IMAGE=cr.yandex/<registry_id>/sw-service:latest
+       export SW_FRONTEND_IMAGE=cr.yandex/<registry_id>/sw-frontend:latest
        export POSTGRES_PASSWORD=... INTERNAL_API_SECRET=...
-       export COMPUTE_ANDROID_FOLDER_ID=<folder>
+       export CLOUD_CATALOG=yandex-cloud
+       export COMPUTE_ANDROID_FOLDER_ID=<service folder>
        export COMPUTE_ANDROID_INTERNAL_URL=http://<this-vm-private-ip>:3002
+       # Browser env VMs (linux/container) from the linux-node golden (../../images/linux-node):
+       export COMPUTE_BROWSER_IMAGE_ID=<sw-browser-golden image id>
+       export COMPUTE_BROWSER_SUBNET_ID=<subnet> COMPUTE_BROWSER_SECURITY_GROUP_ID=<sg>
+       export COMPUTE_BROWSER_NODE_IMAGE=cr.yandex/<registry_id>/selenium-standalone-chrome:latest
+       export COMPUTE_BROWSER_INTERNAL_URL=http://<this-vm-private-ip>:3002
+       # Frontend (Auth.js against the co-located Keycloak):
+       export AUTH_URL=http://<vm-public-ip>:3000 AUTH_SECRET=$(openssl rand -base64 32)
+       export AUTH_KEYCLOAK_SECRET=<sw-web client secret> AUTH_KEYCLOAK_ISSUER=http://<vm-public-ip>:8085/realms/sw
        # cheap first bring-up uses the local auth stub:
        export NODE_ENV=staging AUTH_STRATEGY=local
        docker compose pull && docker compose up -d
 
+   The delegated-BYOC demo keeps the "user's" resources fully separate: a second folder (grant the
+   service SA `compute.editor` + `vpc.user` on it; connect the cloud with `config.folderId=<that folder>`)
+   and the user's own bucket (grant the `sw-object-storage` SA access; register it as the project's
+   storageDestination). Env VMs are then created — and billed — in the user's folder.
+
 3. Smoke (local auth token is `Bearer <external-id>` — angle brackets literal):
 
-       API=http://<vm-public-ip>:3000 ; AUTH='Authorization: Bearer <user1>'
+       API=http://<vm-public-ip>:4000 ; AUTH='Authorization: Bearer <user1>'
        curl -s -X POST $API/v1/projects -H "$AUTH" -H 'content-type: application/json' \
          -d '{"displayName":"smoke","compute":[{"provider":"android-redroid","externalRef":"yc","platform":"android","execution":"container"}]}'
 
@@ -50,7 +77,9 @@ step — the qemu build works; only building *inside* RU needs the runbook's npm
 
 Switch `NODE_ENV=production AUTH_STRATEGY=oidc` and set `OIDC_ISSUER` / `OIDC_AUDIENCE` / `OIDC_JWKS_URI`
 (+ `OIDC_GROUPS_CLAIM`) to an IdP the VM can reach (a Keycloak container on the same VM, or a managed IdP).
-The local stub is refused under `NODE_ENV=production`. Realm setup mirrors `docs/deploy/local-oidc-keycloak`.
+The local stub is refused under `NODE_ENV=production`. Realm setup mirrors `docs/deploy/local-oidc-keycloak`
+(run `setup-realm.sh` + `setup-web-client.sh` against the deployed Keycloak — the latter creates the
+confidential `sw-web` client the frontend's Auth.js uses; its secret goes to `AUTH_KEYCLOAK_SECRET`).
 
 ## Verifying VNC
 
