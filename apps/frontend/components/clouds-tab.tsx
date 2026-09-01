@@ -63,25 +63,35 @@ function CloudReachabilityBadge({ project, uid }: { project: string; uid: string
     retry: false,
   });
 
+  // The raw backend reason (a docker/CLI error) is too technical for the badge, so it leads with a plain
+  // explanation and keeps the reason as a secondary line for anyone who looks closer.
+  const detail = probe.isError
+    ? (probe.error as Error).message
+    : probe.data?.ok
+      ? undefined
+      : probe.data?.message;
+
   const status = probe.isFetching ? (
     <Group gap={4} c="dimmed">
       <Loader size={12} />
       <Text size="xs">checking…</Text>
     </Group>
-  ) : probe.isError ? (
-    <Tooltip label={(probe.error as Error).message}>
-      <Group gap={4} c="red">
-        <IconAlertTriangle size={14} />
-        <Text size="xs">unavailable</Text>
-      </Group>
-    </Tooltip>
   ) : probe.data?.ok ? (
     <Group gap={4} c="green">
       <IconCircleCheck size={14} />
       <Text size="xs">available</Text>
     </Group>
   ) : (
-    <Tooltip label={probe.data?.message}>
+    <Tooltip
+      multiline
+      w={280}
+      label={
+        <Stack gap={2}>
+          <Text size="xs">We can&apos;t reach this cloud with its current settings — check that access is granted, then re-check.</Text>
+          {detail && <Text size="xs" style={{ opacity: 0.7 }}>{detail}</Text>}
+        </Stack>
+      }
+    >
       <Group gap={4} c="red">
         <IconAlertTriangle size={14} />
         <Text size="xs">unavailable</Text>
