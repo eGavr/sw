@@ -356,9 +356,18 @@ export function testStorageDestination(project: string): Promise<{ ok: boolean; 
   });
 }
 
-// The install's published storage identity — who to grant bucket access to (delegated artifacts write).
-// Null when the install publishes none (local dev writes to disk, nothing to grant).
-export async function getStorageDelegation(): Promise<CloudGrant | null> {
+// A storage service the install can write artifacts to under its own identity; the user picks one and
+// grants that identity on their bucket. The set is what we actually support — nothing else is offered.
+export interface StorageProvider {
+  id: string;
+  displayName: string;
+  endpoint: string;
+  region: string;
+  grant: CloudGrant;
+}
+
+// Null when the install publishes none (local dev writes to disk, nothing to pick or grant).
+export async function getStorageDelegation(): Promise<Array<StorageProvider> | null> {
   const res = await fetch("/api/sw/v1/storageDelegation", { headers: { accept: "application/json" } });
 
   if (res.status === 401) {
@@ -373,7 +382,9 @@ export async function getStorageDelegation(): Promise<CloudGrant | null> {
     throw new Error(`storage delegation → ${res.status}`);
   }
 
-  return (await res.json()) as CloudGrant;
+  const body = (await res.json()) as { providers?: Array<StorageProvider> };
+
+  return body.providers ?? [];
 }
 
 export function listCloudTypes(): Promise<Array<CloudType>> {

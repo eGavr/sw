@@ -17,7 +17,7 @@ describe("/storageDelegation", () => {
         await app.close();
     });
 
-    test("publishes the storage identity the user grants bucket access to", async () => {
+    test("publishes the supported storage providers with the identity to grant on each", async () => {
         const { body } = await request(app.getHttpServer())
             .get("/storageDelegation")
             .set(Authorization.forUser(UserFactory.createId()))
@@ -25,9 +25,17 @@ describe("/storageDelegation", () => {
 
         expect(body).toEqual({
             name: "storageDelegation",
-            serviceAccountId: "aje-test-storage",
-            role: "storage.editor",
-            purpose: expect.any(String),
+            providers: [{
+                id: "yandex-object-storage",
+                displayName: "Yandex Object Storage",
+                endpoint: "https://storage.yandexcloud.net",
+                region: "ru-central1",
+                grant: {
+                    serviceAccountId: "aje-test-storage",
+                    role: "storage.editor",
+                    purpose: expect.any(String),
+                },
+            }],
         });
     });
 

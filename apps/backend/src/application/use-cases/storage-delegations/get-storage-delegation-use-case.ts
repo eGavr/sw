@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
-import { StorageDelegation, StorageDelegationIdentity } from "../../interfaces/storage-delegation";
+import { StorageDelegation, StorageProvider } from "../../interfaces/storage-delegation";
 import { AccessControl } from "../../services/access-control";
 
 type GetStorageDelegationInput = {
@@ -10,8 +10,9 @@ type GetStorageDelegationInput = {
     };
 };
 
-// The identity to grant bucket access to — install-static, like the cloud catalogue: it is what the
-// storage setup form shows, so any authenticated caller may read it. 404 when the install publishes none.
+// The storage services the install can write to (and the identity to grant on each) — install-static,
+// like the cloud catalogue: it is what the storage setup form offers, so any authenticated caller may
+// read it. 404 when the install publishes none (dev writes to local disk).
 @Injectable()
 export class GetStorageDelegationUseCase {
     constructor(
@@ -19,15 +20,15 @@ export class GetStorageDelegationUseCase {
         private readonly storageDelegation: StorageDelegation,
     ) {}
 
-    async execute({ creds }: GetStorageDelegationInput): Promise<StorageDelegationIdentity> {
+    async execute({ creds }: GetStorageDelegationInput): Promise<ReadonlyArray<StorageProvider>> {
         await this.accessControl.authenticate(creds);
 
-        const identity = this.storageDelegation.identity();
+        const providers = this.storageDelegation.providers();
 
-        if (!identity) {
+        if (providers.length === 0) {
             throw new NotFoundResourceError("storageDelegation");
         }
 
-        return identity;
+        return providers;
     }
 }
