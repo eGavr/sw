@@ -3,7 +3,9 @@ import {
     CloudReachability,
     EnvironmentProviderGateway,
 } from "../../../../application/interfaces/gateways/environment-provider-gateway";
+import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
 import { Environment } from "../../../../domain/entities/environment/environment";
+import { androidProvisioningOverrides } from "../android-provider-config";
 import { VmProvisioner } from "../vm/vm-provisioner";
 
 import { AndroidEmulatorEnvironmentConfig } from "./android-emulator-environment-config";
@@ -25,14 +27,19 @@ export class AndroidEmulatorEnvironmentProviderGateway extends EnvironmentProvid
         super();
     }
 
-    async provision(environment: Environment): Promise<void> {
+    async provision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
+        // The cloud account's config points provisioning at the user's own folder/network/image (delegated
+        // BYOC); absent keys fall back to the install defaults (the operator's folder).
+        const overrides = androidProvisioningOverrides(cloudAccount?.config);
+
         await this.compute.createInstance({
             name: this.instanceName(environment),
-            imageId: this.config.imageId,
+            folderId: overrides.folderId,
+            imageId: overrides.imageId ?? this.config.imageId,
             platformId: this.config.platformId,
-            zone: this.config.zone,
-            subnetId: this.config.subnetId,
-            securityGroupId: this.config.securityGroupId,
+            zone: overrides.zone ?? this.config.zone,
+            subnetId: overrides.subnetId ?? this.config.subnetId,
+            securityGroupId: overrides.securityGroupId ?? this.config.securityGroupId,
             cores: this.config.cores,
             memoryGb: this.config.memoryGb,
             diskSizeGb: this.config.diskSizeGb,
@@ -45,12 +52,16 @@ export class AndroidEmulatorEnvironmentProviderGateway extends EnvironmentProvid
         });
     }
 
-    async deprovision(environment: Environment): Promise<void> {
-        await this.compute.deleteInstance(this.instanceName(environment));
+    async deprovision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
+        // Delete in the same folder we created it in, or the user's VM leaks (and keeps costing them).
+        await this.compute.deleteInstance(
+            this.instanceName(environment),
+            androidProvisioningOverrides(cloudAccount?.config).folderId,
+        );
     }
 
-    async checkAccess(): Promise<CloudReachability> {
-        return this.compute.checkAccess();
+    async checkAccess(cloudAccount: CloudAccount): Promise<CloudReachability> {
+        return this.compute.checkAccess(androidProvisioningOverrides(cloudAccount.config).folderId);
     }
 
     // A YC instance name is a DNS label; the environment id is a lowercase uuid, so `sw-env-<uuid>` is a

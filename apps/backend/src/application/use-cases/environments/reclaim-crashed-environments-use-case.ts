@@ -32,6 +32,7 @@ export class ReclaimCrashedEnvironmentsUseCase {
         environment.reclaimCrashed();
         await this.environmentRepository.save(environment);
 
-        await this.environmentProviderGateway.deprovision(environment).catch(() => undefined);
+        // TODO(byoc): pass the cloud account so a delegated VM is torn down in the user's folder, not ours.
+        await this.environmentProviderGateway.deprovision(environment, null).catch(() => undefined);
     }
 }

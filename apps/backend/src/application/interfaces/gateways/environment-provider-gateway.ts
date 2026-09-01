@@ -11,12 +11,13 @@ export type CloudReachability = {
 // Driven port over the external system that runs environments (Docker now, a cloud later).
 // It actuates containers/VMs; it is NOT a repository (it does not store our aggregates).
 // Operational verbs (docker run/remove) live in the backend client behind the adapter.
-// provision receives the environment's cloud account so the adapter can read the project's provisioning
-// config (image/port/…); it is null when the environment has no bound cloud account.
+// provision and deprovision receive the environment's cloud account so the adapter can read the project's
+// provisioning config (image/port/folder/…); it is null when the environment has no bound cloud account.
+// deprovision must tear down in the same place it provisioned (the account's folder), or the VM leaks.
 export abstract class EnvironmentProviderGateway {
     abstract provision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void>;
 
-    abstract deprovision(environment: Environment): Promise<void>;
+    abstract deprovision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void>;
 
     // Probe whether we can operate this cloud account under our identity — a read-only check the UI runs
     // after connect to show "cloud available". Never throws on an access failure: an unreachable cloud is

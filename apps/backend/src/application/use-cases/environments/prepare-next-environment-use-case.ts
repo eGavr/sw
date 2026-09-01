@@ -30,8 +30,10 @@ export class PrepareNextEnvironmentUseCase {
 
         this.logger.log(`prepare: provisioning environment ${environment.id}`);
 
+        const cloudAccount = await this.cloudAccountFor(environment);
+
         try {
-            await this.environmentProviderGateway.provision(environment, await this.cloudAccountFor(environment));
+            await this.environmentProviderGateway.provision(environment, cloudAccount);
             environment.markDispatched();
             await this.environmentRepository.save(environment);
             this.logger.log(`prepare: environment ${environment.id} dispatched, awaiting agent`);
@@ -39,8 +41,8 @@ export class PrepareNextEnvironmentUseCase {
             this.logger.error(`prepare: provisioning environment ${environment.id} failed: ${describeError(error)}`);
             environment.failProvisioning(EnvironmentStateReason.ProviderError);
             await this.environmentRepository.save(environment);
-            // Best-effort cleanup; a leaked container is caught later by env-id on the next provision/GC.
-            await this.environmentProviderGateway.deprovision(environment).catch(() => undefined);
+            // Best-effort cleanup in the same account's folder; a leak is caught later by env-id on GC.
+            await this.environmentProviderGateway.deprovision(environment, cloudAccount).catch(() => undefined);
         }
 
         return environment;
