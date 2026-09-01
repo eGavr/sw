@@ -28,6 +28,7 @@ describe("/cloudTypes", () => {
                 name: "cloudTypes/local",
                 type: "local",
                 provides: [{ platform: "linux", execution: "container" }],
+                connect: { requiredConfig: [], grants: [] },
             },
             {
                 name: "cloudTypes/yandex-cloud",
@@ -36,6 +37,8 @@ describe("/cloudTypes", () => {
                     { platform: "android", execution: "container" },
                     { platform: "linux", execution: "container" },
                 ],
+                // No published identities in the test install, so the folder is demanded with no grants.
+                connect: { requiredConfig: ["folderId"], grants: [] },
             },
         ]));
     });

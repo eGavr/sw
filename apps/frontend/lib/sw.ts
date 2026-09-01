@@ -39,10 +39,20 @@ export interface Substrate {
   execution: string;
 }
 
+// A role the user grants to one of OUR published service accounts on their own cloud (delegated BYOC —
+// no secrets change hands; they authorize our identity instead).
+export interface CloudGrant {
+  role: string;
+  serviceAccountId: string;
+  purpose: string;
+}
+
 export interface CloudType {
   name: string; // "cloudTypes/{type}"
   type: string;
   provides: Array<Substrate>;
+  // What connecting this type asks of the user: config keys to fill (e.g. folderId) and grants to set up.
+  connect: { requiredConfig: Array<string>; grants: Array<CloudGrant> };
 }
 
 export interface CloudAccount {
@@ -356,11 +366,17 @@ export function listCloudAccounts(project: string): Promise<Array<CloudAccount>>
   ).then((d) => d.cloudAccounts ?? []);
 }
 
-export function connectCloud(project: string, type: string): Promise<CloudAccount> {
+// `config` is the non-secret connection blob; for a delegated cloud it names the user's own resources
+// (e.g. folderId — required, the catalogue's connect.requiredConfig says which keys).
+export function connectCloud(
+  project: string,
+  type: string,
+  config?: Record<string, unknown>,
+): Promise<CloudAccount> {
   return swRequest<CloudAccount>(`v1/projects/${project}/cloudAccounts`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ type }),
+    body: JSON.stringify(config ? { type, config } : { type }),
   });
 }
 

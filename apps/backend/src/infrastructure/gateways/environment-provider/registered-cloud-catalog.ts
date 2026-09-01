@@ -1,7 +1,20 @@
-import { CloudCatalog } from "../../../application/interfaces/cloud-catalog";
+import {
+    CloudCatalog,
+    CloudConnectRequirements,
+    CloudGrant,
+} from "../../../application/interfaces/cloud-catalog";
 import { Stereotype } from "../../../domain/entities/cloud-account/stereotype";
 import { Execution } from "../../../domain/entities/environment/execution";
 import { InternalError } from "../../../domain/entities/error/internal-error";
+
+// The install's published service identities the user grants roles to on their own cloud (delegated
+// BYOC). Optional: a dev/local install has none and its catalogue simply lists no grants.
+export type DelegationIdentities = {
+    readonly computeServiceAccountId?: string;
+    readonly storageServiceAccountId?: string;
+};
+
+const noRequirements: CloudConnectRequirements = { requiredConfig: [], grants: [] };
 
 // The one place that knows cloud-type → the (platform, execution) substrates it provisions. Adding a cloud
 // backend means adding an entry here (and its adapter/routing). The domain stays cloud-agnostic: a
@@ -25,7 +38,10 @@ const allSubstratesByType = new Map<string, ReadonlyArray<Stereotype>>([
 export class RegisteredCloudCatalog extends CloudCatalog {
     private readonly substratesByType: Map<string, ReadonlyArray<Stereotype>>;
 
-    constructor(enabledTypes?: ReadonlyArray<string>) {
+    constructor(
+        enabledTypes?: ReadonlyArray<string>,
+        private readonly identities: DelegationIdentities = {},
+    ) {
         super();
 
         if (!enabledTypes) {
@@ -57,5 +73,45 @@ export class RegisteredCloudCatalog extends CloudCatalog {
 
     types(): ReadonlyArray<string> {
         return [...this.substratesByType.keys()];
+    }
+
+    // yandex-cloud is delegated BYOC: the connection MUST name the user's folder (or provisioning would
+    // silently fall back to the operator's folder and bill the operator), and the user pre-grants our
+    // published identities on their side. `local` is the operator's own machine — nothing to require.
+    connectRequirementsFor(type: string): CloudConnectRequirements {
+        if (type !== "yandex-cloud" || !this.supports(type)) {
+            return noRequirements;
+        }
+
+        return { requiredConfig: ["folderId"], grants: this.yandexCloudGrants() };
+    }
+
+    private yandexCloudGrants(): ReadonlyArray<CloudGrant> {
+        const grants: Array<CloudGrant> = [];
+
+        if (this.identities.computeServiceAccountId) {
+            grants.push(
+                {
+                    role: "compute.editor",
+                    serviceAccountId: this.identities.computeServiceAccountId,
+                    purpose: "create and delete environment VMs in your folder",
+                },
+                {
+                    role: "vpc.user",
+                    serviceAccountId: this.identities.computeServiceAccountId,
+                    purpose: "attach environment VMs to the network",
+                },
+            );
+        }
+
+        if (this.identities.storageServiceAccountId) {
+            grants.push({
+                role: "storage.editor",
+                serviceAccountId: this.identities.storageServiceAccountId,
+                purpose: "write session logs and video to your bucket",
+            });
+        }
+
+        return grants;
     }
 }
