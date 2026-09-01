@@ -7,11 +7,11 @@ import { Stereotype } from "../../../domain/entities/cloud-account/stereotype";
 import { Execution } from "../../../domain/entities/environment/execution";
 import { InternalError } from "../../../domain/entities/error/internal-error";
 
-// The install's published service identities the user grants roles to on their own cloud (delegated
-// BYOC). Optional: a dev/local install has none and its catalogue simply lists no grants.
+// The install's published compute identity the user grants roles to on their own cloud (delegated BYOC).
+// Optional: a dev/local install has none and its catalogue simply lists no grants. The storage identity is
+// a separate surface (GET /v1/storageDelegation) — it belongs to the bucket setup, not to cloud connect.
 export type DelegationIdentities = {
     readonly computeServiceAccountId?: string;
-    readonly storageServiceAccountId?: string;
 };
 
 const noRequirements: CloudConnectRequirements = { requiredConfig: [], grants: [] };
@@ -87,31 +87,21 @@ export class RegisteredCloudCatalog extends CloudCatalog {
     }
 
     private yandexCloudGrants(): ReadonlyArray<CloudGrant> {
-        const grants: Array<CloudGrant> = [];
-
-        if (this.identities.computeServiceAccountId) {
-            grants.push(
-                {
-                    role: "compute.editor",
-                    serviceAccountId: this.identities.computeServiceAccountId,
-                    purpose: "create and delete environment VMs in your folder",
-                },
-                {
-                    role: "vpc.user",
-                    serviceAccountId: this.identities.computeServiceAccountId,
-                    purpose: "attach environment VMs to the network",
-                },
-            );
+        if (!this.identities.computeServiceAccountId) {
+            return [];
         }
 
-        if (this.identities.storageServiceAccountId) {
-            grants.push({
-                role: "storage.editor",
-                serviceAccountId: this.identities.storageServiceAccountId,
-                purpose: "write session logs and video to your bucket",
-            });
-        }
-
-        return grants;
+        return [
+            {
+                role: "compute.editor",
+                serviceAccountId: this.identities.computeServiceAccountId,
+                purpose: "create and delete environment VMs in your folder",
+            },
+            {
+                role: "vpc.user",
+                serviceAccountId: this.identities.computeServiceAccountId,
+                purpose: "attach environment VMs to the network",
+            },
+        ];
     }
 }

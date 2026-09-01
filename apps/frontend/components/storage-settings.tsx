@@ -1,6 +1,6 @@
 "use client";
 
-import { ActionIcon, Alert, Anchor, Box, Button, Group, Loader, Stack, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Anchor, Box, Button, Code, Group, Loader, Stack, Text, TextInput, Title, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconAlertTriangle, IconCircleCheck, IconPencil, IconPlant, IconPlus, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 
 import {
   clearStorageDestination,
+  getStorageDelegation,
   getStorageDestination,
   testStorageDestination,
   updateStorageDestination,
@@ -39,6 +40,14 @@ function isUrl(value: string): boolean {
 // write probe runs on load and shows the destination's health.
 export function StorageSettings({ project }: { project: string }) {
   const queryClient = useQueryClient();
+
+  // The install's published storage identity — makes the "grant access" hint concrete (who + how).
+  const delegation = useQuery({
+    queryKey: ["storageDelegation"],
+    queryFn: getStorageDelegation,
+    staleTime: Infinity,
+    retry: false,
+  });
 
   const destination = useQuery({
     queryKey: ["storageDestination", project],
@@ -240,9 +249,23 @@ export function StorageSettings({ project }: { project: string }) {
           </Alert>
         ) : (
           <Alert color="gray" variant="light">
-            We write under our own identity — grant it access with a bucket policy on your bucket. No
-            credentials are entered or stored here. Works with AWS S3 and S3-compatible endpoints (e.g.
-            Yandex Object Storage).
+            <Stack gap={6}>
+              <Text size="sm">
+                We write under our own identity — grant it access on your bucket. No credentials are
+                entered or stored here. Works with AWS S3 and S3-compatible endpoints (e.g. Yandex
+                Object Storage).
+              </Text>
+              {delegation.data && (
+                <>
+                  <Text size="xs">
+                    <Text span ff="monospace">{delegation.data.role}</Text> — {delegation.data.purpose}:
+                  </Text>
+                  <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                    {`yc resource-manager folder add-access-binding --id <folder-with-your-bucket> --role ${delegation.data.role} --subject serviceAccount:${delegation.data.serviceAccountId}`}
+                  </Code>
+                </>
+              )}
+            </Stack>
           </Alert>
         ))}
 

@@ -39,18 +39,17 @@ describe("RegisteredCloudCatalog", () => {
         expect(localOnly.providesFor("yandex-cloud")).toHaveLength(0);
     });
 
-    test("yandex-cloud connect requires the user's folder and lists the published grants", () => {
+    test("yandex-cloud connect requires the user's folder and lists the published compute grants", () => {
         const withIdentities = new RegisteredCloudCatalog(undefined, {
             computeServiceAccountId: "aje-compute",
-            storageServiceAccountId: "aje-storage",
         });
         const requirements = withIdentities.connectRequirementsFor("yandex-cloud");
 
         expect(requirements.requiredConfig).toEqual(["folderId"]);
+        // Compute-only: the storage grant belongs to the bucket setup (GET /v1/storageDelegation).
         expect(requirements.grants).toEqual([
             { role: "compute.editor", serviceAccountId: "aje-compute", purpose: expect.any(String) },
             { role: "vpc.user", serviceAccountId: "aje-compute", purpose: expect.any(String) },
-            { role: "storage.editor", serviceAccountId: "aje-storage", purpose: expect.any(String) },
         ]);
     });
 

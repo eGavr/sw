@@ -37,8 +37,14 @@ describe("/cloudTypes", () => {
                     { platform: "android", execution: "container" },
                     { platform: "linux", execution: "container" },
                 ],
-                // No published identities in the test install, so the folder is demanded with no grants.
-                connect: { requiredConfig: ["folderId"], grants: [] },
+                // Compute-only grants: the storage identity is a separate surface (storageDelegation).
+                connect: {
+                    requiredConfig: ["folderId"],
+                    grants: [
+                        { role: "compute.editor", serviceAccountId: "aje-test-compute", purpose: expect.any(String) },
+                        { role: "vpc.user", serviceAccountId: "aje-test-compute", purpose: expect.any(String) },
+                    ],
+                },
             },
         ]));
     });
