@@ -32,7 +32,10 @@ describe("/cloudTypes", () => {
             {
                 name: "cloudTypes/yandex-cloud",
                 type: "yandex-cloud",
-                provides: [{ platform: "android", execution: "container" }],
+                provides: [
+                    { platform: "android", execution: "container" },
+                    { platform: "linux", execution: "container" },
+                ],
             },
         ]));
     });

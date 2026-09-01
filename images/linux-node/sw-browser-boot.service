@@ -1,0 +1,13 @@
+[Unit]
+Description=sw browser environment boot (selenium node + heartbeat agent)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/linux-node/vm-boot.sh
+
+[Install]
+WantedBy=multi-user.target

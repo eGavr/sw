@@ -28,6 +28,15 @@ import {
 import {
     AndroidRedroidEnvironmentProviderGateway,
 } from "./android-redroid/android-redroid-environment-provider-gateway";
+import {
+    BrowserVmEnvironmentConfig,
+    defaultBrowserCores,
+    defaultBrowserDiskGb,
+    defaultBrowserMemoryGb,
+} from "./browser-vm/browser-vm-environment-config";
+import {
+    BrowserVmEnvironmentProviderGateway,
+} from "./browser-vm/browser-vm-environment-provider-gateway";
 import { DockerClient } from "./docker/docker-client";
 import {
     defaultInternalPort,
@@ -68,6 +77,11 @@ export const EnvironmentProviderGatewayProvider = {
             [routingKey("yandex-cloud", "android", Execution.Emulator), new AndroidEmulatorEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_EMULATOR_FOLDER_ID")),
                 androidEmulatorConfig(configService),
+                agentTokens,
+            )],
+            [routingKey("yandex-cloud", "linux", Execution.Container), new BrowserVmEnvironmentProviderGateway(
+                new YandexComputeClient(configService.get<string>("COMPUTE_BROWSER_FOLDER_ID")),
+                browserVmConfig(configService, idleTimeoutSeconds),
                 agentTokens,
             )],
         ]);
@@ -122,6 +136,23 @@ function androidRedroidConfig(configService: ConfigService): AndroidRedroidEnvir
         // in front of the internal service) reachable from the Compute VM.
         internalUrl: configService.get<string>("COMPUTE_ANDROID_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,    
     });
+}
+
+function browserVmConfig(configService: ConfigService, sessionTimeoutSeconds: number): BrowserVmEnvironmentConfig {
+    const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
+
+    return {
+        imageId: configService.get<string>("COMPUTE_BROWSER_IMAGE_ID") ?? "",
+        zone: configService.get<string>("COMPUTE_BROWSER_ZONE") ?? "ru-central1-a",
+        subnetId: configService.get<string>("COMPUTE_BROWSER_SUBNET_ID") ?? "",
+        securityGroupId: configService.get<string>("COMPUTE_BROWSER_SECURITY_GROUP_ID"),
+        cores: Number(configService.get<string>("COMPUTE_BROWSER_CORES") ?? String(defaultBrowserCores)),
+        memoryGb: Number(configService.get<string>("COMPUTE_BROWSER_MEMORY_GB") ?? String(defaultBrowserMemoryGb)),
+        diskSizeGb: Number(configService.get<string>("COMPUTE_BROWSER_DISK_GB") ?? String(defaultBrowserDiskGb)),
+        nodeImage: configService.get<string>("COMPUTE_BROWSER_NODE_IMAGE") ?? "",
+        sessionTimeoutSeconds,
+        internalUrl: configService.get<string>("COMPUTE_BROWSER_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
+    };
 }
 
 function androidEmulatorConfig(configService: ConfigService): AndroidEmulatorEnvironmentConfig {
