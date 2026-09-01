@@ -19,7 +19,15 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconArrowBackUp, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconArrowBackUp,
+  IconCircleCheck,
+  IconPencil,
+  IconPlus,
+  IconRefresh,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -30,6 +38,7 @@ import {
   listCloudAccounts,
   listCloudTypes,
   Substrate,
+  testCloudAccount,
 } from "@/lib/sw";
 
 function SubstrateBadges({ provides }: { provides: Array<Substrate> }) {
@@ -40,6 +49,61 @@ function SubstrateBadges({ provides }: { provides: Array<Substrate> }) {
           {s.platform} · {s.execution}
         </Badge>
       ))}
+    </Group>
+  );
+}
+
+// Whether the cloud is usable with its current settings — probed under our identity on load (for a
+// delegated cloud, that the user has granted us access). Red with the backend's detail when not, so a
+// missing grant surfaces here instead of failing later at provision. Re-checkable on demand.
+function CloudReachabilityBadge({ project, uid }: { project: string; uid: string }) {
+  const probe = useQuery({
+    queryKey: ["cloudAccess", project, uid],
+    queryFn: () => testCloudAccount(project, uid),
+    retry: false,
+  });
+
+  const status = probe.isFetching ? (
+    <Group gap={4} c="dimmed">
+      <Loader size={12} />
+      <Text size="xs">checking…</Text>
+    </Group>
+  ) : probe.isError ? (
+    <Tooltip label={(probe.error as Error).message}>
+      <Group gap={4} c="red">
+        <IconAlertTriangle size={14} />
+        <Text size="xs">unavailable</Text>
+      </Group>
+    </Tooltip>
+  ) : probe.data?.ok ? (
+    <Group gap={4} c="green">
+      <IconCircleCheck size={14} />
+      <Text size="xs">available</Text>
+    </Group>
+  ) : (
+    <Tooltip label={probe.data?.message}>
+      <Group gap={4} c="red">
+        <IconAlertTriangle size={14} />
+        <Text size="xs">unavailable</Text>
+      </Group>
+    </Tooltip>
+  );
+
+  return (
+    <Group gap={4} wrap="nowrap">
+      {status}
+      <Tooltip label="Re-check">
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="sm"
+          aria-label="Re-check cloud"
+          loading={probe.isFetching}
+          onClick={() => void probe.refetch()}
+        >
+          <IconRefresh size={12} />
+        </ActionIcon>
+      </Tooltip>
     </Group>
   );
 }
@@ -178,6 +242,7 @@ export function CloudsTab({ project }: { project: string }) {
               <Table.Th>Cloud</Table.Th>
               <Table.Th>Provides</Table.Th>
               <Table.Th>Connected</Table.Th>
+              <Table.Th>Available</Table.Th>
               {managing && <Table.Th />}
             </Table.Tr>
           </Table.Thead>
@@ -200,6 +265,9 @@ export function CloudsTab({ project }: { project: string }) {
                     <SubstrateBadges provides={cloud.provides} />
                   </Table.Td>
                   <Table.Td>{new Date(cloud.createTime).toLocaleDateString()}</Table.Td>
+                  <Table.Td onClick={(e) => e.stopPropagation()}>
+                    <CloudReachabilityBadge project={project} uid={cloud.uid} />
+                  </Table.Td>
                   {managing && (
                     <Table.Td onClick={(e) => e.stopPropagation()}>
                       <Tooltip label={removing ? "Keep" : "Disconnect"}>
@@ -234,6 +302,7 @@ export function CloudsTab({ project }: { project: string }) {
                     <SubstrateBadges provides={providesFor(type)} />
                   </Table.Td>
                   <Table.Td>—</Table.Td>
+                  <Table.Td>—</Table.Td>
                   <Table.Td>
                     <Tooltip label="Remove">
                       <ActionIcon
@@ -250,7 +319,7 @@ export function CloudsTab({ project }: { project: string }) {
               ))}
             {rows.length === 0 && pendingConnect.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={managing ? 4 : 3}>
+                <Table.Td colSpan={managing ? 5 : 4}>
                   <Text c="dimmed" size="sm" ta="center" py="sm">
                     No clouds connected — connect one to create environments
                   </Text>

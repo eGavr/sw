@@ -115,6 +115,33 @@ describe("/projects/:project/cloudAccounts", () => {
         return connect(uid, owner, "wandering-cloud").expect(HttpStatus.BAD_REQUEST);
     });
 
+    test("reports the local cloud as reachable (its docker daemon answers)", async () => {
+        const { owner, uid } = await seedProject();
+        const created = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
+
+        const probe = (await request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${created.uid}:test`).set(owner).expect(HttpStatus.OK)).body;
+        expect(probe.ok).toBe(true);
+    });
+
+    test("rejects an unknown custom method on a cloud account with NOT_FOUND", async () => {
+        const { owner, uid } = await seedProject();
+        const created = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
+
+        return request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${created.uid}:frobnicate`).set(owner).expect(HttpStatus.NOT_FOUND);
+    });
+
+    test("does not probe a cloud account of another project (NOT_FOUND)", async () => {
+        const first = await seedProject();
+        const second = await seedProject();
+        const created = (await connect(first.uid, first.owner, "local").expect(HttpStatus.CREATED)).body;
+
+        return request(app.getHttpServer())
+            .post(`/projects/${second.uid}/cloudAccounts/${created.uid}:test`)
+            .set(second.owner).expect(HttpStatus.NOT_FOUND);
+    });
+
     test("responds UNAUTHENTICATED without a token", async () => {
         const { uid } = await seedProject();
 

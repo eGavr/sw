@@ -1,3 +1,5 @@
+import { CloudReachability } from "../../../../application/interfaces/gateways/environment-provider-gateway";
+
 export type VmInstanceOptions = {
     name: string;
     imageId: string;
@@ -26,4 +28,8 @@ export abstract class VmProvisioner {
     abstract createInstance(options: VmInstanceOptions): Promise<void>;
 
     abstract deleteInstance(name: string): Promise<void>;
+
+    // Read-only reachability probe: can we operate this VM cloud under our identity (for a delegated cloud,
+    // has the user granted us access to their folder)? Feeds the "cloud available" badge.
+    abstract checkAccess(): Promise<CloudReachability>;
 }

@@ -1,5 +1,8 @@
 import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
-import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
+import {
+    CloudReachability,
+    EnvironmentProviderGateway,
+} from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
@@ -78,6 +81,18 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
 
     async deprovision(environment: Environment): Promise<void> {
         await this.removeByEnvironmentId(environment.id);
+    }
+
+    // local = the operator's own machine: "reachable" means its docker daemon answers. No credential or
+    // folder to check — the cloud account itself is not consulted.
+    async checkAccess(): Promise<CloudReachability> {
+        try {
+            await this.docker.version();
+
+            return { reachable: true };
+        } catch (error) {
+            return { reachable: false, detail: error instanceof Error ? error.message : String(error) };
+        }
     }
 
     private async removeByEnvironmentId(environmentId: string): Promise<void> {

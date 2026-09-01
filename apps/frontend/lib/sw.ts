@@ -370,3 +370,17 @@ export function disconnectCloud(project: string, cloudAccount: string): Promise<
     method: "DELETE",
   });
 }
+
+// Probes whether the cloud is usable with its current settings — { ok: true } if reachable under our
+// identity (for a delegated cloud, the user has granted us access), else the backend's detail. Drives the
+// "cloud available" badge, like the storage health check.
+export function testCloudAccount(
+  project: string,
+  cloudAccount: string,
+): Promise<{ ok: boolean; message?: string }> {
+  // AIP-136 custom method (colon verb on the cloud account resource).
+  return swRequest<{ ok: boolean; message?: string }>(
+    `v1/projects/${project}/cloudAccounts/${cloudAccount}:test`,
+    { method: "POST" },
+  );
+}
