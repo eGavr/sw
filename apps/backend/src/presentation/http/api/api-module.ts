@@ -4,7 +4,6 @@ import { BadRequestException, MiddlewareConsumer, Module, NestModule, Validation
 import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
-import { CloudCatalog } from "../../../application/interfaces/cloud-catalog";
 import {
     WebDriverSessionGateway,
 } from "../../../application/interfaces/gateways/webdriver-session-gateway";
@@ -87,8 +86,8 @@ import {
     EnvironmentProviderGatewayProvider,
 } from "../../../infrastructure/gateways/environment-provider/environment-provider-gateway-provider";
 import {
-    RegisteredCloudCatalog,
-} from "../../../infrastructure/gateways/environment-provider/registered-cloud-catalog";
+    RegisteredCloudCatalogProvider,
+} from "../../../infrastructure/gateways/environment-provider/registered-cloud-catalog-provider";
 import {
     ObjectStorageGatewayProvider,
 } from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
@@ -178,7 +177,7 @@ import {
         StorageDestinationRepositoryProvider,
         { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
         { provide: WebDriverSessionGateway, useClass: WebDriverSessionGatewayImpl },
-        { provide: CloudCatalog, useClass: RegisteredCloudCatalog },
+        RegisteredCloudCatalogProvider,
         ObjectStorageGatewayProvider,
         // The `cloudAccounts/{id}:test` probe runs checkAccess through the compute gateway under our
         // identity; the gateway needs the agent-token service to construct (it is not used by the probe).
