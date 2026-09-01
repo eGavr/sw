@@ -9,9 +9,13 @@ import { InternalError } from "../../../domain/entities/error/internal-error";
 const allSubstratesByType = new Map<string, ReadonlyArray<Stereotype>>([
     // The machine sw itself runs on, driven through its docker daemon.
     ["local", [new Stereotype("linux", Execution.Container)]],
-    // Only the live-proven substrate is offered: android/emulator has an adapter but was never verified
-    // on real KVM hardware, and linux browsers on YC (k8s or per-env VMs) are not built yet.
-    ["yandex-cloud", [new Stereotype("android", Execution.Container)]],
+    // android/emulator has an adapter but is not offered until verified on real KVM hardware. Note local
+    // and yandex-cloud both provide linux/container, so one project cannot connect both — installs never
+    // offer both anyway (dev = local only, hosted = real clouds only; see CLOUD_CATALOG).
+    ["yandex-cloud", [
+        new Stereotype("android", Execution.Container),
+        new Stereotype("linux", Execution.Container),
+    ]],
 ]);
 
 // A cloud is offered per installation: local dev exposes only `local` (the operator's docker), a hosted

@@ -1,14 +1,14 @@
-import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
+import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
 
-import { androidProvisioningOverrides } from "./android-provider-config";
+import { vmProvisioningOverrides } from "./vm-provider-config";
 
-describe("androidProvisioningOverrides", () => {
+describe("vmProvisioningOverrides", () => {
     test("returns nothing for an absent config", () => {
-        expect(androidProvisioningOverrides(undefined)).toEqual({});
+        expect(vmProvisioningOverrides(undefined)).toEqual({});
     });
 
     test("reads the per-account folder, network and image", () => {
-        const overrides = androidProvisioningOverrides({
+        const overrides = vmProvisioningOverrides({
             folderId: "b1gfolder",
             imageId: "fd8image",
             zone: "ru-central1-b",
@@ -26,7 +26,7 @@ describe("androidProvisioningOverrides", () => {
     });
 
     test("leaves unknown keys out and absent keys undefined", () => {
-        const overrides = androidProvisioningOverrides({ folderId: "b1gfolder", cores: 8 });
+        const overrides = vmProvisioningOverrides({ folderId: "b1gfolder", cores: 8 });
 
         expect(overrides.folderId).toBe("b1gfolder");
         expect(overrides.zone).toBeUndefined();
@@ -34,7 +34,7 @@ describe("androidProvisioningOverrides", () => {
     });
 
     test("rejects a non-string or empty value", () => {
-        expect(() => androidProvisioningOverrides({ folderId: 42 })).toThrow(InvalidArgumentError);
-        expect(() => androidProvisioningOverrides({ zone: "" })).toThrow(InvalidArgumentError);
+        expect(() => vmProvisioningOverrides({ folderId: 42 })).toThrow(InvalidArgumentError);
+        expect(() => vmProvisioningOverrides({ zone: "" })).toThrow(InvalidArgumentError);
     });
 });

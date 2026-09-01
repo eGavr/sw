@@ -45,7 +45,10 @@ describe("/projects/:project/cloudAccounts", () => {
 
         const created = (await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CREATED)).body;
         expect(created).toMatchObject({ uid: expect.any(String), type: "yandex-cloud" });
-        expect(created.provides).toEqual([{ platform: "android", execution: "container" }]);
+        expect(created.provides).toEqual([
+            { platform: "android", execution: "container" },
+            { platform: "linux", execution: "container" },
+        ]);
 
         const list = (await request(app.getHttpServer())
             .get(`/projects/${uid}/cloudAccounts`).set(owner).expect(HttpStatus.OK)).body;
@@ -98,14 +101,14 @@ describe("/projects/:project/cloudAccounts", () => {
             .get(`/projects/${second.uid}/cloudAccounts/${created.uid}`).set(second.owner).expect(HttpStatus.NOT_FOUND);
     });
 
-    test("allows clouds with disjoint substrates but rejects an overlapping one (CONFLICT)", async () => {
+    test("rejects a cloud whose substrates overlap an already-connected one (CONFLICT)", async () => {
         const { owner, uid } = await seedProject();
 
-        // yandex-cloud (android/*) and local (linux/container) do not overlap.
-        await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CREATED);
         await connect(uid, owner, "local").expect(HttpStatus.CREATED);
 
-        // A second local provides the same linux/container -> overlaps the first -> rejected.
+        // Both yandex-cloud and a second local provide linux/container -> routing would be ambiguous.
+        await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CONFLICT);
+
         return connect(uid, owner, "local").expect(HttpStatus.CONFLICT);
     });
 
