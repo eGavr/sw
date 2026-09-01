@@ -11,6 +11,12 @@ assets
 *.md
 .env
 .env.*
+# Dev-machine env files must never reach an image: NEXT_PUBLIC_* from apps/frontend/.env.local would be
+# inlined into the production bundle at next build (this bit us: the dev storage mode shipped to prod).
+# NOT **/.env.* — apps/backend/env/.env.<NODE_ENV> is deliberately copied into the backend image.
+**/.env.local
+# Local build artifacts; the image builds its own.
+**/.next
 .vscode
 .idea
 npm-debug.log
