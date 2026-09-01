@@ -49,7 +49,7 @@ export class YandexComputeClient extends VmProvisioner {
                 "--memory", String(options.memoryGb),
                 "--metadata", metadata,
                 "--async",
-            ]);
+            ], options.folderId);
         } catch (error) {
             if (!this.isAlreadyExists(error)) {
                 throw error;
@@ -57,17 +57,19 @@ export class YandexComputeClient extends VmProvisioner {
         }
     }
 
-    async deleteInstance(name: string): Promise<void> {
+    async deleteInstance(name: string, folderId?: string): Promise<void> {
         // Idempotent: a missing instance (already gone / never created) is not an error for deprovision.
-        await this.exec(["compute", "instance", "delete", "--name", name, "--async"]).catch(() => undefined);
+        await this.exec(["compute", "instance", "delete", "--name", name, "--async"], folderId)
+            .catch(() => undefined);
     }
 
     // Reads the target folder (or, with no folder yet, the reachable clouds) to prove our identity can
     // operate here — for a delegated cloud that means the user has granted our service account access. A
     // failure is the answer, not an exception: reported as { reachable: false, detail }.
-    async checkAccess(): Promise<CloudReachability> {
-        const probe = this.folderId
-            ? ["resource-manager", "folder", "get", "--id", this.folderId, "--format", "json"]
+    async checkAccess(folderId?: string): Promise<CloudReachability> {
+        const folder = folderId ?? this.folderId;
+        const probe = folder
+            ? ["resource-manager", "folder", "get", "--id", folder, "--format", "json"]
             : ["resource-manager", "cloud", "list", "--format", "json"];
 
         try {
@@ -81,8 +83,9 @@ export class YandexComputeClient extends VmProvisioner {
         }
     }
 
-    private async exec(args: Array<string>): Promise<string> {
-        const folderArgs = this.folderId ? ["--folder-id", this.folderId] : [];
+    private async exec(args: Array<string>, folderId?: string): Promise<string> {
+        const folder = folderId ?? this.folderId;
+        const folderArgs = folder ? ["--folder-id", folder] : [];
 
         return this.run([...folderArgs, ...args]);
     }

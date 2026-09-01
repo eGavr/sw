@@ -26,8 +26,8 @@ export class RoutingEnvironmentProviderGateway extends EnvironmentProviderGatewa
         await this.gatewayFor(environment).provision(environment, cloudAccount);
     }
 
-    async deprovision(environment: Environment): Promise<void> {
-        await this.gatewayFor(environment).deprovision(environment);
+    async deprovision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
+        await this.gatewayFor(environment).deprovision(environment, cloudAccount);
     }
 
     // A cloud account is probed via any of its substrates' adapters — access is folder/identity level, the

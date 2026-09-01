@@ -41,8 +41,9 @@ export class ReclaimStuckEnvironmentsUseCase {
         // A retry goes back to `enqueued`; the next provision removes any stale container by env id
         // (idempotent), so nothing to clean up here. A terminal failure is never re-provisioned, so
         // tear its container down now (best-effort; a leak is caught later by env-id / GC).
+        // TODO(byoc): pass the cloud account so a delegated VM is torn down in the user's folder, not ours.
         if (environment.state === EnvironmentState.Failed) {
-            await this.environmentProviderGateway.deprovision(environment).catch(() => undefined);
+            await this.environmentProviderGateway.deprovision(environment, null).catch(() => undefined);
         }
     }
 }

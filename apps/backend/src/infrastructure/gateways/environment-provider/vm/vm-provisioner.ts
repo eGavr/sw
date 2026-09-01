@@ -2,6 +2,9 @@ import { CloudReachability } from "../../../../application/interfaces/gateways/e
 
 export type VmInstanceOptions = {
     name: string;
+    // The cloud folder to create the VM in. Omitted uses the client's construction-time default (the
+    // operator's own folder); set per cloud account to provision into the user's delegated folder.
+    folderId?: string;
     imageId: string;
     // The hardware platform to schedule on; used to select a KVM-capable platform for the Android emulator
     // (which needs /dev/kvm). Omitted for the browser/redroid path, which takes the cloud default.
@@ -27,9 +30,12 @@ export type VmInstanceOptions = {
 export abstract class VmProvisioner {
     abstract createInstance(options: VmInstanceOptions): Promise<void>;
 
-    abstract deleteInstance(name: string): Promise<void>;
+    // folderId scopes the delete to the folder the VM was created in (the user's, per cloud account);
+    // omitted uses the client's default folder.
+    abstract deleteInstance(name: string, folderId?: string): Promise<void>;
 
     // Read-only reachability probe: can we operate this VM cloud under our identity (for a delegated cloud,
-    // has the user granted us access to their folder)? Feeds the "cloud available" badge.
-    abstract checkAccess(): Promise<CloudReachability>;
+    // has the user granted us access to their folder)? folderId probes that specific folder; omitted checks
+    // general reachability under our identity. Feeds the "cloud available" badge.
+    abstract checkAccess(folderId?: string): Promise<CloudReachability>;
 }
