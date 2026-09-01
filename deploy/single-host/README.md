@@ -37,6 +37,13 @@ step — the qemu build works; only building *inside* RU needs the runbook's npm
 
 (`--provenance=false` is required — YC CR rejects OCI attestation manifests.)
 
+Docker hub is not reachable from the RU VMs, so `postgres:16` must also come from our CR: copy the amd64
+manifest once from a machine that can reach both (`docker buildx imagetools create --tag
+cr.yandex/<registry_id>/postgres:16 docker.io/library/postgres:16@<amd64 digest>`), then on the VM pull it
+and `docker tag` it back to `postgres:16`. After `setup-realm.sh`, set `sslRequired=NONE` on realms `sw`
+and `master` (kcadm `update realms/<r> -s sslRequired=NONE`) — Keycloak refuses http token requests from
+external addresses otherwise.
+
 ## Bring up the service (one VM)
 
 1. Create a small amd64 VM (2 vCPU / 8 GB is comfortable; downsize for less), attach the `sw-k8s-nodes` SA,
