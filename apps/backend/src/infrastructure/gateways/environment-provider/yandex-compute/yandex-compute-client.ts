@@ -3,6 +3,7 @@ import { promisify } from "util";
 
 import { Injectable } from "@nestjs/common";
 
+import { CloudReachability } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { VmInstanceOptions, VmProvisioner } from "../vm/vm-provisioner";
 
 const execFileAsync = promisify(execFile);
@@ -61,12 +62,36 @@ export class YandexComputeClient extends VmProvisioner {
         await this.exec(["compute", "instance", "delete", "--name", name, "--async"]).catch(() => undefined);
     }
 
+    // Reads the target folder (or, with no folder yet, the reachable clouds) to prove our identity can
+    // operate here — for a delegated cloud that means the user has granted our service account access. A
+    // failure is the answer, not an exception: reported as { reachable: false, detail }.
+    async checkAccess(): Promise<CloudReachability> {
+        const probe = this.folderId
+            ? ["resource-manager", "folder", "get", "--id", this.folderId, "--format", "json"]
+            : ["resource-manager", "cloud", "list", "--format", "json"];
+
+        try {
+            await this.run(probe);
+
+            return { reachable: true };
+        } catch (error) {
+            const stderr = (error as { stderr?: string }).stderr;
+
+            return { reachable: false, detail: stderr || (error instanceof Error ? error.message : String(error)) };
+        }
+    }
+
     private async exec(args: Array<string>): Promise<string> {
         const folderArgs = this.folderId ? ["--folder-id", this.folderId] : [];
+
+        return this.run([...folderArgs, ...args]);
+    }
+
+    private async run(args: Array<string>): Promise<string> {
         const token = await this.metadataToken();
         const env = token ? { ...process.env, YC_TOKEN: token } : process.env;
 
-        const { stdout } = await execFileAsync("yc", [...folderArgs, ...args], {
+        const { stdout } = await execFileAsync("yc", args, {
             env,
             encoding: "utf8",
             maxBuffer: 16 * 1024 * 1024,

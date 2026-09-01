@@ -1,5 +1,8 @@
 import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
-import { EnvironmentProviderGateway } from "../../../../application/interfaces/gateways/environment-provider-gateway";
+import {
+    CloudReachability,
+    EnvironmentProviderGateway,
+} from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { VmProvisioner } from "../vm/vm-provisioner";
 
@@ -44,6 +47,10 @@ export class AndroidEmulatorEnvironmentProviderGateway extends EnvironmentProvid
 
     async deprovision(environment: Environment): Promise<void> {
         await this.compute.deleteInstance(this.instanceName(environment));
+    }
+
+    async checkAccess(): Promise<CloudReachability> {
+        return this.compute.checkAccess();
     }
 
     // A YC instance name is a DNS label; the environment id is a lowercase uuid, so `sw-env-<uuid>` is a

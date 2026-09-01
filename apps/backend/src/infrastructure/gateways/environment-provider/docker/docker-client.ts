@@ -95,6 +95,12 @@ export class DockerClient {
         await this.exec(["rm", "-f", containerId]);
     }
 
+    // Reachability probe: `docker version` talks to the daemon (the server half fails if it is down), so a
+    // throw means the local docker is not usable. Kept out of run/remove to stay a pure read.
+    async version(): Promise<void> {
+        await this.exec(["version"]);
+    }
+
     private async exec(args: Array<string>): Promise<string> {
         const { stdout } = await execFileAsync("docker", args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
 

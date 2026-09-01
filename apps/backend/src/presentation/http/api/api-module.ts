@@ -29,6 +29,9 @@ import {
     ListCloudAccountsUseCase,
 } from "../../../application/use-cases/cloud-accounts/list-cloud-accounts-use-case";
 import {
+    TestCloudAccountAccessUseCase,
+} from "../../../application/use-cases/cloud-accounts/test-cloud-account-access-use-case";
+import {
     ListCloudTypesUseCase,
 } from "../../../application/use-cases/cloud-types/list-cloud-types-use-case";
 import { CreateEnvironmentUseCase } from "../../../application/use-cases/environments/create-environment-use-case";
@@ -63,6 +66,7 @@ import {
     TestProjectStorageDestinationUseCase,
 } from "../../../application/use-cases/storage-destinations/test-project-storage-destination-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
+import { AgentTokenServiceProvider } from "../../../infrastructure/agent-token/agent-token-service-provider";
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
 } from "../../../infrastructure/data-sources/auth/user-data-source-provider";
@@ -79,6 +83,9 @@ import {
 } from "../../../infrastructure/data-sources/database/postgres/storage-destination-data-source";
 import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../infrastructure/data-sources/database/postgres/user-data-source";
+import {
+    EnvironmentProviderGatewayProvider,
+} from "../../../infrastructure/gateways/environment-provider/environment-provider-gateway-provider";
 import {
     RegisteredCloudCatalog,
 } from "../../../infrastructure/gateways/environment-provider/registered-cloud-catalog";
@@ -154,6 +161,7 @@ import {
         ListCloudAccountsUseCase,
         GetCloudAccountUseCase,
         DeleteCloudAccountUseCase,
+        TestCloudAccountAccessUseCase,
 
         ListCloudTypesUseCase,
 
@@ -172,6 +180,10 @@ import {
         { provide: WebDriverSessionGateway, useClass: WebDriverSessionGatewayImpl },
         { provide: CloudCatalog, useClass: RegisteredCloudCatalog },
         ObjectStorageGatewayProvider,
+        // The `cloudAccounts/{id}:test` probe runs checkAccess through the compute gateway under our
+        // identity; the gateway needs the agent-token service to construct (it is not used by the probe).
+        EnvironmentProviderGatewayProvider,
+        AgentTokenServiceProvider,
 
         ProjectDataSource,
         EnvironmentDataSource,

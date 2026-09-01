@@ -1,4 +1,7 @@
-import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
+import {
+    CloudReachability,
+    EnvironmentProviderGateway,
+} from "../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { InternalError } from "../../../domain/entities/error/internal-error";
@@ -27,12 +30,31 @@ export class RoutingEnvironmentProviderGateway extends EnvironmentProviderGatewa
         await this.gatewayFor(environment).deprovision(environment);
     }
 
+    // A cloud account is probed via any of its substrates' adapters — access is folder/identity level, the
+    // same for every subdivision of the cloud — so the first provided stereotype picks the adapter.
+    async checkAccess(cloudAccount: CloudAccount): Promise<CloudReachability> {
+        return this.gatewayForAccount(cloudAccount).checkAccess(cloudAccount);
+    }
+
     private gatewayFor(environment: Environment): EnvironmentProviderGateway {
         if (!environment.cloudType) {
             throw new InternalError(`environment ${environment.id}: no cloud type to route to`);
         }
 
-        const key = routingKey(environment.cloudType, environment.platform.name, environment.execution);
+        return this.at(routingKey(environment.cloudType, environment.platform.name, environment.execution));
+    }
+
+    private gatewayForAccount(cloudAccount: CloudAccount): EnvironmentProviderGateway {
+        const [stereotype] = cloudAccount.providedStereotypes();
+
+        if (!stereotype) {
+            throw new InternalError(`cloud account ${cloudAccount.id}: no substrate to route to`);
+        }
+
+        return this.at(routingKey(cloudAccount.type, stereotype.platformName, stereotype.execution));
+    }
+
+    private at(key: string): EnvironmentProviderGateway {
         const gateway = this.gatewaysByKey.get(key);
 
         if (!gateway) {
