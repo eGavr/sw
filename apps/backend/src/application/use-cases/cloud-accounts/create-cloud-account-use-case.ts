@@ -45,6 +45,15 @@ export class CreateCloudAccountUseCase {
             );
         }
 
+        // A delegated cloud must name where to provision (the user's folder); silently falling back to the
+        // install default would run the user's environments at the operator's cost.
+        const missing = this.cloudCatalog.connectRequirementsFor(params.type).requiredConfig
+            .filter((key) => typeof params.config?.[key] !== "string" || params.config[key] === "");
+
+        if (missing.length > 0) {
+            throw new InvalidArgumentError(`cloud type: ${params.type}: config requires: ${missing.join(", ")}`);
+        }
+
         const projectId = ProjectId.fromString(project.id);
         const cloudAccount = CloudAccount.create({
             projectId,

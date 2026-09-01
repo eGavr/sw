@@ -53,6 +53,9 @@ import {
 import { GetSessionLogsUseCase } from "../../../application/use-cases/sessions/get-session-logs-use-case";
 import { GetSessionVideoUseCase } from "../../../application/use-cases/sessions/get-session-video-use-case";
 import {
+    GetStorageDelegationUseCase,
+} from "../../../application/use-cases/storage-delegations/get-storage-delegation-use-case";
+import {
     DeleteProjectStorageDestinationUseCase,
 } from "../../../application/use-cases/storage-destinations/delete-project-storage-destination-use-case";
 import {
@@ -106,6 +109,7 @@ import {
     StorageDestinationRepositoryProvider,
 } from "../../../infrastructure/repositories/storage-destination-repository-provider";
 import { UserRepositoryImpl } from "../../../infrastructure/repositories/user-repository-impl";
+import { StorageDelegationProvider } from "../../../infrastructure/storage-delegation/storage-delegation-provider";
 import { AipExceptionFilter } from "../filters/aip-exception-filter";
 import { ResponseInterceptor } from "../interceptors/response-interceptor";
 import { ContextMiddleware } from "../middlewares/contex-middleware";
@@ -118,6 +122,9 @@ import { CloudTypesController } from "./controllers/cloud-types/cloud-types-cont
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
 import { SessionArtifactsController } from "./controllers/sessions/session-artifacts-controller";
+import {
+    StorageDelegationController,
+} from "./controllers/storage-delegation/storage-delegation-controller";
 import {
     StorageDestinationController,
 } from "./controllers/storage-destination/storage-destination-controller";
@@ -136,6 +143,7 @@ import {
         CloudAccountsController,
         CloudTypesController,
         StorageDestinationController,
+        StorageDelegationController,
         SessionArtifactsController,
     ],
     providers: [
@@ -155,6 +163,7 @@ import {
         SetProjectStorageDestinationUseCase,
         DeleteProjectStorageDestinationUseCase,
         TestProjectStorageDestinationUseCase,
+        GetStorageDelegationUseCase,
 
         CreateCloudAccountUseCase,
         ListCloudAccountsUseCase,
@@ -179,6 +188,7 @@ import {
         { provide: WebDriverSessionGateway, useClass: WebDriverSessionGatewayImpl },
         RegisteredCloudCatalogProvider,
         ObjectStorageGatewayProvider,
+        StorageDelegationProvider,
         // The `cloudAccounts/{id}:test` probe runs checkAccess through the compute gateway under our
         // identity; the gateway needs the agent-token service to construct (it is not used by the probe).
         EnvironmentProviderGatewayProvider,

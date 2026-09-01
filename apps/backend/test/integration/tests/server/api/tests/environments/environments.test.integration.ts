@@ -274,7 +274,10 @@ describe("/projects/:project/environments", () => {
 
             for (const type of cloudTypes) {
                 await request(app.getHttpServer())
-                    .post(`/projects/${body.uid}/cloudAccounts`).set(owner).send({ type }).expect(HttpStatus.CREATED);
+                    .post(`/projects/${body.uid}/cloudAccounts`).set(owner)
+                    // yandex-cloud is delegated BYOC and requires the target folder.
+                    .send(type === "yandex-cloud" ? { type, config: { folderId: "b1gstub" } } : { type })
+                    .expect(HttpStatus.CREATED);
             }
 
             return { owner, projectId: body.uid };

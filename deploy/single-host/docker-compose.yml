@@ -54,6 +54,10 @@ x-service-env: &service-env
   # never hold the user's secrets. The bucket/endpoint/region are per project (registered as StorageDestination).
   # Which clouds this install offers (CSV; unset = all known). The milestone deploy sets `yandex-cloud`.
   CLOUD_CATALOG: ${CLOUD_CATALOG:-}
+  # The install's published service accounts users grant roles to on their own cloud (delegated BYOC);
+  # surfaced in GET /v1/cloudTypes so the Connect form can show what to grant.
+  YC_DELEGATION_COMPUTE_SA_ID: ${YC_DELEGATION_COMPUTE_SA_ID:-}
+  YC_DELEGATION_STORAGE_SA_ID: ${YC_DELEGATION_STORAGE_SA_ID:-}
   # Browser env VMs (yandex-cloud linux/container): on-demand Compute VMs from the linux-node golden.
   # A project's cloud-account config (folderId/subnet/…) overrides these install defaults per environment.
   COMPUTE_BROWSER_IMAGE_ID: ${COMPUTE_BROWSER_IMAGE_ID:-}

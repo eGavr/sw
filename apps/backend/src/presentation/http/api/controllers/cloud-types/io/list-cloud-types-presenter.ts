@@ -9,13 +9,23 @@ export class ListCloudTypesPresenter implements Presenter {
 
     present(): object {
         return {
-            cloudTypes: this.cloudTypes.map(({ type, provides }) => ({
+            cloudTypes: this.cloudTypes.map(({ type, provides, connect }) => ({
                 name: `cloudTypes/${type}`,
                 type,
                 provides: provides.map((stereotype) => ({
                     platform: stereotype.platformName,
                     execution: stereotype.execution,
                 })),
+                // What connecting this type asks of the user: config keys they must fill and the grants to
+                // set up on their cloud for our published identities (delegated BYOC — no secrets here).
+                connect: {
+                    requiredConfig: [...connect.requiredConfig],
+                    grants: connect.grants.map((grant) => ({
+                        role: grant.role,
+                        serviceAccountId: grant.serviceAccountId,
+                        purpose: grant.purpose,
+                    })),
+                },
             })),
         };
     }

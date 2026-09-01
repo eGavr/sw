@@ -39,6 +39,31 @@ describe("RegisteredCloudCatalog", () => {
         expect(localOnly.providesFor("yandex-cloud")).toHaveLength(0);
     });
 
+    test("yandex-cloud connect requires the user's folder and lists the published compute grants", () => {
+        const withIdentities = new RegisteredCloudCatalog(undefined, {
+            computeServiceAccountId: "aje-compute",
+        });
+        const requirements = withIdentities.connectRequirementsFor("yandex-cloud");
+
+        expect(requirements.requiredConfig).toEqual(["folderId"]);
+        // Compute-only: the storage grant belongs to the bucket setup (GET /v1/storageDelegation).
+        expect(requirements.grants).toEqual([
+            { role: "compute.editor", serviceAccountId: "aje-compute", purpose: expect.any(String) },
+            { role: "vpc.user", serviceAccountId: "aje-compute", purpose: expect.any(String) },
+        ]);
+    });
+
+    test("without published identities the requirements still demand the folder, just with no grants", () => {
+        const requirements = catalog.connectRequirementsFor("yandex-cloud");
+
+        expect(requirements.requiredConfig).toEqual(["folderId"]);
+        expect(requirements.grants).toEqual([]);
+    });
+
+    test("the local cloud requires nothing to connect", () => {
+        expect(catalog.connectRequirementsFor("local")).toEqual({ requiredConfig: [], grants: [] });
+    });
+
     test("fails fast when an enabled type is not a known backend", () => {
         expect(() => new RegisteredCloudCatalog(["local", "sky-cloud"])).toThrow(InternalError);
     });

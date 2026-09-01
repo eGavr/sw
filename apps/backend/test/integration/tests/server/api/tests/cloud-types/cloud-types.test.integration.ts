@@ -28,6 +28,7 @@ describe("/cloudTypes", () => {
                 name: "cloudTypes/local",
                 type: "local",
                 provides: [{ platform: "linux", execution: "container" }],
+                connect: { requiredConfig: [], grants: [] },
             },
             {
                 name: "cloudTypes/yandex-cloud",
@@ -36,6 +37,14 @@ describe("/cloudTypes", () => {
                     { platform: "android", execution: "container" },
                     { platform: "linux", execution: "container" },
                 ],
+                // Compute-only grants: the storage identity is a separate surface (storageDelegation).
+                connect: {
+                    requiredConfig: ["folderId"],
+                    grants: [
+                        { role: "compute.editor", serviceAccountId: "aje-test-compute", purpose: expect.any(String) },
+                        { role: "vpc.user", serviceAccountId: "aje-test-compute", purpose: expect.any(String) },
+                    ],
+                },
             },
         ]));
     });

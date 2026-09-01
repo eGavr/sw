@@ -6,6 +6,7 @@ import {
   Badge,
   Box,
   Button,
+  Code,
   Drawer,
   Group,
   Loader,
@@ -14,6 +15,7 @@ import {
   Stack,
   Table,
   Text,
+  TextInput,
   Title,
   Tooltip,
 } from "@mantine/core";
@@ -126,10 +128,12 @@ export function CloudsTab({ project }: { project: string }) {
   // STAGED — connecting adds a pending row, the trash marks a row for removal — and applied on Save, so
   // the block reads like the others (pencil to edit, Cancel/Save to leave).
   const [managing, setManaging] = useState(false);
-  const [pendingConnect, setPendingConnect] = useState<Array<string>>([]);
+  // A staged connection carries the config the type demands (e.g. the user's folderId) until Save.
+  const [pendingConnect, setPendingConnect] = useState<Array<{ type: string; config?: Record<string, unknown> }>>([]);
   const [pendingRemove, setPendingRemove] = useState<Set<string>>(new Set());
 
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [folderId, setFolderId] = useState("");
   const [selected, setSelected] = useState<CloudAccount | null>(null);
 
   const clouds = useQuery({
@@ -174,7 +178,7 @@ export function CloudsTab({ project }: { project: string }) {
     mutationFn: async () => {
       const results = await Promise.allSettled([
         ...[...pendingRemove].map((uid) => disconnectCloud(project, uid)),
-        ...pendingConnect.map((type) => connectCloud(project, type)),
+        ...pendingConnect.map((pending) => connectCloud(project, pending.type, pending.config)),
       ]);
       const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
       if (failed) {
@@ -190,12 +194,19 @@ export function CloudsTab({ project }: { project: string }) {
     },
   });
 
+  const needsFolder = (selectedCatalogueEntry?.connect.requiredConfig ?? []).includes("folderId");
+  const requiredConfigFilled = !needsFolder || folderId.trim().length > 0;
+
   const addPending = (): void => {
     if (selectedType) {
-      setPendingConnect([...pendingConnect, selectedType]);
+      setPendingConnect([
+        ...pendingConnect,
+        { type: selectedType, config: needsFolder ? { folderId: folderId.trim() } : undefined },
+      ]);
     }
     closeConnect();
     setSelectedType(null);
+    setFolderId("");
   };
 
   const cancel = (): void => {
@@ -296,12 +307,12 @@ export function CloudsTab({ project }: { project: string }) {
               );
             })}
             {managing &&
-              pendingConnect.map((type, index) => (
+              pendingConnect.map((pending, index) => (
                 <Table.Tr key={`pending-${index}`}>
                   <Table.Td>
                     <Group gap={6} wrap="nowrap">
                       <Badge variant="light" color="green">
-                        {type}
+                        {pending.type}
                       </Badge>
                       <Text size="xs" c="dimmed">
                         will connect
@@ -309,7 +320,7 @@ export function CloudsTab({ project }: { project: string }) {
                     </Group>
                   </Table.Td>
                   <Table.Td>
-                    <SubstrateBadges provides={providesFor(type)} />
+                    <SubstrateBadges provides={providesFor(pending.type)} />
                   </Table.Td>
                   <Table.Td>—</Table.Td>
                   <Table.Td>—</Table.Td>
@@ -358,8 +369,10 @@ export function CloudsTab({ project }: { project: string }) {
         onClose={() => {
           closeConnect();
           setSelectedType(null);
+          setFolderId("");
         }}
         title="Connect cloud"
+        size="lg"
       >
         <Stack>
           <Select
@@ -377,14 +390,51 @@ export function CloudsTab({ project }: { project: string }) {
               <SubstrateBadges provides={selectedCatalogueEntry.provides} />
             </Box>
           )}
+          {needsFolder && (
+            <TextInput
+              label="Folder ID"
+              description="Your own cloud folder — environments are created there, at your cost."
+              placeholder="b1g…"
+              required
+              value={folderId}
+              onChange={(e) => setFolderId(e.currentTarget.value)}
+            />
+          )}
+          {(selectedCatalogueEntry?.connect.grants.length ?? 0) > 0 && (
+            <Box>
+              <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>
+                Grant access first
+              </Text>
+              <Text size="xs" c="dimmed" mb={6}>
+                In your cloud, grant these roles to our service accounts (we hold no keys of yours —
+                access is delegation you control and can revoke):
+              </Text>
+              <Stack gap={6}>
+                {selectedCatalogueEntry!.connect.grants.map((grant) => {
+                  const command = `yc resource-manager folder add-access-binding --id ${folderId.trim() || "<your-folder-id>"} --role ${grant.role} --subject serviceAccount:${grant.serviceAccountId}`;
+
+                  return (
+                    <Box key={`${grant.role}:${grant.serviceAccountId}`}>
+                      <Text size="xs" mb={2}>
+                        <Text span ff="monospace">{grant.role}</Text> — {grant.purpose}
+                      </Text>
+                      <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                        {command}
+                      </Code>
+                    </Box>
+                  );
+                })}
+              </Stack>
+            </Box>
+          )}
           <Text size="xs" c="dimmed">
-            Added to the list — it is connected when you Save.
+            Added to the list — it is connected when you Save; the Available badge then verifies the access.
           </Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={closeConnect}>
               Cancel
             </Button>
-            <Button variant="light" disabled={!selectedType} onClick={addPending}>
+            <Button variant="light" disabled={!selectedType || !requiredConfigFilled} onClick={addPending}>
               Add
             </Button>
           </Group>

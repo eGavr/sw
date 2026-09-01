@@ -1,6 +1,6 @@
 "use client";
 
-import { ActionIcon, Alert, Anchor, Box, Button, Group, Loader, Stack, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Anchor, Box, Button, Code, Group, Loader, Select, Stack, Text, TextInput, Title, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconAlertTriangle, IconCircleCheck, IconPencil, IconPlant, IconPlus, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 
 import {
   clearStorageDestination,
+  getStorageDelegation,
   getStorageDestination,
   testStorageDestination,
   updateStorageDestination,
@@ -40,6 +41,14 @@ function isUrl(value: string): boolean {
 export function StorageSettings({ project }: { project: string }) {
   const queryClient = useQueryClient();
 
+  // The install's published storage identity — makes the "grant access" hint concrete (who + how).
+  const delegation = useQuery({
+    queryKey: ["storageDelegation"],
+    queryFn: getStorageDelegation,
+    staleTime: Infinity,
+    retry: false,
+  });
+
   const destination = useQuery({
     queryKey: ["storageDestination", project],
     queryFn: () => getStorageDestination(project),
@@ -51,6 +60,10 @@ export function StorageSettings({ project }: { project: string }) {
   const [prefix, setPrefix] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [region, setRegion] = useState("");
+
+  const providers = delegation.data ?? [];
+  // The provider select drives endpoint/region; an existing destination maps back by endpoint.
+  const selectedProvider = providers.find((p) => p.endpoint === endpoint.trim()) ?? null;
 
   const seedForm = (): void => {
     const c = destination.data;
@@ -88,7 +101,9 @@ export function StorageSettings({ project }: { project: string }) {
     endpoint: endpoint.trim() === "" || isUrl(endpoint.trim()) ? null : "Must be a URL like https://host",
     region: region.trim() === "" || regionPattern.test(region.trim()) ? null : "Lowercase letters, digits, hyphens",
   };
-  const valid = !errors.bucket && !errors.prefix && !errors.endpoint && !errors.region;
+  // With a provider catalogue, a service must be picked (free endpoint entry is not supported).
+  const providerPicked = localDev || providers.length === 0 || selectedProvider !== null;
+  const valid = !errors.bucket && !errors.prefix && !errors.endpoint && !errors.region && providerPicked;
 
   // Dirty = the form differs from what is stored — Save stays disabled until something actually changes.
   const dirty =
@@ -240,9 +255,23 @@ export function StorageSettings({ project }: { project: string }) {
           </Alert>
         ) : (
           <Alert color="gray" variant="light">
-            We write under our own identity — grant it access with a bucket policy on your bucket. No
-            credentials are entered or stored here. Works with AWS S3 and S3-compatible endpoints (e.g.
-            Yandex Object Storage).
+            <Stack gap={6}>
+              <Text size="sm">
+                We write under our own identity — grant it access on your bucket. No credentials are
+                entered or stored here. Supported services are listed in the Provider select.
+              </Text>
+              {(selectedProvider ?? providers[0]) && (
+                <>
+                  <Text size="xs">
+                    <Text span ff="monospace">{(selectedProvider ?? providers[0]).grant.role}</Text> —{" "}
+                    {(selectedProvider ?? providers[0]).grant.purpose}:
+                  </Text>
+                  <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                    {`yc resource-manager folder add-access-binding --id <folder-with-your-bucket> --role ${(selectedProvider ?? providers[0]).grant.role} --subject serviceAccount:${(selectedProvider ?? providers[0]).grant.serviceAccountId}`}
+                  </Code>
+                </>
+              )}
+            </Stack>
           </Alert>
         ))}
 
@@ -264,6 +293,22 @@ export function StorageSettings({ project }: { project: string }) {
         error={editing ? errors.prefix : null}
         onChange={(e) => setPrefix(e.currentTarget.value)}
       />
+      {!localDev && providers.length > 0 ? (
+        // Only services our identity can actually write to are offered — a select, not free-form.
+        <Select
+          label="Provider"
+          data={providers.map((p) => ({ value: p.id, label: `${p.displayName} (${p.region})` }))}
+          value={selectedProvider?.id ?? null}
+          placeholder={editing ? "Pick a storage service" : endpoint || undefined}
+          readOnly={!editing}
+          required={editing}
+          onChange={(id) => {
+            const provider = providers.find((p) => p.id === id);
+            setEndpoint(provider?.endpoint ?? "");
+            setRegion(provider?.region ?? "");
+          }}
+        />
+      ) : (
       <Group grow align="flex-start">
         <TextInput
           label="Endpoint"
@@ -282,6 +327,7 @@ export function StorageSettings({ project }: { project: string }) {
           onChange={(e) => setRegion(e.currentTarget.value)}
         />
       </Group>
+      )}
       {editing && (
         <Text size="xs" c="dimmed">
           Endpoint is optional — leave it empty for AWS S3.

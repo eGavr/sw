@@ -37,8 +37,10 @@ describe("/projects/:project/cloudAccounts", () => {
         return { ownerId, owner, uid: await createProject(owner) };
     };
 
+    // yandex-cloud is delegated BYOC and requires the target folder; the helper supplies a stub one.
     const connect = (uid: string, auth: AuthHeader, type: string): request.Test =>
-        request(app.getHttpServer()).post(`/projects/${uid}/cloudAccounts`).set(auth).send({ type });
+        request(app.getHttpServer()).post(`/projects/${uid}/cloudAccounts`).set(auth)
+            .send(type === "yandex-cloud" ? { type, config: { folderId: "b1gstub" } } : { type });
 
     test("connects a cloud, materialises its provided substrates, and lists it", async () => {
         const { owner, uid } = await seedProject();
@@ -110,6 +112,18 @@ describe("/projects/:project/cloudAccounts", () => {
         await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CONFLICT);
 
         return connect(uid, owner, "local").expect(HttpStatus.CONFLICT);
+    });
+
+    test("rejects a delegated cloud without its required folder (INVALID_ARGUMENT)", async () => {
+        const { owner, uid } = await seedProject();
+
+        await request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts`).set(owner)
+            .send({ type: "yandex-cloud" }).expect(HttpStatus.BAD_REQUEST);
+
+        return request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts`).set(owner)
+            .send({ type: "yandex-cloud", config: { folderId: "" } }).expect(HttpStatus.BAD_REQUEST);
     });
 
     test("rejects an unknown cloud type with INVALID_ARGUMENT", async () => {

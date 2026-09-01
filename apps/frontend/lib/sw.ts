@@ -39,10 +39,20 @@ export interface Substrate {
   execution: string;
 }
 
+// A role the user grants to one of OUR published service accounts on their own cloud (delegated BYOC —
+// no secrets change hands; they authorize our identity instead).
+export interface CloudGrant {
+  role: string;
+  serviceAccountId: string;
+  purpose: string;
+}
+
 export interface CloudType {
   name: string; // "cloudTypes/{type}"
   type: string;
   provides: Array<Substrate>;
+  // What connecting this type asks of the user: config keys to fill (e.g. folderId) and grants to set up.
+  connect: { requiredConfig: Array<string>; grants: Array<CloudGrant> };
 }
 
 export interface CloudAccount {
@@ -346,6 +356,37 @@ export function testStorageDestination(project: string): Promise<{ ok: boolean; 
   });
 }
 
+// A storage service the install can write artifacts to under its own identity; the user picks one and
+// grants that identity on their bucket. The set is what we actually support — nothing else is offered.
+export interface StorageProvider {
+  id: string;
+  displayName: string;
+  endpoint: string;
+  region: string;
+  grant: CloudGrant;
+}
+
+// Null when the install publishes none (local dev writes to disk, nothing to pick or grant).
+export async function getStorageDelegation(): Promise<Array<StorageProvider> | null> {
+  const res = await fetch("/api/sw/v1/storageDelegation", { headers: { accept: "application/json" } });
+
+  if (res.status === 401) {
+    bounceToLogin();
+  }
+
+  if (res.status === 404) {
+    return null;
+  }
+
+  if (!res.ok) {
+    throw new Error(`storage delegation → ${res.status}`);
+  }
+
+  const body = (await res.json()) as { providers?: Array<StorageProvider> };
+
+  return body.providers ?? [];
+}
+
 export function listCloudTypes(): Promise<Array<CloudType>> {
   return swRequest<{ cloudTypes?: Array<CloudType> }>("v1/cloudTypes").then((d) => d.cloudTypes ?? []);
 }
@@ -356,11 +397,17 @@ export function listCloudAccounts(project: string): Promise<Array<CloudAccount>>
   ).then((d) => d.cloudAccounts ?? []);
 }
 
-export function connectCloud(project: string, type: string): Promise<CloudAccount> {
+// `config` is the non-secret connection blob; for a delegated cloud it names the user's own resources
+// (e.g. folderId — required, the catalogue's connect.requiredConfig says which keys).
+export function connectCloud(
+  project: string,
+  type: string,
+  config?: Record<string, unknown>,
+): Promise<CloudAccount> {
   return swRequest<CloudAccount>(`v1/projects/${project}/cloudAccounts`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ type }),
+    body: JSON.stringify(config ? { type, config } : { type }),
   });
 }
 
