@@ -17,7 +17,10 @@ FROM ${NODE_IMAGE} AS builder
 RUN corepack enable
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+# The frozen lockfile covers every workspace importer, so each package.json must be present even though
+# only the backend is built here.
 COPY apps/backend/package.json ./apps/backend/
+COPY apps/frontend/package.json ./apps/frontend/
 RUN pnpm install --frozen-lockfile
 COPY apps/backend ./apps/backend
 # tsc emits only .js; copy the static assets the controllers serve at runtime (agent bootstrap script,
@@ -48,6 +51,7 @@ RUN apt-get update \
     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/backend/package.json ./apps/backend/
+COPY apps/frontend/package.json ./apps/frontend/
 RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /repo/apps/backend/build ./apps/backend/build
 # The internal controller serves this to environments (GET /internal/ffmpeg:download?arch=amd64) from

@@ -11,7 +11,10 @@ ARG NEXT_PUBLIC_WD_URL
 RUN corepack enable
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+# The frozen lockfile covers every workspace importer, so each package.json must be present even though
+# only the frontend is built here.
 COPY apps/frontend/package.json ./apps/frontend/
+COPY apps/backend/package.json ./apps/backend/
 RUN pnpm install --frozen-lockfile
 COPY apps/frontend ./apps/frontend
 # A dummy AUTH_SECRET keeps next build's page evaluation happy; the real one is runtime env.

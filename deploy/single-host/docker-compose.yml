@@ -89,7 +89,9 @@ services:
     image: ${SW_IMAGE:?set SW_IMAGE}
     network_mode: host
     environment: *service-env
-    command: ["pnpm", "run", "pg:migration:run:built"]
+    # Direct node invocation: `pnpm run` would make corepack fetch pnpm from npmjs at runtime, which the
+    # RU VM cannot reach. The hoisted layout (.npmrc node-linker=hoisted) puts the CLI at /repo/node_modules.
+    command: ["node", "/repo/node_modules/typeorm/cli.js", "migration:run", "-d", "build/src/infrastructure/data-sources/database/postgres/typeorm/migration/index.js"]
     depends_on:
       db:
         condition: service_healthy
@@ -148,6 +150,9 @@ services:
     network_mode: host
     environment:
       PORT: "3000"
+      # Host networking hands the container the VM's hostname; the standalone server would bind to it
+      # (unreachable) instead of every interface.
+      HOSTNAME: 0.0.0.0
       AUTH_TRUST_HOST: "true"
       AUTH_URL: ${AUTH_URL:?set to http://<vm-public-ip>:3000}
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
