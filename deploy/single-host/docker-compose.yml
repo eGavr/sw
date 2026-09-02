@@ -77,6 +77,8 @@ x-service-env: &service-env
   COMPUTE_K8S_NODEPORT_MIN: ${COMPUTE_K8S_NODEPORT_MIN:-}
   COMPUTE_K8S_NODEPORT_MAX: ${COMPUTE_K8S_NODEPORT_MAX:-}
   COMPUTE_K8S_CONTAINER_PORT: ${COMPUTE_K8S_CONTAINER_PORT:-}
+  # nodeport mode: the stable public node host a NodePort is reached on (avoids a cluster-scoped node read).
+  COMPUTE_K8S_ADVERTISE_HOST: ${COMPUTE_K8S_ADVERTISE_HOST:-}
   # The k8s adapter shells out to the yc CLI (get-credentials + kubeconfig token plugin); on the VM it
   # authenticates as the instance SA via this metadata IAM token (refresh it on redeploy — ~12h life).
   YC_TOKEN: ${YC_TOKEN:-}
