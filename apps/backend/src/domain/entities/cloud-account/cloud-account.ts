@@ -10,15 +10,10 @@ import {
 } from "./compute-binding";
 import { ComputeBindingConflictError } from "./error/compute-binding-conflict-error";
 
-// Cloud-level connection settings the adapters need (for yandex-cloud: the delegated folder we create
-// resources in). Opaque to the domain — only the adapter interprets it. Secrets go in credentialRef.
-export type CloudConfig = Record<string, unknown>;
-
 export type CloudAccountData = {
     id: string;
     projectId: string;
     type: string;
-    config: CloudConfig;
     credentialRef?: string | null;
     computeBindings: ReadonlyArray<ComputeBindingData>;
     createdAt: Date;
@@ -28,7 +23,6 @@ export type CloudAccountData = {
 export type CloudAccountCreateParams = {
     projectId: ProjectId;
     type: string;
-    config?: CloudConfig;
     credentialRef?: string | null;
 };
 
@@ -37,15 +31,14 @@ type CloudAccountConstructorParams = {
     projectId: ProjectId;
     type: string;
     computeBindings?: ReadonlyArray<ComputeBinding>;
-    config?: CloudConfig;
     credentialRef?: string | null;
     createdAt?: Date;
     updatedAt?: Date;
 };
 
-// A project's connection to a cloud: the delegation unit (whose folder/resources) plus its compute
-// bindings — per substrate, WHICH kind runs it and with what settings. The bindings are what the
-// connection actually serves: no binding, no environments of that substrate.
+// A project's connection to a cloud plus its compute bindings — per substrate, WHICH kind runs it and
+// with what settings (the user's folder for a vm kind, their cluster for kubernetes). The bindings are
+// what the connection actually serves: no binding, no environments of that substrate.
 export class CloudAccount {
     static create(params: CloudAccountCreateParams): CloudAccount {
         return new CloudAccount(params);
@@ -56,7 +49,6 @@ export class CloudAccount {
             id: CloudAccountId.fromString(data.id),
             projectId: ProjectId.fromString(data.projectId),
             type: data.type,
-            config: data.config ?? {},
             credentialRef: data.credentialRef ?? null,
             computeBindings: (data.computeBindings ?? []).map(ComputeBinding.fromObject),
             createdAt: data.createdAt,
@@ -71,7 +63,6 @@ export class CloudAccount {
     private readonly _id: CloudAccountId;
     private readonly _projectId: ProjectId;
     private _computeBindings: Array<ComputeBinding>;
-    private _config: CloudConfig;
     private _updatedAt: Date;
 
     private constructor(params: CloudAccountConstructorParams) {
@@ -79,7 +70,6 @@ export class CloudAccount {
         this._projectId = params.projectId;
         this.type = params.type;
         this._computeBindings = [...(params.computeBindings ?? [])];
-        this._config = params.config ?? {};
         this.credentialRef = params.credentialRef ?? null;
         this.createdAt = params.createdAt ?? new Date();
         this._updatedAt = params.updatedAt ?? this.createdAt;
@@ -91,12 +81,6 @@ export class CloudAccount {
 
     get projectId(): ProjectId {
         return this._projectId;
-    }
-
-    // A shallow copy so callers can't mutate the aggregate's internal state through the getter — changes go
-    // through updateConfig(). (toObject keeps the raw ref: it is the serialization boundary for persistence.)
-    get config(): CloudConfig {
-        return { ...this._config };
     }
 
     get updatedAt(): Date {
@@ -162,11 +146,6 @@ export class CloudAccount {
         return removed;
     }
 
-    updateConfig(config: CloudConfig): void {
-        this._config = config;
-        this.touch();
-    }
-
     belongsTo(projectId: ProjectId): boolean {
         return this._projectId.getValue() === projectId.getValue();
     }
@@ -176,7 +155,6 @@ export class CloudAccount {
             id: this.id,
             projectId: this._projectId.getValue(),
             type: this.type,
-            config: this._config,
             credentialRef: this.credentialRef,
             computeBindings: this._computeBindings.map((binding) => binding.toObject()),
             createdAt: this.createdAt,

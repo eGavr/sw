@@ -286,15 +286,20 @@ describe("/projects/:project/environments", () => {
             for (const type of cloudTypes) {
                 const { body: account } = await request(app.getHttpServer())
                     .post(`/projects/${body.uid}/cloudAccounts`).set(owner)
-                    // yandex-cloud is delegated BYOC and requires the target folder.
-                    .send(type === "yandex-cloud" ? { type, config: { folderId: "b1gstub" } } : { type })
+                    .send({ type })
                     .expect(HttpStatus.CREATED);
 
-                // Bindings are always explicit: local runs linux on docker, yandex runs android on VMs.
+                // Bindings are always explicit: local runs linux on docker, yandex runs android on VMs in
+                // the binding's delegated folder.
                 await request(app.getHttpServer())
                     .post(`/projects/${body.uid}/cloudAccounts/${account.uid}/computeBindings`).set(owner)
                     .send(type === "yandex-cloud"
-                        ? { platform: "android", execution: "container", kind: "vm" }
+                        ? {
+                            platform: "android",
+                            execution: "container",
+                            kind: "vm",
+                            config: { folderId: "b1gstubstubstubstub0" },
+                        }
                         : { platform: "linux", execution: "container", kind: "docker" })
                     .expect(HttpStatus.CREATED);
             }
@@ -305,7 +310,7 @@ describe("/projects/:project/environments", () => {
         const createEnvironmentBody = (projectId: string, owner: { authorization: string }, body: object): request.Test =>
             request(app.getHttpServer()).post(`/projects/${projectId}/environments`).set(owner).send(body);
 
-        // android auto-binds at connect; linux needs an explicit binding (it offers a choice of kinds).
+        // Every substrate is bound explicitly; each vm binding carries the folder it provisions into.
         test("routes each environment to the binding serving its substrate", async () => {
             const { owner, projectId } = await createProjectWithClouds(["yandex-cloud"]);
 
@@ -314,7 +319,12 @@ describe("/projects/:project/environments", () => {
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/cloudAccounts/${body.cloudAccounts[0].uid}/computeBindings`)
                 .set(owner)
-                .send({ platform: "linux", execution: "container", kind: "vm" })
+                .send({
+                    platform: "linux",
+                    execution: "container",
+                    kind: "vm",
+                    config: { folderId: "b1gstubstubstubstub0" },
+                })
                 .expect(HttpStatus.CREATED);
 
             await createEnvironmentBody(projectId, owner, validEnvironmentBody).expect(HttpStatus.CREATED);

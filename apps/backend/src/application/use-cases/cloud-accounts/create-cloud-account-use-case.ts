@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import { CloudAccount, CloudConfig } from "../../../domain/entities/cloud-account/cloud-account";
+import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
@@ -16,7 +16,6 @@ type CreateCloudAccountInput = {
     params: {
         projectId: string;
         type: string;
-        config?: CloudConfig;
     },
 }
 
@@ -43,21 +42,13 @@ export class CreateCloudAccountUseCase {
             );
         }
 
-        // A delegated cloud must name where to provision (the user's folder); silently falling back to
-        // the install default would run the user's environments at the operator's cost.
-        const missing = this.cloudCatalog.connectRequirementsFor(params.type).requiredConfig
-            .filter((key) => typeof params.config?.[key] !== "string" || params.config[key] === "");
-
-        if (missing.length > 0) {
-            throw new InvalidArgumentError(`cloud type: ${params.type}: config requires: ${missing.join(", ")}`);
-        }
-
         // The connection starts EMPTY: every platform the user wants is bound explicitly through
-        // computeBindings — no implicit defaults appearing behind their back (user decision).
+        // computeBindings — no implicit defaults appearing behind their back (user decision). Everything
+        // the user must name or grant (folder, cluster) belongs to a binding, so connect needs only the
+        // type.
         const cloudAccount = CloudAccount.create({
             projectId: ProjectId.fromString(project.id),
             type: params.type,
-            config: params.config,
         });
 
         await this.cloudAccountRepository.save(cloudAccount);

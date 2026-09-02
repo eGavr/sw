@@ -18,7 +18,6 @@ export class CloudAccount {
         cloudAccount.id = data.id;
         cloudAccount.projectId = data.projectId;
         cloudAccount.type = data.type;
-        cloudAccount.config = data.config ?? {};
         cloudAccount.credentialRef = data.credentialRef ?? null;
         cloudAccount.computeBindings = data.computeBindings.map(
             (binding) => ComputeBinding.from(data.id, binding),
@@ -41,9 +40,6 @@ export class CloudAccount {
     @Column()
     type: string;
 
-    @Column({ type: "jsonb", default: {} })
-    config: Record<string, unknown>;
-
     @Column({ type: "varchar", nullable: true })
     credentialRef: string | null;
 
@@ -65,7 +61,6 @@ export class CloudAccount {
             id: this.id,
             projectId: this.projectId,
             type: this.type,
-            config: this.config,
             credentialRef: this.credentialRef,
             computeBindings: (this.computeBindings ?? []).map((binding) => binding.toObject()),
             createdAt: this.createdAt,

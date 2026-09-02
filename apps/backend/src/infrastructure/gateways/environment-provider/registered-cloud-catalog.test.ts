@@ -4,6 +4,8 @@ import { InternalError } from "../../../domain/entities/error/internal-error";
 
 import { RegisteredCloudCatalog } from "./registered-cloud-catalog";
 
+const yandexCloudIdPattern = "^[a-z0-9]{20}$";
+
 describe("RegisteredCloudCatalog", () => {
     const catalog = new RegisteredCloudCatalog();
 
@@ -22,36 +24,36 @@ describe("RegisteredCloudCatalog", () => {
 
         const linux = offer("yandex-cloud", "linux", Execution.Container);
         expect(linux?.compute.map((kindOffer) => kindOffer.kind)).toEqual(["vm", "kubernetes"]);
-        // The kubernetes kind must name the user's cluster; the vm kind lives off the account's folder.
-        expect(linux?.compute.find((kindOffer) => kindOffer.kind === "kubernetes")?.requiredConfig)
-            .toEqual(["clusterId"]);
-        expect(linux?.compute.find((kindOffer) => kindOffer.kind === "vm")?.requiredConfig).toEqual([]);
     });
 
-    test("local offers linux via its sole configless docker kind", () => {
+    test("every yandex kind names what it needs: the vm its folder, kubernetes its cluster", () => {
+        const linux = offer("yandex-cloud", "linux", Execution.Container);
+
+        // The format pattern lets both the API and the form refuse obvious garbage before any probe.
+        expect(linux?.compute.find((kindOffer) => kindOffer.kind === "vm")?.requiredConfig)
+            .toEqual([{ key: "folderId", pattern: yandexCloudIdPattern }]);
+        expect(linux?.compute.find((kindOffer) => kindOffer.kind === "kubernetes")?.requiredConfig)
+            .toEqual([{ key: "clusterId", pattern: yandexCloudIdPattern }]);
+        expect(offer("yandex-cloud", "android", Execution.Container)?.compute[0].requiredConfig)
+            .toEqual([{ key: "folderId", pattern: yandexCloudIdPattern }]);
+    });
+
+    test("local offers linux via its sole configless kind", () => {
         expect(offer("local", "linux", Execution.Container)?.compute)
             .toEqual([{ kind: "docker", requiredConfig: [], grants: [] }]);
     });
 
-    test("publishes the kubernetes grant when the install has a compute identity", () => {
+    test("publishes each kind's grants when the install has a compute identity", () => {
         const withIdentity = new RegisteredCloudCatalog(undefined, { computeServiceAccountId: "aje-compute" });
+        const linux = withIdentity.substrateOffers("yandex-cloud")
+            .find((candidate) => candidate.stereotype.matches("linux", Execution.Container));
 
-        expect(withIdentity.substrateOffers("yandex-cloud")
-            .find((candidate) => candidate.stereotype.matches("linux", Execution.Container))
-            ?.compute.find((kindOffer) => kindOffer.kind === "kubernetes")?.grants)
+        expect(linux?.compute.find((kindOffer) => kindOffer.kind === "vm")?.grants).toEqual([
+            { role: "compute.editor", serviceAccountId: "aje-compute" },
+            { role: "vpc.user", serviceAccountId: "aje-compute" },
+        ]);
+        expect(linux?.compute.find((kindOffer) => kindOffer.kind === "kubernetes")?.grants)
             .toEqual([{ role: "k8s.cluster-api.editor", serviceAccountId: "aje-compute" }]);
-
-        expect(withIdentity.connectRequirementsFor("yandex-cloud")).toEqual({
-            requiredConfig: ["folderId"],
-            grants: [
-                { role: "compute.editor", serviceAccountId: "aje-compute" },
-                { role: "vpc.user", serviceAccountId: "aje-compute" },
-            ],
-        });
-    });
-
-    test("the local cloud requires nothing to connect", () => {
-        expect(catalog.connectRequirementsFor("local")).toEqual({ requiredConfig: [], grants: [] });
     });
 
     test("narrows the catalogue to the install's enabled types", () => {

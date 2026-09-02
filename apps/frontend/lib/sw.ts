@@ -38,10 +38,17 @@ export interface Substrate {
   execution: string;
 }
 
+// One config key a kind requires from the binding; `pattern` (a regex source) catches obvious garbage
+// at the input — whether the value exists and is granted is the probe's answer.
+export interface ConfigRequirement {
+  key: string;
+  pattern?: string;
+}
+
 // One way a cloud can run a substrate: the kind plus what binding it demands (config keys, grants).
 export interface ComputeKindOffer {
   kind: string;
-  requiredConfig: Array<string>;
+  requiredConfig: Array<ConfigRequirement>;
   grants: Array<CloudGrant>;
 }
 
@@ -64,23 +71,19 @@ export interface ComputeBinding {
 export interface CloudGrant {
   role: string;
   serviceAccountId: string;
-  purpose: string;
 }
 
 export interface CloudType {
   name: string; // "cloudTypes/{type}"
   type: string;
+  // Everything the user must name or grant lives on the substrate offers' kinds — connect takes nothing.
   provides: Array<SubstrateOffer>;
-  // What connecting this type asks of the user at the ACCOUNT level (e.g. folderId); per-kind demands
-  // live on the substrate offers.
-  connect: { requiredConfig: Array<string>; grants: Array<CloudGrant> };
 }
 
 export interface CloudAccount {
   name: string; // "projects/{project}/cloudAccounts/{uid}"
   uid: string;
   type: string;
-  config: Record<string, unknown>;
   computeBindings: Array<ComputeBinding>;
   createTime: string;
   updateTime: string;
@@ -377,6 +380,14 @@ export function testStorageDestination(project: string): Promise<{ ok: boolean; 
   });
 }
 
+// The storage grant carries a purpose line for the setup hint (unlike compute grants, whose context is
+// the kind they sit on) — mirrors the backend's StorageProviderGrant.
+export interface StorageProviderGrant {
+  role: string;
+  serviceAccountId: string;
+  purpose: string;
+}
+
 // A storage service the install can write artifacts to under its own identity; the user picks one and
 // grants that identity on their bucket. The set is what we actually support — nothing else is offered.
 export interface StorageProvider {
@@ -384,7 +395,7 @@ export interface StorageProvider {
   displayName: string;
   endpoint: string;
   region: string;
-  grant: CloudGrant;
+  grant: StorageProviderGrant;
 }
 
 // Null when the install publishes none (local dev writes to disk, nothing to pick or grant).
@@ -418,17 +429,12 @@ export function listCloudAccounts(project: string): Promise<Array<CloudAccount>>
   ).then((d) => d.cloudAccounts ?? []);
 }
 
-// `config` is the non-secret connection blob; for a delegated cloud it names the user's own resources
-// (e.g. folderId — required, the catalogue's connect.requiredConfig says which keys).
-export function connectCloud(
-  project: string,
-  type: string,
-  config?: Record<string, unknown>,
-): Promise<CloudAccount> {
+// Connect takes nothing but the type: what the user names (folder, cluster) belongs to the bindings.
+export function connectCloud(project: string, type: string): Promise<CloudAccount> {
   return swRequest<CloudAccount>(`v1/projects/${project}/cloudAccounts`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(config ? { type, config } : { type }),
+    body: JSON.stringify({ type }),
   });
 }
 
@@ -470,16 +476,17 @@ export function deleteComputeBinding(project: string, cloudAccount: string, bind
   );
 }
 
-// Probes whether the cloud is usable with its current settings — { ok: true } if reachable under our
-// identity (for a delegated cloud, the user has granted us access), else the backend's detail. Drives the
-// "cloud available" badge, like the storage health check.
-export function testCloudAccount(
+// Probes whether one binding is usable with its current settings — { ok: true } if what it names is
+// reachable under our identity (the user has granted us access to the folder/cluster), else the
+// backend's detail. Drives the per-platform "available" badge, like the storage health check.
+export function testComputeBinding(
   project: string,
   cloudAccount: string,
+  binding: string,
 ): Promise<{ ok: boolean; message?: string }> {
-  // AIP-136 custom method (colon verb on the cloud account resource).
+  // AIP-136 custom method (colon verb on the compute binding resource).
   return swRequest<{ ok: boolean; message?: string }>(
-    `v1/projects/${project}/cloudAccounts/${cloudAccount}:test`,
+    `v1/projects/${project}/cloudAccounts/${cloudAccount}/computeBindings/${binding}:test`,
     { method: "POST" },
   );
 }

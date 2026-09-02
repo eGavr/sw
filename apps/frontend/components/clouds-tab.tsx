@@ -30,8 +30,10 @@ import { useState } from "react";
 
 import {
   CloudAccount,
+  CloudGrant,
   CloudType,
   ComputeBinding,
+  ComputeKindOffer,
   connectCloud,
   createComputeBinding,
   deleteComputeBinding,
@@ -39,18 +41,26 @@ import {
   listCloudAccounts,
   listCloudTypes,
   SubstrateOffer,
-  testCloudAccount,
+  testComputeBinding,
   updateComputeBinding,
 } from "@/lib/sw";
 
-const grantCommand = (folderId: string, role: string, serviceAccountId: string): string =>
-  `yc resource-manager folder add-access-binding --id ${folderId || "<your-folder-id>"} --role ${role} --subject serviceAccount:${serviceAccountId}`;
+// The grant targets what the kind names: the cluster for a kubernetes binding, the folder otherwise —
+// picked by the kind's required keys so the right command shows even before the id is typed.
+const grantCommand = (grant: CloudGrant, kindOffer: ComputeKindOffer, config: Record<string, string>): string =>
+  kindOffer.requiredConfig.some((requirement) => requirement.key === "clusterId")
+    ? `yc managed-kubernetes cluster add-access-binding --id ${(config.clusterId ?? "").trim() || "<your-cluster-id>"} --role ${grant.role} --subject serviceAccount:${grant.serviceAccountId}`
+    : `yc resource-manager folder add-access-binding --id ${(config.folderId ?? "").trim() || "<your-folder-id>"} --role ${grant.role} --subject serviceAccount:${grant.serviceAccountId}`;
 
 export function CloudsTab({ project }: { project: string }) {
   const clouds = useQuery({ queryKey: ["cloudAccounts", project], queryFn: () => listCloudAccounts(project) });
 
   // The install-static catalogue of connectable clouds; it only changes with a server release.
   const cloudTypes = useQuery({ queryKey: ["cloudTypes"], queryFn: listCloudTypes, staleTime: Infinity });
+
+  // Connecting flows straight into picking a platform (user decision): the freshly connected card opens
+  // in manage mode with the binding form already up — no extra pencil click.
+  const [justConnected, setJustConnected] = useState<string | null>(null);
 
   const catalogue = cloudTypes.data ?? [];
   const accounts = clouds.data ?? [];
@@ -73,38 +83,46 @@ export function CloudsTab({ project }: { project: string }) {
           project={project}
           account={account}
           catalogueEntry={catalogue.find((entry) => entry.type === account.type)}
+          startOpen={account.uid === justConnected}
         />
       ))}
 
-      <ConnectCloud project={project} catalogue={catalogue} connected={accounts} />
+      <ConnectCloud project={project} catalogue={catalogue} connected={accounts} onConnected={setJustConnected} />
     </Stack>
   );
 }
 
-// One connected cloud: the delegation line (type + folder + availability) and its platform bindings —
-// each an explicit row the user added; nothing appears behind their back.
+// One connected cloud: the type line and its platform bindings — each an explicit row the user added
+// with its own availability badge; nothing appears behind their back.
 function CloudAccountCard({
   project,
   account,
   catalogueEntry,
+  startOpen,
 }: {
   project: string;
   account: CloudAccount;
   catalogueEntry?: CloudType;
+  startOpen: boolean;
 }) {
   const queryClient = useQueryClient();
   // Quiet by default: the row/disconnect controls only show while managing (the pencil), matching the
   // Storage section. Binding operations apply immediately, so leaving is a single Done.
-  const [managing, setManaging] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const [managing, setManaging] = useState(startOpen);
+  const [adding, setAdding] = useState(startOpen);
   const [editingBinding, setEditingBinding] = useState<ComputeBinding | null>(null);
 
   const offers = catalogueEntry?.provides ?? [];
-  const folderId = typeof account.config.folderId === "string" ? account.config.folderId : "";
+
+  // The folder already named by a sibling binding of this connection — new vm bindings prefill it, so
+  // one folder serves every platform unless the user says otherwise.
+  const knownFolderId = account.computeBindings
+    .map((binding) => binding.config.folderId)
+    .find((value): value is string => typeof value === "string") ?? "";
 
   const refresh = (): void => {
     void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] });
-    void queryClient.invalidateQueries({ queryKey: ["cloudAccess", project, account.uid] });
+    void queryClient.invalidateQueries({ queryKey: ["computeAccess", project, account.uid] });
   };
 
   const removeBinding = useMutation({
@@ -125,15 +143,7 @@ function CloudAccountCard({
     <Box p="md" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
       <Stack gap="sm">
         <Group justify="space-between" wrap="nowrap">
-          <Group gap="sm">
-            <Badge variant="light">{account.type}</Badge>
-            {folderId && (
-              <Text size="sm" c="dimmed">
-                folder <Text span ff="monospace">{folderId}</Text>
-              </Text>
-            )}
-            <CloudReachabilityBadge project={project} uid={account.uid} />
-          </Group>
+          <Badge variant="light">{account.type}</Badge>
           {managing ? (
             <Group gap="xs">
               <Tooltip label="Disconnect cloud">
@@ -175,7 +185,7 @@ function CloudAccountCard({
             <BindingForm
               key={binding.uid}
               offers={offers}
-              folderId={folderId}
+              knownFolderId={knownFolderId}
               existing={binding}
               pending={false}
               onCancel={() => setEditingBinding(null)}
@@ -196,6 +206,7 @@ function CloudAccountCard({
                   {key}={String(value)}
                 </Text>
               ))}
+              <BindingReachabilityBadge project={project} account={account.uid} binding={binding.uid} />
               {managing && (
                 <>
                   <Tooltip label="Change how it runs">
@@ -233,7 +244,7 @@ function CloudAccountCard({
               !account.computeBindings.some(
                 (binding) => binding.platform === offer.platform && binding.execution === offer.execution,
               ))}
-            folderId={folderId}
+            knownFolderId={knownFolderId}
             pending
             onCancel={() => setAdding(false)}
             onSubmit={async (kind, config, substrate) => {
@@ -261,19 +272,20 @@ function CloudAccountCard({
   );
 }
 
-// The cascade the user asked for: platform -> execution -> kind -> the kind's fields. Every select shows
-// only what the catalogue offers (emulator rides along disabled until it is real); a sole option is
-// preselected — nothing to decide, nothing hidden.
+// The cascade: platform -> execution -> kind -> the kind's fields (with their grant commands). Every
+// select shows only what the catalogue offers (emulator rides along disabled until it is real); a sole
+// option is preselected — nothing to decide, nothing hidden. Adding is never blocked on the grants:
+// the row appears with its badge and turns available once access is granted.
 function BindingForm({
   offers,
-  folderId,
+  knownFolderId,
   existing,
   pending,
   onCancel,
   onSubmit,
 }: {
   offers: Array<SubstrateOffer>;
-  folderId: string;
+  knownFolderId: string;
   existing?: ComputeBinding;
   pending: boolean;
   onCancel: () => void;
@@ -304,6 +316,15 @@ function BindingForm({
   const kinds = substrate?.compute ?? [];
   const kindOffer = kinds.find((candidate) => candidate.kind === kind);
 
+  // A fresh kind starts from the folder a sibling binding already named — one folder serves every
+  // platform unless the user overrides it.
+  const initialConfigFor = (offer: ComputeKindOffer): Record<string, string> =>
+    Object.fromEntries(
+      offer.requiredConfig
+        .filter((requirement) => requirement.key === "folderId" && knownFolderId !== "")
+        .map((requirement) => [requirement.key, knownFolderId]),
+    );
+
   // A sole option needs no decision — preselect it.
   if (platform && !execution) {
     const options = offers.filter((offer) => offer.platform === platform);
@@ -313,10 +334,18 @@ function BindingForm({
   }
   if (substrate && !kind && kinds.length === 1) {
     setKind(kinds[0].kind);
+    setConfig(initialConfigFor(kinds[0]));
   }
 
+  const misformatted = (requirement: { key: string; pattern?: string }): boolean => {
+    const value = (config[requirement.key] ?? "").trim();
+
+    return value !== "" && requirement.pattern !== undefined && !new RegExp(requirement.pattern).test(value);
+  };
+
   const valid = kindOffer !== undefined
-    && kindOffer.requiredConfig.every((key) => (config[key] ?? "").trim() !== "");
+    && kindOffer.requiredConfig.every((requirement) =>
+      (config[requirement.key] ?? "").trim() !== "" && !misformatted(requirement));
 
   return (
     <Stack gap={6} pl="xs" py={4} style={{ borderLeft: "2px solid var(--mantine-color-blue-3)" }}>
@@ -345,30 +374,38 @@ function BindingForm({
             size="xs"
             data={kinds.map((candidate) => ({ value: candidate.kind, label: candidate.kind }))}
             value={kind}
-            onChange={(value) => { setKind(value); setConfig({}); }}
+            onChange={(value) => {
+              setKind(value);
+
+              const picked = kinds.find((candidate) => candidate.kind === value);
+              setConfig(picked ? initialConfigFor(picked) : {});
+            }}
           />
         )}
       </Group>
 
-      {kindOffer && kindOffer.requiredConfig.map((key) => (
+      {kindOffer && kindOffer.requiredConfig.map((requirement) => (
         <TextInput
-          key={key}
-          label={key}
+          key={requirement.key}
+          label={requirement.key}
           required
           size="xs"
-          value={config[key] ?? ""}
-          onChange={(e) => setConfig({ ...config, [key]: e.currentTarget.value })}
+          value={config[requirement.key] ?? ""}
+          error={misformatted(requirement) ? `Doesn't look like a valid ${requirement.key}` : undefined}
+          onChange={(e) => setConfig({ ...config, [requirement.key]: e.currentTarget.value })}
         />
       ))}
 
       {kindOffer && kindOffer.grants.length > 0 && (
         <Box>
           <Text size="xs" c="dimmed" mb={2}>
-            Grant our identity access first:
+            Grant our identity access (we hold no keys of yours — access is delegation you control and
+            can revoke). You can add the platform first and grant later — it shows as unavailable until
+            then:
           </Text>
           {kindOffer.grants.map((grant) => (
             <Code key={grant.role} block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-              {grantCommand(folderId, grant.role, grant.serviceAccountId)}
+              {grantCommand(grant, kindOffer, config)}
             </Code>
           ))}
         </Box>
@@ -387,7 +424,11 @@ function BindingForm({
             setSaving(true);
             onSubmit(
               kind as string,
-              Object.fromEntries(Object.entries(config).filter(([, value]) => value.trim() !== "")),
+              Object.fromEntries(
+                Object.entries(config)
+                  .map(([key, value]) => [key, value.trim()])
+                  .filter(([, value]) => value !== ""),
+              ),
               substrate,
             )
               .catch((error: Error) =>
@@ -402,42 +443,34 @@ function BindingForm({
   );
 }
 
-// Connecting a cloud is inline too: the button becomes a cloud select plus the account-level fields
-// (folder + grants). Platforms are added on the card afterwards.
+// Connecting is just picking the type — everything the user names or grants belongs to the platform
+// bindings, so the flow continues straight into the new card's platform cascade.
 function ConnectCloud({
   project,
   catalogue,
   connected,
+  onConnected,
 }: {
   project: string;
   catalogue: Array<CloudType>;
   connected: Array<CloudAccount>;
+  onConnected: (uid: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [opened, setOpened] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [config, setConfig] = useState<Record<string, string>>({});
-
-  const entry = catalogue.find((candidate) => candidate.type === selectedType);
-  const required = entry?.connect.requiredConfig ?? [];
-  const valid = selectedType !== null && required.every((key) => (config[key] ?? "").trim() !== "");
 
   const reset = (): void => {
     setOpened(false);
     setSelectedType(null);
-    setConfig({});
   };
 
   const connect = useMutation({
-    mutationFn: () =>
-      connectCloud(
-        project,
-        selectedType as string,
-        required.length > 0
-          ? Object.fromEntries(required.map((key) => [key, config[key].trim()]))
-          : undefined,
-      ),
-    onSuccess: reset,
+    mutationFn: () => connectCloud(project, selectedType as string),
+    onSuccess: (account) => {
+      onConnected(account.uid);
+      reset();
+    },
     onError: (error) =>
       notifications.show({ color: "red", title: "Connect failed", message: (error as Error).message }),
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] }),
@@ -468,40 +501,17 @@ function ConnectCloud({
           onChange={setSelectedType}
         />
 
-        {required.map((key) => (
-          <TextInput
-            key={key}
-            label={key}
-            description={key === "folderId"
-              ? "Your own cloud folder — environments are created there, at your cost."
-              : undefined}
-            required
-            value={config[key] ?? ""}
-            onChange={(e) => setConfig({ ...config, [key]: e.currentTarget.value })}
-          />
-        ))}
-
-        {(entry?.connect.grants.length ?? 0) > 0 && (
-          <Box>
-            <Text size="xs" c="dimmed" mb={4}>
-              In your cloud, grant these roles to our service accounts (we hold no keys of yours —
-              access is delegation you control and can revoke):
-            </Text>
-            <Stack gap={6}>
-              {entry!.connect.grants.map((grant) => (
-                <Code key={grant.role} block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                  {grantCommand((config.folderId ?? "").trim(), grant.role, grant.serviceAccountId)}
-                </Code>
-              ))}
-            </Stack>
-          </Box>
-        )}
-
         <Group gap="xs">
           <Button variant="default" size="compact-sm" onClick={reset}>
             Cancel
           </Button>
-          <Button variant="light" size="compact-sm" disabled={!valid} loading={connect.isPending} onClick={() => connect.mutate()}>
+          <Button
+            variant="light"
+            size="compact-sm"
+            disabled={selectedType === null}
+            loading={connect.isPending}
+            onClick={() => connect.mutate()}
+          >
             Connect
           </Button>
         </Group>
@@ -510,12 +520,20 @@ function ConnectCloud({
   );
 }
 
-// Whether the cloud is usable with its current settings — probed under our identity on load (for a
-// delegated cloud, that the user has granted us access to the folder and, per binding, the cluster).
-function CloudReachabilityBadge({ project, uid }: { project: string; uid: string }) {
+// Whether the platform is usable with its current settings — the binding's folder/cluster probed under
+// our identity on load, so a missing grant or a vanished resource shows right on the row.
+function BindingReachabilityBadge({
+  project,
+  account,
+  binding,
+}: {
+  project: string;
+  account: string;
+  binding: string;
+}) {
   const probe = useQuery({
-    queryKey: ["cloudAccess", project, uid],
-    queryFn: () => testCloudAccount(project, uid),
+    queryKey: ["computeAccess", project, account, binding],
+    queryFn: () => testComputeBinding(project, account, binding),
     retry: false,
   });
 
@@ -541,7 +559,7 @@ function CloudReachabilityBadge({ project, uid }: { project: string; uid: string
       w={280}
       label={
         <Stack gap={2}>
-          <Text size="xs">We can&apos;t reach this cloud with its current settings — check that access is granted, then re-check.</Text>
+          <Text size="xs">We can&apos;t use this platform with its current settings — check that access is granted, then re-check.</Text>
           {detail && <Text size="xs" style={{ opacity: 0.7 }}>{detail}</Text>}
         </Stack>
       }
@@ -561,7 +579,7 @@ function CloudReachabilityBadge({ project, uid }: { project: string; uid: string
           variant="subtle"
           color="gray"
           size="sm"
-          aria-label="Re-check cloud"
+          aria-label="Re-check platform"
           loading={probe.isFetching}
           onClick={() => void probe.refetch()}
         >

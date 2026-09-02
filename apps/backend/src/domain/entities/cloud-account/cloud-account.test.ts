@@ -5,15 +5,14 @@ import { CloudAccount } from "./cloud-account";
 import { ComputeBindingConflictError } from "./error/compute-binding-conflict-error";
 
 const account = (): CloudAccount =>
-    CloudAccount.create({ projectId: ProjectId.create(), type: "yandex-cloud", config: { folderId: "b1g" } });
+    CloudAccount.create({ projectId: ProjectId.create(), type: "yandex-cloud" });
 
 describe("CloudAccount", () => {
-    test("starts with no bindings, no credential, and its config", () => {
+    test("starts with no bindings and no credential", () => {
         const cloudAccount = account();
 
         expect(cloudAccount.computeBindings()).toEqual([]);
         expect(cloudAccount.credentialRef).toBeNull();
-        expect(cloudAccount.config).toEqual({ folderId: "b1g" });
         expect(cloudAccount.supports("linux", Execution.Container)).toBe(false);
     });
 

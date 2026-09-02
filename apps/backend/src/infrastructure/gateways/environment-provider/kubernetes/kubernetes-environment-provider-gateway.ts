@@ -54,14 +54,10 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         );
     }
 
-    // Probes every kubernetes binding's cluster: listing nodes exercises the granted cluster API access.
-    async checkAccess(cloudAccount: CloudAccount): Promise<CloudReachability> {
-        const clusters = cloudAccount.computeBindings()
-            .filter((binding) => binding.kind === providerValue)
-            .map((binding) => this.boundClusterId(binding));
-
+    // Probes the binding's cluster: listing nodes exercises the granted cluster API access.
+    async checkAccess(_cloudAccount: CloudAccount, binding: ComputeBinding): Promise<CloudReachability> {
         try {
-            await Promise.all(clusters.map((clusterId) => this.kubernetes.nodes(clusterId)));
+            await this.kubernetes.nodes(this.boundClusterId(binding));
 
             return { reachable: true };
         } catch (error) {

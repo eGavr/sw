@@ -120,7 +120,7 @@ function resolveSessionIdleTimeout(configService: ConfigService): SessionIdleTim
 function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: number): DockerEnvironmentConfig {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
-    // Install defaults for the docker provisioning shape; a project's cloud account config overrides
+    // Install defaults for the docker provisioning shape; a project's substrate binding config overrides
     // image/baseImage/platform/port at provision. The install-level fields below stay global.
     return {
         image: configService.get<string>("COMPUTE_DOCKER_IMAGE"),

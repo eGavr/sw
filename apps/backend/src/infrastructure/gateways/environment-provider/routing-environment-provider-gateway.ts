@@ -3,6 +3,7 @@ import {
     EnvironmentProviderGateway,
 } from "../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
+import { ComputeBinding } from "../../../domain/entities/cloud-account/compute-binding";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { InternalError } from "../../../domain/entities/error/internal-error";
 
@@ -30,27 +31,17 @@ export class RoutingEnvironmentProviderGateway extends EnvironmentProviderGatewa
         await this.gatewayFor(environment).deprovision(environment, cloudAccount);
     }
 
-    // Every binding is probed by ITS kind's adapter (the vm kind checks the folder, kubernetes the
-    // cluster) and the verdicts aggregate — the badge answers for the whole connection.
-    async checkAccess(cloudAccount: CloudAccount): Promise<CloudReachability> {
-        const verdicts = await Promise.all(cloudAccount.computeBindings().map((binding) => {
-            const key = routingKey(
-                cloudAccount.type,
-                binding.stereotype.platformName,
-                binding.stereotype.execution,
-                binding.kind,
-            );
+    // The binding is probed by ITS kind's adapter (the vm kind checks the folder, kubernetes the
+    // cluster) — the badge answers per platform row, not for the whole connection.
+    async checkAccess(cloudAccount: CloudAccount, binding: ComputeBinding): Promise<CloudReachability> {
+        const key = routingKey(
+            cloudAccount.type,
+            binding.stereotype.platformName,
+            binding.stereotype.execution,
+            binding.kind,
+        );
 
-            return this.at(key).checkAccess(cloudAccount);
-        }));
-
-        const failed = verdicts.filter((verdict) => !verdict.reachable);
-
-        if (failed.length > 0) {
-            return { reachable: false, detail: failed.map((verdict) => verdict.detail).filter(Boolean).join("; ") };
-        }
-
-        return { reachable: true };
+        return this.at(key).checkAccess(cloudAccount, binding);
     }
 
     private gatewayFor(environment: Environment): EnvironmentProviderGateway {

@@ -1,7 +1,6 @@
 import { AgentTokenService } from "../../../../application/interfaces/agent-token-service";
 import { CloudReachability } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
-import { Stereotype } from "../../../../domain/entities/cloud-account/stereotype";
 import { ApplicationList } from "../../../../domain/entities/environment/application/application-list";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { Execution } from "../../../../domain/entities/environment/execution";
@@ -13,7 +12,7 @@ import { BrowserVmEnvironmentProviderGateway } from "./browser-vm-environment-pr
 
 // The VM-per-environment half is pure sync assembly (merge overrides, build metadata) around the external
 // compute client — the one thing the testing policy allows faking. This pins the adapter's contract with
-// the golden image (metadata keys) and the delegation contract (the account's folder on every verb).
+// the golden image (metadata keys) and the delegation contract (the binding's folder on every verb).
 class RecordingVmProvisioner extends VmProvisioner {
     created: Array<VmInstanceOptions> = [];
     deleted: Array<{ name: string; folderId?: string }> = [];
@@ -58,15 +57,18 @@ const environment = Environment.create({
     cloudType: "yandex-cloud",
 });
 
-const delegatedAccount = CloudAccount.create({
-    projectId: ProjectId.create(),
-    type: "yandex-cloud",
-    provides: [new Stereotype("linux", Execution.Container)],
+// The linux substrate bound to the vm kind with the user's folder/network — the delegation lives on the
+// binding, not on the account.
+const delegatedAccount = CloudAccount.create({ projectId: ProjectId.create(), type: "yandex-cloud" });
+const binding = delegatedAccount.bindCompute({
+    platformName: "linux",
+    execution: Execution.Container,
+    kind: "vm",
     config: { folderId: "b1guser", subnetId: "e9buser" },
 });
 
 describe("BrowserVmEnvironmentProviderGateway", () => {
-    test("provisions the VM in the account's folder/network with the node metadata", async () => {
+    test("provisions the VM in the binding's folder/network with the node metadata", async () => {
         const compute = new RecordingVmProvisioner();
         const gateway = new BrowserVmEnvironmentProviderGateway(compute, config, agentTokens);
 
@@ -96,12 +98,12 @@ describe("BrowserVmEnvironmentProviderGateway", () => {
         expect(compute.created[0].subnetId).toBe("e9bdefault");
     });
 
-    test("deprovisions and probes in the account's folder", async () => {
+    test("deprovisions and probes in the binding's folder", async () => {
         const compute = new RecordingVmProvisioner();
         const gateway = new BrowserVmEnvironmentProviderGateway(compute, config, agentTokens);
 
         await gateway.deprovision(environment, delegatedAccount);
-        await gateway.checkAccess(delegatedAccount);
+        await gateway.checkAccess(delegatedAccount, binding);
 
         expect(compute.deleted).toEqual([{ name: `sw-env-${environment.id}`, folderId: "b1guser" }]);
         expect(compute.probedFolders).toEqual(["b1guser"]);

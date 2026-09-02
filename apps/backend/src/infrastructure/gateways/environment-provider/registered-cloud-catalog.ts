@@ -1,7 +1,7 @@
 import {
     CloudCatalog,
-    CloudConnectRequirements,
     CloudGrant,
+    ConfigRequirement,
     SubstrateOffer,
 } from "../../../application/interfaces/cloud-catalog";
 import { Stereotype } from "../../../domain/entities/cloud-account/stereotype";
@@ -10,19 +10,36 @@ import { InternalError } from "../../../domain/entities/error/internal-error";
 
 // The install's published compute identity the user grants roles to on their own cloud (delegated BYOC).
 // Optional: a dev/local install has none and its catalogue simply lists no grants. The storage identity is
-// a separate surface (GET /v1/storageDelegation) — it belongs to the bucket setup, not to cloud connect.
+// a separate surface (GET /v1/storageDelegation) — it belongs to the bucket setup, not to compute.
 export type DelegationIdentities = {
     readonly computeServiceAccountId?: string;
 };
 
-const noRequirements: CloudConnectRequirements = { requiredConfig: [], grants: [] };
+// Every YC resource id (folder, cluster) is a 20-character lowercase base32 string; anything else is a
+// typo worth refusing at the input instead of burning a probe on it.
+const yandexCloudIdPattern = "^[a-z0-9]{20}$";
+
+const folderIdRequirement: ConfigRequirement = { key: "folderId", pattern: yandexCloudIdPattern };
+const clusterIdRequirement: ConfigRequirement = { key: "clusterId", pattern: yandexCloudIdPattern };
 
 // The one place that knows cloud-type → the substrates it offers and the compute kinds that run each.
-// Adding a cloud backend or kind means adding an entry here (and its adapter/routing). The domain stays
-// cloud-agnostic: a CloudAccount only stores the bindings the user made against this catalogue.
+// Adding a cloud backend or kind means adding an entry here (and its adapter/routing). Each kind carries
+// everything the user must name (config) and pre-grant for it — access is checked per binding, and the
+// domain stays cloud-agnostic: a CloudAccount only stores the bindings the user made against this
+// catalogue.
 function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArray<SubstrateOffer>> {
-    const kubernetesGrants: Array<CloudGrant> = identities.computeServiceAccountId
-        ? [{ role: "k8s.cluster-api.editor", serviceAccountId: identities.computeServiceAccountId }]
+    const identity = identities.computeServiceAccountId;
+
+    // The vm kind provisions Compute VMs in the user's folder; the kubernetes kind only drives the API of
+    // the user's managed cluster.
+    const vmGrants: Array<CloudGrant> = identity
+        ? [
+            { role: "compute.editor", serviceAccountId: identity },
+            { role: "vpc.user", serviceAccountId: identity },
+        ]
+        : [];
+    const kubernetesGrants: Array<CloudGrant> = identity
+        ? [{ role: "k8s.cluster-api.editor", serviceAccountId: identity }]
         : [];
 
     return new Map<string, ReadonlyArray<SubstrateOffer>>([
@@ -37,15 +54,15 @@ function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArr
         ["yandex-cloud", [
             {
                 stereotype: new Stereotype("android", Execution.Container),
-                compute: [{ kind: "vm", requiredConfig: [], grants: [] }],
+                compute: [{ kind: "vm", requiredConfig: [folderIdRequirement], grants: vmGrants }],
             },
             {
                 stereotype: new Stereotype("linux", Execution.Container),
                 compute: [
-                    // Per-env VM: pay-per-use, start ~minutes. The account's folder is all it needs.
-                    { kind: "vm", requiredConfig: [], grants: [] },
+                    // Per-env VM: pay-per-use, start ~minutes, lives off the binding's folder.
+                    { kind: "vm", requiredConfig: [folderIdRequirement], grants: vmGrants },
                     // The user's managed cluster: always-on fee, pod start ~seconds.
-                    { kind: "kubernetes", requiredConfig: ["clusterId"], grants: kubernetesGrants },
+                    { kind: "kubernetes", requiredConfig: [clusterIdRequirement], grants: kubernetesGrants },
                 ],
             },
         ]],
@@ -61,7 +78,7 @@ export class RegisteredCloudCatalog extends CloudCatalog {
 
     constructor(
         enabledTypes?: ReadonlyArray<string>,
-        private readonly identities: DelegationIdentities = {},
+        identities: DelegationIdentities = {},
     ) {
         super();
 
@@ -94,23 +111,5 @@ export class RegisteredCloudCatalog extends CloudCatalog {
 
     substrateOffers(type: string): ReadonlyArray<SubstrateOffer> {
         return this.offers.get(type) ?? [];
-    }
-
-    // yandex-cloud is delegated BYOC: the connection MUST name the user's folder (or provisioning would
-    // silently fall back to the operator's folder and bill the operator) and the user pre-grants our
-    // published identity. `local` is the operator's own machine — nothing to require.
-    connectRequirementsFor(type: string): CloudConnectRequirements {
-        if (type !== "yandex-cloud" || !this.supports(type)) {
-            return noRequirements;
-        }
-
-        const grants: Array<CloudGrant> = this.identities.computeServiceAccountId
-            ? [
-                { role: "compute.editor", serviceAccountId: this.identities.computeServiceAccountId },
-                { role: "vpc.user", serviceAccountId: this.identities.computeServiceAccountId },
-            ]
-            : [];
-
-        return { requiredConfig: ["folderId"], grants };
     }
 }

@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from "@nestjs/common";
+import {
+    Body,
+    Controller,
+    Delete,
+    Get,
+    HttpCode,
+    HttpStatus,
+    NotFoundException,
+    Param,
+    Patch,
+    Post,
+} from "@nestjs/common";
 
 import {
     GetCloudAccountUseCase,
@@ -9,6 +20,10 @@ import {
 import {
     DeleteComputeBindingUseCase,
 } from "../../../../../application/use-cases/compute-bindings/delete-compute-binding-use-case";
+import {
+    ComputeBindingAccessProbe,
+    TestComputeBindingAccessUseCase,
+} from "../../../../../application/use-cases/compute-bindings/test-compute-binding-access-use-case";
 import {
     UpdateComputeBindingUseCase,
 } from "../../../../../application/use-cases/compute-bindings/update-compute-binding-use-case";
@@ -26,6 +41,7 @@ export class ComputeBindingsController {
         private readonly createComputeBindingUseCase: CreateComputeBindingUseCase,
         private readonly updateComputeBindingUseCase: UpdateComputeBindingUseCase,
         private readonly deleteComputeBindingUseCase: DeleteComputeBindingUseCase,
+        private readonly testComputeBindingAccessUseCase: TestComputeBindingAccessUseCase,
         private readonly getCloudAccountUseCase: GetCloudAccountUseCase,
     ) {}
 
@@ -102,6 +118,31 @@ export class ComputeBindingsController {
         await this.deleteComputeBindingUseCase.execute({
             creds: { token },
             params: { projectId: project, cloudAccountId: cloudAccount, bindingId },
+        });
+    }
+
+    // AIP-136 custom method: POST …/computeBindings/{binding}:test — the per-platform "available" probe
+    // the UI runs on each binding row (a read-only access check of what the binding names, under our
+    // identity). The id and verb share the last segment ("<id>:test") and both are dynamic, so the verb
+    // is split off the last colon in the handler rather than by the route pattern.
+    @Post(":target")
+    @HttpCode(HttpStatus.OK)
+    async custom(
+        @Param("project") project: string,
+        @Param("cloudAccount") cloudAccount: string,
+        @Param("target") target: string,
+        @BearerToken() token: string,
+    ): Promise<ComputeBindingAccessProbe> {
+        const separator = target.lastIndexOf(":");
+        const verb = separator < 0 ? "" : target.slice(separator + 1);
+
+        if (verb !== "test") {
+            throw new NotFoundException(`unknown custom method on computeBinding: ${target}`);
+        }
+
+        return this.testComputeBindingAccessUseCase.execute({
+            creds: { token },
+            params: { projectId: project, cloudAccountId: cloudAccount, bindingId: target.slice(0, separator) },
         });
     }
 }

@@ -29,9 +29,6 @@ import {
     ListCloudAccountsUseCase,
 } from "../../../application/use-cases/cloud-accounts/list-cloud-accounts-use-case";
 import {
-    TestCloudAccountAccessUseCase,
-} from "../../../application/use-cases/cloud-accounts/test-cloud-account-access-use-case";
-import {
     ListCloudTypesUseCase,
 } from "../../../application/use-cases/cloud-types/list-cloud-types-use-case";
 import {
@@ -40,6 +37,9 @@ import {
 import {
     DeleteComputeBindingUseCase,
 } from "../../../application/use-cases/compute-bindings/delete-compute-binding-use-case";
+import {
+    TestComputeBindingAccessUseCase,
+} from "../../../application/use-cases/compute-bindings/test-compute-binding-access-use-case";
 import {
     UpdateComputeBindingUseCase,
 } from "../../../application/use-cases/compute-bindings/update-compute-binding-use-case";
@@ -181,7 +181,7 @@ import {
         ListCloudAccountsUseCase,
         GetCloudAccountUseCase,
         DeleteCloudAccountUseCase,
-        TestCloudAccountAccessUseCase,
+        TestComputeBindingAccessUseCase,
         CloudAccountAccess,
         CreateComputeBindingUseCase,
         UpdateComputeBindingUseCase,
@@ -205,7 +205,7 @@ import {
         RegisteredCloudCatalogProvider,
         ObjectStorageGatewayProvider,
         StorageDelegationProvider,
-        // The `cloudAccounts/{id}:test` probe runs checkAccess through the compute gateway under our
+        // The `computeBindings/{id}:test` probe runs checkAccess through the compute gateway under our
         // identity; the gateway needs the agent-token service to construct (it is not used by the probe).
         EnvironmentProviderGatewayProvider,
         AgentTokenServiceProvider,

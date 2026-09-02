@@ -71,7 +71,9 @@ export class CreateComputeBindingUseCase {
 }
 
 // The requested kind must be one the catalogue offers for this substrate on this cloud, and the binding
-// config must cover the kind's required keys (e.g. clusterId for kubernetes).
+// config must cover the kind's required keys (e.g. clusterId for kubernetes, folderId for vm) in their
+// declared format — obvious garbage is refused here; whether the resource exists and access was granted
+// is the probe's answer, not a create-blocker.
 export function validateOffer(
     catalog: CloudCatalog,
     cloudType: string,
@@ -97,10 +99,21 @@ export function validateOffer(
     }
 
     const missing = offer.requiredConfig
-        .filter((key) => typeof params.config?.[key] !== "string" || params.config[key] === "");
+        .filter(({ key }) => typeof params.config?.[key] !== "string" || params.config[key] === "")
+        .map(({ key }) => key);
 
     if (missing.length > 0) {
         throw new InvalidArgumentError(`compute kind ${params.kind}: config requires: ${missing.join(", ")}`);
+    }
+
+    const malformed = offer.requiredConfig.find(
+        ({ key, pattern }) => pattern && !new RegExp(pattern).test(params.config?.[key] as string),
+    );
+
+    if (malformed) {
+        throw new InvalidArgumentError(
+            `compute kind ${params.kind}: config.${malformed.key}: must match ${malformed.pattern}`,
+        );
     }
 
     return offer;

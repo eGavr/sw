@@ -6,6 +6,8 @@ import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { Authorization } from "../../../utils/request/headers/authorization";
 
+const yandexCloudIdPattern = "^[a-z0-9]{20}$";
+
 describe("/cloudTypes", () => {
     let app: TestingApp;
 
@@ -32,7 +34,6 @@ describe("/cloudTypes", () => {
                     execution: "container",
                     compute: [{ kind: "docker", requiredConfig: [], grants: [] }],
                 }],
-                connect: { requiredConfig: [], grants: [] },
             },
             {
                 name: "cloudTypes/yandex-cloud",
@@ -41,28 +42,35 @@ describe("/cloudTypes", () => {
                     {
                         platform: "android",
                         execution: "container",
-                        compute: [{ kind: "vm", requiredConfig: [], grants: [] }],
+                        compute: [{
+                            kind: "vm",
+                            requiredConfig: [{ key: "folderId", pattern: yandexCloudIdPattern }],
+                            grants: [
+                                { role: "compute.editor", serviceAccountId: "aje-test-compute" },
+                                { role: "vpc.user", serviceAccountId: "aje-test-compute" },
+                            ],
+                        }],
                     },
                     {
                         platform: "linux",
                         execution: "container",
                         compute: [
-                            { kind: "vm", requiredConfig: [], grants: [] },
+                            {
+                                kind: "vm",
+                                requiredConfig: [{ key: "folderId", pattern: yandexCloudIdPattern }],
+                                grants: [
+                                    { role: "compute.editor", serviceAccountId: "aje-test-compute" },
+                                    { role: "vpc.user", serviceAccountId: "aje-test-compute" },
+                                ],
+                            },
                             {
                                 kind: "kubernetes",
-                                requiredConfig: ["clusterId"],
+                                requiredConfig: [{ key: "clusterId", pattern: yandexCloudIdPattern }],
                                 grants: [{ role: "k8s.cluster-api.editor", serviceAccountId: "aje-test-compute" }],
                             },
                         ],
                     },
                 ],
-                connect: {
-                    requiredConfig: ["folderId"],
-                    grants: [
-                        { role: "compute.editor", serviceAccountId: "aje-test-compute" },
-                        { role: "vpc.user", serviceAccountId: "aje-test-compute" },
-                    ],
-                },
             },
         ]));
     });

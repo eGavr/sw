@@ -2,14 +2,14 @@ import { CloudType } from "../../../../../../application/use-cases/cloud-types/l
 import { Presenter } from "../../../../presenters/presenter";
 
 // The connectable cloud types: for each, the substrates it offers with every compute kind that can run
-// them (kind + the binding-config keys it requires + the grants to set up), plus the account-level
-// connect requirements. The whole connect form renders from this.
+// them — the kind, the binding-config keys it requires (with the format that catches typos at the
+// input) and the grants to set up. The whole connect-and-bind form renders from this.
 export class ListCloudTypesPresenter implements Presenter {
     constructor(private readonly cloudTypes: Array<CloudType>) {}
 
     present(): object {
         return {
-            cloudTypes: this.cloudTypes.map(({ type, provides, connect }) => ({
+            cloudTypes: this.cloudTypes.map(({ type, provides }) => ({
                 name: `cloudTypes/${type}`,
                 type,
                 provides: provides.map((offer) => ({
@@ -17,14 +17,10 @@ export class ListCloudTypesPresenter implements Presenter {
                     execution: offer.stereotype.execution,
                     compute: offer.compute.map((kindOffer) => ({
                         kind: kindOffer.kind,
-                        requiredConfig: [...kindOffer.requiredConfig],
+                        requiredConfig: kindOffer.requiredConfig.map(({ key, pattern }) => ({ key, pattern })),
                         grants: kindOffer.grants.map(presentGrant),
                     })),
                 })),
-                connect: {
-                    requiredConfig: [...connect.requiredConfig],
-                    grants: connect.grants.map(presentGrant),
-                },
             })),
         };
     }

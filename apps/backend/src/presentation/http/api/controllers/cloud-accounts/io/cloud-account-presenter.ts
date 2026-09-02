@@ -3,9 +3,9 @@ import { Presenter } from "../../../../presenters/presenter";
 
 import { ComputeBindingPresenter } from "./compute-binding-presenter";
 
-// The wire shape of a cloud account: the delegation unit (type + non-secret cloud-level config) plus its
-// compute bindings — what the connection actually serves and how. `credentialRef` (the secret-store
-// pointer) is deliberately never exposed.
+// The wire shape of a cloud account: the connection's type plus its compute bindings — what the
+// connection actually serves and how. `credentialRef` (the secret-store pointer) is deliberately
+// never exposed.
 export class CloudAccountPresenter implements Presenter {
     constructor(private readonly cloudAccount: CloudAccount) {}
 
@@ -14,7 +14,6 @@ export class CloudAccountPresenter implements Presenter {
             name: `projects/${this.cloudAccount.projectId.getValue()}/cloudAccounts/${this.cloudAccount.id}`,
             uid: this.cloudAccount.id,
             type: this.cloudAccount.type,
-            config: this.cloudAccount.config,
             computeBindings: this.cloudAccount.computeBindings().map(
                 (binding) => new ComputeBindingPresenter(binding, this.cloudAccount).present(),
             ),
