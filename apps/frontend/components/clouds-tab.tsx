@@ -70,7 +70,7 @@ export function CloudsTab({ project }: { project: string }) {
       <Box>
         <Title order={4}>Cloud</Title>
         <Text size="sm" c="dimmed">
-          Where this project&apos;s environments run. Connect a cloud, then add the platforms you need.
+          Where this project&apos;s environments run. Add a cloud, then the platforms you need.
         </Text>
       </Box>
 
@@ -113,6 +113,10 @@ function CloudAccountCard({
   const [editingBinding, setEditingBinding] = useState<ComputeBinding | null>(null);
 
   const offers = catalogueEntry?.provides ?? [];
+  const remaining = offers.filter((offer) =>
+    !account.computeBindings.some(
+      (binding) => binding.platform === offer.platform && binding.execution === offer.execution,
+    ));
 
   // The folder already named by a sibling binding of this connection — new vm bindings prefill it, so
   // one folder serves every platform unless the user says otherwise.
@@ -167,7 +171,20 @@ function CloudAccountCard({
             </Group>
           ) : (
             <Tooltip label="Edit">
-              <ActionIcon variant="subtle" color="gray" aria-label="Edit cloud" onClick={() => setManaging(true)}>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                aria-label="Edit cloud"
+                onClick={() => {
+                  setManaging(true);
+
+                  // An empty connection has exactly one useful next step — open the platform form at
+                  // once instead of asking for an "Add platform" click.
+                  if (account.computeBindings.length === 0 && remaining.length > 0) {
+                    setAdding(true);
+                  }
+                }}
+              >
                 <IconPencil size={16} />
               </ActionIcon>
             </Tooltip>
@@ -238,12 +255,9 @@ function CloudAccountCard({
           ),
         )}
 
-        {adding ? (
+        {adding && remaining.length > 0 ? (
           <BindingForm
-            offers={offers.filter((offer) =>
-              !account.computeBindings.some(
-                (binding) => binding.platform === offer.platform && binding.execution === offer.execution,
-              ))}
+            offers={remaining}
             knownFolderId={knownFolderId}
             pending
             onCancel={() => setAdding(false)}
@@ -259,7 +273,7 @@ function CloudAccountCard({
             }}
           />
         ) : (
-          managing && (
+          managing && remaining.length > 0 && (
             <Group>
               <Button variant="subtle" size="compact-sm" leftSection={<IconPlus size={14} />} onClick={() => setAdding(true)}>
                 Add platform
@@ -325,7 +339,11 @@ function BindingForm({
         .map((requirement) => [requirement.key, knownFolderId]),
     );
 
-  // A sole option needs no decision — preselect it.
+  // A sole option needs no decision — preselect it (the whole cascade collapses for a
+  // single-platform cloud like local).
+  if (!platform && platforms.length === 1) {
+    setPlatform(platforms[0]);
+  }
   if (platform && !execution) {
     const options = offers.filter((offer) => offer.platform === platform);
     if (options.length === 1) {
@@ -443,8 +461,9 @@ function BindingForm({
   );
 }
 
-// Connecting is just picking the type — everything the user names or grants belongs to the platform
-// bindings, so the flow continues straight into the new card's platform cascade.
+// Adding a cloud is just picking the type — the pick itself creates the connection and the flow
+// continues straight into the new card's platform cascade, no confirm button. Only types not yet
+// connected are offered; when a single one remains, the "Add cloud" click connects it right away.
 function ConnectCloud({
   project,
   catalogue,
@@ -460,27 +479,47 @@ function ConnectCloud({
   const [opened, setOpened] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
 
+  const available = catalogue.filter(
+    (candidate) => !connected.some((account) => account.type === candidate.type),
+  );
+
   const reset = (): void => {
     setOpened(false);
     setSelectedType(null);
   };
 
   const connect = useMutation({
-    mutationFn: () => connectCloud(project, selectedType as string),
+    mutationFn: (type: string) => connectCloud(project, type),
     onSuccess: (account) => {
       onConnected(account.uid);
       reset();
     },
     onError: (error) =>
-      notifications.show({ color: "red", title: "Connect failed", message: (error as Error).message }),
+      notifications.show({ color: "red", title: "Add cloud failed", message: (error as Error).message }),
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] }),
   });
+
+  if (available.length === 0) {
+    return null;
+  }
 
   if (!opened) {
     return (
       <Group>
-        <Button variant="light" size="compact-sm" leftSection={<IconPlus size={14} />} onClick={() => setOpened(true)}>
-          Connect a cloud
+        <Button
+          variant="light"
+          size="compact-sm"
+          leftSection={<IconPlus size={14} />}
+          onClick={() => {
+            setOpened(true);
+
+            if (available.length === 1) {
+              setSelectedType(available[0].type);
+              connect.mutate(available[0].type);
+            }
+          }}
+        >
+          Add cloud
         </Button>
       </Group>
     );
@@ -492,27 +531,21 @@ function ConnectCloud({
         <Select
           label="Cloud"
           placeholder="Pick a cloud"
-          data={catalogue.map((candidate) => ({
-            value: candidate.type,
-            label: candidate.type,
-            disabled: connected.some((account) => account.type === candidate.type),
-          }))}
+          data={available.map((candidate) => candidate.type)}
           value={selectedType}
-          onChange={setSelectedType}
+          disabled={connect.isPending}
+          onChange={(value) => {
+            setSelectedType(value);
+
+            if (value) {
+              connect.mutate(value);
+            }
+          }}
         />
 
         <Group gap="xs">
           <Button variant="default" size="compact-sm" onClick={reset}>
             Cancel
-          </Button>
-          <Button
-            variant="light"
-            size="compact-sm"
-            disabled={selectedType === null}
-            loading={connect.isPending}
-            onClick={() => connect.mutate()}
-          >
-            Connect
           </Button>
         </Group>
       </Stack>
