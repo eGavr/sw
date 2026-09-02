@@ -58,12 +58,14 @@ export function CloudsTab({ project }: { project: string }) {
   // The install-static catalogue of connectable clouds; it only changes with a server release.
   const cloudTypes = useQuery({ queryKey: ["cloudTypes"], queryFn: listCloudTypes, staleTime: Infinity });
 
-  // Connecting flows straight into picking a platform (user decision): the freshly connected card opens
-  // in manage mode with the binding form already up — no extra pencil click.
-  const [justConnected, setJustConnected] = useState<string | null>(null);
+  // Adding flows straight into picking a platform (user decision): the freshly added card opens in
+  // manage mode with the binding form already up — no extra pencil click. Until that setup is closed
+  // (Done or disconnect), a second cloud cannot be added.
+  const [settingUp, setSettingUp] = useState<string | null>(null);
 
   const catalogue = cloudTypes.data ?? [];
   const accounts = clouds.data ?? [];
+  const settingUpActive = settingUp !== null && accounts.some((account) => account.uid === settingUp);
 
   return (
     <Stack gap="sm">
@@ -83,11 +85,18 @@ export function CloudsTab({ project }: { project: string }) {
           project={project}
           account={account}
           catalogueEntry={catalogue.find((entry) => entry.type === account.type)}
-          startOpen={account.uid === justConnected}
+          startOpen={account.uid === settingUp}
+          onDone={() => {
+            if (account.uid === settingUp) {
+              setSettingUp(null);
+            }
+          }}
         />
       ))}
 
-      <ConnectCloud project={project} catalogue={catalogue} connected={accounts} onConnected={setJustConnected} />
+      {!settingUpActive && (
+        <ConnectCloud project={project} catalogue={catalogue} connected={accounts} onConnected={setSettingUp} />
+      )}
     </Stack>
   );
 }
@@ -99,11 +108,13 @@ function CloudAccountCard({
   account,
   catalogueEntry,
   startOpen,
+  onDone,
 }: {
   project: string;
   account: CloudAccount;
   catalogueEntry?: CloudType;
   startOpen: boolean;
+  onDone: () => void;
 }) {
   const queryClient = useQueryClient();
   // Quiet by default: the row/disconnect controls only show while managing (the pencil), matching the
@@ -164,7 +175,7 @@ function CloudAccountCard({
               <Button
                 variant="default"
                 size="compact-sm"
-                onClick={() => { setManaging(false); setAdding(false); setEditingBinding(null); }}
+                onClick={() => { setManaging(false); setAdding(false); setEditingBinding(null); onDone(); }}
               >
                 Done
               </Button>
