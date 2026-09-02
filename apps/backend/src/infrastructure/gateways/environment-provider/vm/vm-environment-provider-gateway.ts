@@ -3,13 +3,14 @@ import {
     EnvironmentProviderGateway,
 } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
+import { ComputeBinding, ComputeBindingConfig } from "../../../../domain/entities/cloud-account/compute-binding";
 import { Environment } from "../../../../domain/entities/environment/environment";
 
 import { vmProvisioningOverrides } from "./vm-provider-config";
 import { VmProvisioner } from "./vm-provisioner";
 
-// The install-default shape of the VM an adapter provisions per environment; a cloud account's config
-// overrides folder/network/image per project (delegated BYOC).
+// The install-default shape of the VM an adapter provisions per environment; the substrate binding's
+// config overrides folder/network/image per project (delegated BYOC).
 export type VmInstanceShape = {
     imageId: string;
     platformId?: string;
@@ -21,8 +22,8 @@ export type VmInstanceShape = {
     diskSizeGb: number;
 };
 
-// Common half of every VM-per-environment adapter (redroid, emulator, browser): merge the account's
-// overrides into the install shape, create/delete the instance in the account's folder, probe that folder
+// Common half of every VM-per-environment adapter (redroid, emulator, browser): merge the binding's
+// overrides into the install shape, create/delete the instance in the binding's folder, probe that folder
 // for the availability badge. What varies per adapter is only the metadata the VM self-configures from —
 // the boot unit inside the golden image reads it and brings the node up; the adapter never SSHes in.
 export abstract class VmEnvironmentProviderGateway extends EnvironmentProviderGateway {
@@ -34,7 +35,7 @@ export abstract class VmEnvironmentProviderGateway extends EnvironmentProviderGa
     }
 
     async provision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
-        const overrides = vmProvisioningOverrides(cloudAccount?.config);
+        const overrides = vmProvisioningOverrides(this.boundConfigFor(environment, cloudAccount));
 
         await this.compute.createInstance({
             name: this.instanceName(environment),
@@ -55,16 +56,25 @@ export abstract class VmEnvironmentProviderGateway extends EnvironmentProviderGa
         // Delete in the same folder we created it in, or the user's VM leaks (and keeps costing them).
         await this.compute.deleteInstance(
             this.instanceName(environment),
-            vmProvisioningOverrides(cloudAccount?.config).folderId,
+            vmProvisioningOverrides(this.boundConfigFor(environment, cloudAccount)).folderId,
         );
     }
 
-    async checkAccess(cloudAccount: CloudAccount): Promise<CloudReachability> {
-        return this.compute.checkAccess(vmProvisioningOverrides(cloudAccount.config).folderId);
+    async checkAccess(_cloudAccount: CloudAccount, binding: ComputeBinding): Promise<CloudReachability> {
+        return this.compute.checkAccess(vmProvisioningOverrides(binding.config).folderId);
     }
 
     // The per-environment attributes the golden image's boot unit reads to bring the node up.
     protected abstract metadataFor(environment: Environment): Promise<Record<string, string>>;
+
+    // The provisioning config lives on the environment's substrate binding (folderId is the delegation
+    // target). Absent binding/keys leave the install default in place (the operator's own folder).
+    private boundConfigFor(
+        environment: Environment,
+        cloudAccount: CloudAccount | null,
+    ): ComputeBindingConfig | undefined {
+        return cloudAccount?.computeBindingFor(environment.platform.name, environment.execution)?.config;
+    }
 
     // A YC instance name is a DNS label; the environment id is a lowercase uuid, so `sw-env-<uuid>` is a
     // valid, per-environment-unique name — provision and deprovision address the same VM by it.

@@ -6,6 +6,8 @@ import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { Authorization } from "../../../utils/request/headers/authorization";
 
+const yandexCloudIdPattern = "^[a-z0-9]{20}$";
+
 describe("/cloudTypes", () => {
     let app: TestingApp;
 
@@ -27,24 +29,48 @@ describe("/cloudTypes", () => {
             {
                 name: "cloudTypes/local",
                 type: "local",
-                provides: [{ platform: "linux", execution: "container" }],
-                connect: { requiredConfig: [], grants: [] },
+                provides: [{
+                    platform: "linux",
+                    execution: "container",
+                    compute: [{ kind: "docker", requiredConfig: [], grants: [] }],
+                }],
             },
             {
                 name: "cloudTypes/yandex-cloud",
                 type: "yandex-cloud",
                 provides: [
-                    { platform: "android", execution: "container" },
-                    { platform: "linux", execution: "container" },
+                    {
+                        platform: "android",
+                        execution: "container",
+                        compute: [{
+                            kind: "vm",
+                            requiredConfig: [{ key: "folderId", pattern: yandexCloudIdPattern }],
+                            grants: [
+                                { role: "compute.editor", serviceAccountId: "aje-test-compute" },
+                                { role: "vpc.user", serviceAccountId: "aje-test-compute" },
+                            ],
+                        }],
+                    },
+                    {
+                        platform: "linux",
+                        execution: "container",
+                        compute: [
+                            {
+                                kind: "vm",
+                                requiredConfig: [{ key: "folderId", pattern: yandexCloudIdPattern }],
+                                grants: [
+                                    { role: "compute.editor", serviceAccountId: "aje-test-compute" },
+                                    { role: "vpc.user", serviceAccountId: "aje-test-compute" },
+                                ],
+                            },
+                            {
+                                kind: "kubernetes",
+                                requiredConfig: [{ key: "clusterId", pattern: yandexCloudIdPattern }],
+                                grants: [{ role: "k8s.cluster-api.editor", serviceAccountId: "aje-test-compute" }],
+                            },
+                        ],
+                    },
                 ],
-                // Compute-only grants: the storage identity is a separate surface (storageDelegation).
-                connect: {
-                    requiredConfig: ["folderId"],
-                    grants: [
-                        { role: "compute.editor", serviceAccountId: "aje-test-compute", purpose: expect.any(String) },
-                        { role: "vpc.user", serviceAccountId: "aje-test-compute", purpose: expect.any(String) },
-                    ],
-                },
             },
         ]));
     });

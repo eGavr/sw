@@ -10,6 +10,7 @@ import {
 } from "../../../../domain/entities/cloud-account/error/cloud-account-in-use-error";
 
 import { CloudAccount } from "./typeorm/entities/cloud-account/cloud-account";
+import { ComputeBinding } from "./typeorm/entities/cloud-account/compute-binding";
 
 const foreignKeyViolation = "23503";
 
@@ -17,8 +18,26 @@ const foreignKeyViolation = "23503";
 export class CloudAccountDataSource {
     constructor(private readonly dataSource: DataSource) {}
 
+    // The aggregate and its owned bindings persist together: parent row, binding upserts, then removal of
+    // bindings the aggregate no longer holds — one transaction, or a partial write could strand a binding.
     async save(cloudAccount: CloudAccountEntity): Promise<void> {
-        await this.dataSource.getRepository(CloudAccount).save(CloudAccount.from(cloudAccount));
+        const entity = CloudAccount.from(cloudAccount);
+
+        await this.dataSource.transaction(async (manager) => {
+            const { computeBindings, ...row } = entity;
+
+            await manager.getRepository(CloudAccount).save(row);
+            await manager.getRepository(ComputeBinding).save(computeBindings);
+
+            const kept = computeBindings.map((binding) => binding.id);
+            const stale = await manager.getRepository(ComputeBinding).find({
+                where: { cloudAccountId: entity.id },
+            });
+
+            await manager.getRepository(ComputeBinding).remove(
+                stale.filter((binding) => !kept.includes(binding.id)),
+            );
+        });
     }
 
     async findOne(id: string): Promise<CloudAccountData | null> {

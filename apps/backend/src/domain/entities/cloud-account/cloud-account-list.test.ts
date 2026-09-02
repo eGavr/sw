@@ -3,47 +3,33 @@ import { ProjectId } from "../project/project-id";
 
 import { CloudAccount } from "./cloud-account";
 import { CloudAccountList } from "./cloud-account-list";
-import { Stereotype } from "./stereotype";
+
+const account = (type: string): CloudAccount =>
+    CloudAccount.create({ projectId: ProjectId.create(), type });
 
 describe("CloudAccountList", () => {
-    const projectId = ProjectId.create();
+    test("resolves the connection and binding serving a substrate", () => {
+        const yandex = account("yandex-cloud");
+        const binding = yandex.bindCompute({ platformName: "linux", execution: Execution.Container, kind: "vm" });
 
-    const cloud = (type: string, provides: Array<Stereotype>): CloudAccount =>
-        CloudAccount.create({ projectId, type, provides });
+        const resolved = CloudAccountList.of([account("local"), yandex])
+            .resolveFor("linux", Execution.Container);
 
-    const yandexCloud = (): CloudAccount =>
-        cloud("yandex-cloud", [
-            new Stereotype("android", Execution.Container),
-            new Stereotype("android", Execution.Emulator),
-        ]);
-
-    const local = (): CloudAccount => cloud("local", [new Stereotype("linux", Execution.Container)]);
-
-    describe("resolveFor", () => {
-        test("returns the cloud that supports the substrate", () => {
-            const list = CloudAccountList.of([yandexCloud(), local()]);
-
-            expect(list.resolveFor("linux", Execution.Container)?.type).toBe("local");
-            expect(list.resolveFor("android", Execution.Emulator)?.type).toBe("yandex-cloud");
-        });
-
-        test("returns null when nothing supports it", () => {
-            expect(CloudAccountList.of([local()]).resolveFor("android", Execution.Container)).toBeNull();
-        });
+        expect(resolved?.cloudAccount.id).toBe(yandex.id);
+        expect(resolved?.binding.id).toBe(binding.id);
     });
 
-    describe("conflictWith", () => {
-        test("finds a cloud whose substrates overlap the candidate", () => {
-            const list = CloudAccountList.of([yandexCloud()]);
-            const candidate = cloud("yandex-cloud-2", [new Stereotype("android", Execution.Container)]);
+    test("resolves to nothing when no connection binds the substrate", () => {
+        expect(CloudAccountList.of([account("yandex-cloud")]).resolveFor("linux", Execution.Container)).toBeNull();
+        expect(CloudAccountList.of([]).isBound("linux", Execution.Container)).toBe(false);
+    });
 
-            expect(list.conflictWith(candidate)?.type).toBe("yandex-cloud");
-        });
+    test("reports a substrate bound anywhere in the project", () => {
+        const local = account("local");
 
-        test("returns null when the candidate is disjoint", () => {
-            const list = CloudAccountList.of([yandexCloud()]);
+        local.bindCompute({ platformName: "linux", execution: Execution.Container, kind: "docker" });
 
-            expect(list.conflictWith(local())).toBeNull();
-        });
+        expect(CloudAccountList.of([local]).isBound("linux", Execution.Container)).toBe(true);
+        expect(CloudAccountList.of([local]).isBound("android", Execution.Container)).toBe(false);
     });
 });

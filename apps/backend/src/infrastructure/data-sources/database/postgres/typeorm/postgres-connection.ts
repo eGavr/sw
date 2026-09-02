@@ -8,6 +8,7 @@ import { DataSource } from "typeorm";
 import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
 import { CloudAccount } from "./entities/cloud-account/cloud-account";
+import { ComputeBinding } from "./entities/cloud-account/compute-binding";
 import { Environment } from "./entities/environment/environment";
 import { EnvironmentApplication } from "./entities/environment/environment-application";
 import { Project } from "./entities/project/project";
@@ -45,6 +46,7 @@ export class PostgresConnection {
                 Project,
                 User,
                 CloudAccount,
+                ComputeBinding,
                 Environment,
                 EnvironmentApplication,
                 SessionOwnership,

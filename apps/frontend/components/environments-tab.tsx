@@ -73,13 +73,15 @@ export function EnvironmentsTab({ project }: { project: string }) {
     refetchInterval: 3_000,
   });
 
-  // An environment lands on a connected cloud, so without one the create button leads nowhere —
-  // guard it up front instead of letting the API reject with 409 after the fact.
+  // An environment lands on a BOUND platform of a connected cloud — a connection with no platform
+  // bindings serves nothing, so the guard keys on bindings, not on the connection existing. Guard up
+  // front instead of letting the API reject with 409 after the fact.
   const clouds = useQuery({
     queryKey: ["cloudAccounts", project],
     queryFn: () => listCloudAccounts(project),
   });
-  const noClouds = !clouds.isLoading && (clouds.data ?? []).length === 0;
+  const noClouds = !clouds.isLoading
+    && !(clouds.data ?? []).some((cloud) => cloud.computeBindings.length > 0);
 
   const invalidate = (): Promise<void> =>
     queryClient.invalidateQueries({ queryKey: ["environments", project] });
@@ -137,7 +139,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
   return (
     <Stack>
       <Group justify="flex-end">
-        <Tooltip label="Connect a cloud on the Clouds tab first" disabled={!noClouds}>
+        <Tooltip label="Add a cloud platform in Settings first" disabled={!noClouds}>
           <Button
             variant="default"
             leftSection={<IconPlus size={16} />}

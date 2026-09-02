@@ -38,7 +38,11 @@ describe("human-readable environment ids", () => {
         const { body } = await request(app.getHttpServer())
             .post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
 
-        await connectCloud(body.uid, owner).expect(HttpStatus.CREATED);
+        const { body: account } = await connectCloud(body.uid, owner).expect(HttpStatus.CREATED);
+        await request(app.getHttpServer())
+            .post(`/projects/${body.uid}/cloudAccounts/${account.uid}/computeBindings`).set(owner)
+            .send({ platform: "linux", execution: "container", kind: "docker" })
+            .expect(HttpStatus.CREATED);
 
         return { owner, projectId: body.uid };
     };
@@ -105,7 +109,11 @@ describe("human-readable environment ids", () => {
         const projectId = humanId();
         await request(app.getHttpServer())
             .post("/projects").set(owner).send(CreateProjectBody.create({ projectId })).expect(HttpStatus.CREATED);
-        await connectCloud(projectId, owner).expect(HttpStatus.CREATED);
+        const { body: account } = await connectCloud(projectId, owner).expect(HttpStatus.CREATED);
+        await request(app.getHttpServer())
+            .post(`/projects/${projectId}/cloudAccounts/${account.uid}/computeBindings`).set(owner)
+            .send({ platform: "linux", execution: "container", kind: "docker" })
+            .expect(HttpStatus.CREATED);
 
         const environmentId = humanId();
         const { body } = await createEnvironment(projectId, owner, { environmentId }).expect(HttpStatus.CREATED);

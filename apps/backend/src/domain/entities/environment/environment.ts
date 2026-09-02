@@ -25,6 +25,7 @@ export type EnvironmentData = {
     projectId: string;
     cloudAccountId?: string | null;
     cloudType?: string | null;
+    computeKind?: string | null;
     state: string;
     stateReason?: string | null;
     platform: PlatformData;
@@ -46,6 +47,7 @@ export type EnvironmentCreateParams = {
     // execution)) without loading the cloud account.
     cloudAccountId?: CloudAccountId | null;
     cloudType?: string | null;
+    computeKind?: string | null;
     platform: Platform;
     execution?: Execution;
     applications: ApplicationList;
@@ -57,6 +59,7 @@ type EnvironmentConstructorParams = {
     projectId: ProjectId;
     cloudAccountId?: CloudAccountId | null;
     cloudType?: string | null;
+    computeKind?: string | null;
     state?: EnvironmentState;
     stateReason?: EnvironmentStateReason | null;
     platform: Platform;
@@ -83,6 +86,7 @@ export class Environment {
             projectId: ProjectId.fromString(data.projectId),
             cloudAccountId: data.cloudAccountId ? CloudAccountId.fromString(data.cloudAccountId) : null,
             cloudType: data.cloudType ?? null,
+            computeKind: data.computeKind ?? null,
             state: Environment.toState(data.state),
             stateReason: data.stateReason ? Environment.toStateReason(data.stateReason) : null,
             platform: Platform.fromObject(data.platform),
@@ -138,6 +142,7 @@ export class Environment {
     private readonly _projectId: ProjectId;
     private readonly _cloudAccountId: CloudAccountId | null;
     private readonly _cloudType: string | null;
+    private readonly _computeKind: string | null;
     private _state: EnvironmentState;
     private _stateReason: EnvironmentStateReason | null;
     private _endpoint: EnvironmentEndpoint | null;
@@ -153,6 +158,7 @@ export class Environment {
         this._projectId = params.projectId;
         this._cloudAccountId = params.cloudAccountId ?? null;
         this._cloudType = params.cloudType ?? null;
+        this._computeKind = params.computeKind ?? null;
         this._state = params.state ?? EnvironmentState.Enqueued;
         this._stateReason = params.stateReason ?? null;
         this.platform = params.platform;
@@ -187,6 +193,13 @@ export class Environment {
     // The cloud type this runs on, denormalised for routing (adapter = (cloudType, execution)).
     get cloudType(): string | null {
         return this._cloudType;
+    }
+
+    // The compute kind serving this environment (the binding's kind at creation) — the routing key's last
+    // segment. A later rebind of the substrate does not touch it: this records what THIS environment runs
+    // on. Internal routing state, deliberately not on the wire.
+    get computeKind(): string | null {
+        return this._computeKind;
     }
 
     get state(): EnvironmentState {
@@ -401,6 +414,7 @@ export class Environment {
             projectId: this._projectId.getValue(),
             cloudAccountId: this.cloudAccountId,
             cloudType: this._cloudType,
+            computeKind: this._computeKind,
             state: this._state,
             stateReason: this._stateReason,
             platform: this.platform.toObject(),

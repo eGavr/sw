@@ -38,9 +38,11 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
             throw new InvalidArgumentError("environment: at least one application is required");
         }
 
-        // The provisioning shape comes from the environment's cloud account when set, falling back to the
-        // install default; the install-level fields (callback URL/secret, advertise host) stay global.
-        const overrides = dockerProvisioningOverrides(cloudAccount?.config);
+        // The provisioning shape comes from the environment's substrate binding when set, falling back to
+        // the install default; the install-level fields (callback URL/secret, advertise host) stay global.
+        const overrides = dockerProvisioningOverrides(
+            cloudAccount?.computeBindingFor(environment.platform.name, environment.execution)?.config,
+        );
         const provisioning = resolveDockerProvisioning(application, {
             image: overrides.image ?? this.config.image,
             baseImage: overrides.baseImage ?? this.config.baseImage,

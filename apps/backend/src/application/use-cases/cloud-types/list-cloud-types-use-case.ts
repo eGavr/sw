@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import { Stereotype } from "../../../domain/entities/cloud-account/stereotype";
-import { CloudCatalog, CloudConnectRequirements } from "../../interfaces/cloud-catalog";
+import { CloudCatalog, SubstrateOffer } from "../../interfaces/cloud-catalog";
 import { AccessControl } from "../../services/access-control";
 
 type ListCloudTypesInput = {
@@ -12,8 +11,7 @@ type ListCloudTypesInput = {
 
 export type CloudType = {
     readonly type: string;
-    readonly provides: ReadonlyArray<Stereotype>;
-    readonly connect: CloudConnectRequirements;
+    readonly provides: ReadonlyArray<SubstrateOffer>;
 };
 
 @Injectable()
@@ -30,8 +28,7 @@ export class ListCloudTypesUseCase {
 
         return this.cloudCatalog.types().map((type) => ({
             type,
-            provides: this.cloudCatalog.providesFor(type),
-            connect: this.cloudCatalog.connectRequirementsFor(type),
+            provides: this.cloudCatalog.substrateOffers(type),
         }));
     }
 }

@@ -6,7 +6,7 @@ export type DockerProvisioning = {
 };
 
 export type DockerEnvironmentConfig = {
-    // Provisioning shape — the install default, overridable per project from the provider account config.
+    // Provisioning shape — the install default, overridable per project from the substrate binding config.
     image?: string;
     baseImage?: string;
     platform?: string;

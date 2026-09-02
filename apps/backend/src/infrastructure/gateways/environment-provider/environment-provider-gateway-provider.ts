@@ -43,6 +43,18 @@ import {
     DockerEnvironmentConfig,
 } from "./docker/docker-environment-config";
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
+import { KubernetesClient } from "./kubernetes/kubernetes-client";
+import {
+    defaultCpuLimit,
+    defaultCpuRequest,
+    defaultKubernetesNamespace,
+    defaultMemoryLimit,
+    defaultMemoryRequest,
+    KubernetesEnvironmentConfig,
+} from "./kubernetes/kubernetes-environment-config";
+import {
+    KubernetesEnvironmentProviderGateway,
+} from "./kubernetes/kubernetes-environment-provider-gateway";
 import { RoutingEnvironmentProviderGateway, routingKey } from "./routing-environment-provider-gateway";
 import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 
@@ -64,26 +76,32 @@ export const EnvironmentProviderGatewayProvider = {
         // cloud provisions that stereotype with (local drives its docker daemon; yandex-cloud creates
         // Compute VMs for both android substrates).
         const gateways = new Map<string, EnvironmentProviderGateway>([
-            [routingKey("local", "linux", Execution.Container), new DockerEnvironmentProviderGateway(
+            [routingKey("local", "linux", Execution.Container, "docker"), new DockerEnvironmentProviderGateway(
                 new DockerClient(),
                 dockerConfig(configService, idleTimeoutSeconds),
                 agentTokens,
             )],
-            [routingKey("yandex-cloud", "android", Execution.Container), new AndroidRedroidEnvironmentProviderGateway(
+            [routingKey("yandex-cloud", "android", Execution.Container, "vm"), new AndroidRedroidEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_FOLDER_ID")),
                 androidRedroidConfig(configService),
                 agentTokens,
             )],
-            [routingKey("yandex-cloud", "android", Execution.Emulator), new AndroidEmulatorEnvironmentProviderGateway(
+            [routingKey("yandex-cloud", "android", Execution.Emulator, "vm"), new AndroidEmulatorEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_ANDROID_EMULATOR_FOLDER_ID")),
                 androidEmulatorConfig(configService),
                 agentTokens,
             )],
-            [routingKey("yandex-cloud", "linux", Execution.Container), new BrowserVmEnvironmentProviderGateway(
+            [routingKey("yandex-cloud", "linux", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_BROWSER_FOLDER_ID")),
                 browserVmConfig(configService, idleTimeoutSeconds),
                 agentTokens,
             )],
+            [routingKey("yandex-cloud", "linux", Execution.Container, "kubernetes"),
+                new KubernetesEnvironmentProviderGateway(
+                    new KubernetesClient(),
+                    kubernetesConfig(configService, idleTimeoutSeconds),
+                    agentTokens,
+                )],
         ]);
 
         return new RoutingEnvironmentProviderGateway(gateways);
@@ -102,7 +120,7 @@ function resolveSessionIdleTimeout(configService: ConfigService): SessionIdleTim
 function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: number): DockerEnvironmentConfig {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
-    // Install defaults for the docker provisioning shape; a project's cloud account config overrides
+    // Install defaults for the docker provisioning shape; a project's substrate binding config overrides
     // image/baseImage/platform/port at provision. The install-level fields below stay global.
     return {
         image: configService.get<string>("COMPUTE_DOCKER_IMAGE"),
@@ -117,6 +135,24 @@ function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: numbe
         // From inside the container the host's internal callback API is reached via host.docker.internal.
         internalUrl:
             configService.get<string>("COMPUTE_DOCKER_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,    
+    };
+}
+
+function kubernetesConfig(configService: ConfigService, sessionTimeoutSeconds: number): KubernetesEnvironmentConfig {
+    const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
+
+    return {
+        nodeImage: configService.get<string>("COMPUTE_K8S_NODE_IMAGE")
+            ?? configService.get<string>("COMPUTE_BROWSER_NODE_IMAGE") ?? "",
+        namespace: configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultKubernetesNamespace,
+        entrypoint: configService.get<string>("COMPUTE_K8S_ENTRYPOINT") ?? defaultAgentEntrypoint,
+        cpuRequest: configService.get<string>("COMPUTE_K8S_CPU_REQUEST") ?? defaultCpuRequest,
+        memoryRequest: configService.get<string>("COMPUTE_K8S_MEMORY_REQUEST") ?? defaultMemoryRequest,
+        cpuLimit: configService.get<string>("COMPUTE_K8S_CPU_LIMIT") ?? defaultCpuLimit,
+        memoryLimit: configService.get<string>("COMPUTE_K8S_MEMORY_LIMIT") ?? defaultMemoryLimit,
+        sessionTimeoutSeconds,
+        internalUrl: configService.get<string>("COMPUTE_K8S_INTERNAL_URL")
+            ?? configService.get<string>("COMPUTE_BROWSER_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
     };
 }
 

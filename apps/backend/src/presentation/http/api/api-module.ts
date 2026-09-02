@@ -15,6 +15,7 @@ import {
 } from "../../../application/interfaces/repositories/session-ownership-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
+import { CloudAccountAccess } from "../../../application/use-cases/cloud-accounts/cloud-account-access";
 import {
     CreateCloudAccountUseCase,
 } from "../../../application/use-cases/cloud-accounts/create-cloud-account-use-case";
@@ -28,11 +29,20 @@ import {
     ListCloudAccountsUseCase,
 } from "../../../application/use-cases/cloud-accounts/list-cloud-accounts-use-case";
 import {
-    TestCloudAccountAccessUseCase,
-} from "../../../application/use-cases/cloud-accounts/test-cloud-account-access-use-case";
-import {
     ListCloudTypesUseCase,
 } from "../../../application/use-cases/cloud-types/list-cloud-types-use-case";
+import {
+    CreateComputeBindingUseCase,
+} from "../../../application/use-cases/compute-bindings/create-compute-binding-use-case";
+import {
+    DeleteComputeBindingUseCase,
+} from "../../../application/use-cases/compute-bindings/delete-compute-binding-use-case";
+import {
+    TestComputeBindingAccessUseCase,
+} from "../../../application/use-cases/compute-bindings/test-compute-binding-access-use-case";
+import {
+    UpdateComputeBindingUseCase,
+} from "../../../application/use-cases/compute-bindings/update-compute-binding-use-case";
 import { CreateEnvironmentUseCase } from "../../../application/use-cases/environments/create-environment-use-case";
 import { DeleteEnvironmentUseCase } from "../../../application/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../application/use-cases/environments/get-environment-use-case";
@@ -119,6 +129,7 @@ import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { CloudAccountsController } from "./controllers/cloud-accounts/cloud-accounts-controller";
 import { CloudTypesController } from "./controllers/cloud-types/cloud-types-controller";
+import { ComputeBindingsController } from "./controllers/compute-bindings/compute-bindings-controller";
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
 import { SessionArtifactsController } from "./controllers/sessions/session-artifacts-controller";
@@ -141,6 +152,7 @@ import {
         ProjectsController,
         EnvironmentsController,
         CloudAccountsController,
+        ComputeBindingsController,
         CloudTypesController,
         StorageDestinationController,
         StorageDelegationController,
@@ -169,7 +181,11 @@ import {
         ListCloudAccountsUseCase,
         GetCloudAccountUseCase,
         DeleteCloudAccountUseCase,
-        TestCloudAccountAccessUseCase,
+        TestComputeBindingAccessUseCase,
+        CloudAccountAccess,
+        CreateComputeBindingUseCase,
+        UpdateComputeBindingUseCase,
+        DeleteComputeBindingUseCase,
 
         ListCloudTypesUseCase,
 
@@ -189,7 +205,7 @@ import {
         RegisteredCloudCatalogProvider,
         ObjectStorageGatewayProvider,
         StorageDelegationProvider,
-        // The `cloudAccounts/{id}:test` probe runs checkAccess through the compute gateway under our
+        // The `computeBindings/{id}:test` probe runs checkAccess through the compute gateway under our
         // identity; the gateway needs the agent-token service to construct (it is not used by the probe).
         EnvironmentProviderGatewayProvider,
         AgentTokenServiceProvider,

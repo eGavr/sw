@@ -1,4 +1,4 @@
-import { CloudConfig } from "../../../../domain/entities/cloud-account/cloud-account";
+import { ComputeBindingConfig } from "../../../../domain/entities/cloud-account/compute-binding";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
 
 export type DockerProvisioningOverrides = {
@@ -8,10 +8,10 @@ export type DockerProvisioningOverrides = {
     internalPort?: number;
 };
 
-// Reads the docker adapter's provisioning shape out of a cloud account's opaque config blob, validating
+// Reads the docker adapter's provisioning shape out of a substrate binding's opaque config blob, validating
 // the few keys it understands (a wrong type fails fast). Absent keys leave the install default in place, so
-// a project with no config provisions exactly as before.
-export function dockerProvisioningOverrides(config: CloudConfig | undefined): DockerProvisioningOverrides {
+// a binding with no config provisions exactly as before.
+export function dockerProvisioningOverrides(config: ComputeBindingConfig | undefined): DockerProvisioningOverrides {
     if (!config) {
         return {};
     }
@@ -24,7 +24,7 @@ export function dockerProvisioningOverrides(config: CloudConfig | undefined): Do
     };
 }
 
-function optionalString(config: CloudConfig, key: string): string | undefined {
+function optionalString(config: ComputeBindingConfig, key: string): string | undefined {
     const value = config[key];
 
     if (value === undefined) {
@@ -38,7 +38,7 @@ function optionalString(config: CloudConfig, key: string): string | undefined {
     return value;
 }
 
-function optionalPort(config: CloudConfig, key: string): number | undefined {
+function optionalPort(config: ComputeBindingConfig, key: string): number | undefined {
     const value = config[key];
 
     if (value === undefined) {

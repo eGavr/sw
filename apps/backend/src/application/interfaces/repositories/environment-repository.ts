@@ -18,6 +18,7 @@ export type CreateEnvironmentParams = {
     projectId: ProjectId;
     cloudAccountId?: CloudAccountId | null;
     cloudType?: string | null;
+    computeKind?: string | null;
     platform: Platform;
     execution?: Execution;
     applications: ApplicationList;
