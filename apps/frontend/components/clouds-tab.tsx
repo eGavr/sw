@@ -154,6 +154,10 @@ function CloudAccountCard({
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] }),
   });
 
+  // A cloud with no platforms serves nothing, so the setup flow cannot save one: leaving it without a
+  // binding cancels the whole connection (user decision).
+  const isUnsavedSetup = startOpen && account.computeBindings.length === 0;
+
   return (
     <Box p="md" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
       <Stack gap="sm">
@@ -175,9 +179,19 @@ function CloudAccountCard({
               <Button
                 variant="default"
                 size="compact-sm"
-                onClick={() => { setManaging(false); setAdding(false); setEditingBinding(null); onDone(); }}
+                loading={isUnsavedSetup && disconnect.isPending}
+                onClick={() => {
+                  if (isUnsavedSetup) {
+                    disconnect.mutate();
+                  } else {
+                    setManaging(false);
+                    setAdding(false);
+                    setEditingBinding(null);
+                  }
+                  onDone();
+                }}
               >
-                Done
+                {isUnsavedSetup ? "Cancel" : "Done"}
               </Button>
             </Group>
           ) : (
@@ -271,7 +285,16 @@ function CloudAccountCard({
             offers={remaining}
             knownFolderId={knownFolderId}
             pending
-            onCancel={() => setAdding(false)}
+            onCancel={() => {
+              // In an unsaved setup there is nothing to fall back to — cancelling the platform form
+              // cancels the connection itself.
+              if (isUnsavedSetup) {
+                disconnect.mutate();
+                onDone();
+              } else {
+                setAdding(false);
+              }
+            }}
             onSubmit={async (kind, config, substrate) => {
               await createComputeBinding(project, account.uid, {
                 platform: substrate!.platform,
