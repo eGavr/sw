@@ -7,21 +7,50 @@ const execFileAsync = promisify(execFile);
 // backend client; the gateway builds domain-meaningful manifests and asks this to apply/delete them.
 // Every call targets the USER'S managed cluster: the kubeconfig for a cluster id is materialised once per
 // process via `yc managed-kubernetes cluster get-credentials` (auth = our ambient IAM identity, which the
-// user granted on their cluster — delegation, no secrets of theirs).
+// user granted on their cluster — delegation, no secrets of theirs). `external` selects the cluster's
+// public master endpoint (cross-folder BYOC) vs the internal one (same VPC as the control plane).
 export class KubernetesClient {
     private readonly kubeconfigs = new Map<string, Promise<string>>();
+
+    constructor(private readonly external: boolean = false) {}
 
     async apply(clusterId: string, manifest: string): Promise<void> {
         await this.exec(clusterId, ["apply", "-f", "-"], manifest);
     }
 
     async deleteByLabel(clusterId: string, label: string, value: string): Promise<void> {
-        await this.exec(clusterId, ["delete", "pod", "-l", `${label}=${value}`, "--ignore-not-found", "--wait=false"]);
+        await this.exec(clusterId, ["delete", "pod,service", "-l", `${label}=${value}`, "--ignore-not-found", "--wait=false"]);
     }
 
     // Reachability probe: listing nodes exercises cluster API access end to end.
     async nodes(clusterId: string): Promise<void> {
         await this.exec(clusterId, ["get", "nodes", "-o", "name"]);
+    }
+
+    // A node's public address — the host the control plane reaches a NodePort on. Any Ready node routes a
+    // NodePort to the pod, so the first external address is enough.
+    async nodeExternalIp(clusterId: string): Promise<string> {
+        const out = await this.exec(clusterId, [
+            "get", "nodes",
+            "-o", "jsonpath={.items[*].status.addresses[?(@.type==\"ExternalIP\")].address}",
+        ]);
+        const [ip] = out.trim().split(/\s+/).filter(Boolean);
+
+        if (!ip) {
+            throw new Error("kubernetes: no node has an ExternalIP (nodeport networking needs public nodes)");
+        }
+
+        return ip;
+    }
+
+    // The node ports already taken by live sw Services — so a fresh environment picks a free one.
+    async usedNodePorts(clusterId: string, label: string): Promise<Array<number>> {
+        const out = await this.exec(clusterId, [
+            "get", "services", "-l", label,
+            "-o", "jsonpath={.items[*].spec.ports[*].nodePort}",
+        ]);
+
+        return out.trim().split(/\s+/).filter(Boolean).map(Number);
     }
 
     private async exec(clusterId: string, args: Array<string>, stdin?: string): Promise<string> {
@@ -52,7 +81,8 @@ export class KubernetesClient {
     }
 
     // One kubeconfig file per cluster per process; `--force` overwrites stale entries on restart. The
-    // config embeds the yc exec-credential plugin, so tokens refresh themselves.
+    // config embeds the yc exec-credential plugin, so tokens refresh themselves. `--external` for the
+    // public master endpoint (cross-folder), else `--internal` (same VPC).
     private kubeconfigFor(clusterId: string): Promise<string> {
         const cached = this.kubeconfigs.get(clusterId);
 
@@ -63,7 +93,7 @@ export class KubernetesClient {
         const path = `/tmp/sw-kubeconfig-${clusterId}`;
         const materialised = execFileAsync("yc", [
             "managed-kubernetes", "cluster", "get-credentials", "--id", clusterId,
-            "--internal", "--force", "--kubeconfig", path,
+            this.external ? "--external" : "--internal", "--force", "--kubeconfig", path,
         ]).then(() => path);
 
         this.kubeconfigs.set(clusterId, materialised);
