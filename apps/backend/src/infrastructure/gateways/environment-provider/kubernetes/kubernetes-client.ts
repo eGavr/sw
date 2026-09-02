@@ -22,9 +22,15 @@ export class KubernetesClient {
         await this.exec(clusterId, ["delete", "pod,service", "-l", `${label}=${value}`, "--ignore-not-found", "--wait=false"]);
     }
 
-    // Reachability probe: listing nodes exercises cluster API access end to end.
-    async nodes(clusterId: string): Promise<void> {
-        await this.exec(clusterId, ["get", "nodes", "-o", "name"]);
+    // Reachability probe: whether we may create pods in the namespace — a NAMESPACED check the delegated
+    // cluster-api role grants, so it exercises real provisioning access without needing cluster-scoped
+    // reads. Throws (non-"yes") when access is missing.
+    async ensureCanProvision(clusterId: string, namespace: string): Promise<void> {
+        const answer = await this.exec(clusterId, ["auth", "can-i", "create", "pods", "-n", namespace]);
+
+        if (answer.trim() !== "yes") {
+            throw new Error(`kubernetes: cannot create pods in namespace ${namespace} (access not granted)`);
+        }
     }
 
     // A node's public address — the host the control plane reaches a NodePort on. Any Ready node routes a
@@ -43,10 +49,11 @@ export class KubernetesClient {
         return ip;
     }
 
-    // The node ports already taken by live sw Services — so a fresh environment picks a free one.
-    async usedNodePorts(clusterId: string, label: string): Promise<Array<number>> {
+    // The node ports already taken by live sw Services in the namespace — so a fresh environment picks a
+    // free one. Namespaced (no cluster-scoped read needed).
+    async usedNodePorts(clusterId: string, namespace: string, label: string): Promise<Array<number>> {
         const out = await this.exec(clusterId, [
-            "get", "services", "-l", label,
+            "get", "services", "-n", namespace, "-l", label,
             "-o", "jsonpath={.items[*].spec.ports[*].nodePort}",
         ]);
 

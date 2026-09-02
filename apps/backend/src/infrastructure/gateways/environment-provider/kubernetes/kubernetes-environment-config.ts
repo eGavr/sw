@@ -31,6 +31,10 @@ export type KubernetesEnvironmentConfig = {
     nodePortRange: { min: number; max: number };
     // The port the selenium node listens on inside the pod.
     containerPort: number;
+    // NodePort mode only: the public host a NodePort is reached on. A NodePort routes to the pod from ANY
+    // node, so one stable node address is enough. Set explicitly so the delegated identity needs only the
+    // namespaced cluster-api role (no cluster-scoped node read); empty falls back to querying a node.
+    advertiseHost?: string;
 };
 
 export const defaultKubernetesNamespace = "default";
@@ -59,6 +63,7 @@ export type BuildKubernetesEnvironmentConfigOptions = {
     nodePortMin?: string;
     nodePortMax?: string;
     containerPort?: string;
+    advertiseHost?: string;
 };
 
 export function buildKubernetesEnvironmentConfig(
@@ -80,5 +85,6 @@ export function buildKubernetesEnvironmentConfig(
             max: options.nodePortMax ? Number(options.nodePortMax) : defaultNodePortRange.max,
         },
         containerPort: options.containerPort ? Number(options.containerPort) : defaultKubernetesContainerPort,
+        advertiseHost: options.advertiseHost || undefined,
     };
 }

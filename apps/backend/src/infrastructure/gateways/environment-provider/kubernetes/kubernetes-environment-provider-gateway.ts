@@ -61,10 +61,11 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
         );
     }
 
-    // Probes the binding's cluster: listing nodes exercises the granted cluster API access.
+    // Probes the binding's cluster: whether we may create pods in the namespace — a namespaced check the
+    // delegated cluster-api role grants (no cluster-scoped read needed).
     async checkAccess(_cloudAccount: CloudAccount, binding: ComputeBinding): Promise<CloudReachability> {
         try {
-            await this.kubernetes.nodes(this.boundClusterId(binding));
+            await this.kubernetes.ensureCanProvision(this.boundClusterId(binding), this.config.namespace);
 
             return { reachable: true };
         } catch (error) {
@@ -73,7 +74,8 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
     }
 
     // In pod-ip mode the pod's own VPC IP (downward API) is the endpoint. In nodeport mode a NodePort is
-    // reserved and the node's public ip is the host — resolved before the pod so the agent advertises it.
+    // reserved and a public node host is the endpoint. The host comes from config (advertiseHost) so the
+    // delegated identity needs only the namespaced cluster-api role; a node is queried only as a fallback.
     private async resolveEndpoint(clusterId: string): Promise<Endpoint> {
         if (this.config.networking === "pod-ip") {
             return {
@@ -83,10 +85,8 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
             };
         }
 
-        const [host, nodePort] = await Promise.all([
-            this.kubernetes.nodeExternalIp(clusterId),
-            this.reserveNodePort(clusterId),
-        ]);
+        const host = this.config.advertiseHost ?? await this.kubernetes.nodeExternalIp(clusterId);
+        const nodePort = await this.reserveNodePort(clusterId);
 
         return { networking: "nodeport", url: `http://${host}:${nodePort}`, service: { nodePort } };
     }
@@ -94,7 +94,9 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
     // The lowest node-port in the configured range not already taken by a live sw Service. A full pool
     // fails the provision and the reaper retries — it is a query bound, not a business threshold.
     private async reserveNodePort(clusterId: string): Promise<number> {
-        const used = new Set(await this.kubernetes.usedNodePorts(clusterId, `${labels.provider}=${providerValue}`));
+        const used = new Set(await this.kubernetes.usedNodePorts(
+            clusterId, this.config.namespace, `${labels.provider}=${providerValue}`,
+        ));
 
         for (let port = this.config.nodePortRange.min; port <= this.config.nodePortRange.max; port++) {
             if (!used.has(port)) {

@@ -156,6 +156,7 @@ function kubernetesGateway(
         nodePortMin: configService.get<string>("COMPUTE_K8S_NODEPORT_MIN"),
         nodePortMax: configService.get<string>("COMPUTE_K8S_NODEPORT_MAX"),
         containerPort: configService.get<string>("COMPUTE_K8S_CONTAINER_PORT"),
+        advertiseHost: configService.get<string>("COMPUTE_K8S_ADVERTISE_HOST"),
     });
 
     return new KubernetesEnvironmentProviderGateway(
