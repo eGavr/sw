@@ -38,11 +38,17 @@ describe("/projects/:project/environments", () => {
             .send(CreateProjectBody.create())
             .expect(HttpStatus.CREATED);
 
-        // Connect the local cloud so create-environment resolves a cloud for linux/container.
-        await request(app.getHttpServer())
+        // Connect the local cloud and bind linux/container to docker (bindings are always explicit),
+        // so create-environment resolves the substrate.
+        const { body: account } = await request(app.getHttpServer())
             .post(`/projects/${body.uid}/cloudAccounts`)
             .set(owner)
             .send({ type: "local" })
+            .expect(HttpStatus.CREATED);
+        await request(app.getHttpServer())
+            .post(`/projects/${body.uid}/cloudAccounts/${account.uid}/computeBindings`)
+            .set(owner)
+            .send({ platform: "linux", execution: "container", kind: "docker" })
             .expect(HttpStatus.CREATED);
 
         return { owner, projectId: body.uid };
@@ -119,7 +125,12 @@ describe("/projects/:project/environments", () => {
 
             await request(app.getHttpServer())
                 .post(`/projects/${project.uid}/cloudAccounts`).set(owner).send({ type: "local" })
-                .expect(HttpStatus.CREATED);
+                .expect(HttpStatus.CREATED)
+                .then(async ({ body: account }) => request(app.getHttpServer())
+                    .post(`/projects/${project.uid}/cloudAccounts/${account.uid}/computeBindings`)
+                    .set(owner)
+                    .send({ platform: "linux", execution: "container", kind: "docker" })
+                    .expect(HttpStatus.CREATED));
 
             await request(app.getHttpServer())
                 .post(`/projects/${project.uid}:setIamPolicy`)
@@ -273,10 +284,18 @@ describe("/projects/:project/environments", () => {
                 .post("/projects").set(owner).send(CreateProjectBody.create()).expect(HttpStatus.CREATED);
 
             for (const type of cloudTypes) {
-                await request(app.getHttpServer())
+                const { body: account } = await request(app.getHttpServer())
                     .post(`/projects/${body.uid}/cloudAccounts`).set(owner)
                     // yandex-cloud is delegated BYOC and requires the target folder.
                     .send(type === "yandex-cloud" ? { type, config: { folderId: "b1gstub" } } : { type })
+                    .expect(HttpStatus.CREATED);
+
+                // Bindings are always explicit: local runs linux on docker, yandex runs android on VMs.
+                await request(app.getHttpServer())
+                    .post(`/projects/${body.uid}/cloudAccounts/${account.uid}/computeBindings`).set(owner)
+                    .send(type === "yandex-cloud"
+                        ? { platform: "android", execution: "container", kind: "vm" }
+                        : { platform: "linux", execution: "container", kind: "docker" })
                     .expect(HttpStatus.CREATED);
             }
 

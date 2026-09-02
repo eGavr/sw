@@ -6,12 +6,9 @@ import {
   Badge,
   Box,
   Button,
-  Checkbox,
   Code,
   Group,
   Loader,
-  Modal,
-  SegmentedControl,
   Select,
   Stack,
   Text,
@@ -19,7 +16,6 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
@@ -35,7 +31,7 @@ import { useState } from "react";
 import {
   CloudAccount,
   CloudType,
-  ComputeKindOffer,
+  ComputeBinding,
   connectCloud,
   createComputeBinding,
   deleteComputeBinding,
@@ -46,10 +42,6 @@ import {
   testCloudAccount,
   updateComputeBinding,
 } from "@/lib/sw";
-
-// What the user has staged for one substrate: the picked kind and its config fields. `enabled` models the
-// single-kind checkbox (bind/unbind); multi-kind substrates are enabled by picking a kind.
-type StagedBinding = { enabled: boolean; kind: string | null; config: Record<string, string> };
 
 const grantCommand = (folderId: string, role: string, serviceAccountId: string): string =>
   `yc resource-manager folder add-access-binding --id ${folderId || "<your-folder-id>"} --role ${role} --subject serviceAccount:${serviceAccountId}`;
@@ -65,24 +57,15 @@ export function CloudsTab({ project }: { project: string }) {
 
   return (
     <Stack gap="sm">
-      <Group justify="space-between" align="flex-start" wrap="nowrap">
-        <Box>
-          <Title order={4}>Cloud</Title>
-          <Text size="sm" c="dimmed">
-            Where this project&apos;s environments run. Connect a cloud, then pick how each platform runs.
-          </Text>
-        </Box>
-        <ConnectCloud project={project} catalogue={catalogue} connected={accounts} />
-      </Group>
+      <Box>
+        <Title order={4}>Cloud</Title>
+        <Text size="sm" c="dimmed">
+          Where this project&apos;s environments run. Connect a cloud, then add the platforms you need.
+        </Text>
+      </Box>
 
       {clouds.error && <Alert color="red">{(clouds.error as Error).message}</Alert>}
       {clouds.isLoading && <Loader size="sm" />}
-
-      {!clouds.isLoading && accounts.length === 0 && (
-        <Text c="dimmed" size="sm">
-          No clouds connected — connect one to create environments.
-        </Text>
-      )}
 
       {accounts.map((account) => (
         <CloudAccountCard
@@ -92,12 +75,14 @@ export function CloudsTab({ project }: { project: string }) {
           catalogueEntry={catalogue.find((entry) => entry.type === account.type)}
         />
       ))}
+
+      <ConnectCloud project={project} catalogue={catalogue} connected={accounts} />
     </Stack>
   );
 }
 
-// One connected cloud: the delegation unit (type + folder + availability) and a catalogue-driven section
-// per substrate the cloud offers — no managed tables, the catalogue IS the form.
+// One connected cloud: the delegation line (type + folder + availability) and its platform bindings —
+// each an explicit row the user added; nothing appears behind their back.
 function CloudAccountCard({
   project,
   account,
@@ -108,94 +93,25 @@ function CloudAccountCard({
   catalogueEntry?: CloudType;
 }) {
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [staged, setStaged] = useState<Record<string, StagedBinding>>({});
+  // Quiet by default: the row/disconnect controls only show while managing (the pencil), matching the
+  // Storage section. Binding operations apply immediately, so leaving is a single Done.
+  const [managing, setManaging] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [editingBinding, setEditingBinding] = useState<ComputeBinding | null>(null);
 
   const offers = catalogueEntry?.provides ?? [];
   const folderId = typeof account.config.folderId === "string" ? account.config.folderId : "";
 
-  const substrateKey = (offer: SubstrateOffer): string => `${offer.platform}/${offer.execution}`;
-  const boundFor = (offer: SubstrateOffer) =>
-    account.computeBindings.find(
-      (binding) => binding.platform === offer.platform && binding.execution === offer.execution,
-    );
-
-  const stagedFor = (offer: SubstrateOffer): StagedBinding => {
-    const existing = staged[substrateKey(offer)];
-
-    if (existing) {
-      return existing;
-    }
-
-    const bound = boundFor(offer);
-
-    return {
-      enabled: bound !== undefined,
-      kind: bound?.kind ?? null,
-      config: Object.fromEntries(
-        Object.entries(bound?.config ?? {}).map(([key, value]) => [key, String(value)]),
-      ),
-    };
+  const refresh = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] });
+    void queryClient.invalidateQueries({ queryKey: ["cloudAccess", project, account.uid] });
   };
 
-  const stage = (offer: SubstrateOffer, patch: Partial<StagedBinding>): void =>
-    setStaged({ ...staged, [substrateKey(offer)]: { ...stagedFor(offer), ...patch } });
-
-  // A staged substrate is saveable when disabled, or when its kind is picked and the kind's required
-  // config fields are filled.
-  const offerValid = (offer: SubstrateOffer): boolean => {
-    const current = stagedFor(offer);
-
-    if (!current.enabled) {
-      return true;
-    }
-
-    const kindOffer = offer.compute.find((candidate) => candidate.kind === current.kind);
-
-    return kindOffer !== undefined
-      && kindOffer.requiredConfig.every((key) => (current.config[key] ?? "").trim() !== "");
-  };
-
-  const allValid = offers.every(offerValid);
-
-  const save = useMutation({
-    mutationFn: async () => {
-      for (const offer of offers) {
-        const current = stagedFor(offer);
-        const bound = boundFor(offer);
-
-        if (!current.enabled) {
-          if (bound) {
-            await deleteComputeBinding(project, account.uid, bound.uid);
-          }
-          continue;
-        }
-
-        const config = Object.fromEntries(
-          Object.entries(current.config).filter(([, value]) => value.trim() !== ""),
-        );
-
-        if (!bound) {
-          await createComputeBinding(project, account.uid, {
-            platform: offer.platform,
-            execution: offer.execution,
-            kind: current.kind as string,
-            config,
-          });
-        } else if (bound.kind !== current.kind
-          || JSON.stringify(bound.config) !== JSON.stringify(config)) {
-          await updateComputeBinding(project, account.uid, bound.uid, { kind: current.kind as string, config });
-        }
-      }
-    },
+  const removeBinding = useMutation({
+    mutationFn: (binding: ComputeBinding) => deleteComputeBinding(project, account.uid, binding.uid),
     onError: (error) =>
-      notifications.show({ color: "red", title: "Cloud changes failed", message: (error as Error).message }),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] });
-      void queryClient.invalidateQueries({ queryKey: ["cloudAccess", project, account.uid] });
-      setStaged({});
-      setEditing(false);
-    },
+      notifications.show({ color: "red", title: "Remove platform failed", message: (error as Error).message }),
+    onSettled: refresh,
   });
 
   const disconnect = useMutation({
@@ -218,29 +134,9 @@ function CloudAccountCard({
             )}
             <CloudReachabilityBadge project={project} uid={account.uid} />
           </Group>
-          {editing ? (
+          {managing ? (
             <Group gap="xs">
-              <Button variant="default" size="compact-sm" onClick={() => { setStaged({}); setEditing(false); }}>
-                Cancel
-              </Button>
-              <Button
-                variant="light"
-                size="compact-sm"
-                loading={save.isPending}
-                disabled={!allValid || Object.keys(staged).length === 0}
-                onClick={() => save.mutate()}
-              >
-                Save
-              </Button>
-            </Group>
-          ) : (
-            <Group gap="xs">
-              <Tooltip label="Edit">
-                <ActionIcon variant="subtle" color="gray" aria-label="Edit cloud" onClick={() => setEditing(true)}>
-                  <IconPencil size={16} />
-                </ActionIcon>
-              </Tooltip>
-              <Tooltip label="Disconnect">
+              <Tooltip label="Disconnect cloud">
                 <ActionIcon
                   variant="subtle"
                   color="red"
@@ -251,110 +147,263 @@ function CloudAccountCard({
                   <IconTrash size={16} />
                 </ActionIcon>
               </Tooltip>
+              <Button
+                variant="default"
+                size="compact-sm"
+                onClick={() => { setManaging(false); setAdding(false); setEditingBinding(null); }}
+              >
+                Done
+              </Button>
             </Group>
+          ) : (
+            <Tooltip label="Edit">
+              <ActionIcon variant="subtle" color="gray" aria-label="Edit cloud" onClick={() => setManaging(true)}>
+                <IconPencil size={16} />
+              </ActionIcon>
+            </Tooltip>
           )}
         </Group>
 
-        {offers.map((offer) => (
-          <SubstrateSection
-            key={substrateKey(offer)}
-            offer={offer}
-            editing={editing}
+        {account.computeBindings.length === 0 && !adding && (
+          <Text size="sm" c="dimmed">
+            No platforms yet — add one to create environments on this cloud.
+          </Text>
+        )}
+
+        {account.computeBindings.map((binding) =>
+          editingBinding?.uid === binding.uid ? (
+            <BindingForm
+              key={binding.uid}
+              offers={offers}
+              folderId={folderId}
+              existing={binding}
+              pending={false}
+              onCancel={() => setEditingBinding(null)}
+              onSubmit={async (kind, config) => {
+                await updateComputeBinding(project, account.uid, binding.uid, { kind, config });
+                setEditingBinding(null);
+                refresh();
+              }}
+            />
+          ) : (
+            <Group key={binding.uid} gap="sm" pl="xs" style={{ borderLeft: "2px solid var(--mantine-color-gray-2)" }}>
+              <Text size="sm" fw={600}>
+                {binding.platform} · {binding.execution}
+              </Text>
+              <Badge variant="light" color="green">{binding.kind}</Badge>
+              {Object.entries(binding.config).map(([key, value]) => (
+                <Text key={key} size="xs" c="dimmed" ff="monospace">
+                  {key}={String(value)}
+                </Text>
+              ))}
+              {managing && (
+                <>
+                  <Tooltip label="Change how it runs">
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      size="sm"
+                      aria-label="Edit platform"
+                      onClick={() => setEditingBinding(binding)}
+                    >
+                      <IconPencil size={14} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Remove platform">
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      size="sm"
+                      aria-label="Remove platform"
+                      loading={removeBinding.isPending && removeBinding.variables?.uid === binding.uid}
+                      onClick={() => removeBinding.mutate(binding)}
+                    >
+                      <IconTrash size={14} />
+                    </ActionIcon>
+                  </Tooltip>
+                </>
+              )}
+            </Group>
+          ),
+        )}
+
+        {adding ? (
+          <BindingForm
+            offers={offers.filter((offer) =>
+              !account.computeBindings.some(
+                (binding) => binding.platform === offer.platform && binding.execution === offer.execution,
+              ))}
             folderId={folderId}
-            staged={stagedFor(offer)}
-            onStage={(patch) => stage(offer, patch)}
+            pending
+            onCancel={() => setAdding(false)}
+            onSubmit={async (kind, config, substrate) => {
+              await createComputeBinding(project, account.uid, {
+                platform: substrate!.platform,
+                execution: substrate!.execution,
+                kind,
+                config,
+              });
+              setAdding(false);
+              refresh();
+            }}
           />
-        ))}
+        ) : (
+          managing && (
+            <Group>
+              <Button variant="subtle" size="compact-sm" leftSection={<IconPlus size={14} />} onClick={() => setAdding(true)}>
+                Add platform
+              </Button>
+            </Group>
+          )
+        )}
       </Stack>
     </Box>
   );
 }
 
-// One substrate of the cloud: a checkbox when there is nothing to choose, a kind picker (plus the picked
-// kind's config fields and grants) when the catalogue offers several.
-function SubstrateSection({
-  offer,
-  editing,
+// The cascade the user asked for: platform -> execution -> kind -> the kind's fields. Every select shows
+// only what the catalogue offers (emulator rides along disabled until it is real); a sole option is
+// preselected — nothing to decide, nothing hidden.
+function BindingForm({
+  offers,
   folderId,
-  staged,
-  onStage,
+  existing,
+  pending,
+  onCancel,
+  onSubmit,
 }: {
-  offer: SubstrateOffer;
-  editing: boolean;
+  offers: Array<SubstrateOffer>;
   folderId: string;
-  staged: StagedBinding;
-  onStage: (patch: Partial<StagedBinding>) => void;
+  existing?: ComputeBinding;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (kind: string, config: Record<string, string>, substrate?: SubstrateOffer) => Promise<void>;
 }) {
-  const single = offer.compute.length === 1;
-  const kindOffer: ComputeKindOffer | undefined = offer.compute.find((candidate) => candidate.kind === staged.kind);
+  const [platform, setPlatform] = useState<string | null>(existing?.platform ?? null);
+  const [execution, setExecution] = useState<string | null>(existing?.execution ?? null);
+  const [kind, setKind] = useState<string | null>(existing?.kind ?? null);
+  const [config, setConfig] = useState<Record<string, string>>(
+    Object.fromEntries(Object.entries(existing?.config ?? {}).map(([key, value]) => [key, String(value)])),
+  );
+  const [saving, setSaving] = useState(false);
+
+  const platforms = [...new Set(offers.map((offer) => offer.platform))];
+  const executionsFor = (p: string): Array<{ value: string; label: string; disabled?: boolean }> => {
+    const available = offers.filter((offer) => offer.platform === p).map((offer) => offer.execution);
+    const options = available.map((value) => ({ value, label: value }));
+
+    // The emulator substrate exists in the model but is not offered until live-verified.
+    if (p === "android" && !available.includes("emulator")) {
+      options.push({ value: "emulator", label: "emulator (soon)", disabled: true } as never);
+    }
+
+    return options;
+  };
+
+  const substrate = offers.find((offer) => offer.platform === platform && offer.execution === execution);
+  const kinds = substrate?.compute ?? [];
+  const kindOffer = kinds.find((candidate) => candidate.kind === kind);
+
+  // A sole option needs no decision — preselect it.
+  if (platform && !execution) {
+    const options = offers.filter((offer) => offer.platform === platform);
+    if (options.length === 1) {
+      setExecution(options[0].execution);
+    }
+  }
+  if (substrate && !kind && kinds.length === 1) {
+    setKind(kinds[0].kind);
+  }
+
+  const valid = kindOffer !== undefined
+    && kindOffer.requiredConfig.every((key) => (config[key] ?? "").trim() !== "");
 
   return (
-    <Box pl="xs" style={{ borderLeft: "2px solid var(--mantine-color-gray-2)" }}>
-      <Group gap="sm" mb={4}>
-        <Text size="sm" fw={600}>
-          {offer.platform} · {offer.execution}
-        </Text>
-        {!editing && (
-          <Badge variant="light" color={staged.enabled ? "green" : "gray"}>
-            {staged.enabled ? (staged.kind ?? "on") : "off"}
-          </Badge>
+    <Stack gap={6} pl="xs" py={4} style={{ borderLeft: "2px solid var(--mantine-color-blue-3)" }}>
+      <Group gap="sm" align="flex-end">
+        <Select
+          label="Platform"
+          size="xs"
+          data={platforms}
+          value={platform}
+          disabled={!pending}
+          onChange={(value) => { setPlatform(value); setExecution(null); setKind(null); setConfig({}); }}
+        />
+        {platform && (
+          <Select
+            label="Execution"
+            size="xs"
+            data={executionsFor(platform)}
+            value={execution}
+            disabled={!pending}
+            onChange={(value) => { setExecution(value); setKind(null); setConfig({}); }}
+          />
+        )}
+        {substrate && (
+          <Select
+            label="Runs on"
+            size="xs"
+            data={kinds.map((candidate) => ({ value: candidate.kind, label: candidate.kind }))}
+            value={kind}
+            onChange={(value) => { setKind(value); setConfig({}); }}
+          />
         )}
       </Group>
 
-      {editing && single && (
-        <Checkbox
-          label={`use (${offer.compute[0].kind})`}
-          checked={staged.enabled}
-          onChange={(e) => onStage({ enabled: e.currentTarget.checked, kind: offer.compute[0].kind })}
+      {kindOffer && kindOffer.requiredConfig.map((key) => (
+        <TextInput
+          key={key}
+          label={key}
+          required
+          size="xs"
+          value={config[key] ?? ""}
+          onChange={(e) => setConfig({ ...config, [key]: e.currentTarget.value })}
         />
-      )}
+      ))}
 
-      {editing && !single && (
-        <Stack gap={6}>
-          <Group gap="sm">
-            <SegmentedControl
-              size="xs"
-              data={[
-                { label: "off", value: "" },
-                ...offer.compute.map((candidate) => ({ label: candidate.kind, value: candidate.kind })),
-              ]}
-              value={staged.enabled ? (staged.kind ?? "") : ""}
-              onChange={(value) =>
-                onStage(value === "" ? { enabled: false } : { enabled: true, kind: value })}
-            />
-          </Group>
-
-          {staged.enabled && kindOffer && kindOffer.requiredConfig.map((key) => (
-            <TextInput
-              key={key}
-              label={key}
-              required
-              size="xs"
-              value={staged.config[key] ?? ""}
-              onChange={(e) => onStage({ config: { ...staged.config, [key]: e.currentTarget.value } })}
-            />
+      {kindOffer && kindOffer.grants.length > 0 && (
+        <Box>
+          <Text size="xs" c="dimmed" mb={2}>
+            Grant our identity access first:
+          </Text>
+          {kindOffer.grants.map((grant) => (
+            <Code key={grant.role} block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              {grantCommand(folderId, grant.role, grant.serviceAccountId)}
+            </Code>
           ))}
-
-          {staged.enabled && kindOffer && kindOffer.grants.length > 0 && (
-            <Box>
-              <Text size="xs" c="dimmed" mb={2}>
-                Grant our identity access first:
-              </Text>
-              {kindOffer.grants.map((grant) => (
-                <Code key={grant.role} block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                  {grantCommand(folderId, grant.role, grant.serviceAccountId)}
-                </Code>
-              ))}
-            </Box>
-          )}
-        </Stack>
+        </Box>
       )}
-    </Box>
+
+      <Group gap="xs">
+        <Button variant="default" size="compact-xs" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          variant="light"
+          size="compact-xs"
+          disabled={!valid}
+          loading={saving}
+          onClick={() => {
+            setSaving(true);
+            onSubmit(
+              kind as string,
+              Object.fromEntries(Object.entries(config).filter(([, value]) => value.trim() !== "")),
+              substrate,
+            )
+              .catch((error: Error) =>
+                notifications.show({ color: "red", title: "Platform change failed", message: error.message }))
+              .finally(() => setSaving(false));
+          }}
+        >
+          {pending ? "Add" : "Save"}
+        </Button>
+      </Group>
+    </Stack>
   );
 }
 
-// Connect a new cloud: the type plus its ACCOUNT-level requirements (folder + grants). The substrates are
-// configured on the card afterwards; ones with nothing to ask are bound automatically.
+// Connecting a cloud is inline too: the button becomes a cloud select plus the account-level fields
+// (folder + grants). Platforms are added on the card afterwards.
 function ConnectCloud({
   project,
   catalogue,
@@ -365,7 +414,7 @@ function ConnectCloud({
   connected: Array<CloudAccount>;
 }) {
   const queryClient = useQueryClient();
-  const [opened, { open, close }] = useDisclosure(false);
+  const [opened, setOpened] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [config, setConfig] = useState<Record<string, string>>({});
 
@@ -374,7 +423,7 @@ function ConnectCloud({
   const valid = selectedType !== null && required.every((key) => (config[key] ?? "").trim() !== "");
 
   const reset = (): void => {
-    close();
+    setOpened(false);
     setSelectedType(null);
     setConfig({});
   };
@@ -394,66 +443,70 @@ function ConnectCloud({
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] }),
   });
 
+  if (!opened) {
+    return (
+      <Group>
+        <Button variant="light" size="compact-sm" leftSection={<IconPlus size={14} />} onClick={() => setOpened(true)}>
+          Connect a cloud
+        </Button>
+      </Group>
+    );
+  }
+
   return (
-    <>
-      <Button variant="light" size="compact-sm" leftSection={<IconPlus size={14} />} onClick={open}>
-        Connect a cloud
-      </Button>
+    <Box p="md" style={{ border: "1px dashed var(--mantine-color-gray-4)", borderRadius: 8 }}>
+      <Stack gap="sm">
+        <Select
+          label="Cloud"
+          placeholder="Pick a cloud"
+          data={catalogue.map((candidate) => ({
+            value: candidate.type,
+            label: candidate.type,
+            disabled: connected.some((account) => account.type === candidate.type),
+          }))}
+          value={selectedType}
+          onChange={setSelectedType}
+        />
 
-      <Modal opened={opened} onClose={reset} title="Connect cloud" size="lg">
-        <Stack>
-          <Select
-            label="Cloud"
-            placeholder="Pick a cloud type"
-            data={catalogue.map((candidate) => ({
-              value: candidate.type,
-              label: candidate.type,
-              disabled: connected.some((account) => account.type === candidate.type),
-            }))}
-            value={selectedType}
-            onChange={setSelectedType}
+        {required.map((key) => (
+          <TextInput
+            key={key}
+            label={key}
+            description={key === "folderId"
+              ? "Your own cloud folder — environments are created there, at your cost."
+              : undefined}
+            required
+            value={config[key] ?? ""}
+            onChange={(e) => setConfig({ ...config, [key]: e.currentTarget.value })}
           />
+        ))}
 
-          {required.map((key) => (
-            <TextInput
-              key={key}
-              label={key}
-              description={key === "folderId"
-                ? "Your own cloud folder — environments are created there, at your cost."
-                : undefined}
-              required
-              value={config[key] ?? ""}
-              onChange={(e) => setConfig({ ...config, [key]: e.currentTarget.value })}
-            />
-          ))}
+        {(entry?.connect.grants.length ?? 0) > 0 && (
+          <Box>
+            <Text size="xs" c="dimmed" mb={4}>
+              In your cloud, grant these roles to our service accounts (we hold no keys of yours —
+              access is delegation you control and can revoke):
+            </Text>
+            <Stack gap={6}>
+              {entry!.connect.grants.map((grant) => (
+                <Code key={grant.role} block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                  {grantCommand((config.folderId ?? "").trim(), grant.role, grant.serviceAccountId)}
+                </Code>
+              ))}
+            </Stack>
+          </Box>
+        )}
 
-          {(entry?.connect.grants.length ?? 0) > 0 && (
-            <Box>
-              <Text size="xs" c="dimmed" mb={4}>
-                In your cloud, grant these roles to our service accounts (we hold no keys of yours —
-                access is delegation you control and can revoke):
-              </Text>
-              <Stack gap={6}>
-                {entry!.connect.grants.map((grant) => (
-                  <Code key={grant.role} block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                    {grantCommand((config.folderId ?? "").trim(), grant.role, grant.serviceAccountId)}
-                  </Code>
-                ))}
-              </Stack>
-            </Box>
-          )}
-
-          <Group justify="flex-end">
-            <Button variant="default" onClick={reset}>
-              Cancel
-            </Button>
-            <Button variant="light" disabled={!valid} loading={connect.isPending} onClick={() => connect.mutate()}>
-              Connect
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-    </>
+        <Group gap="xs">
+          <Button variant="default" size="compact-sm" onClick={reset}>
+            Cancel
+          </Button>
+          <Button variant="light" size="compact-sm" disabled={!valid} loading={connect.isPending} onClick={() => connect.mutate()}>
+            Connect
+          </Button>
+        </Group>
+      </Stack>
+    </Box>
   );
 }
 

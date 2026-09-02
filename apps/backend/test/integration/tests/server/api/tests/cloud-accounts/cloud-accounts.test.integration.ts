@@ -42,18 +42,18 @@ describe("/projects/:project/cloudAccounts", () => {
         request(app.getHttpServer()).post(`/projects/${uid}/cloudAccounts`).set(auth)
             .send(type === "yandex-cloud" ? { type, config: { folderId: "b1gstub" } } : { type });
 
-    test("connects a cloud, auto-binding the substrates that have nothing to ask", async () => {
+    test("connects a cloud EMPTY — platforms are bound explicitly, no implicit defaults", async () => {
         const { owner, uid } = await seedProject();
 
         const created = (await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CREATED)).body;
         expect(created).toMatchObject({ uid: expect.any(String), type: "yandex-cloud" });
-        // android has one configless kind -> bound automatically; linux offers a choice -> left unbound.
-        expect(created.computeBindings).toEqual([
-            {
-                name: expect.any(String), uid: expect.any(String),
-                platform: "android", execution: "container", kind: "vm", config: {}, 
-            },
-        ]);
+        expect(created.computeBindings).toEqual([]);
+
+        const bound = (await request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${created.uid}/computeBindings`).set(owner)
+            .send({ platform: "android", execution: "container", kind: "vm" })
+            .expect(HttpStatus.CREATED)).body;
+        expect(bound).toMatchObject({ platform: "android", execution: "container", kind: "vm", config: {} });
 
         const list = (await request(app.getHttpServer())
             .get(`/projects/${uid}/cloudAccounts`).set(owner).expect(HttpStatus.OK)).body;
@@ -88,8 +88,7 @@ describe("/projects/:project/cloudAccounts", () => {
         await request(app.getHttpServer()).delete(`${bindings}/${bound.uid}`).set(owner)
             .expect(HttpStatus.NO_CONTENT);
         const listed = (await request(app.getHttpServer()).get(bindings).set(owner).expect(HttpStatus.OK)).body;
-        expect(listed.computeBindings.map((binding: { platform: string }) => binding.platform))
-            .toEqual(["android"]);
+        expect(listed.computeBindings).toEqual([]);
     });
 
     test("rejects a kind the catalogue does not offer for the substrate", async () => {
@@ -127,6 +126,11 @@ describe("/projects/:project/cloudAccounts", () => {
         const created = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
 
         await request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${created.uid}/computeBindings`).set(owner)
+            .send({ platform: "linux", execution: "container", kind: "docker" })
+            .expect(HttpStatus.CREATED);
+
+        await request(app.getHttpServer())
             .post(`/projects/${uid}/environments`)
             .set(owner)
             .send({
@@ -151,13 +155,13 @@ describe("/projects/:project/cloudAccounts", () => {
     test("keeps a substrate bound once across the project", async () => {
         const { owner, uid } = await seedProject();
 
-        // local auto-binds linux/container to docker.
         const local = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
-        expect(local.computeBindings).toEqual([
-            expect.objectContaining({ platform: "linux", execution: "container", kind: "docker" }),
-        ]);
+        await request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${local.uid}/computeBindings`).set(owner)
+            .send({ platform: "linux", execution: "container", kind: "docker" })
+            .expect(HttpStatus.CREATED);
 
-        // yandex-cloud still connects (android auto-binds), but binding ITS linux would be ambiguous.
+        // yandex-cloud connects fine, but binding ITS linux would make routing ambiguous.
         const yandex = (await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CREATED)).body;
 
         return request(app.getHttpServer())
