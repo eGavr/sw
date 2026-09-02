@@ -19,6 +19,7 @@ export class Environment {
         environment.projectId = data.projectId;
         environment.cloudAccountId = data.cloudAccountId ?? null;
         environment.cloudType = data.cloudType ?? null;
+        environment.computeKind = data.computeKind ?? null;
         environment.state = data.state;
         environment.stateReason = data.stateReason ?? null;
         environment.platformName = data.platform.name;
@@ -57,6 +58,9 @@ export class Environment {
 
     @Column({ type: "varchar", nullable: true })
     cloudType: string | null;
+
+    @Column({ type: "varchar", nullable: true })
+    computeKind: string | null;
 
     @Column()
     state: string;
@@ -112,6 +116,7 @@ export class Environment {
             projectId: this.projectId,
             cloudAccountId: this.cloudAccountId,
             cloudType: this.cloudType,
+            computeKind: this.computeKind,
             state: this.state,
             stateReason: this.stateReason,
             platform: {

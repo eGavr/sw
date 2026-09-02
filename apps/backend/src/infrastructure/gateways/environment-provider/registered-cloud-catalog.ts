@@ -2,6 +2,7 @@ import {
     CloudCatalog,
     CloudConnectRequirements,
     CloudGrant,
+    SubstrateOffer,
 } from "../../../application/interfaces/cloud-catalog";
 import { Stereotype } from "../../../domain/entities/cloud-account/stereotype";
 import { Execution } from "../../../domain/entities/environment/execution";
@@ -16,27 +17,47 @@ export type DelegationIdentities = {
 
 const noRequirements: CloudConnectRequirements = { requiredConfig: [], grants: [] };
 
-// The one place that knows cloud-type → the (platform, execution) substrates it provisions. Adding a cloud
-// backend means adding an entry here (and its adapter/routing). The domain stays cloud-agnostic: a
-// CloudAccount only stores the `provides` materialised from this catalogue at connect time.
-const allSubstratesByType = new Map<string, ReadonlyArray<Stereotype>>([
-    // The machine sw itself runs on, driven through its docker daemon.
-    ["local", [new Stereotype("linux", Execution.Container)]],
-    // android/emulator has an adapter but is not offered until verified on real KVM hardware. Note local
-    // and yandex-cloud both provide linux/container, so one project cannot connect both — installs never
-    // offer both anyway (dev = local only, hosted = real clouds only; see CLOUD_CATALOG).
-    ["yandex-cloud", [
-        new Stereotype("android", Execution.Container),
-        new Stereotype("linux", Execution.Container),
-    ]],
-]);
+// The one place that knows cloud-type → the substrates it offers and the compute kinds that run each.
+// Adding a cloud backend or kind means adding an entry here (and its adapter/routing). The domain stays
+// cloud-agnostic: a CloudAccount only stores the bindings the user made against this catalogue.
+function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArray<SubstrateOffer>> {
+    const kubernetesGrants: Array<CloudGrant> = identities.computeServiceAccountId
+        ? [{ role: "k8s.cluster-api.editor", serviceAccountId: identities.computeServiceAccountId }]
+        : [];
+
+    return new Map<string, ReadonlyArray<SubstrateOffer>>([
+        // The machine sw itself runs on, driven through its docker daemon — one configless kind.
+        ["local", [
+            {
+                stereotype: new Stereotype("linux", Execution.Container),
+                compute: [{ kind: "docker", requiredConfig: [], grants: [] }],
+            },
+        ]],
+        // android/emulator has an adapter but is not offered until verified on real KVM hardware.
+        ["yandex-cloud", [
+            {
+                stereotype: new Stereotype("android", Execution.Container),
+                compute: [{ kind: "vm", requiredConfig: [], grants: [] }],
+            },
+            {
+                stereotype: new Stereotype("linux", Execution.Container),
+                compute: [
+                    // Per-env VM: pay-per-use, start ~minutes. The account's folder is all it needs.
+                    { kind: "vm", requiredConfig: [], grants: [] },
+                    // The user's managed cluster: always-on fee, pod start ~seconds.
+                    { kind: "kubernetes", requiredConfig: ["clusterId"], grants: kubernetesGrants },
+                ],
+            },
+        ]],
+    ]);
+}
 
 // A cloud is offered per installation: local dev exposes only `local` (the operator's docker), a hosted
 // install only the real clouds it runs on. `enabledTypes` (from CLOUD_CATALOG) narrows the known set to
 // what this install offers; omitted means all known types (tests and back-compat). An enabled type that is
 // not a known backend is a misconfiguration and fails fast at startup, not silently as an empty catalogue.
 export class RegisteredCloudCatalog extends CloudCatalog {
-    private readonly substratesByType: Map<string, ReadonlyArray<Stereotype>>;
+    private readonly offers: Map<string, ReadonlyArray<SubstrateOffer>>;
 
     constructor(
         enabledTypes?: ReadonlyArray<string>,
@@ -44,64 +65,52 @@ export class RegisteredCloudCatalog extends CloudCatalog {
     ) {
         super();
 
+        const all = offersByType(identities);
+
         if (!enabledTypes) {
-            this.substratesByType = allSubstratesByType;
+            this.offers = all;
 
             return;
         }
 
-        const unknown = enabledTypes.filter((type) => !allSubstratesByType.has(type));
+        const unknown = enabledTypes.filter((type) => !all.has(type));
 
         if (unknown.length > 0) {
             throw new InternalError(
-                `cloud catalog: unknown type(s): ${unknown.join(", ")} (known: ${[...allSubstratesByType.keys()].join(", ")})`,
+                `cloud catalog: unknown type(s): ${unknown.join(", ")} (known: ${[...all.keys()].join(", ")})`,
             );
         }
 
-        this.substratesByType = new Map(
-            [...allSubstratesByType].filter(([type]) => enabledTypes.includes(type)),
-        );
+        this.offers = new Map([...all].filter(([type]) => enabledTypes.includes(type)));
     }
 
     supports(type: string): boolean {
-        return this.substratesByType.has(type);
-    }
-
-    providesFor(type: string): ReadonlyArray<Stereotype> {
-        return this.substratesByType.get(type) ?? [];
+        return this.offers.has(type);
     }
 
     types(): ReadonlyArray<string> {
-        return [...this.substratesByType.keys()];
+        return [...this.offers.keys()];
+    }
+
+    substrateOffers(type: string): ReadonlyArray<SubstrateOffer> {
+        return this.offers.get(type) ?? [];
     }
 
     // yandex-cloud is delegated BYOC: the connection MUST name the user's folder (or provisioning would
-    // silently fall back to the operator's folder and bill the operator), and the user pre-grants our
-    // published identities on their side. `local` is the operator's own machine — nothing to require.
+    // silently fall back to the operator's folder and bill the operator) and the user pre-grants our
+    // published identity. `local` is the operator's own machine — nothing to require.
     connectRequirementsFor(type: string): CloudConnectRequirements {
         if (type !== "yandex-cloud" || !this.supports(type)) {
             return noRequirements;
         }
 
-        return { requiredConfig: ["folderId"], grants: this.yandexCloudGrants() };
-    }
+        const grants: Array<CloudGrant> = this.identities.computeServiceAccountId
+            ? [
+                { role: "compute.editor", serviceAccountId: this.identities.computeServiceAccountId },
+                { role: "vpc.user", serviceAccountId: this.identities.computeServiceAccountId },
+            ]
+            : [];
 
-    private yandexCloudGrants(): ReadonlyArray<CloudGrant> {
-        if (!this.identities.computeServiceAccountId) {
-            return [];
-        }
-
-        return [
-            {
-                role: "compute.editor",
-                serviceAccountId: this.identities.computeServiceAccountId,
-                purpose: "create and delete environment VMs in your folder",
-            },
-            {
-                role: "vpc.user",
-                serviceAccountId: this.identities.computeServiceAccountId,
-                purpose: "attach environment VMs to the network",
-            },
-        ];
+        return { requiredConfig: ["folderId"], grants };
     }
 }

@@ -63,11 +63,13 @@ export class CreateEnvironmentUseCase {
 
         const execution = params.execution ? toExecution(params.execution) : defaultExecution;
         const cloudAccounts = await this.cloudAccountRepository.listByProject(projectId);
-        const cloudAccount = CloudAccountList.of(cloudAccounts).resolveFor(params.platform.name, execution);
+        const resolved = CloudAccountList.of(cloudAccounts).resolveFor(params.platform.name, execution);
 
-        if (!cloudAccount) {
+        if (!resolved) {
             throw new NoActiveCloudAccountError(projectId.getValue());
         }
+
+        const { cloudAccount, binding } = resolved;
 
         const applications = ApplicationList.create({
             applications: params.applications.map((application) => Application.create(application)),
@@ -78,6 +80,7 @@ export class CreateEnvironmentUseCase {
             projectId,
             cloudAccountId: CloudAccountId.fromString(cloudAccount.id),
             cloudType: cloudAccount.type,
+            computeKind: binding.kind,
             platform: Platform.fromObject(params.platform),
             execution,
             applications,

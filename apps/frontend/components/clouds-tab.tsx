@@ -6,14 +6,14 @@ import {
   Badge,
   Box,
   Button,
+  Checkbox,
   Code,
-  Drawer,
   Group,
   Loader,
   Modal,
+  SegmentedControl,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
   Title,
@@ -23,7 +23,6 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
-  IconArrowBackUp,
   IconCircleCheck,
   IconPencil,
   IconPlus,
@@ -35,29 +34,431 @@ import { useState } from "react";
 
 import {
   CloudAccount,
+  CloudType,
+  ComputeKindOffer,
   connectCloud,
+  createComputeBinding,
+  deleteComputeBinding,
   disconnectCloud,
   listCloudAccounts,
   listCloudTypes,
-  Substrate,
+  SubstrateOffer,
   testCloudAccount,
+  updateComputeBinding,
 } from "@/lib/sw";
 
-function SubstrateBadges({ provides }: { provides: Array<Substrate> }) {
+// What the user has staged for one substrate: the picked kind and its config fields. `enabled` models the
+// single-kind checkbox (bind/unbind); multi-kind substrates are enabled by picking a kind.
+type StagedBinding = { enabled: boolean; kind: string | null; config: Record<string, string> };
+
+const grantCommand = (folderId: string, role: string, serviceAccountId: string): string =>
+  `yc resource-manager folder add-access-binding --id ${folderId || "<your-folder-id>"} --role ${role} --subject serviceAccount:${serviceAccountId}`;
+
+export function CloudsTab({ project }: { project: string }) {
+  const clouds = useQuery({ queryKey: ["cloudAccounts", project], queryFn: () => listCloudAccounts(project) });
+
+  // The install-static catalogue of connectable clouds; it only changes with a server release.
+  const cloudTypes = useQuery({ queryKey: ["cloudTypes"], queryFn: listCloudTypes, staleTime: Infinity });
+
+  const catalogue = cloudTypes.data ?? [];
+  const accounts = clouds.data ?? [];
+
   return (
-    <Group gap={4}>
-      {provides.map((s) => (
-        <Badge key={`${s.platform}:${s.execution}`} variant="light" color="gray">
-          {s.platform} · {s.execution}
-        </Badge>
+    <Stack gap="sm">
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <Box>
+          <Title order={4}>Cloud</Title>
+          <Text size="sm" c="dimmed">
+            Where this project&apos;s environments run. Connect a cloud, then pick how each platform runs.
+          </Text>
+        </Box>
+        <ConnectCloud project={project} catalogue={catalogue} connected={accounts} />
+      </Group>
+
+      {clouds.error && <Alert color="red">{(clouds.error as Error).message}</Alert>}
+      {clouds.isLoading && <Loader size="sm" />}
+
+      {!clouds.isLoading && accounts.length === 0 && (
+        <Text c="dimmed" size="sm">
+          No clouds connected — connect one to create environments.
+        </Text>
+      )}
+
+      {accounts.map((account) => (
+        <CloudAccountCard
+          key={account.uid}
+          project={project}
+          account={account}
+          catalogueEntry={catalogue.find((entry) => entry.type === account.type)}
+        />
       ))}
-    </Group>
+    </Stack>
+  );
+}
+
+// One connected cloud: the delegation unit (type + folder + availability) and a catalogue-driven section
+// per substrate the cloud offers — no managed tables, the catalogue IS the form.
+function CloudAccountCard({
+  project,
+  account,
+  catalogueEntry,
+}: {
+  project: string;
+  account: CloudAccount;
+  catalogueEntry?: CloudType;
+}) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [staged, setStaged] = useState<Record<string, StagedBinding>>({});
+
+  const offers = catalogueEntry?.provides ?? [];
+  const folderId = typeof account.config.folderId === "string" ? account.config.folderId : "";
+
+  const substrateKey = (offer: SubstrateOffer): string => `${offer.platform}/${offer.execution}`;
+  const boundFor = (offer: SubstrateOffer) =>
+    account.computeBindings.find(
+      (binding) => binding.platform === offer.platform && binding.execution === offer.execution,
+    );
+
+  const stagedFor = (offer: SubstrateOffer): StagedBinding => {
+    const existing = staged[substrateKey(offer)];
+
+    if (existing) {
+      return existing;
+    }
+
+    const bound = boundFor(offer);
+
+    return {
+      enabled: bound !== undefined,
+      kind: bound?.kind ?? null,
+      config: Object.fromEntries(
+        Object.entries(bound?.config ?? {}).map(([key, value]) => [key, String(value)]),
+      ),
+    };
+  };
+
+  const stage = (offer: SubstrateOffer, patch: Partial<StagedBinding>): void =>
+    setStaged({ ...staged, [substrateKey(offer)]: { ...stagedFor(offer), ...patch } });
+
+  // A staged substrate is saveable when disabled, or when its kind is picked and the kind's required
+  // config fields are filled.
+  const offerValid = (offer: SubstrateOffer): boolean => {
+    const current = stagedFor(offer);
+
+    if (!current.enabled) {
+      return true;
+    }
+
+    const kindOffer = offer.compute.find((candidate) => candidate.kind === current.kind);
+
+    return kindOffer !== undefined
+      && kindOffer.requiredConfig.every((key) => (current.config[key] ?? "").trim() !== "");
+  };
+
+  const allValid = offers.every(offerValid);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      for (const offer of offers) {
+        const current = stagedFor(offer);
+        const bound = boundFor(offer);
+
+        if (!current.enabled) {
+          if (bound) {
+            await deleteComputeBinding(project, account.uid, bound.uid);
+          }
+          continue;
+        }
+
+        const config = Object.fromEntries(
+          Object.entries(current.config).filter(([, value]) => value.trim() !== ""),
+        );
+
+        if (!bound) {
+          await createComputeBinding(project, account.uid, {
+            platform: offer.platform,
+            execution: offer.execution,
+            kind: current.kind as string,
+            config,
+          });
+        } else if (bound.kind !== current.kind
+          || JSON.stringify(bound.config) !== JSON.stringify(config)) {
+          await updateComputeBinding(project, account.uid, bound.uid, { kind: current.kind as string, config });
+        }
+      }
+    },
+    onError: (error) =>
+      notifications.show({ color: "red", title: "Cloud changes failed", message: (error as Error).message }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] });
+      void queryClient.invalidateQueries({ queryKey: ["cloudAccess", project, account.uid] });
+      setStaged({});
+      setEditing(false);
+    },
+  });
+
+  const disconnect = useMutation({
+    mutationFn: () => disconnectCloud(project, account.uid),
+    onError: (error) =>
+      notifications.show({ color: "red", title: "Disconnect failed", message: (error as Error).message }),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] }),
+  });
+
+  return (
+    <Box p="md" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
+      <Stack gap="sm">
+        <Group justify="space-between" wrap="nowrap">
+          <Group gap="sm">
+            <Badge variant="light">{account.type}</Badge>
+            {folderId && (
+              <Text size="sm" c="dimmed">
+                folder <Text span ff="monospace">{folderId}</Text>
+              </Text>
+            )}
+            <CloudReachabilityBadge project={project} uid={account.uid} />
+          </Group>
+          {editing ? (
+            <Group gap="xs">
+              <Button variant="default" size="compact-sm" onClick={() => { setStaged({}); setEditing(false); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="light"
+                size="compact-sm"
+                loading={save.isPending}
+                disabled={!allValid || Object.keys(staged).length === 0}
+                onClick={() => save.mutate()}
+              >
+                Save
+              </Button>
+            </Group>
+          ) : (
+            <Group gap="xs">
+              <Tooltip label="Edit">
+                <ActionIcon variant="subtle" color="gray" aria-label="Edit cloud" onClick={() => setEditing(true)}>
+                  <IconPencil size={16} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Disconnect">
+                <ActionIcon
+                  variant="subtle"
+                  color="red"
+                  aria-label="Disconnect cloud"
+                  loading={disconnect.isPending}
+                  onClick={() => disconnect.mutate()}
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+          )}
+        </Group>
+
+        {offers.map((offer) => (
+          <SubstrateSection
+            key={substrateKey(offer)}
+            offer={offer}
+            editing={editing}
+            folderId={folderId}
+            staged={stagedFor(offer)}
+            onStage={(patch) => stage(offer, patch)}
+          />
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
+// One substrate of the cloud: a checkbox when there is nothing to choose, a kind picker (plus the picked
+// kind's config fields and grants) when the catalogue offers several.
+function SubstrateSection({
+  offer,
+  editing,
+  folderId,
+  staged,
+  onStage,
+}: {
+  offer: SubstrateOffer;
+  editing: boolean;
+  folderId: string;
+  staged: StagedBinding;
+  onStage: (patch: Partial<StagedBinding>) => void;
+}) {
+  const single = offer.compute.length === 1;
+  const kindOffer: ComputeKindOffer | undefined = offer.compute.find((candidate) => candidate.kind === staged.kind);
+
+  return (
+    <Box pl="xs" style={{ borderLeft: "2px solid var(--mantine-color-gray-2)" }}>
+      <Group gap="sm" mb={4}>
+        <Text size="sm" fw={600}>
+          {offer.platform} · {offer.execution}
+        </Text>
+        {!editing && (
+          <Badge variant="light" color={staged.enabled ? "green" : "gray"}>
+            {staged.enabled ? (staged.kind ?? "on") : "off"}
+          </Badge>
+        )}
+      </Group>
+
+      {editing && single && (
+        <Checkbox
+          label={`use (${offer.compute[0].kind})`}
+          checked={staged.enabled}
+          onChange={(e) => onStage({ enabled: e.currentTarget.checked, kind: offer.compute[0].kind })}
+        />
+      )}
+
+      {editing && !single && (
+        <Stack gap={6}>
+          <Group gap="sm">
+            <SegmentedControl
+              size="xs"
+              data={[
+                { label: "off", value: "" },
+                ...offer.compute.map((candidate) => ({ label: candidate.kind, value: candidate.kind })),
+              ]}
+              value={staged.enabled ? (staged.kind ?? "") : ""}
+              onChange={(value) =>
+                onStage(value === "" ? { enabled: false } : { enabled: true, kind: value })}
+            />
+          </Group>
+
+          {staged.enabled && kindOffer && kindOffer.requiredConfig.map((key) => (
+            <TextInput
+              key={key}
+              label={key}
+              required
+              size="xs"
+              value={staged.config[key] ?? ""}
+              onChange={(e) => onStage({ config: { ...staged.config, [key]: e.currentTarget.value } })}
+            />
+          ))}
+
+          {staged.enabled && kindOffer && kindOffer.grants.length > 0 && (
+            <Box>
+              <Text size="xs" c="dimmed" mb={2}>
+                Grant our identity access first:
+              </Text>
+              {kindOffer.grants.map((grant) => (
+                <Code key={grant.role} block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                  {grantCommand(folderId, grant.role, grant.serviceAccountId)}
+                </Code>
+              ))}
+            </Box>
+          )}
+        </Stack>
+      )}
+    </Box>
+  );
+}
+
+// Connect a new cloud: the type plus its ACCOUNT-level requirements (folder + grants). The substrates are
+// configured on the card afterwards; ones with nothing to ask are bound automatically.
+function ConnectCloud({
+  project,
+  catalogue,
+  connected,
+}: {
+  project: string;
+  catalogue: Array<CloudType>;
+  connected: Array<CloudAccount>;
+}) {
+  const queryClient = useQueryClient();
+  const [opened, { open, close }] = useDisclosure(false);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [config, setConfig] = useState<Record<string, string>>({});
+
+  const entry = catalogue.find((candidate) => candidate.type === selectedType);
+  const required = entry?.connect.requiredConfig ?? [];
+  const valid = selectedType !== null && required.every((key) => (config[key] ?? "").trim() !== "");
+
+  const reset = (): void => {
+    close();
+    setSelectedType(null);
+    setConfig({});
+  };
+
+  const connect = useMutation({
+    mutationFn: () =>
+      connectCloud(
+        project,
+        selectedType as string,
+        required.length > 0
+          ? Object.fromEntries(required.map((key) => [key, config[key].trim()]))
+          : undefined,
+      ),
+    onSuccess: reset,
+    onError: (error) =>
+      notifications.show({ color: "red", title: "Connect failed", message: (error as Error).message }),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] }),
+  });
+
+  return (
+    <>
+      <Button variant="light" size="compact-sm" leftSection={<IconPlus size={14} />} onClick={open}>
+        Connect a cloud
+      </Button>
+
+      <Modal opened={opened} onClose={reset} title="Connect cloud" size="lg">
+        <Stack>
+          <Select
+            label="Cloud"
+            placeholder="Pick a cloud type"
+            data={catalogue.map((candidate) => ({
+              value: candidate.type,
+              label: candidate.type,
+              disabled: connected.some((account) => account.type === candidate.type),
+            }))}
+            value={selectedType}
+            onChange={setSelectedType}
+          />
+
+          {required.map((key) => (
+            <TextInput
+              key={key}
+              label={key}
+              description={key === "folderId"
+                ? "Your own cloud folder — environments are created there, at your cost."
+                : undefined}
+              required
+              value={config[key] ?? ""}
+              onChange={(e) => setConfig({ ...config, [key]: e.currentTarget.value })}
+            />
+          ))}
+
+          {(entry?.connect.grants.length ?? 0) > 0 && (
+            <Box>
+              <Text size="xs" c="dimmed" mb={4}>
+                In your cloud, grant these roles to our service accounts (we hold no keys of yours —
+                access is delegation you control and can revoke):
+              </Text>
+              <Stack gap={6}>
+                {entry!.connect.grants.map((grant) => (
+                  <Code key={grant.role} block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                    {grantCommand((config.folderId ?? "").trim(), grant.role, grant.serviceAccountId)}
+                  </Code>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
+          <Group justify="flex-end">
+            <Button variant="default" onClick={reset}>
+              Cancel
+            </Button>
+            <Button variant="light" disabled={!valid} loading={connect.isPending} onClick={() => connect.mutate()}>
+              Connect
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
   );
 }
 
 // Whether the cloud is usable with its current settings — probed under our identity on load (for a
-// delegated cloud, that the user has granted us access). Red with the backend's detail when not, so a
-// missing grant surfaces here instead of failing later at provision. Re-checkable on demand.
+// delegated cloud, that the user has granted us access to the folder and, per binding, the cluster).
 function CloudReachabilityBadge({ project, uid }: { project: string; uid: string }) {
   const probe = useQuery({
     queryKey: ["cloudAccess", project, uid],
@@ -65,8 +466,6 @@ function CloudReachabilityBadge({ project, uid }: { project: string; uid: string
     retry: false,
   });
 
-  // The raw backend reason (a docker/CLI error) is too technical for the badge, so it leads with a plain
-  // explanation and keeps the reason as a secondary line for anyone who looks closer.
   const detail = probe.isError
     ? (probe.error as Error).message
     : probe.data?.ok
@@ -117,386 +516,5 @@ function CloudReachabilityBadge({ project, uid }: { project: string; uid: string
         </ActionIcon>
       </Tooltip>
     </Group>
-  );
-}
-
-export function CloudsTab({ project }: { project: string }) {
-  const queryClient = useQueryClient();
-  const [connectOpened, { open: openConnect, close: closeConnect }] = useDisclosure(false);
-  const [detailsOpened, { open: openDetails, close: closeDetails }] = useDisclosure(false);
-  // Quiet by default: the connect/disconnect affordances only show while managing (pencil). Changes are
-  // STAGED — connecting adds a pending row, the trash marks a row for removal — and applied on Save, so
-  // the block reads like the others (pencil to edit, Cancel/Save to leave).
-  const [managing, setManaging] = useState(false);
-  // A staged connection carries the config the type demands (e.g. the user's folderId) until Save.
-  const [pendingConnect, setPendingConnect] = useState<Array<{ type: string; config?: Record<string, unknown> }>>([]);
-  const [pendingRemove, setPendingRemove] = useState<Set<string>>(new Set());
-
-  const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [folderId, setFolderId] = useState("");
-  const [selected, setSelected] = useState<CloudAccount | null>(null);
-
-  const clouds = useQuery({
-    queryKey: ["cloudAccounts", project],
-    queryFn: () => listCloudAccounts(project),
-  });
-
-  // The install-static catalogue of connectable clouds; it only changes with a server release.
-  const cloudTypes = useQuery({
-    queryKey: ["cloudTypes"],
-    queryFn: listCloudTypes,
-    staleTime: Infinity,
-  });
-
-  const rows = clouds.data ?? [];
-  const catalogue = cloudTypes.data ?? [];
-  const selectedCatalogueEntry = catalogue.find((t) => t.type === selectedType);
-  const providesFor = (type: string): Array<Substrate> =>
-    catalogue.find((t) => t.type === type)?.provides ?? [];
-
-  const hasChanges = pendingConnect.length > 0 || pendingRemove.size > 0;
-
-  const clearPending = (): void => {
-    setPendingConnect([]);
-    setPendingRemove(new Set());
-  };
-
-  const toggleRemove = (uid: string): void => {
-    const next = new Set(pendingRemove);
-    if (next.has(uid)) {
-      next.delete(uid);
-    } else {
-      next.add(uid);
-    }
-    setPendingRemove(next);
-  };
-
-  // Apply the staged changes on Save: removals then connections, all attempted, the first failure
-  // surfaced. Whatever the outcome, refresh from the server and leave managing — the table then shows
-  // the real state.
-  const save = useMutation({
-    mutationFn: async () => {
-      const results = await Promise.allSettled([
-        ...[...pendingRemove].map((uid) => disconnectCloud(project, uid)),
-        ...pendingConnect.map((pending) => connectCloud(project, pending.type, pending.config)),
-      ]);
-      const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
-      if (failed) {
-        throw failed.reason instanceof Error ? failed.reason : new Error(String(failed.reason));
-      }
-    },
-    onError: (error) =>
-      notifications.show({ color: "red", title: "Some cloud changes failed", message: (error as Error).message }),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cloudAccounts", project] });
-      clearPending();
-      setManaging(false);
-    },
-  });
-
-  const needsFolder = (selectedCatalogueEntry?.connect.requiredConfig ?? []).includes("folderId");
-  const requiredConfigFilled = !needsFolder || folderId.trim().length > 0;
-
-  const addPending = (): void => {
-    if (selectedType) {
-      setPendingConnect([
-        ...pendingConnect,
-        { type: selectedType, config: needsFolder ? { folderId: folderId.trim() } : undefined },
-      ]);
-    }
-    closeConnect();
-    setSelectedType(null);
-    setFolderId("");
-  };
-
-  const cancel = (): void => {
-    clearPending();
-    setManaging(false);
-  };
-
-  const show = (cloud: CloudAccount): void => {
-    setSelected(cloud);
-    openDetails();
-  };
-
-  return (
-    <Stack gap="sm">
-      <Group justify="space-between" align="flex-start" wrap="nowrap">
-        <Box>
-          <Title order={4}>Cloud</Title>
-          <Text size="sm" c="dimmed">
-            Where this project&apos;s environments run. Connect a cloud to create environments on it.
-          </Text>
-        </Box>
-        {managing ? (
-          <Group gap="xs">
-            <Button variant="default" size="compact-sm" onClick={cancel}>
-              Cancel
-            </Button>
-            <Button
-              variant="light"
-              size="compact-sm"
-              loading={save.isPending}
-              disabled={!hasChanges}
-              onClick={() => save.mutate()}
-            >
-              Save
-            </Button>
-          </Group>
-        ) : (
-          <Tooltip label="Edit">
-            <ActionIcon variant="subtle" color="gray" aria-label="Edit clouds" onClick={() => setManaging(true)}>
-              <IconPencil size={16} />
-            </ActionIcon>
-          </Tooltip>
-        )}
-      </Group>
-
-      {clouds.error && <Alert color="red">{(clouds.error as Error).message}</Alert>}
-
-      {clouds.isLoading ? (
-        <Loader size="sm" />
-      ) : (
-        <Table striped highlightOnHover withTableBorder>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Cloud</Table.Th>
-              <Table.Th>Provides</Table.Th>
-              <Table.Th>Connected</Table.Th>
-              <Table.Th>Available</Table.Th>
-              {managing && <Table.Th />}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.map((cloud) => {
-              const removing = pendingRemove.has(cloud.uid);
-
-              return (
-                <Table.Tr
-                  key={cloud.uid}
-                  style={{ cursor: managing ? "default" : "pointer", opacity: removing ? 0.45 : 1 }}
-                  onClick={() => !managing && show(cloud)}
-                >
-                  <Table.Td>
-                    <Badge variant="light" td={removing ? "line-through" : undefined}>
-                      {cloud.type}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <SubstrateBadges provides={cloud.provides} />
-                  </Table.Td>
-                  <Table.Td>{new Date(cloud.createTime).toLocaleDateString()}</Table.Td>
-                  <Table.Td onClick={(e) => e.stopPropagation()}>
-                    <CloudReachabilityBadge project={project} uid={cloud.uid} />
-                  </Table.Td>
-                  {managing && (
-                    <Table.Td onClick={(e) => e.stopPropagation()}>
-                      <Tooltip label={removing ? "Keep" : "Disconnect"}>
-                        <ActionIcon
-                          variant="subtle"
-                          color={removing ? "gray" : "red"}
-                          aria-label={removing ? "Keep cloud" : "Disconnect cloud"}
-                          onClick={() => toggleRemove(cloud.uid)}
-                        >
-                          {removing ? <IconArrowBackUp size={16} /> : <IconTrash size={16} />}
-                        </ActionIcon>
-                      </Tooltip>
-                    </Table.Td>
-                  )}
-                </Table.Tr>
-              );
-            })}
-            {managing &&
-              pendingConnect.map((pending, index) => (
-                <Table.Tr key={`pending-${index}`}>
-                  <Table.Td>
-                    <Group gap={6} wrap="nowrap">
-                      <Badge variant="light" color="green">
-                        {pending.type}
-                      </Badge>
-                      <Text size="xs" c="dimmed">
-                        will connect
-                      </Text>
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    <SubstrateBadges provides={providesFor(pending.type)} />
-                  </Table.Td>
-                  <Table.Td>—</Table.Td>
-                  <Table.Td>—</Table.Td>
-                  <Table.Td>
-                    <Tooltip label="Remove">
-                      <ActionIcon
-                        variant="subtle"
-                        color="gray"
-                        aria-label="Remove pending cloud"
-                        onClick={() => setPendingConnect(pendingConnect.filter((_, i) => i !== index))}
-                      >
-                        <IconArrowBackUp size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            {rows.length === 0 && pendingConnect.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={managing ? 5 : 4}>
-                  <Text c="dimmed" size="sm" ta="center" py="sm">
-                    No clouds connected — connect one to create environments
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      )}
-
-      {managing && (
-        <Group>
-          <Button
-            variant="light"
-            size="compact-sm"
-            leftSection={<IconPlus size={14} />}
-            onClick={openConnect}
-          >
-            Connect a cloud
-          </Button>
-        </Group>
-      )}
-
-      <Modal
-        opened={connectOpened}
-        onClose={() => {
-          closeConnect();
-          setSelectedType(null);
-          setFolderId("");
-        }}
-        title="Connect cloud"
-        size="lg"
-      >
-        <Stack>
-          <Select
-            label="Cloud"
-            placeholder={cloudTypes.isLoading ? "Loading…" : "Pick a cloud type"}
-            data={catalogue.map((t) => ({ value: t.type, label: t.type }))}
-            value={selectedType}
-            onChange={setSelectedType}
-          />
-          {selectedCatalogueEntry && (
-            <Box>
-              <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>
-                Provides
-              </Text>
-              <SubstrateBadges provides={selectedCatalogueEntry.provides} />
-            </Box>
-          )}
-          {needsFolder && (
-            <TextInput
-              label="Folder ID"
-              description="Your own cloud folder — environments are created there, at your cost."
-              placeholder="b1g…"
-              required
-              value={folderId}
-              onChange={(e) => setFolderId(e.currentTarget.value)}
-            />
-          )}
-          {(selectedCatalogueEntry?.connect.grants.length ?? 0) > 0 && (
-            <Box>
-              <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>
-                Grant access first
-              </Text>
-              <Text size="xs" c="dimmed" mb={6}>
-                In your cloud, grant these roles to our service accounts (we hold no keys of yours —
-                access is delegation you control and can revoke):
-              </Text>
-              <Stack gap={6}>
-                {selectedCatalogueEntry!.connect.grants.map((grant) => {
-                  const command = `yc resource-manager folder add-access-binding --id ${folderId.trim() || "<your-folder-id>"} --role ${grant.role} --subject serviceAccount:${grant.serviceAccountId}`;
-
-                  return (
-                    <Box key={`${grant.role}:${grant.serviceAccountId}`}>
-                      <Text size="xs" mb={2}>
-                        <Text span ff="monospace">{grant.role}</Text> — {grant.purpose}
-                      </Text>
-                      <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                        {command}
-                      </Code>
-                    </Box>
-                  );
-                })}
-              </Stack>
-            </Box>
-          )}
-          <Text size="xs" c="dimmed">
-            Added to the list — it is connected when you Save; the Available badge then verifies the access.
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeConnect}>
-              Cancel
-            </Button>
-            <Button variant="light" disabled={!selectedType || !requiredConfigFilled} onClick={addPending}>
-              Add
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      <Drawer
-        opened={detailsOpened}
-        onClose={closeDetails}
-        position="right"
-        title={selected ? selected.type : "Cloud"}
-      >
-        {selected && (
-          <Stack gap="md">
-            <Group gap="xs">
-              <Badge variant="light">{selected.type}</Badge>
-            </Group>
-
-            <Box>
-              <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>
-                Provides
-              </Text>
-              <SubstrateBadges provides={selected.provides} />
-            </Box>
-
-            <Box>
-              <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>
-                Configuration
-              </Text>
-              {Object.keys(selected.config).length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  Install defaults (no per-project overrides)
-                </Text>
-              ) : (
-                <Table withTableBorder withColumnBorders>
-                  <Table.Tbody>
-                    {Object.entries(selected.config).map(([key, value]) => (
-                      <Table.Tr key={key}>
-                        <Table.Td>
-                          <Text ff="monospace" size="sm">
-                            {key}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text ff="monospace" size="sm">
-                            {JSON.stringify(value)}
-                          </Text>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              )}
-            </Box>
-
-            <Text size="xs" c="dimmed">
-              Credentials live in a secret store and are never shown. Config is the non-secret
-              provisioning blob the cloud&apos;s adapter interprets.
-            </Text>
-          </Stack>
-        )}
-      </Drawer>
-    </Stack>
   );
 }

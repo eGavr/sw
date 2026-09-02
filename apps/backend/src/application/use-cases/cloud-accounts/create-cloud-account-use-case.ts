@@ -2,7 +2,6 @@ import { Injectable } from "@nestjs/common";
 
 import { CloudAccount, CloudConfig } from "../../../domain/entities/cloud-account/cloud-account";
 import { CloudAccountList } from "../../../domain/entities/cloud-account/cloud-account-list";
-import { CloudAccountOverlapError } from "../../../domain/entities/cloud-account/error/cloud-account-overlap-error";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
@@ -45,8 +44,8 @@ export class CreateCloudAccountUseCase {
             );
         }
 
-        // A delegated cloud must name where to provision (the user's folder); silently falling back to the
-        // install default would run the user's environments at the operator's cost.
+        // A delegated cloud must name where to provision (the user's folder); silently falling back to
+        // the install default would run the user's environments at the operator's cost.
         const missing = this.cloudCatalog.connectRequirementsFor(params.type).requiredConfig
             .filter((key) => typeof params.config?.[key] !== "string" || params.config[key] === "");
 
@@ -55,23 +54,32 @@ export class CreateCloudAccountUseCase {
         }
 
         const projectId = ProjectId.fromString(project.id);
-        const cloudAccount = CloudAccount.create({
-            projectId,
-            type: params.type,
-            provides: this.cloudCatalog.providesFor(params.type),
-            config: params.config,
-        });
+        const cloudAccount = CloudAccount.create({ projectId, type: params.type, config: params.config });
 
-        // Keep the project's clouds non-overlapping so every (platform, execution) resolves to one cloud.
-        const connected = await this.cloudAccountRepository.listByProject(projectId);
-        const conflict = CloudAccountList.of(connected).conflictWith(cloudAccount);
-
-        if (conflict) {
-            throw new CloudAccountOverlapError(params.type, conflict.type);
-        }
+        this.autoBind(cloudAccount, CloudAccountList.of(await this.cloudAccountRepository.listByProject(projectId)));
 
         await this.cloudAccountRepository.save(cloudAccount);
 
         return cloudAccount;
+    }
+
+    // Substrates with exactly one configless kind have nothing to ask the user — bind them right away
+    // (local's docker, yandex's android VM). Substrates already bound elsewhere in the project are
+    // skipped: routing stays unambiguous and connect does not fail over an implicit binding.
+    private autoBind(cloudAccount: CloudAccount, connected: CloudAccountList): void {
+        for (const offer of this.cloudCatalog.substrateOffers(cloudAccount.type)) {
+            const [sole] = offer.compute;
+            const autoBindable = offer.compute.length === 1 && sole.requiredConfig.length === 0;
+
+            if (!autoBindable || connected.isBound(offer.stereotype.platformName, offer.stereotype.execution)) {
+                continue;
+            }
+
+            cloudAccount.bindCompute({
+                platformName: offer.stereotype.platformName,
+                execution: offer.stereotype.execution,
+                kind: sole.kind,
+            });
+        }
     }
 }

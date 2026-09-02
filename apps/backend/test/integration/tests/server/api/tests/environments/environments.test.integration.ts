@@ -286,9 +286,17 @@ describe("/projects/:project/environments", () => {
         const createEnvironmentBody = (projectId: string, owner: { authorization: string }, body: object): request.Test =>
             request(app.getHttpServer()).post(`/projects/${projectId}/environments`).set(owner).send(body);
 
-        // yandex-cloud provides both substrates, so each environment resolves to it by its own stereotype.
-        test("routes each environment to the cloud serving its substrate", async () => {
+        // android auto-binds at connect; linux needs an explicit binding (it offers a choice of kinds).
+        test("routes each environment to the binding serving its substrate", async () => {
             const { owner, projectId } = await createProjectWithClouds(["yandex-cloud"]);
+
+            const { body } = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/cloudAccounts`).set(owner).expect(HttpStatus.OK);
+            await request(app.getHttpServer())
+                .post(`/projects/${projectId}/cloudAccounts/${body.cloudAccounts[0].uid}/computeBindings`)
+                .set(owner)
+                .send({ platform: "linux", execution: "container", kind: "vm" })
+                .expect(HttpStatus.CREATED);
 
             await createEnvironmentBody(projectId, owner, validEnvironmentBody).expect(HttpStatus.CREATED);
             await createEnvironmentBody(projectId, owner, androidEnvironment).expect(HttpStatus.CREATED);

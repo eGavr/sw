@@ -27,22 +27,40 @@ describe("/cloudTypes", () => {
             {
                 name: "cloudTypes/local",
                 type: "local",
-                provides: [{ platform: "linux", execution: "container" }],
+                provides: [{
+                    platform: "linux",
+                    execution: "container",
+                    compute: [{ kind: "docker", requiredConfig: [], grants: [] }],
+                }],
                 connect: { requiredConfig: [], grants: [] },
             },
             {
                 name: "cloudTypes/yandex-cloud",
                 type: "yandex-cloud",
                 provides: [
-                    { platform: "android", execution: "container" },
-                    { platform: "linux", execution: "container" },
+                    {
+                        platform: "android",
+                        execution: "container",
+                        compute: [{ kind: "vm", requiredConfig: [], grants: [] }],
+                    },
+                    {
+                        platform: "linux",
+                        execution: "container",
+                        compute: [
+                            { kind: "vm", requiredConfig: [], grants: [] },
+                            {
+                                kind: "kubernetes",
+                                requiredConfig: ["clusterId"],
+                                grants: [{ role: "k8s.cluster-api.editor", serviceAccountId: "aje-test-compute" }],
+                            },
+                        ],
+                    },
                 ],
-                // Compute-only grants: the storage identity is a separate surface (storageDelegation).
                 connect: {
                     requiredConfig: ["folderId"],
                     grants: [
-                        { role: "compute.editor", serviceAccountId: "aje-test-compute", purpose: expect.any(String) },
-                        { role: "vpc.user", serviceAccountId: "aje-test-compute", purpose: expect.any(String) },
+                        { role: "compute.editor", serviceAccountId: "aje-test-compute" },
+                        { role: "vpc.user", serviceAccountId: "aje-test-compute" },
                     ],
                 },
             },

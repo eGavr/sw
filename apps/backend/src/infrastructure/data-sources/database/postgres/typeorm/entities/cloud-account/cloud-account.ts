@@ -1,12 +1,13 @@
-import { Column, Entity, ManyToOne, PrimaryColumn } from "typeorm";
+import { Column, Entity, ManyToOne, OneToMany, PrimaryColumn } from "typeorm";
 
 import {
     CloudAccount as CloudAccountEntity,
     CloudAccountData,
 } from "../../../../../../../domain/entities/cloud-account/cloud-account";
-import { StereotypeData } from "../../../../../../../domain/entities/cloud-account/stereotype";
 import { DateColumn } from "../../columns-extra/date-column";
 import { Project } from "../project/project";
+
+import { ComputeBinding } from "./compute-binding";
 
 @Entity()
 export class CloudAccount {
@@ -19,7 +20,9 @@ export class CloudAccount {
         cloudAccount.type = data.type;
         cloudAccount.config = data.config ?? {};
         cloudAccount.credentialRef = data.credentialRef ?? null;
-        cloudAccount.provides = [...data.provides];
+        cloudAccount.computeBindings = data.computeBindings.map(
+            (binding) => ComputeBinding.from(data.id, binding),
+        );
         cloudAccount.createdAt = data.createdAt;
         cloudAccount.updatedAt = data.updatedAt;
 
@@ -44,10 +47,10 @@ export class CloudAccount {
     @Column({ type: "varchar", nullable: true })
     credentialRef: string | null;
 
-    // The (platform, execution) substrates this cloud provides — a value-object list owned by the aggregate,
-    // always loaded/saved with it and never queried in SQL (routing matches it in the domain), so jsonb.
-    @Column({ type: "jsonb", default: [] })
-    provides: Array<StereotypeData>;
+    // The per-substrate compute bindings — an owned collection of the aggregate, always loaded and saved
+    // with it (the environment/applications pattern).
+    @OneToMany(() => ComputeBinding, binding => binding.cloudAccount, { eager: true })
+    computeBindings: Array<ComputeBinding>;
 
     @DateColumn()
     createdAt: Date;
@@ -64,7 +67,7 @@ export class CloudAccount {
             type: this.type,
             config: this.config,
             credentialRef: this.credentialRef,
-            provides: this.provides,
+            computeBindings: (this.computeBindings ?? []).map((binding) => binding.toObject()),
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
         };

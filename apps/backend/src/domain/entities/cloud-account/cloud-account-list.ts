@@ -1,9 +1,10 @@
 import { Execution } from "../environment/execution";
 
 import { CloudAccount } from "./cloud-account";
+import { ComputeBinding } from "./compute-binding";
 
-// The cloud connections of one project. Which cloud provisions a given environment, and whether a new
-// cloud would make routing ambiguous, are domain rules — so they live here, not in the use case.
+// The cloud connections of one project. Which connection runs a given substrate — and whether a new
+// binding would make that ambiguous — are domain rules, so they live here, not in the use case.
 export class CloudAccountList {
     static of(cloudAccounts: ReadonlyArray<CloudAccount>): CloudAccountList {
         return new CloudAccountList(cloudAccounts);
@@ -11,15 +12,26 @@ export class CloudAccountList {
 
     private constructor(private readonly cloudAccounts: ReadonlyArray<CloudAccount>) {}
 
-    // The cloud account that provisions this substrate — at most one, since a project keeps its clouds
-    // non-overlapping (see conflictWith).
-    resolveFor(platformName: string, execution: Execution): CloudAccount | null {
-        return this.cloudAccounts.find((cloudAccount) => cloudAccount.supports(platformName, execution)) ?? null;
+    // The connection and binding serving this substrate — at most one across the project, since bindings
+    // are kept substrate-unique (see isBound).
+    resolveFor(
+        platformName: string,
+        execution: Execution,
+    ): { cloudAccount: CloudAccount; binding: ComputeBinding } | null {
+        for (const cloudAccount of this.cloudAccounts) {
+            const binding = cloudAccount.computeBindingFor(platformName, execution);
+
+            if (binding) {
+                return { cloudAccount, binding };
+            }
+        }
+
+        return null;
     }
 
-    // The cloud account whose substrates overlap the candidate's, if any — used to reject a second cloud
-    // that would make some (platform, execution) ambiguous.
-    conflictWith(candidate: CloudAccount): CloudAccount | null {
-        return this.cloudAccounts.find((cloudAccount) => cloudAccount.overlaps(candidate)) ?? null;
+    // Whether any connection of the project already binds this substrate — a second binding anywhere
+    // would make routing ambiguous.
+    isBound(platformName: string, execution: Execution): boolean {
+        return this.resolveFor(platformName, execution) !== null;
     }
 }

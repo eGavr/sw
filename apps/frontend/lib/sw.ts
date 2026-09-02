@@ -32,11 +32,31 @@ export interface CreateEnvironmentInput {
   environmentId?: string;
 }
 
-// A (platform, execution) pair a cloud can provision — the same wire shape in the cloud-types
-// catalogue and in a connected cloud account's `provides`.
+// A (platform, execution) pair a cloud can provision.
 export interface Substrate {
   platform: string;
   execution: string;
+}
+
+// One way a cloud can run a substrate: the kind plus what binding it demands (config keys, grants).
+export interface ComputeKindOffer {
+  kind: string;
+  requiredConfig: Array<string>;
+  grants: Array<CloudGrant>;
+}
+
+export interface SubstrateOffer extends Substrate {
+  compute: Array<ComputeKindOffer>;
+}
+
+// A substrate of the connection and the compute kind that runs it, with the kind's non-secret config.
+export interface ComputeBinding {
+  name: string;
+  uid: string;
+  platform: string;
+  execution: string;
+  kind: string;
+  config: Record<string, unknown>;
 }
 
 // A role the user grants to one of OUR published service accounts on their own cloud (delegated BYOC —
@@ -50,8 +70,9 @@ export interface CloudGrant {
 export interface CloudType {
   name: string; // "cloudTypes/{type}"
   type: string;
-  provides: Array<Substrate>;
-  // What connecting this type asks of the user: config keys to fill (e.g. folderId) and grants to set up.
+  provides: Array<SubstrateOffer>;
+  // What connecting this type asks of the user at the ACCOUNT level (e.g. folderId); per-kind demands
+  // live on the substrate offers.
   connect: { requiredConfig: Array<string>; grants: Array<CloudGrant> };
 }
 
@@ -60,7 +81,7 @@ export interface CloudAccount {
   uid: string;
   type: string;
   config: Record<string, unknown>;
-  provides: Array<Substrate>;
+  computeBindings: Array<ComputeBinding>;
   createTime: string;
   updateTime: string;
 }
@@ -416,6 +437,37 @@ export function disconnectCloud(project: string, cloudAccount: string): Promise<
   return swRequest<void>(`v1/projects/${project}/cloudAccounts/${cloudAccount}`, {
     method: "DELETE",
   });
+}
+
+export function createComputeBinding(
+  project: string,
+  cloudAccount: string,
+  input: { platform: string; execution: string; kind: string; config?: Record<string, unknown> },
+): Promise<ComputeBinding> {
+  return swRequest<ComputeBinding>(`v1/projects/${project}/cloudAccounts/${cloudAccount}/computeBindings`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateComputeBinding(
+  project: string,
+  cloudAccount: string,
+  binding: string,
+  input: { kind: string; config?: Record<string, unknown> },
+): Promise<ComputeBinding> {
+  return swRequest<ComputeBinding>(
+    `v1/projects/${project}/cloudAccounts/${cloudAccount}/computeBindings/${binding}`,
+    { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(input) },
+  );
+}
+
+export function deleteComputeBinding(project: string, cloudAccount: string, binding: string): Promise<void> {
+  return swRequest<void>(
+    `v1/projects/${project}/cloudAccounts/${cloudAccount}/computeBindings/${binding}`,
+    { method: "DELETE" },
+  );
 }
 
 // Probes whether the cloud is usable with its current settings — { ok: true } if reachable under our

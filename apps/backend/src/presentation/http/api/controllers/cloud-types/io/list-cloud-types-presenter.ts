@@ -1,9 +1,9 @@
 import { CloudType } from "../../../../../../application/use-cases/cloud-types/list-cloud-types-use-case";
 import { Presenter } from "../../../../presenters/presenter";
 
-// The connectable cloud types and the substrates each provisions — a read-only server-defined catalogue
-// (the machineTypes.list / supportedDatabaseFlags.list pattern). A substrate has the same wire shape as a
-// cloud account's `provides`, so the UI renders both from one component.
+// The connectable cloud types: for each, the substrates it offers with every compute kind that can run
+// them (kind + the binding-config keys it requires + the grants to set up), plus the account-level
+// connect requirements. The whole connect form renders from this.
 export class ListCloudTypesPresenter implements Presenter {
     constructor(private readonly cloudTypes: Array<CloudType>) {}
 
@@ -12,21 +12,24 @@ export class ListCloudTypesPresenter implements Presenter {
             cloudTypes: this.cloudTypes.map(({ type, provides, connect }) => ({
                 name: `cloudTypes/${type}`,
                 type,
-                provides: provides.map((stereotype) => ({
-                    platform: stereotype.platformName,
-                    execution: stereotype.execution,
+                provides: provides.map((offer) => ({
+                    platform: offer.stereotype.platformName,
+                    execution: offer.stereotype.execution,
+                    compute: offer.compute.map((kindOffer) => ({
+                        kind: kindOffer.kind,
+                        requiredConfig: [...kindOffer.requiredConfig],
+                        grants: kindOffer.grants.map(presentGrant),
+                    })),
                 })),
-                // What connecting this type asks of the user: config keys they must fill and the grants to
-                // set up on their cloud for our published identities (delegated BYOC — no secrets here).
                 connect: {
                     requiredConfig: [...connect.requiredConfig],
-                    grants: connect.grants.map((grant) => ({
-                        role: grant.role,
-                        serviceAccountId: grant.serviceAccountId,
-                        purpose: grant.purpose,
-                    })),
+                    grants: connect.grants.map(presentGrant),
                 },
             })),
         };
     }
+}
+
+function presentGrant(grant: { role: string; serviceAccountId: string }): object {
+    return { role: grant.role, serviceAccountId: grant.serviceAccountId };
 }

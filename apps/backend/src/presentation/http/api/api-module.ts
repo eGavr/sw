@@ -15,6 +15,7 @@ import {
 } from "../../../application/interfaces/repositories/session-ownership-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
+import { CloudAccountAccess } from "../../../application/use-cases/cloud-accounts/cloud-account-access";
 import {
     CreateCloudAccountUseCase,
 } from "../../../application/use-cases/cloud-accounts/create-cloud-account-use-case";
@@ -33,6 +34,15 @@ import {
 import {
     ListCloudTypesUseCase,
 } from "../../../application/use-cases/cloud-types/list-cloud-types-use-case";
+import {
+    CreateComputeBindingUseCase,
+} from "../../../application/use-cases/compute-bindings/create-compute-binding-use-case";
+import {
+    DeleteComputeBindingUseCase,
+} from "../../../application/use-cases/compute-bindings/delete-compute-binding-use-case";
+import {
+    UpdateComputeBindingUseCase,
+} from "../../../application/use-cases/compute-bindings/update-compute-binding-use-case";
 import { CreateEnvironmentUseCase } from "../../../application/use-cases/environments/create-environment-use-case";
 import { DeleteEnvironmentUseCase } from "../../../application/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../application/use-cases/environments/get-environment-use-case";
@@ -119,6 +129,7 @@ import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { CloudAccountsController } from "./controllers/cloud-accounts/cloud-accounts-controller";
 import { CloudTypesController } from "./controllers/cloud-types/cloud-types-controller";
+import { ComputeBindingsController } from "./controllers/compute-bindings/compute-bindings-controller";
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
 import { SessionArtifactsController } from "./controllers/sessions/session-artifacts-controller";
@@ -141,6 +152,7 @@ import {
         ProjectsController,
         EnvironmentsController,
         CloudAccountsController,
+        ComputeBindingsController,
         CloudTypesController,
         StorageDestinationController,
         StorageDelegationController,
@@ -170,6 +182,10 @@ import {
         GetCloudAccountUseCase,
         DeleteCloudAccountUseCase,
         TestCloudAccountAccessUseCase,
+        CloudAccountAccess,
+        CreateComputeBindingUseCase,
+        UpdateComputeBindingUseCase,
+        DeleteComputeBindingUseCase,
 
         ListCloudTypesUseCase,
 

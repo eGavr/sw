@@ -2,87 +2,81 @@ import { Execution } from "../environment/execution";
 import { ProjectId } from "../project/project-id";
 
 import { CloudAccount } from "./cloud-account";
-import { Stereotype } from "./stereotype";
+import { ComputeBindingConflictError } from "./error/compute-binding-conflict-error";
+
+const account = (): CloudAccount =>
+    CloudAccount.create({ projectId: ProjectId.create(), type: "yandex-cloud", config: { folderId: "b1g" } });
 
 describe("CloudAccount", () => {
-    const projectId = ProjectId.create();
+    test("starts with no bindings, no credential, and its config", () => {
+        const cloudAccount = account();
 
-    const yandexCloud = (): CloudAccount =>
-        CloudAccount.create({
-            projectId,
-            type: "yandex-cloud",
-            provides: [
-                new Stereotype("android", Execution.Container),
-                new Stereotype("android", Execution.Emulator),
-            ],
+        expect(cloudAccount.computeBindings()).toEqual([]);
+        expect(cloudAccount.credentialRef).toBeNull();
+        expect(cloudAccount.config).toEqual({ folderId: "b1g" });
+        expect(cloudAccount.supports("linux", Execution.Container)).toBe(false);
+    });
+
+    test("binds a substrate to a kind and serves it", () => {
+        const cloudAccount = account();
+
+        const binding = cloudAccount.bindCompute({
+            platformName: "linux",
+            execution: Execution.Container,
+            kind: "kubernetes",
+            config: { clusterId: "cat9" },
         });
 
-    const local = (): CloudAccount =>
-        CloudAccount.create({
-            projectId,
-            type: "local",
-            provides: [new Stereotype("linux", Execution.Container)],
+        expect(cloudAccount.supports("linux", Execution.Container)).toBe(true);
+        expect(cloudAccount.computeBindingFor("linux", Execution.Container)?.id).toBe(binding.id);
+        expect(binding.kind).toBe("kubernetes");
+        expect(binding.config).toEqual({ clusterId: "cat9" });
+    });
+
+    test("refuses a second binding for the same substrate", () => {
+        const cloudAccount = account();
+
+        cloudAccount.bindCompute({ platformName: "linux", execution: Execution.Container, kind: "vm" });
+
+        expect(() =>
+            cloudAccount.bindCompute({ platformName: "linux", execution: Execution.Container, kind: "kubernetes" }),
+        ).toThrow(ComputeBindingConflictError);
+    });
+
+    test("rebinds a substrate to another kind, replacing the kind's config", () => {
+        const cloudAccount = account();
+        const binding = cloudAccount.bindCompute({
+            platformName: "linux", execution: Execution.Container, kind: "kubernetes", config: { clusterId: "cat9" },
         });
 
-    test("is created with an empty config by default", () => {
-        const account = yandexCloud();
+        const rebound = cloudAccount.rebindCompute(binding.id, "vm");
 
-        expect(account.config).toEqual({});
-        expect(account.credentialRef).toBeNull();
+        expect(rebound?.kind).toBe("vm");
+        expect(rebound?.config).toEqual({});
+        expect(cloudAccount.rebindCompute("missing", "vm")).toBeNull();
     });
 
-    test("supports exactly the substrates it provides", () => {
-        const account = yandexCloud();
-
-        expect(account.supports("android", Execution.Container)).toBe(true);
-        expect(account.supports("android", Execution.Emulator)).toBe(true);
-        expect(account.supports("linux", Execution.Container)).toBe(false);
-    });
-
-    test("overlaps another cloud that shares a substrate; not one that is disjoint", () => {
-        const other = CloudAccount.create({
-            projectId,
-            type: "yandex-cloud-2",
-            provides: [new Stereotype("android", Execution.Container)],
+    test("unbinds a substrate; new environments of it can no longer land here", () => {
+        const cloudAccount = account();
+        const binding = cloudAccount.bindCompute({
+            platformName: "linux", execution: Execution.Container, kind: "vm",
         });
 
-        expect(yandexCloud().overlaps(other)).toBe(true);
-        expect(yandexCloud().overlaps(local())).toBe(false);
+        expect(cloudAccount.unbindCompute(binding.id)).toBe(true);
+        expect(cloudAccount.supports("linux", Execution.Container)).toBe(false);
+        expect(cloudAccount.unbindCompute(binding.id)).toBe(false);
     });
 
-    test("belongsTo its project only", () => {
-        const account = yandexCloud();
+    test("round-trips through toObject/fromObject with its bindings", () => {
+        const cloudAccount = account();
 
-        expect(account.belongsTo(projectId)).toBe(true);
-        expect(account.belongsTo(ProjectId.create())).toBe(false);
-    });
-
-    test("the config getter returns a copy — mutating it does not change the aggregate", () => {
-        const account = CloudAccount.create({
-            projectId,
-            type: "local",
-            provides: [new Stereotype("linux", Execution.Container)],
-            config: { image: "selenium:128" },
+        cloudAccount.bindCompute({
+            platformName: "linux", execution: Execution.Container, kind: "kubernetes", config: { clusterId: "cat9" },
         });
 
-        account.config.image = "tampered";
+        const revived = CloudAccount.fromObject(cloudAccount.toObject());
 
-        expect(account.config).toEqual({ image: "selenium:128" });
-    });
-
-    test("updateConfig replaces the config", () => {
-        const account = local();
-
-        account.updateConfig({ image: "selenium:129" });
-
-        expect(account.config).toEqual({ image: "selenium:129" });
-    });
-
-    test("round-trips through toObject/fromObject", () => {
-        const account = yandexCloud();
-
-        const restored = CloudAccount.fromObject(account.toObject());
-
-        expect(restored.toObject()).toEqual(account.toObject());
+        expect(revived.computeBindings().map((binding) => binding.toObject()))
+            .toEqual(cloudAccount.computeBindings().map((binding) => binding.toObject()));
     });
 });
