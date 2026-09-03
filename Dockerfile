@@ -31,6 +31,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/netbridge/package.json ./packages/netbridge/
+# The CLI runs on the user's machine, not the control plane — its package.json is present only so the
+# frozen lockfile resolves every workspace importer; its source is never built or shipped here.
+COPY packages/netbridge-cli/package.json ./packages/netbridge-cli/
 RUN pnpm install --frozen-lockfile
 COPY apps/backend ./apps/backend
 COPY packages/netbridge ./packages/netbridge
@@ -65,6 +68,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/netbridge/package.json ./packages/netbridge/
+COPY packages/netbridge-cli/package.json ./packages/netbridge-cli/
 RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /repo/apps/backend/build ./apps/backend/build
 # The backend resolves @sw/netbridge through the workspace symlink; ship its built output.
