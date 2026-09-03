@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { WebDriverSessionOptions } from "../../../application/interfaces/gateways/webdriver-session-gateway";
+import { netBridgeProxyPort } from "../environment-provider/net-bridge-forwarder";
 
 type NewSessionResponse = {
     value?: {
@@ -35,6 +36,15 @@ export class WebDriverClient {
 
         if (options?.video) {
             alwaysMatch["sw:video"] = true;
+        }
+
+        // Route the browser through the in-container NetBridge forwarder (loopback SOCKS5) so it reaches
+        // the tunnel client's network. `<-loopback>` removes Chrome's implicit localhost bypass, so the
+        // user's own localhost is tunnelled too. Browser-only; Android tunnelling is a separate concern.
+        if (options?.netBridge && target.platformName !== androidPlatformName) {
+            alwaysMatch["goog:chromeOptions"] = {
+                args: [`--proxy-server=socks5://127.0.0.1:${netBridgeProxyPort}`, "--proxy-bypass-list=<-loopback>"],
+            };
         }
 
         const response = await fetch(`${endpoint}/session`, {

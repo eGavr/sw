@@ -7,6 +7,9 @@ export type WebDriverSessionOptions = {
     // Opt-in per session: record this session's video and upload it (carried to the node as the
     // `sw:video` capability, which the in-pod agent reads back to decide whether to record).
     readonly video?: boolean;
+    // Opt-in per session: route the browser through the in-container NetBridge forwarder (a loopback
+    // SOCKS5 proxy), so it reaches the tunnel client's network. Browser-only.
+    readonly netBridge?: boolean;
 };
 
 // Driven port over a running WebDriver node: creates a session on the node at `endpoint` and returns
