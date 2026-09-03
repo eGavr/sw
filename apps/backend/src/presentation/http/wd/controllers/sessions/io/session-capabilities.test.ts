@@ -14,6 +14,7 @@ describe("resolveSessionRequest", () => {
             application: { name: "chrome", version: "120" },
             logging: undefined,
             video: undefined,
+            netBridge: undefined,
         });
     });
 
@@ -51,11 +52,12 @@ describe("resolveSessionRequest", () => {
 
     test("reads the sw:* opt-ins as booleans", () => {
         const params = resolveSessionRequest({
-            alwaysMatch: { ...alwaysMatch, "sw:logging": true, "sw:video": false },
+            alwaysMatch: { ...alwaysMatch, "sw:logging": true, "sw:video": false, "sw:netbridge": true },
         });
 
         expect(params.logging).toBe(true);
         expect(params.video).toBe(false);
+        expect(params.netBridge).toBe(true);
     });
 
     test("merges the first firstMatch entry on top of alwaysMatch", () => {

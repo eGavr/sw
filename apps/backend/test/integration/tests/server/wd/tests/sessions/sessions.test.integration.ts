@@ -139,7 +139,13 @@ describe("/sessions", () => {
         );
     };
 
-    type SessionOpts = { logging?: boolean, video?: boolean, execution?: Execution, environmentId?: string };
+    type SessionOpts = {
+        logging?: boolean,
+        video?: boolean,
+        netBridge?: boolean,
+        execution?: Execution,
+        environmentId?: string,
+    };
     type ApplicationCaps = { name: string, version: string };
 
     // W3C "New Session" request: the requested application is the standard browserName/browserVersion,
@@ -154,6 +160,7 @@ describe("/sessions", () => {
                 ...(opts.environmentId === undefined ? {} : { "sw:environmentId": opts.environmentId }),
                 ...(opts.logging === undefined ? {} : { "sw:logging": opts.logging }),
                 ...(opts.video === undefined ? {} : { "sw:video": opts.video }),
+                ...(opts.netBridge === undefined ? {} : { "sw:netbridge": opts.netBridge }),
             },
         },
     });
@@ -211,7 +218,7 @@ describe("/sessions", () => {
             expect(createSessionOnNode).toHaveBeenCalledWith(
                 nodeEndpoint,
                 expect.objectContaining({ platformName: "linux" }),
-                { logging: true, video: false },
+                { logging: true, video: false, netBridge: false },
             );
         });
 
@@ -224,7 +231,19 @@ describe("/sessions", () => {
             expect(createSessionOnNode).toHaveBeenCalledWith(
                 nodeEndpoint,
                 expect.objectContaining({ platformName: "linux" }),
-                { logging: false, video: true },
+                { logging: false, video: true, netBridge: false },
+            );
+        });
+
+        test("threads the netbridge opt-in through to the node session", async () => {
+            const { owner, projectId } = await seedExecutingEnvironment();
+
+            await createSession(projectId, owner, chrome, { netBridge: true }).expect(HttpStatus.OK);
+
+            expect(createSessionOnNode).toHaveBeenCalledWith(
+                nodeEndpoint,
+                expect.objectContaining({ platformName: "linux" }),
+                { logging: false, video: false, netBridge: true },
             );
         });
 
@@ -245,7 +264,7 @@ describe("/sessions", () => {
             expect(createSessionOnNode).toHaveBeenCalledWith(
                 nodeEndpoint,
                 expect.objectContaining({ platformName: "linux" }),
-                { logging: false, video: false },
+                { logging: false, video: false, netBridge: false },
             );
         });
 

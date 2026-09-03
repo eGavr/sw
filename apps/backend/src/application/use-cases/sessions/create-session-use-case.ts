@@ -50,6 +50,7 @@ type CreateSessionInput = {
         environmentId?: string;
         logging?: boolean;
         video?: boolean;
+        netBridge?: boolean;
     },
 }
 
@@ -102,6 +103,7 @@ export class CreateSessionUseCase {
         const session = await this.openReservedSession(reserved, requested, {
             logging: params.logging ?? false,
             video: params.video ?? false,
+            netBridge: params.netBridge ?? false,
         });
 
         // Ownership metadata (no secrets): who created the environment's current session — the upsert

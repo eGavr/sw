@@ -20,6 +20,7 @@ export type SessionRequestParams = {
     environmentId?: string;
     logging?: boolean;
     video?: boolean;
+    netBridge?: boolean;
 };
 
 const projectIdCapability = "sw:projectId";
@@ -27,6 +28,7 @@ const executionCapability = "sw:execution";
 const environmentIdCapability = "sw:environmentId";
 const loggingCapability = "sw:logging";
 const videoCapability = "sw:video";
+const netBridgeCapability = "sw:netbridge";
 
 // Resolves a W3C "New Session" capabilities envelope into the fields our session allocation needs. This
 // is the transport→domain boundary for the wd data-plane: the standard `browserName`/`browserVersion`
@@ -46,6 +48,7 @@ export function resolveSessionRequest(envelope: CapabilitiesEnvelope): SessionRe
         environmentId: optionalString(capabilities, environmentIdCapability),
         logging: optionalBoolean(capabilities, loggingCapability),
         video: optionalBoolean(capabilities, videoCapability),
+        netBridge: optionalBoolean(capabilities, netBridgeCapability),
     };
 }
 
