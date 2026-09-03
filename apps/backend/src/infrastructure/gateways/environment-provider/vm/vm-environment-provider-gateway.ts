@@ -76,14 +76,14 @@ export abstract class VmEnvironmentProviderGateway extends EnvironmentProviderGa
             return { verified: false, detail: "no folder configured on the binding" };
         }
 
-        const marker = OwnershipMarker.forProject(cloudAccount.projectId.getValue());
+        const markerKey = OwnershipMarker.forProject(cloudAccount.projectId.getValue()).value();
 
         try {
             const labels = await this.compute.folderLabels(folderId);
 
-            return marker.presentIn(labels)
+            return Object.prototype.hasOwnProperty.call(labels, markerKey)
                 ? { verified: true }
-                : { verified: false, detail: `folder ${folderId} is missing the ownership label ${marker.labelKey()}` };
+                : { verified: false, detail: `folder ${folderId} is missing the ownership label ${markerKey}` };
         } catch (error) {
             return { verified: false, detail: error instanceof Error ? error.message : String(error) };
         }

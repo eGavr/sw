@@ -79,14 +79,14 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
     // we read it (k8s.viewer, which cannot set it). Naming someone else's cluster fails: it carries no
     // marker for this project and only its owner could add one.
     async verifyOwnership(cloudAccount: CloudAccount, binding: ComputeBinding): Promise<OwnershipVerification> {
-        const marker = OwnershipMarker.forProject(cloudAccount.projectId.getValue());
+        const markerKey = OwnershipMarker.forProject(cloudAccount.projectId.getValue()).value();
 
         try {
             const labels = await this.kubernetes.clusterLabels(this.boundClusterId(binding));
 
-            return marker.presentIn(labels)
+            return Object.prototype.hasOwnProperty.call(labels, markerKey)
                 ? { verified: true }
-                : { verified: false, detail: `cluster is missing the ownership label ${marker.labelKey()}` };
+                : { verified: false, detail: `cluster is missing the ownership label ${markerKey}` };
         } catch (error) {
             return { verified: false, detail: error instanceof Error ? error.message : String(error) };
         }

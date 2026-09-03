@@ -135,7 +135,7 @@ describe("/sessions", () => {
 
         await app.get(StorageDestinationRepository).save(ProjectId.fromString(projectId), destination);
         await app.get<ObjectStorageGateway>(ObjectStorageGateway).put(
-            destination, OwnershipMarker.forProject(projectId).objectKey(), { body: Buffer.from("sw") },
+            destination, OwnershipMarker.forProject(projectId).value(), { body: Buffer.from("sw") },
         );
     };
 

@@ -19,7 +19,6 @@ import { ProjectId } from "../../../domain/entities/project/project-id";
 import { Session } from "../../../domain/entities/session/session";
 import { SessionOwnership } from "../../../domain/entities/session/session-ownership";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
-import { OwnershipMarker } from "../../../domain/entities/verification/ownership-marker";
 import { ObjectStorageGateway } from "../../interfaces/gateways/object-storage-gateway";
 import { WebDriverSessionGateway, WebDriverSessionOptions } from "../../interfaces/gateways/webdriver-session-gateway";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
@@ -126,12 +125,9 @@ export class CreateSessionUseCase {
             );
         }
 
-        const marker = OwnershipMarker.forProject(projectId.getValue());
-        const owned = await this.objectStorageGateway.get(destination, marker.objectKey());
-
-        if (!owned) {
+        if (!await this.objectStorageGateway.verifyOwnership(destination, projectId.getValue())) {
             throw new InvalidArgumentError(
-                `storage bucket is not ownership-verified: add the object ${marker.objectKey()} to it`,
+                "storage bucket is not ownership-verified for this project: add its ownership marker object",
             );
         }
     }

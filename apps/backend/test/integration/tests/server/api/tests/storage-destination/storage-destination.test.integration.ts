@@ -16,7 +16,7 @@ const placeOwnershipMarker = async (app: TestingApp, projectId: string, bucket: 
     const storage = app.app.get<ObjectStorageGateway>(ObjectStorageGateway);
     const marker = OwnershipMarker.forProject(projectId);
 
-    await storage.put(StorageDestination.create({ bucket }), marker.objectKey(), { body: Buffer.from("sw") });
+    await storage.put(StorageDestination.create({ bucket }), marker.value(), { body: Buffer.from("sw") });
 };
 
 type AuthHeader = { authorization: string };

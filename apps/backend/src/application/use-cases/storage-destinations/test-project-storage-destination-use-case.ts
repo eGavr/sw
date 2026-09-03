@@ -3,7 +3,6 @@ import { Injectable } from "@nestjs/common";
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
-import { OwnershipMarker } from "../../../domain/entities/verification/ownership-marker";
 import { ObjectStorageGateway } from "../../interfaces/gateways/object-storage-gateway";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { StorageDestinationRepository } from "../../interfaces/repositories/storage-destination-repository";
@@ -58,8 +57,6 @@ export class TestProjectStorageDestinationUseCase {
             throw new NotFoundResourceError(`projects/${params.projectId}/storageDestination`);
         }
 
-        const marker = OwnershipMarker.forProject(project.id);
-
         try {
             await this.objectStorageGateway.put(
                 destination,
@@ -67,11 +64,9 @@ export class TestProjectStorageDestinationUseCase {
                 { body: Buffer.from("sw"), contentType: "text/plain" },
             );
 
-            // Ownership marker lives at the bucket root (prefix-independent) — read, never written by us.
-            const owned = await this.objectStorageGateway.get(destination, marker.objectKey());
-
-            if (!owned) {
-                return { ok: false, message: `bucket is missing the ownership object ${marker.objectKey()}` };
+            // Read-only ownership check — the gateway knows where the marker lives, we just ask by project.
+            if (!await this.objectStorageGateway.verifyOwnership(destination, project.id)) {
+                return { ok: false, message: "bucket is not ownership-verified for this project" };
             }
 
             return { ok: true };

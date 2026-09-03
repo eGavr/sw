@@ -274,7 +274,7 @@ export function StorageSettings({ project }: { project: string }) {
                     no other project can claim your bucket):
                   </Text>
                   <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                    {`echo -n sw | aws --endpoint-url ${endpoint.trim() || "<endpoint>"} s3 cp - s3://${bucket.trim() || "<bucket>"}/sw-verify/${project}`}
+                    {`echo -n sw | aws --endpoint-url ${endpoint.trim() || "<endpoint>"} s3 cp - s3://${bucket.trim() || "<bucket>"}/sw-verify-${project}`}
                   </Code>
                 </>
               )}
