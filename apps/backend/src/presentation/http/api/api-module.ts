@@ -9,6 +9,9 @@ import {
 } from "../../../application/interfaces/gateways/webdriver-session-gateway";
 import { CloudAccountRepository } from "../../../application/interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
+import {
+    NetBridgeCredentialRepository,
+} from "../../../application/interfaces/repositories/net-bridge-credential-repository";
 import { ProjectRepository } from "../../../application/interfaces/repositories/project-repository";
 import {
     SessionOwnershipRepository,
@@ -47,6 +50,18 @@ import { CreateEnvironmentUseCase } from "../../../application/use-cases/environ
 import { DeleteEnvironmentUseCase } from "../../../application/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../application/use-cases/environments/get-environment-use-case";
 import { ListEnvironmentsUseCase } from "../../../application/use-cases/environments/list-environments-use-case";
+import {
+    CreateNetBridgeCredentialUseCase,
+} from "../../../application/use-cases/net-bridge-credentials/create-net-bridge-credential-use-case";
+import {
+    DeleteNetBridgeCredentialUseCase,
+} from "../../../application/use-cases/net-bridge-credentials/delete-net-bridge-credential-use-case";
+import {
+    GetNetBridgeCredentialUseCase,
+} from "../../../application/use-cases/net-bridge-credentials/get-net-bridge-credential-use-case";
+import {
+    ListNetBridgeCredentialsUseCase,
+} from "../../../application/use-cases/net-bridge-credentials/list-net-bridge-credentials-use-case";
 import { CreateProjectUseCase } from "../../../application/use-cases/projects/create-project-use-case";
 import {
     GetProjectIamPolicyUseCase,
@@ -86,6 +101,9 @@ import {
     CloudAccountDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/cloud-account-data-source";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
+import {
+    NetBridgeCredentialDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/net-bridge-credential-data-source";
 import { ProjectDataSource } from "../../../infrastructure/data-sources/database/postgres/project-data-source";
 import {
     SessionOwnershipDataSource,
@@ -111,6 +129,9 @@ import {
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { CloudAccountRepositoryImpl } from "../../../infrastructure/repositories/cloud-account-repository-impl";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
+import {
+    NetBridgeCredentialRepositoryImpl,
+} from "../../../infrastructure/repositories/net-bridge-credential-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
 import {
     SessionOwnershipRepositoryImpl,
@@ -131,6 +152,9 @@ import { CloudAccountsController } from "./controllers/cloud-accounts/cloud-acco
 import { CloudTypesController } from "./controllers/cloud-types/cloud-types-controller";
 import { ComputeBindingsController } from "./controllers/compute-bindings/compute-bindings-controller";
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
+import {
+    NetBridgeCredentialsController,
+} from "./controllers/net-bridge-credentials/net-bridge-credentials-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
 import { SessionArtifactsController } from "./controllers/sessions/session-artifacts-controller";
 import {
@@ -154,6 +178,7 @@ import {
         CloudAccountsController,
         ComputeBindingsController,
         CloudTypesController,
+        NetBridgeCredentialsController,
         StorageDestinationController,
         StorageDelegationController,
         SessionArtifactsController,
@@ -189,6 +214,11 @@ import {
 
         ListCloudTypesUseCase,
 
+        CreateNetBridgeCredentialUseCase,
+        ListNetBridgeCredentialsUseCase,
+        GetNetBridgeCredentialUseCase,
+        DeleteNetBridgeCredentialUseCase,
+
         GetSessionLogsUseCase,
         GetSessionVideoUseCase,
         GetEnvironmentSessionUseCase,
@@ -199,6 +229,7 @@ import {
         { provide: UserRepository, useClass: UserRepositoryImpl },
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: CloudAccountRepository, useClass: CloudAccountRepositoryImpl },
+        { provide: NetBridgeCredentialRepository, useClass: NetBridgeCredentialRepositoryImpl },
         StorageDestinationRepositoryProvider,
         { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
         { provide: WebDriverSessionGateway, useClass: WebDriverSessionGatewayImpl },
@@ -213,6 +244,7 @@ import {
         ProjectDataSource,
         EnvironmentDataSource,
         CloudAccountDataSource,
+        NetBridgeCredentialDataSource,
         SessionOwnershipDataSource,
         WebDriverClient,
         StorageDestinationDataSource,
