@@ -15,12 +15,20 @@ export type ConfigRequirement = {
     readonly pattern?: string;
 };
 
+// Where the owner places the per-project ownership marker to authorise a project for this kind's
+// resource: a label on the cloud folder / managed cluster, or an object in the bucket. `none` means the
+// kind needs no proof (e.g. the operator's own local docker). Drives both the setup instructions and the
+// gate — an unverified binding cannot provision.
+export type OwnershipProof = "folder-label" | "cluster-label" | "none";
+
 // One way a cloud can run a substrate: the kind's name, the binding-config keys it requires (e.g.
-// clusterId for kubernetes, folderId for vm) and the grants it needs.
+// clusterId for kubernetes, folderId for vm), the grants it needs, and how the user proves they own the
+// resource this kind provisions into.
 export type ComputeKindOffer = {
     readonly kind: string;
     readonly requiredConfig: ReadonlyArray<ConfigRequirement>;
     readonly grants: ReadonlyArray<CloudGrant>;
+    readonly ownershipProof: OwnershipProof;
 };
 
 // A substrate the cloud offers plus every kind that can run it. More than one kind means the user must

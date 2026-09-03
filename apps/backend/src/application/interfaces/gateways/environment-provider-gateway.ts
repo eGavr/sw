@@ -10,6 +10,14 @@ export type CloudReachability = {
     readonly detail?: string;
 };
 
+// Whether the resource this binding names carries the project's ownership marker — proof the resource's
+// owner authorised THIS project to use it. `verified: false` while the marker is absent (owner has not
+// placed it, or the resource is unreachable); a human detail says which. Gates provisioning.
+export type OwnershipVerification = {
+    readonly verified: boolean;
+    readonly detail?: string;
+};
+
 // Driven port over the external system that runs environments (Docker now, a cloud later).
 // It actuates containers/VMs; it is NOT a repository (it does not store our aggregates).
 // Operational verbs (docker run/remove) live in the backend client behind the adapter.
@@ -27,4 +35,10 @@ export abstract class EnvironmentProviderGateway {
     // binding is the expected answer while the user has not run the grants yet, returned as
     // { reachable: false, detail }.
     abstract checkAccess(cloudAccount: CloudAccount, binding: ComputeBinding): Promise<CloudReachability>;
+
+    // Whether the resource this binding names carries THIS project's ownership marker (a label only the
+    // resource owner could place) — read-only. Naming someone else's resource fails here: their folder
+    // has no marker for this project and cannot be given one. Kinds with ownershipProof "none" (local
+    // docker) are always verified. Never throws; an absent marker or unreachable resource → verified:false.
+    abstract verifyOwnership(cloudAccount: CloudAccount, binding: ComputeBinding): Promise<OwnershipVerification>;
 }

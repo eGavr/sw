@@ -30,12 +30,15 @@ const clusterIdRequirement: ConfigRequirement = { key: "clusterId", pattern: yan
 function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArray<SubstrateOffer>> {
     const identity = identities.computeServiceAccountId;
 
-    // The vm kind provisions Compute VMs in the user's folder; the kubernetes kind only drives the API of
-    // the user's managed cluster.
+    // The vm kind provisions Compute VMs in the user's folder (and reads a folder label to verify
+    // ownership); the kubernetes kind drives the API of the user's managed cluster and reads a cluster
+    // label. resource-manager.viewer is the read-only role that lets us read the folder's labels — it
+    // does NOT let us WRITE them, which is exactly what keeps the ownership marker unforgeable.
     const vmGrants: Array<CloudGrant> = identity
         ? [
             { role: "compute.editor", serviceAccountId: identity },
             { role: "vpc.user", serviceAccountId: identity },
+            { role: "resource-manager.viewer", serviceAccountId: identity },
         ]
         : [];
     const kubernetesGrants: Array<CloudGrant> = identity
@@ -43,26 +46,36 @@ function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArr
         : [];
 
     return new Map<string, ReadonlyArray<SubstrateOffer>>([
-        // The machine sw itself runs on, driven through its docker daemon — one configless kind.
+        // The machine sw itself runs on, driven through its docker daemon — one configless kind, and the
+        // operator's own machine, so no ownership proof.
         ["local", [
             {
                 stereotype: new Stereotype("linux", Execution.Container),
-                compute: [{ kind: "docker", requiredConfig: [], grants: [] }],
+                compute: [{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }],
             },
         ]],
         // android/emulator has an adapter but is not offered until verified on real KVM hardware.
         ["yandex-cloud", [
             {
                 stereotype: new Stereotype("android", Execution.Container),
-                compute: [{ kind: "vm", requiredConfig: [folderIdRequirement], grants: vmGrants }],
+                compute: [{
+                    kind: "vm", requiredConfig: [folderIdRequirement], grants: vmGrants,
+                    ownershipProof: "folder-label",
+                }],
             },
             {
                 stereotype: new Stereotype("linux", Execution.Container),
                 compute: [
                     // Per-env VM: pay-per-use, start ~minutes, lives off the binding's folder.
-                    { kind: "vm", requiredConfig: [folderIdRequirement], grants: vmGrants },
+                    {
+                        kind: "vm", requiredConfig: [folderIdRequirement], grants: vmGrants,
+                        ownershipProof: "folder-label",
+                    },
                     // The user's managed cluster: always-on fee, pod start ~seconds.
-                    { kind: "kubernetes", requiredConfig: [clusterIdRequirement], grants: kubernetesGrants },
+                    {
+                        kind: "kubernetes", requiredConfig: [clusterIdRequirement], grants: kubernetesGrants,
+                        ownershipProof: "cluster-label",
+                    },
                 ],
             },
         ]],

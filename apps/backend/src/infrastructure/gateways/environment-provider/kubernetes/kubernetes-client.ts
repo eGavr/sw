@@ -49,6 +49,18 @@ export class KubernetesClient {
         return ip;
     }
 
+    // The managed cluster's labels (YC-level, read via the yc CLI + k8s.viewer). Setting a cluster label
+    // needs k8s.editor, which we are NOT granted — so the per-project ownership marker among them can only
+    // have been placed by the cluster's owner.
+    async clusterLabels(clusterId: string): Promise<Record<string, string>> {
+        const { stdout } = await execFileAsync("yc", [
+            "managed-kubernetes", "cluster", "get", "--id", clusterId, "--format", "json",
+        ], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+        const parsed = JSON.parse(stdout) as { labels?: Record<string, string> };
+
+        return parsed.labels ?? {};
+    }
+
     // The node ports already taken by live sw Services in the namespace — so a fresh environment picks a
     // free one. Namespaced (no cluster-scoped read needed).
     async usedNodePorts(clusterId: string, namespace: string, label: string): Promise<Array<number>> {

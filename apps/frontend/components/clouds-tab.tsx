@@ -52,6 +52,24 @@ const grantCommand = (grant: CloudGrant, kindOffer: ComputeKindOffer, config: Re
     ? `yc managed-kubernetes cluster add-access-binding --id ${(config.clusterId ?? "").trim() || "<your-cluster-id>"} --role ${grant.role} --subject serviceAccount:${grant.serviceAccountId}`
     : `yc resource-manager folder add-access-binding --id ${(config.folderId ?? "").trim() || "<your-folder-id>"} --role ${grant.role} --subject serviceAccount:${grant.serviceAccountId}`;
 
+// The per-project ownership marker command: a label only the resource owner can set, keyed by this
+// project, that proves they authorise it. Null for kinds that need no proof (local docker).
+const ownershipMarkerCommand = (
+  kindOffer: ComputeKindOffer,
+  config: Record<string, string>,
+  projectId: string,
+): string | null => {
+  if (kindOffer.ownershipProof === "cluster-label") {
+    return `yc managed-kubernetes cluster add-labels --id ${(config.clusterId ?? "").trim() || "<your-cluster-id>"} --labels sw-verify-${projectId}=1`;
+  }
+
+  if (kindOffer.ownershipProof === "folder-label") {
+    return `yc resource-manager folder add-labels --id ${(config.folderId ?? "").trim() || "<your-folder-id>"} --labels sw-verify-${projectId}=1`;
+  }
+
+  return null;
+};
+
 export function CloudsTab({ project }: { project: string }) {
   const clouds = useQuery({ queryKey: ["cloudAccounts", project], queryFn: () => listCloudAccounts(project) });
 
@@ -228,6 +246,7 @@ function CloudAccountCard({
               key={binding.uid}
               offers={offers}
               knownFolderId={knownFolderId}
+              project={project}
               existing={binding}
               pending={false}
               onCancel={() => setEditingBinding(null)}
@@ -284,6 +303,7 @@ function CloudAccountCard({
           <BindingForm
             offers={remaining}
             knownFolderId={knownFolderId}
+            project={project}
             pending
             onCancel={() => {
               // In an unsaved setup there is nothing to fall back to — cancelling the platform form
@@ -327,6 +347,7 @@ function CloudAccountCard({
 function BindingForm({
   offers,
   knownFolderId,
+  project,
   existing,
   pending,
   onCancel,
@@ -334,6 +355,7 @@ function BindingForm({
 }: {
   offers: Array<SubstrateOffer>;
   knownFolderId: string;
+  project: string;
   existing?: ComputeBinding;
   pending: boolean;
   onCancel: () => void;
@@ -460,6 +482,18 @@ function BindingForm({
               {grantCommand(grant, kindOffer, config)}
             </Code>
           ))}
+        </Box>
+      )}
+
+      {kindOffer && ownershipMarkerCommand(kindOffer, config, project) && (
+        <Box>
+          <Text size="xs" c="dimmed" mb={2}>
+            Then prove you own it — set this per-project label (only the resource owner can, so no one else
+            can claim your resource):
+          </Text>
+          <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {ownershipMarkerCommand(kindOffer, config, project)}
+          </Code>
         </Box>
       )}
 

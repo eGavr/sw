@@ -38,4 +38,9 @@ export abstract class VmProvisioner {
     // has the user granted us access to their folder)? folderId probes that specific folder; omitted checks
     // general reachability under our identity. Feeds the "cloud available" badge.
     abstract checkAccess(folderId?: string): Promise<CloudReachability>;
+
+    // The labels on the folder — read-only (resource-manager.viewer). Used to check the per-project
+    // ownership marker the folder's owner placed; we can read labels but not write them, which is what
+    // makes the marker unforgeable through our identity.
+    abstract folderLabels(folderId: string): Promise<Record<string, string>>;
 }

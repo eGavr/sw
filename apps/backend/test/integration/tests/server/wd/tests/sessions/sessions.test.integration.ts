@@ -6,6 +6,7 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { v4 as uuidv4 } from "uuid";
 
+import { ObjectStorageGateway } from "../../../../../../../src/application/interfaces/gateways/object-storage-gateway";
 import {
     EnvironmentRepository,
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
@@ -13,6 +14,9 @@ import { ProjectRepository } from "../../../../../../../src/application/interfac
 import {
     SessionOwnershipRepository,
 } from "../../../../../../../src/application/interfaces/repositories/session-ownership-repository";
+import {
+    StorageDestinationRepository,
+} from "../../../../../../../src/application/interfaces/repositories/storage-destination-repository";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { EnvironmentEndpoint } from "../../../../../../../src/domain/entities/environment/environment-endpoint";
 import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
@@ -23,7 +27,9 @@ import { Execution } from "../../../../../../../src/domain/entities/environment/
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
 import { SessionOwnership } from "../../../../../../../src/domain/entities/session/session-ownership";
+import { StorageDestination } from "../../../../../../../src/domain/entities/storage/storage-destination";
 import { User } from "../../../../../../../src/domain/entities/user/user";
+import { OwnershipMarker } from "../../../../../../../src/domain/entities/verification/ownership-marker";
 import {
     WebDriverClient,
 } from "../../../../../../../src/infrastructure/gateways/webdriver-session/webdriver-client";
@@ -121,6 +127,18 @@ describe("/sessions", () => {
         return { owner, projectId, environmentId };
     };
 
+    // Logging/video refuse to write to a bucket the project has not proven it owns. Configure a bucket and
+    // seed its ownership marker (the owner's out-of-band action) so those sessions are allowed.
+    const configureVerifiedStorage = async (projectId: string): Promise<void> => {
+        const bucket = "session-artifacts";
+        const destination = StorageDestination.create({ bucket });
+
+        await app.get(StorageDestinationRepository).save(ProjectId.fromString(projectId), destination);
+        await app.get<ObjectStorageGateway>(ObjectStorageGateway).put(
+            destination, OwnershipMarker.forProject(projectId).objectKey(), { body: Buffer.from("sw") },
+        );
+    };
+
     type SessionOpts = { logging?: boolean, video?: boolean, execution?: Execution, environmentId?: string };
     type ApplicationCaps = { name: string, version: string };
 
@@ -186,6 +204,7 @@ describe("/sessions", () => {
 
         test("threads the logging opt-in through to the node session", async () => {
             const { owner, projectId } = await seedExecutingEnvironment();
+            await configureVerifiedStorage(projectId);
 
             await createSession(projectId, owner, chrome, { logging: true }).expect(HttpStatus.OK);
 
@@ -198,6 +217,7 @@ describe("/sessions", () => {
 
         test("threads the video opt-in through to the node session", async () => {
             const { owner, projectId } = await seedExecutingEnvironment();
+            await configureVerifiedStorage(projectId);
 
             await createSession(projectId, owner, chrome, { video: true }).expect(HttpStatus.OK);
 
@@ -206,6 +226,15 @@ describe("/sessions", () => {
                 expect.objectContaining({ platformName: "linux" }),
                 { logging: false, video: true },
             );
+        });
+
+        test("refuses logging to a bucket the project has not proven it owns", async () => {
+            const { owner, projectId } = await seedExecutingEnvironment();
+
+            // No storage configured / no ownership marker → logging is refused, so a project cannot make
+            // us write artifacts into a bucket it merely named.
+            await createSession(projectId, owner, chrome, { logging: true }).expect(HttpStatus.BAD_REQUEST);
+            expect(createSessionOnNode).not.toHaveBeenCalled();
         });
 
         test("defaults the logging and video opt-ins to false when omitted", async () => {

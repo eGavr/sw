@@ -1,10 +1,12 @@
 import {
     CloudReachability,
     EnvironmentProviderGateway,
+    OwnershipVerification,
 } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
 import { ComputeBinding, ComputeBindingConfig } from "../../../../domain/entities/cloud-account/compute-binding";
 import { Environment } from "../../../../domain/entities/environment/environment";
+import { OwnershipMarker } from "../../../../domain/entities/verification/ownership-marker";
 
 import { vmProvisioningOverrides } from "./vm-provider-config";
 import { VmProvisioner } from "./vm-provisioner";
@@ -62,6 +64,29 @@ export abstract class VmEnvironmentProviderGateway extends EnvironmentProviderGa
 
     async checkAccess(_cloudAccount: CloudAccount, binding: ComputeBinding): Promise<CloudReachability> {
         return this.compute.checkAccess(vmProvisioningOverrides(binding.config).folderId);
+    }
+
+    // The folder's owner authorises this project by placing a per-project label on the folder; we read it
+    // (resource-manager.viewer, which cannot write it). Naming someone else's folder fails: it carries no
+    // marker for this project and only its owner could add one.
+    async verifyOwnership(cloudAccount: CloudAccount, binding: ComputeBinding): Promise<OwnershipVerification> {
+        const folderId = vmProvisioningOverrides(binding.config).folderId;
+
+        if (!folderId) {
+            return { verified: false, detail: "no folder configured on the binding" };
+        }
+
+        const marker = OwnershipMarker.forProject(cloudAccount.projectId.getValue());
+
+        try {
+            const labels = await this.compute.folderLabels(folderId);
+
+            return marker.presentIn(labels)
+                ? { verified: true }
+                : { verified: false, detail: `folder ${folderId} is missing the ownership label ${marker.labelKey()}` };
+        } catch (error) {
+            return { verified: false, detail: error instanceof Error ? error.message : String(error) };
+        }
     }
 
     // The per-environment attributes the golden image's boot unit reads to bring the node up.

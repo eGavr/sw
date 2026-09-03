@@ -32,6 +32,19 @@ export class PrepareNextEnvironmentUseCase {
 
         const cloudAccount = await this.cloudAccountFor(environment);
 
+        // Ownership is re-checked at the moment of provisioning (fail-safe): the delegated resource must
+        // carry this project's marker, or we refuse — this is what stops a project from provisioning into
+        // a folder/cluster it merely NAMED but does not control.
+        const denial = await this.ownershipDenial(environment, cloudAccount);
+
+        if (denial) {
+            this.logger.error(`prepare: environment ${environment.id} ownership not verified: ${denial}`);
+            environment.failProvisioning(EnvironmentStateReason.OwnershipNotVerified);
+            await this.environmentRepository.save(environment);
+
+            return environment;
+        }
+
         try {
             await this.environmentProviderGateway.provision(environment, cloudAccount);
             environment.markDispatched();
@@ -46,6 +59,25 @@ export class PrepareNextEnvironmentUseCase {
         }
 
         return environment;
+    }
+
+    // The human reason the binding is not ownership-verified, or null when it is (or there is no account —
+    // the local/docker path, which has nothing to prove). Never throws: an unreadable resource reads as
+    // "not verified" and blocks provisioning, which is the safe default.
+    private async ownershipDenial(environment: Environment, cloudAccount: CloudAccount | null): Promise<string | null> {
+        if (!cloudAccount) {
+            return null;
+        }
+
+        const binding = cloudAccount.computeBindingFor(environment.platform.name, environment.execution);
+
+        if (!binding) {
+            return null;
+        }
+
+        const verification = await this.environmentProviderGateway.verifyOwnership(cloudAccount, binding);
+
+        return verification.verified ? null : (verification.detail ?? "ownership marker missing");
     }
 
     private async cloudAccountFor(environment: Environment): Promise<CloudAccount | null> {

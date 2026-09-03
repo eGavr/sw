@@ -45,11 +45,17 @@ export interface ConfigRequirement {
   pattern?: string;
 }
 
-// One way a cloud can run a substrate: the kind plus what binding it demands (config keys, grants).
+// Where the owner places the per-project ownership marker to authorise a project for this kind's
+// resource: a label on the cloud folder / managed cluster, or none (the operator's own local docker).
+export type OwnershipProof = "folder-label" | "cluster-label" | "none";
+
+// One way a cloud can run a substrate: the kind, what binding it demands (config keys, grants), and how
+// the user proves they own the resource it provisions into.
 export interface ComputeKindOffer {
   kind: string;
   requiredConfig: Array<ConfigRequirement>;
   grants: Array<CloudGrant>;
+  ownershipProof: OwnershipProof;
 }
 
 export interface SubstrateOffer extends Substrate {
