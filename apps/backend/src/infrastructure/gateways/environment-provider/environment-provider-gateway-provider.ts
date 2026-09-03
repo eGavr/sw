@@ -45,11 +45,7 @@ import {
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
 import { KubernetesClient } from "./kubernetes/kubernetes-client";
 import {
-    defaultCpuLimit,
-    defaultCpuRequest,
-    defaultKubernetesNamespace,
-    defaultMemoryLimit,
-    defaultMemoryRequest,
+    buildKubernetesEnvironmentConfig,
     KubernetesEnvironmentConfig,
 } from "./kubernetes/kubernetes-environment-config";
 import {
@@ -97,11 +93,7 @@ export const EnvironmentProviderGatewayProvider = {
                 agentTokens,
             )],
             [routingKey("yandex-cloud", "linux", Execution.Container, "kubernetes"),
-                new KubernetesEnvironmentProviderGateway(
-                    new KubernetesClient(),
-                    kubernetesConfig(configService, idleTimeoutSeconds),
-                    agentTokens,
-                )],
+                kubernetesGateway(configService, idleTimeoutSeconds, agentTokens)],
         ]);
 
         return new RoutingEnvironmentProviderGateway(gateways);
@@ -138,22 +130,40 @@ function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: numbe
     };
 }
 
-function kubernetesConfig(configService: ConfigService, sessionTimeoutSeconds: number): KubernetesEnvironmentConfig {
+// Reads the COMPUTE_K8S_* env and hands it to the backend's builder, which owns the k8s-specific shaping
+// (networking mode, node-port range, container port). The client is put in external/public-master mode
+// exactly when the config asks for nodeport networking (delegated BYOC — the cluster is in the user's own
+// folder, reached over public addresses).
+function kubernetesGateway(
+    configService: ConfigService,
+    sessionTimeoutSeconds: number,
+    agentTokens: AgentTokenService,
+): KubernetesEnvironmentProviderGateway {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
-
-    return {
+    const config: KubernetesEnvironmentConfig = buildKubernetesEnvironmentConfig({
         nodeImage: configService.get<string>("COMPUTE_K8S_NODE_IMAGE")
             ?? configService.get<string>("COMPUTE_BROWSER_NODE_IMAGE") ?? "",
-        namespace: configService.get<string>("COMPUTE_K8S_NAMESPACE") ?? defaultKubernetesNamespace,
+        namespace: configService.get<string>("COMPUTE_K8S_NAMESPACE"),
         entrypoint: configService.get<string>("COMPUTE_K8S_ENTRYPOINT") ?? defaultAgentEntrypoint,
-        cpuRequest: configService.get<string>("COMPUTE_K8S_CPU_REQUEST") ?? defaultCpuRequest,
-        memoryRequest: configService.get<string>("COMPUTE_K8S_MEMORY_REQUEST") ?? defaultMemoryRequest,
-        cpuLimit: configService.get<string>("COMPUTE_K8S_CPU_LIMIT") ?? defaultCpuLimit,
-        memoryLimit: configService.get<string>("COMPUTE_K8S_MEMORY_LIMIT") ?? defaultMemoryLimit,
+        cpuRequest: configService.get<string>("COMPUTE_K8S_CPU_REQUEST"),
+        memoryRequest: configService.get<string>("COMPUTE_K8S_MEMORY_REQUEST"),
+        cpuLimit: configService.get<string>("COMPUTE_K8S_CPU_LIMIT"),
+        memoryLimit: configService.get<string>("COMPUTE_K8S_MEMORY_LIMIT"),
         sessionTimeoutSeconds,
         internalUrl: configService.get<string>("COMPUTE_K8S_INTERNAL_URL")
             ?? configService.get<string>("COMPUTE_BROWSER_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
-    };
+        networking: configService.get<string>("COMPUTE_K8S_NETWORKING"),
+        nodePortMin: configService.get<string>("COMPUTE_K8S_NODEPORT_MIN"),
+        nodePortMax: configService.get<string>("COMPUTE_K8S_NODEPORT_MAX"),
+        containerPort: configService.get<string>("COMPUTE_K8S_CONTAINER_PORT"),
+        advertiseHost: configService.get<string>("COMPUTE_K8S_ADVERTISE_HOST"),
+    });
+
+    return new KubernetesEnvironmentProviderGateway(
+        new KubernetesClient(config.networking === "nodeport"),
+        config,
+        agentTokens,
+    );
 }
 
 function androidRedroidConfig(configService: ConfigService): AndroidRedroidEnvironmentConfig {

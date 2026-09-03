@@ -68,10 +68,20 @@ x-service-env: &service-env
   COMPUTE_BROWSER_NODE_IMAGE: ${COMPUTE_BROWSER_NODE_IMAGE:-}
   COMPUTE_BROWSER_INTERNAL_URL: ${COMPUTE_BROWSER_INTERNAL_URL:-}
   # Kubernetes compute kind (pods in the USER'S managed cluster, addressed by the binding's clusterId).
-  # Node image / internal URL fall back to the COMPUTE_BROWSER_* values when unset.
+  # Node image / internal URL fall back to the COMPUTE_BROWSER_* values when unset. networking=nodeport
+  # for a cross-folder BYOC cluster (public master + NodePort on public nodes); pod-ip for a same-VPC one.
   COMPUTE_K8S_NODE_IMAGE: ${COMPUTE_K8S_NODE_IMAGE:-}
   COMPUTE_K8S_NAMESPACE: ${COMPUTE_K8S_NAMESPACE:-}
   COMPUTE_K8S_INTERNAL_URL: ${COMPUTE_K8S_INTERNAL_URL:-}
+  COMPUTE_K8S_NETWORKING: ${COMPUTE_K8S_NETWORKING:-}
+  COMPUTE_K8S_NODEPORT_MIN: ${COMPUTE_K8S_NODEPORT_MIN:-}
+  COMPUTE_K8S_NODEPORT_MAX: ${COMPUTE_K8S_NODEPORT_MAX:-}
+  COMPUTE_K8S_CONTAINER_PORT: ${COMPUTE_K8S_CONTAINER_PORT:-}
+  # nodeport mode: the stable public node host a NodePort is reached on (avoids a cluster-scoped node read).
+  COMPUTE_K8S_ADVERTISE_HOST: ${COMPUTE_K8S_ADVERTISE_HOST:-}
+  # The k8s adapter shells out to the yc CLI (get-credentials + kubeconfig token plugin); on the VM it
+  # authenticates as the instance SA via this metadata IAM token (refresh it on redeploy — ~12h life).
+  YC_TOKEN: ${YC_TOKEN:-}
   LOG_STORAGE: ${LOG_STORAGE:-memory}
   AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
   AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
