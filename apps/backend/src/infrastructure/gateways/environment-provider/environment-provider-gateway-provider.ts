@@ -57,6 +57,9 @@ import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 // Fallback callback-API port when INTERNAL_PORT is unset; the env files always set it to 3002.
 const defaultInternalCallbackPort = 3002;
 
+// Fallback wd (data-plane / NetBridge rendezvous) port when WD_PORT is unset; the env files set it to 3001.
+const defaultWdPort = "3001";
+
 // Every supported adapter is registered up front (construction is cheap — the Docker client only
 // shells out per command). The routing gateway then dispatches each action to the adapter keyed by
 // the environment's (cloud type, execution), replacing the install-wide COMPUTE_PROVIDER switch.
@@ -111,6 +114,7 @@ function resolveSessionIdleTimeout(configService: ConfigService): SessionIdleTim
 
 function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: number): DockerEnvironmentConfig {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
+    const wdPort = configService.get<string>("WD_PORT") ?? defaultWdPort;
 
     // Install defaults for the docker provisioning shape; a project's substrate binding config overrides
     // image/baseImage/platform/port at provision. The install-level fields below stay global.
@@ -126,7 +130,11 @@ function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: numbe
         advertiseHost: configService.get<string>("COMPUTE_DOCKER_ADVERTISE_HOST") ?? "127.0.0.1",
         // From inside the container the host's internal callback API is reached via host.docker.internal.
         internalUrl:
-            configService.get<string>("COMPUTE_DOCKER_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,    
+            configService.get<string>("COMPUTE_DOCKER_INTERNAL_URL") ?? `http://host.docker.internal:${internalPort}`,
+        // ws base of the NetBridge rendezvous (the wd service) the forwarder dials out to; from inside the
+        // container the host is host.docker.internal. Unset via env to disable local-network tunnelling.
+        netBridgeUrl:
+            configService.get<string>("COMPUTE_DOCKER_NETBRIDGE_URL") ?? `ws://host.docker.internal:${wdPort}`,
     };
 }
 

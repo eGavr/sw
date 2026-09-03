@@ -17,6 +17,9 @@ export type DockerEnvironmentConfig = {
     advertiseHost: string;
     // Install-level: base URL the in-container agent calls back on (its per-env token is minted separately).
     internalUrl: string;
+    // Install-level: ws base of the control-plane NetBridge rendezvous the forwarder dials out to. Unset
+    // disables local-network tunnelling for this substrate (the forwarder is not launched).
+    netBridgeUrl?: string;
     // Session idle timeout (domain policy), translated into the node's SE_NODE_SESSION_TIMEOUT.
     sessionTimeoutSeconds: number;
 };

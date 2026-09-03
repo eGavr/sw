@@ -13,6 +13,15 @@ ARG KUBECTL_VERSION=v1.31.1
 # yields the amd64 ffmpeg the amd64 nodes need.
 FROM selenium/ffmpeg:latest AS ffmpeg
 
+# NetBridge forwarder: a tiny static Go binary the internal controller serves to environments (a loopback
+# SOCKS5 proxy that tunnels out to the rendezvous). Cross-compiled for both arches so the control plane can
+# serve whichever the env node runs, regardless of this image's platform.
+FROM golang:1.23 AS forwarder
+WORKDIR /src
+COPY packages/netbridge/forwarder/ ./
+RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/netbridge-amd64 . \
+    && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/netbridge-arm64 .
+
 FROM ${NODE_IMAGE} AS builder
 RUN corepack enable
 WORKDIR /repo
@@ -63,6 +72,9 @@ COPY --from=builder /repo/packages/netbridge/dist ./packages/netbridge/dist
 # The internal controller serves this to environments (GET /internal/ffmpeg:download?arch=amd64) from
 # INTERNAL_FFMPEG_DIR (default bin/ffmpeg). World-readable static binary, so USER node can stream it.
 COPY --from=ffmpeg /usr/local/bin/ffmpeg ./apps/backend/bin/ffmpeg/ffmpeg-amd64
+# The forwarder binaries served from INTERNAL_NETBRIDGE_DIR (default bin/netbridge), one per arch.
+COPY --from=forwarder /out/netbridge-amd64 ./apps/backend/bin/netbridge/netbridge-amd64
+COPY --from=forwarder /out/netbridge-arm64 ./apps/backend/bin/netbridge/netbridge-arm64
 COPY apps/backend/env ./apps/backend/env
 WORKDIR /repo/apps/backend
 USER node

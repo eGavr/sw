@@ -47,6 +47,11 @@ video_size="${SE_SCREEN_WIDTH:-1360}x${SE_SCREEN_HEIGHT:-1020}"
 video_fps="${SW_VIDEO_FPS:-15}"
 max_video_seconds="${SW_MAX_VIDEO_SECONDS:-600}"
 
+# NetBridge forwarder (fetched once from the control plane): a loopback SOCKS5 proxy the browser is pointed
+# at, tunnelling to the user's network over the control plane. Only launched when SW_NETBRIDGE_URL is set.
+netbridge_bin="/tmp/sw-netbridge"
+netbridge_download_url="${SW_INTERNAL_URL}/internal/netbridge:download"
+
 # Monotonic counters keying each recording / log snapshot to its own files, so a previous session still
 # uploading never touches the next session's. `current_rec_token` names the recording in flight.
 rec_seq=0
@@ -116,6 +121,30 @@ download_ffmpeg() {
     else
         rm -f "${ffmpeg_bin}.part"
         log "ffmpeg download failed; video disabled"
+    fi
+}
+
+# Fetch the NetBridge forwarder once and launch it (loopback SOCKS5 + outbound tunnel to the control
+# plane). Off unless SW_NETBRIDGE_URL is injected; best effort, and never blocks the heartbeat loop. The
+# binary reads its config (URL, proxy port, token) from the container env it inherits here.
+launch_netbridge() {
+    [ -n "${SW_NETBRIDGE_URL:-}" ] || return 0
+
+    local arch
+    case "$(uname -m)" in
+        x86_64|amd64) arch=amd64 ;;
+        aarch64|arm64) arch=arm64 ;;
+        *) log "no netbridge build for arch $(uname -m); local network disabled"; return 1 ;;
+    esac
+
+    if curl -fsSL -H "Authorization: Bearer ${SW_INTERNAL_TOKEN}" \
+        "${netbridge_download_url}?arch=${arch}" -o "${netbridge_bin}.part" --max-time 120; then
+        chmod +x "${netbridge_bin}.part" && mv "${netbridge_bin}.part" "${netbridge_bin}"
+        "${netbridge_bin}" &
+        log "netbridge forwarder started (${arch})"
+    else
+        rm -f "${netbridge_bin}.part"
+        log "netbridge download failed; local network disabled"
     fi
 }
 
@@ -294,6 +323,10 @@ log "registered"
 # Pre-fetch ffmpeg in the background so it is ready before the first session that opts into video, without
 # ever blocking the heartbeat loop.
 download_ffmpeg &
+
+# Bring up the NetBridge forwarder (no-op unless SW_NETBRIDGE_URL is set) so its loopback SOCKS proxy is
+# listening before the first session that opts in; backgrounded so the download never blocks heartbeats.
+launch_netbridge &
 
 # Heartbeat loop, tracking session start/end transitions to capture and ship the session's logs and video.
 # `idle_offset` is the log size at the last idle tick; a session's slice starts there (not at the tick
