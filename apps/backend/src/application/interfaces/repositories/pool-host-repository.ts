@@ -26,6 +26,10 @@ export abstract class PoolHostRepository {
     // Fullest-first consolidates seats so empty machines can be returned to the cloud.
     abstract withMostLoadedPlaceable(poolKey: HostPoolKey, mutate: (host: PoolHost) => void): Promise<PoolHost | null>;
 
+    // How many machines the pool currently holds (any state) — the spend-cap probe before ordering
+    // another one.
+    abstract countByPool(poolKey: HostPoolKey): Promise<number>;
+
     abstract save(host: PoolHost): Promise<void>;
 
     abstract delete(hostId: PoolHostId): Promise<void>;

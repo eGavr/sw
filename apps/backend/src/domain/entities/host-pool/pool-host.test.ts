@@ -28,55 +28,65 @@ describe("PoolHost", () => {
     test("seats environments on the lowest free slots", () => {
         const host = createHost();
 
-        expect(host.place(environmentId()).slotIndex).toBe(0);
-        expect(host.place(environmentId()).slotIndex).toBe(1);
+        expect(host.place(environmentId(), {}).slotIndex).toBe(0);
+        expect(host.place(environmentId(), {}).slotIndex).toBe(1);
     });
 
     test("gives a provisioning retry its existing seat back", () => {
         const host = createHost();
         const envId = environmentId();
 
-        const first = host.place(envId);
-        const second = host.place(envId);
+        const first = host.place(envId, {});
+        const second = host.place(envId, {});
 
         expect(second.slotIndex).toBe(first.slotIndex);
         expect(host.placements()).toHaveLength(1);
+    });
+
+    test("carries the seat's launch parameters verbatim for the host agent", () => {
+        const host = createHost();
+        const launch = { avd: "sw-android-34", internalUrl: "http://cp:3002" };
+
+        const placement = host.place(environmentId(), launch);
+
+        expect(placement.launch).toEqual(launch);
+        expect(PoolHost.fromObject(host.toObject()).placements()[0].launch).toEqual(launch);
     });
 
     test("reuses a released slot before opening a higher one", () => {
         const host = createHost();
         const first = environmentId();
 
-        host.place(first);
-        host.place(environmentId());
+        host.place(first, {});
+        host.place(environmentId(), {});
         host.release(first);
 
-        expect(host.place(environmentId()).slotIndex).toBe(0);
+        expect(host.place(environmentId(), {}).slotIndex).toBe(0);
     });
 
     test("refuses to overbook a full host", () => {
         const host = createHost(1);
 
-        host.place(environmentId());
+        host.place(environmentId(), {});
 
-        expect(() => host.place(environmentId())).toThrow(PoolHostCapacityExceededError);
+        expect(() => host.place(environmentId(), {})).toThrow(PoolHostCapacityExceededError);
     });
 
     test("accepts placements while still ordering — environments queue onto the booting machine", () => {
         const host = createHost();
 
         expect(host.state).toBe(PoolHostState.Ordering);
-        expect(host.place(environmentId()).slotIndex).toBe(0);
+        expect(host.place(environmentId(), {}).slotIndex).toBe(0);
     });
 
     test("refuses placements once deleting or failed", () => {
         const deleting = createHost();
         deleting.markDeleting();
-        expect(() => deleting.place(environmentId())).toThrow(PoolHostNotPlaceableError);
+        expect(() => deleting.place(environmentId(), {})).toThrow(PoolHostNotPlaceableError);
 
         const failed = createHost();
         failed.markFailed();
-        expect(() => failed.place(environmentId())).toThrow(PoolHostNotPlaceableError);
+        expect(() => failed.place(environmentId(), {})).toThrow(PoolHostNotPlaceableError);
     });
 
     test("starts the idle clock when the last seat frees up", () => {
@@ -84,7 +94,7 @@ describe("PoolHost", () => {
         const envId = environmentId();
         const bornEmptyAt = host.lastEmptiedAt;
 
-        host.place(envId);
+        host.place(envId, {});
         host.release(envId);
 
         expect(host.isEmpty()).toBe(true);
@@ -118,14 +128,14 @@ describe("PoolHost", () => {
     test("only an empty host may be returned to the cloud", () => {
         const host = createHost();
 
-        host.place(environmentId());
+        host.place(environmentId(), {});
 
         expect(() => host.markDeleting()).toThrow(InvalidPoolHostStateTransitionError);
     });
 
     test("round-trips through toObject/fromObject with its placements", () => {
         const host = createHost();
-        host.place(environmentId());
+        host.place(environmentId(), {});
         host.register("10.0.0.5", new Date());
 
         const restored = PoolHost.fromObject(host.toObject());

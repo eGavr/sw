@@ -1,9 +1,11 @@
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Controller, Get, NotFoundException, Param, Query, Res } from "@nestjs/common";
+import { Controller, Get, NotFoundException, Param, Query, Res, UseGuards } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Response } from "express";
+
+import { InternalAgentTokenGuard } from "../../guards/internal-agent-token-guard";
 
 const agentScriptResource = "agentScript";
 const ffmpegResource = "ffmpeg";
@@ -25,6 +27,7 @@ const defaultNetbridgeDir = "bin/netbridge";
 // internal route — the agent sends the same per-environment bearer token it uses for heartbeats. Binary
 // downloads are written straight to the response, bypassing the JSON presenter.
 @Controller("internal")
+@UseGuards(InternalAgentTokenGuard)
 export class InternalAgentController {
     private readonly script = readFileSync(join(__dirname, "heartbeat-agent.sh"), "utf8");
 

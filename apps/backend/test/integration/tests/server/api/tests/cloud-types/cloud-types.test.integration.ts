@@ -54,6 +54,20 @@ describe("/cloudTypes", () => {
                         }],
                     },
                     {
+                        platform: "android",
+                        execution: "emulator",
+                        compute: [{
+                            kind: "baremetal",
+                            requiredConfig: [{ key: "folderId", pattern: yandexCloudIdPattern }],
+                            grants: [
+                                { role: "baremetal.editor", serviceAccountId: "aje-test-compute" },
+                                { role: "vpc.user", serviceAccountId: "aje-test-compute" },
+                                { role: "resource-manager.viewer", serviceAccountId: "aje-test-compute" },
+                            ],
+                            ownershipProof: "folder-label",
+                        }],
+                    },
+                    {
                         platform: "linux",
                         execution: "container",
                         compute: [

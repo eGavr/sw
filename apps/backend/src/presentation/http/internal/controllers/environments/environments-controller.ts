@@ -1,4 +1,14 @@
-import { BadRequestException, Controller, HttpCode, HttpStatus, NotFoundException, Param, Post, Req } from "@nestjs/common";
+import {
+    BadRequestException,
+    Controller,
+    HttpCode,
+    HttpStatus,
+    NotFoundException,
+    Param,
+    Post,
+    Req,
+    UseGuards,
+} from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import type { Request } from "express";
@@ -13,6 +23,7 @@ import {
     UploadSessionVideoUseCase,
 } from "../../../../../application/use-cases/environments/upload-session-video-use-case";
 import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
+import { InternalAgentTokenGuard } from "../../guards/internal-agent-token-guard";
 
 import { EnvironmentHeartbeatPresenter } from "./io/environment-heartbeat-presenter";
 import { HeartbeatRequestModel } from "./io/heartbeat-request-model";
@@ -24,6 +35,7 @@ const uploadSessionLogsVerb = "uploadSessionLogs";
 const uploadSessionVideoVerb = "uploadSessionVideo";
 
 @Controller("internal/environments")
+@UseGuards(InternalAgentTokenGuard)
 export class InternalEnvironmentsController {
     constructor(
         private readonly recordEnvironmentHeartbeatUseCase: RecordEnvironmentHeartbeatUseCase,

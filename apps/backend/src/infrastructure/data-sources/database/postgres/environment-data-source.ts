@@ -147,9 +147,17 @@ export class EnvironmentDataSource {
     }
 
     // Rows matching any of the (state, cutoff) predicates: in that state and last touched before its
-    // cutoff. The states and cutoffs are decided upstream (the domain criteria); this only translates
-    // them into SQL — no state set or freshness threshold is baked in here.
-    async findByStateUpdatedBefore(predicates: Array<{ state: string; cutoff: Date }>): Promise<Array<EnvironmentData>> {
+    // cutoff, optionally narrowed to (or carved around) specific compute kinds. The states, cutoffs and
+    // kind split are decided upstream (the domain criteria); this only translates them into SQL — no
+    // state set, freshness threshold or kind list is baked in here.
+    async findByStateUpdatedBefore(
+        predicates: Array<{
+            state: string;
+            cutoff: Date;
+            computeKind?: string;
+            excludeComputeKinds?: Array<string>;
+        }>,
+    ): Promise<Array<EnvironmentData>> {
         if (predicates.length === 0) {
             return [];
         }
@@ -157,13 +165,27 @@ export class EnvironmentDataSource {
         const query = this.dataSource.getRepository(Environment).createQueryBuilder("environment");
 
         predicates.forEach((predicate, index) => {
-            const clause = `environment.state = :state${index} AND environment.updatedAt < :cutoff${index}`;
-            const params = { [`state${index}`]: predicate.state, [`cutoff${index}`]: predicate.cutoff };
+            let clause = `environment.state = :state${index} AND environment.updatedAt < :cutoff${index}`;
+            const params: Record<string, unknown> = {
+                [`state${index}`]: predicate.state,
+                [`cutoff${index}`]: predicate.cutoff,
+            };
+
+            if (predicate.computeKind) {
+                clause += ` AND environment.computeKind = :kind${index}`;
+                params[`kind${index}`] = predicate.computeKind;
+            }
+
+            if (predicate.excludeComputeKinds && predicate.excludeComputeKinds.length > 0) {
+                clause += " AND (environment.computeKind IS NULL"
+                    + ` OR environment.computeKind NOT IN (:...excludedKinds${index}))`;
+                params[`excludedKinds${index}`] = predicate.excludeComputeKinds;
+            }
 
             if (index === 0) {
-                query.where(clause, params);
+                query.where(`(${clause})`, params);
             } else {
-                query.orWhere(clause, params);
+                query.orWhere(`(${clause})`, params);
             }
         });
 

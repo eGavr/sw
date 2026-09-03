@@ -98,6 +98,10 @@ export class PoolHostDataSource {
         });
     }
 
+    async countByPool(cloudAccountId: string, bindingId: string): Promise<number> {
+        return this.dataSource.getRepository(PoolHost).count({ where: { cloudAccountId, bindingId } });
+    }
+
     // Hard delete; placements go with the machine via ON DELETE CASCADE.
     async delete(id: string): Promise<void> {
         await this.dataSource.getRepository(PoolHost).delete({ id });

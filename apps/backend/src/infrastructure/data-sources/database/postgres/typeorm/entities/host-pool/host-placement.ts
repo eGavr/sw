@@ -18,6 +18,7 @@ export class HostPlacement {
         row.hostId = hostId;
         row.environmentId = placement.environmentId;
         row.slotIndex = placement.slotIndex;
+        row.launch = placement.launch ?? {};
         row.createdAt = placement.createdAt;
 
         return row;
@@ -38,6 +39,9 @@ export class HostPlacement {
     @Column({ type: "int" })
     slotIndex: number;
 
+    @Column({ type: "jsonb", default: {} })
+    launch: Record<string, unknown>;
+
     @DateColumn()
     createdAt: Date;
 
@@ -48,6 +52,7 @@ export class HostPlacement {
             id: this.id,
             environmentId: this.environmentId,
             slotIndex: this.slotIndex,
+            launch: this.launch ?? {},
             createdAt: this.createdAt,
         };
     }

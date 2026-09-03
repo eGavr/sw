@@ -70,6 +70,10 @@ export class PoolHostRepositoryImpl extends PoolHostRepository {
         return data ? PoolHost.fromObject(data) : null;
     }
 
+    async countByPool(poolKey: HostPoolKey): Promise<number> {
+        return this.poolHostDataSource.countByPool(poolKey.cloudAccountId, poolKey.bindingId);
+    }
+
     async save(host: PoolHost): Promise<void> {
         await this.poolHostDataSource.save(host);
     }
