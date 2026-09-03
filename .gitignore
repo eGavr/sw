@@ -6,4 +6,6 @@ node_modules
 
 # Static ffmpeg binaries served to environments for video recording (large, fetched, not source).
 **/bin/ffmpeg/ffmpeg-*
+# NetBridge forwarder binaries served to environments (built from packages/netbridge/forwarder).
+**/bin/netbridge/netbridge-*
 .dev-storage/

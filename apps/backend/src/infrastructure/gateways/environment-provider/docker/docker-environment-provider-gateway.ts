@@ -8,6 +8,7 @@ import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-ac
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
 import { agentBootstrap, sessionLogFile } from "../agent-bootstrap";
+import { netBridgeProxyPort } from "../net-bridge-forwarder";
 
 import { DockerClient } from "./docker-client";
 import { DockerEnvironmentConfig, resolveDockerProvisioning } from "./docker-environment-config";
@@ -68,6 +69,9 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
                 SW_INTERNAL_TOKEN: await this.agentTokens.issue(environment.id),
                 // The bootstrap redirects the container's stdout here; the agent slices session logs from it.
                 SW_SESSION_LOG_GLOB: sessionLogFile,
+                // When set, the agent launches the NetBridge forwarder: a loopback SOCKS proxy the browser
+                // uses, tunnelling out to the rendezvous. Reuses the per-env agent token as its bearer.
+                ...this.netBridgeEnv(),
                 // Delegate the smart idle timeout and the "one active session" invariant to the node.
                 SE_NODE_SESSION_TIMEOUT: String(this.config.sessionTimeoutSeconds),
                 SE_NODE_MAX_SESSIONS: "1",
@@ -84,6 +88,17 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
 
     async deprovision(environment: Environment): Promise<void> {
         await this.removeByEnvironmentId(environment.id);
+    }
+
+    private netBridgeEnv(): Record<string, string> {
+        if (!this.config.netBridgeUrl) {
+            return {};
+        }
+
+        return {
+            SW_NETBRIDGE_URL: this.config.netBridgeUrl,
+            SW_NETBRIDGE_PROXY_PORT: String(netBridgeProxyPort),
+        };
     }
 
     // local = the operator's own machine: "reachable" means its docker daemon answers. No credential or
