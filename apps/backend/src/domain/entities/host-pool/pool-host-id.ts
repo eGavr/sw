@@ -1,3 +1,3 @@
 import { Uuid } from "../../types/uuid/uuid";
 
-export class HostId extends Uuid {}
+export class PoolHostId extends Uuid {}

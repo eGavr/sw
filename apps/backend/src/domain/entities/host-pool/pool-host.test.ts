@@ -1,28 +1,28 @@
 import { Uuid } from "../../types/uuid/uuid";
 import { InvalidArgumentError } from "../error/invalid-argument-error";
 
-import { HostCapacityExceededError } from "./error/host-capacity-exceeded-error";
-import { HostNotPlaceableError } from "./error/host-not-placeable-error";
-import { InvalidHostStateTransitionError } from "./error/invalid-host-state-transition-error";
-import { Host } from "./host";
+import { InvalidPoolHostStateTransitionError } from "./error/invalid-pool-host-state-transition-error";
+import { PoolHostCapacityExceededError } from "./error/pool-host-capacity-exceeded-error";
+import { PoolHostNotPlaceableError } from "./error/pool-host-not-placeable-error";
 import { HostPoolKey } from "./host-pool-key";
-import { HostState } from "./host-state";
+import { PoolHost } from "./pool-host";
+import { PoolHostState } from "./pool-host-state";
 
 const poolKey = new HostPoolKey(Uuid.create().getValue(), Uuid.create().getValue());
 
-function createHost(capacitySlots = 3): Host {
-    return Host.create({ poolKey, capacitySlots });
+function createHost(capacitySlots = 3): PoolHost {
+    return PoolHost.create({ poolKey, capacitySlots });
 }
 
 function environmentId(): string {
     return Uuid.create().getValue();
 }
 
-describe("Host", () => {
+describe("PoolHost", () => {
     test("rejects a capacity outside 1..16 slots", () => {
-        expect(() => Host.create({ poolKey, capacitySlots: 0 })).toThrow(InvalidArgumentError);
-        expect(() => Host.create({ poolKey, capacitySlots: 17 })).toThrow(InvalidArgumentError);
-        expect(() => Host.create({ poolKey, capacitySlots: 2.5 })).toThrow(InvalidArgumentError);
+        expect(() => PoolHost.create({ poolKey, capacitySlots: 0 })).toThrow(InvalidArgumentError);
+        expect(() => PoolHost.create({ poolKey, capacitySlots: 17 })).toThrow(InvalidArgumentError);
+        expect(() => PoolHost.create({ poolKey, capacitySlots: 2.5 })).toThrow(InvalidArgumentError);
     });
 
     test("seats environments on the lowest free slots", () => {
@@ -59,24 +59,24 @@ describe("Host", () => {
 
         host.place(environmentId());
 
-        expect(() => host.place(environmentId())).toThrow(HostCapacityExceededError);
+        expect(() => host.place(environmentId())).toThrow(PoolHostCapacityExceededError);
     });
 
     test("accepts placements while still ordering — environments queue onto the booting machine", () => {
         const host = createHost();
 
-        expect(host.state).toBe(HostState.Ordering);
+        expect(host.state).toBe(PoolHostState.Ordering);
         expect(host.place(environmentId()).slotIndex).toBe(0);
     });
 
     test("refuses placements once deleting or failed", () => {
         const deleting = createHost();
         deleting.markDeleting();
-        expect(() => deleting.place(environmentId())).toThrow(HostNotPlaceableError);
+        expect(() => deleting.place(environmentId())).toThrow(PoolHostNotPlaceableError);
 
         const failed = createHost();
         failed.markFailed();
-        expect(() => failed.place(environmentId())).toThrow(HostNotPlaceableError);
+        expect(() => failed.place(environmentId())).toThrow(PoolHostNotPlaceableError);
     });
 
     test("starts the idle clock when the last seat frees up", () => {
@@ -97,13 +97,13 @@ describe("Host", () => {
         const host = createHost();
 
         host.register("10.0.0.5", now);
-        expect(host.state).toBe(HostState.Ready);
+        expect(host.state).toBe(PoolHostState.Ready);
         expect(host.hostIp).toBe("10.0.0.5");
         expect(host.lastSeenAt).toBe(now);
 
         host.markFailed();
         host.register("10.0.0.5", now);
-        expect(host.state).toBe(HostState.Ready);
+        expect(host.state).toBe(PoolHostState.Ready);
     });
 
     test("never resurrects a host already chosen for return", () => {
@@ -111,8 +111,8 @@ describe("Host", () => {
 
         host.markDeleting();
 
-        expect(() => host.register("10.0.0.5", new Date())).toThrow(InvalidHostStateTransitionError);
-        expect(() => host.markFailed()).toThrow(InvalidHostStateTransitionError);
+        expect(() => host.register("10.0.0.5", new Date())).toThrow(InvalidPoolHostStateTransitionError);
+        expect(() => host.markFailed()).toThrow(InvalidPoolHostStateTransitionError);
     });
 
     test("only an empty host may be returned to the cloud", () => {
@@ -120,7 +120,7 @@ describe("Host", () => {
 
         host.place(environmentId());
 
-        expect(() => host.markDeleting()).toThrow(InvalidHostStateTransitionError);
+        expect(() => host.markDeleting()).toThrow(InvalidPoolHostStateTransitionError);
     });
 
     test("round-trips through toObject/fromObject with its placements", () => {
@@ -128,7 +128,7 @@ describe("Host", () => {
         host.place(environmentId());
         host.register("10.0.0.5", new Date());
 
-        const restored = Host.fromObject(host.toObject());
+        const restored = PoolHost.fromObject(host.toObject());
 
         expect(restored.toObject()).toEqual(host.toObject());
         expect(restored.placements()).toHaveLength(1);

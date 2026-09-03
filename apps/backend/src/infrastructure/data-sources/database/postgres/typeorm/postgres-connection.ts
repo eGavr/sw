@@ -11,8 +11,8 @@ import { CloudAccount } from "./entities/cloud-account/cloud-account";
 import { ComputeBinding } from "./entities/cloud-account/compute-binding";
 import { Environment } from "./entities/environment/environment";
 import { EnvironmentApplication } from "./entities/environment/environment-application";
-import { ComputeHost } from "./entities/host-pool/compute-host";
 import { HostPlacement } from "./entities/host-pool/host-placement";
+import { PoolHost } from "./entities/host-pool/pool-host";
 import { NetBridgeCredential } from "./entities/net-bridge-credential/net-bridge-credential";
 import { Project } from "./entities/project/project";
 import { ProjectIamBinding } from "./entities/project/project-iam-binding";
@@ -52,7 +52,7 @@ export class PostgresConnection {
                 ComputeBinding,
                 Environment,
                 EnvironmentApplication,
-                ComputeHost,
+                PoolHost,
                 HostPlacement,
                 NetBridgeCredential,
                 SessionOwnership,

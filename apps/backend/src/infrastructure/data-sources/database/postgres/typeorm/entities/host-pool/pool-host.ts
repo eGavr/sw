@@ -1,6 +1,9 @@
 import { Column, Entity, OneToMany, PrimaryColumn } from "typeorm";
 
-import { Host, HostData } from "../../../../../../../domain/entities/host-pool/host";
+import {
+    PoolHost as PoolHostEntity,
+    PoolHostData,
+} from "../../../../../../../domain/entities/host-pool/pool-host";
 import { DateColumn } from "../../columns-extra/date-column";
 
 import { HostPlacement } from "./host-placement";
@@ -9,10 +12,10 @@ import { HostPlacement } from "./host-placement";
 // (opaque to us, the host provider adapter interprets it) so the machine can always be returned even
 // if the binding's config changed since ordering — losing track of rented metal costs real money.
 @Entity()
-export class ComputeHost {
-    static from(host: Host): ComputeHost {
+export class PoolHost {
+    static from(host: PoolHostEntity): PoolHost {
         const data = host.toObject();
-        const row = new ComputeHost();
+        const row = new PoolHost();
 
         row.id = data.id;
         row.cloudAccountId = data.cloudAccountId;
@@ -71,7 +74,7 @@ export class ComputeHost {
 
     private constructor() {}
 
-    toObject(): HostData {
+    toObject(): PoolHostData {
         return {
             id: this.id,
             cloudAccountId: this.cloudAccountId,

@@ -1,7 +1,7 @@
 import { NotFoundError } from "../../error/not-found/not-found-error";
 
-export class HostNotFoundError extends NotFoundError {
+export class PoolHostNotFoundError extends NotFoundError {
     constructor(hostId: string) {
-        super(`host: ${hostId}: not found`);
+        super(`pool host: ${hostId}: not found`);
     }
 }

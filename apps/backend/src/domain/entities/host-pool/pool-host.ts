@@ -1,27 +1,27 @@
 import { InvalidArgumentError } from "../error/invalid-argument-error";
 
-import { HostCapacityExceededError } from "./error/host-capacity-exceeded-error";
-import { HostNotPlaceableError } from "./error/host-not-placeable-error";
-import { InvalidHostStateTransitionError } from "./error/invalid-host-state-transition-error";
-import { HostId } from "./host-id";
+import { InvalidPoolHostStateTransitionError } from "./error/invalid-pool-host-state-transition-error";
+import { PoolHostCapacityExceededError } from "./error/pool-host-capacity-exceeded-error";
+import { PoolHostNotPlaceableError } from "./error/pool-host-not-placeable-error";
 import { HostPlacement, HostPlacementData } from "./host-placement";
 import { HostPoolKey } from "./host-pool-key";
-import { HostState, placeableHostStates } from "./host-state";
+import { PoolHostId } from "./pool-host-id";
+import { PoolHostState, placeablePoolHostStates } from "./pool-host-state";
 import { SlotPorts } from "./slot-ports";
 
 // The cloud-specific whereabouts of the machine (e.g. the folder it was ordered in). Opaque to the
 // domain — the host provider adapter wrote it at ordering time and reads it back at teardown, so the
 // host can always be returned even if the binding's config changed meanwhile.
-export type HostProviderContext = Record<string, unknown>;
+export type PoolHostProviderContext = Record<string, unknown>;
 
-export type HostData = {
+export type PoolHostData = {
     id: string;
     cloudAccountId: string;
     bindingId: string;
     state: string;
     capacitySlots: number;
     hostIp: string | null;
-    providerContext: HostProviderContext;
+    providerContext: PoolHostProviderContext;
     lastSeenAt: Date | null;
     lastEmptiedAt: Date;
     placements: ReadonlyArray<HostPlacementData>;
@@ -29,19 +29,19 @@ export type HostData = {
     updatedAt: Date;
 };
 
-export type HostCreateParams = {
+export type PoolHostCreateParams = {
     poolKey: HostPoolKey;
     capacitySlots: number;
-    providerContext?: HostProviderContext;
+    providerContext?: PoolHostProviderContext;
 };
 
-type HostConstructorParams = {
-    id?: HostId;
+type PoolHostConstructorParams = {
+    id?: PoolHostId;
     poolKey: HostPoolKey;
-    state?: HostState;
+    state?: PoolHostState;
     capacitySlots: number;
     hostIp?: string | null;
-    providerContext?: HostProviderContext;
+    providerContext?: PoolHostProviderContext;
     lastSeenAt?: Date | null;
     lastEmptiedAt?: Date;
     placements?: ReadonlyArray<HostPlacement>;
@@ -53,8 +53,8 @@ type HostConstructorParams = {
 // occupies exactly one slot, and the aggregate refuses to overbook. The host's own agent drives the
 // slots (it polls for the desired set), so this aggregate only decides WHO sits WHERE — never how a
 // slot is launched.
-export class Host {
-    static create(params: HostCreateParams): Host {
+export class PoolHost {
+    static create(params: PoolHostCreateParams): PoolHost {
         if (!Number.isInteger(params.capacitySlots)
             || params.capacitySlots < 1
             || params.capacitySlots > SlotPorts.maxSlots) {
@@ -63,14 +63,14 @@ export class Host {
             );
         }
 
-        return new Host(params);
+        return new PoolHost(params);
     }
 
-    static fromObject(data: HostData): Host {
-        return new Host({
-            id: HostId.fromString(data.id),
+    static fromObject(data: PoolHostData): PoolHost {
+        return new PoolHost({
+            id: PoolHostId.fromString(data.id),
             poolKey: new HostPoolKey(data.cloudAccountId, data.bindingId),
-            state: data.state as HostState,
+            state: data.state as PoolHostState,
             capacitySlots: data.capacitySlots,
             hostIp: data.hostIp ?? null,
             providerContext: data.providerContext ?? {},
@@ -85,20 +85,20 @@ export class Host {
     readonly capacitySlots: number;
     readonly createdAt: Date;
 
-    private readonly _id: HostId;
+    private readonly _id: PoolHostId;
     private readonly _poolKey: HostPoolKey;
-    private readonly _providerContext: HostProviderContext;
-    private _state: HostState;
+    private readonly _providerContext: PoolHostProviderContext;
+    private _state: PoolHostState;
     private _hostIp: string | null;
     private _lastSeenAt: Date | null;
     private _lastEmptiedAt: Date;
     private _placements: Array<HostPlacement>;
     private _updatedAt: Date;
 
-    private constructor(params: HostConstructorParams) {
-        this._id = params.id ?? HostId.create();
+    private constructor(params: PoolHostConstructorParams) {
+        this._id = params.id ?? PoolHostId.create();
         this._poolKey = params.poolKey;
-        this._state = params.state ?? HostState.Ordering;
+        this._state = params.state ?? PoolHostState.Ordering;
         this.capacitySlots = params.capacitySlots;
         this._hostIp = params.hostIp ?? null;
         this._providerContext = params.providerContext ?? {};
@@ -118,7 +118,7 @@ export class Host {
         return this._poolKey;
     }
 
-    get state(): HostState {
+    get state(): PoolHostState {
         return this._state;
     }
 
@@ -126,7 +126,7 @@ export class Host {
         return this._hostIp;
     }
 
-    get providerContext(): HostProviderContext {
+    get providerContext(): PoolHostProviderContext {
         return { ...this._providerContext };
     }
 
@@ -167,12 +167,12 @@ export class Host {
             return existing;
         }
 
-        if (!placeableHostStates.includes(this._state)) {
-            throw new HostNotPlaceableError(this.id, this._state);
+        if (!placeablePoolHostStates.includes(this._state)) {
+            throw new PoolHostNotPlaceableError(this.id, this._state);
         }
 
         if (!this.hasFreeSlot()) {
-            throw new HostCapacityExceededError(this.id, this.capacitySlots);
+            throw new PoolHostCapacityExceededError(this.id, this.capacitySlots);
         }
 
         const placement = HostPlacement.create({
@@ -208,11 +208,11 @@ export class Host {
     // The agent's first check-in: the machine is up and reachable at hostIp. A `failed` host that
     // checks in again recovers — it proved it is alive.
     register(hostIp: string, now: Date): void {
-        if (this._state === HostState.Deleting) {
-            throw new InvalidHostStateTransitionError(this._state, HostState.Ready);
+        if (this._state === PoolHostState.Deleting) {
+            throw new InvalidPoolHostStateTransitionError(this._state, PoolHostState.Ready);
         }
 
-        this._state = HostState.Ready;
+        this._state = PoolHostState.Ready;
         this._hostIp = hostIp;
         this._lastSeenAt = now;
         this.touch();
@@ -226,25 +226,25 @@ export class Host {
     // Chosen for return to the cloud; only an empty host may go — live seats never get pulled away.
     markDeleting(): void {
         if (!this.isEmpty()) {
-            throw new InvalidHostStateTransitionError(this._state, HostState.Deleting);
+            throw new InvalidPoolHostStateTransitionError(this._state, PoolHostState.Deleting);
         }
 
-        this._state = HostState.Deleting;
+        this._state = PoolHostState.Deleting;
         this.touch();
     }
 
     // The host went silent (or never came up): stop placing onto it and let its workloads die on
     // their own; once empty it gets returned to the cloud.
     markFailed(): void {
-        if (this._state === HostState.Deleting) {
-            throw new InvalidHostStateTransitionError(this._state, HostState.Failed);
+        if (this._state === PoolHostState.Deleting) {
+            throw new InvalidPoolHostStateTransitionError(this._state, PoolHostState.Failed);
         }
 
-        this._state = HostState.Failed;
+        this._state = PoolHostState.Failed;
         this.touch();
     }
 
-    toObject(): HostData {
+    toObject(): PoolHostData {
         return {
             id: this.id,
             cloudAccountId: this._poolKey.cloudAccountId,
@@ -270,7 +270,7 @@ export class Host {
             }
         }
 
-        throw new HostCapacityExceededError(this.id, this.capacitySlots);
+        throw new PoolHostCapacityExceededError(this.id, this.capacitySlots);
     }
 
     private touch(): void {
