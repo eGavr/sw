@@ -38,6 +38,15 @@ export enum CloudAccountPermission {
     Delete = "sw.cloudAccounts.delete",
 }
 
+// A NetBridge access key opens a tunnel from a remote browser into the holder's network — minting and
+// revoking one is an owner/admin concern, so these are granted only through roles/admin.
+export enum NetBridgeCredentialPermission {
+    Get = "sw.netBridgeCredentials.get",
+    List = "sw.netBridgeCredentials.list",
+    Create = "sw.netBridgeCredentials.create",
+    Delete = "sw.netBridgeCredentials.delete",
+}
+
 export class UserPermissionName {
     static readonly Project = ProjectPermission;
 
@@ -49,12 +58,15 @@ export class UserPermissionName {
 
     static readonly CloudAccount = CloudAccountPermission;
 
+    static readonly NetBridgeCredential = NetBridgeCredentialPermission;
+
     private static readonly knownNames: ReadonlySet<string> = new Set<string>([
         ...Object.values(ProjectPermission),
         ...Object.values(EnvironmentPermission),
         ...Object.values(SessionPermission),
         ...Object.values(StorageDestinationPermission),
         ...Object.values(CloudAccountPermission),
+        ...Object.values(NetBridgeCredentialPermission),
     ]);
 
     static fromString(value: string): UserPermissionName {

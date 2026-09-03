@@ -8,9 +8,17 @@ export class UserPermissionList {
         const session = Object.values(UserPermissionName.Session);
         const storageDestination = Object.values(UserPermissionName.StorageDestination);
         const cloudAccount = Object.values(UserPermissionName.CloudAccount);
+        const netBridgeCredential = Object.values(UserPermissionName.NetBridgeCredential);
 
         return UserPermissionList.create({
-            permissions: [...project, ...environment, ...session, ...storageDestination, ...cloudAccount],
+            permissions: [
+                ...project,
+                ...environment,
+                ...session,
+                ...storageDestination,
+                ...cloudAccount,
+                ...netBridgeCredential,
+            ],
         });
     }
 
