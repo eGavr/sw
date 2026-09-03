@@ -22,6 +22,12 @@ export class NetBridgeCredentialDataSource {
         return row?.toObject() ?? null;
     }
 
+    async findBySecretHash(secretHash: string): Promise<NetBridgeCredentialData | null> {
+        const row = await this.dataSource.getRepository(NetBridgeCredential).findOne({ where: { secretHash } });
+
+        return row?.toObject() ?? null;
+    }
+
     async listByProject(projectId: string): Promise<Array<NetBridgeCredentialData>> {
         const rows = await this.dataSource.getRepository(NetBridgeCredential).find({ where: { projectId } });
 

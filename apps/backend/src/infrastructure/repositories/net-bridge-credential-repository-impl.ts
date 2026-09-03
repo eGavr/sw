@@ -31,6 +31,12 @@ export class NetBridgeCredentialRepositoryImpl extends NetBridgeCredentialReposi
         return NetBridgeCredential.fromObject(data);
     }
 
+    async findBySecretHash(secretHash: string): Promise<NetBridgeCredential | null> {
+        const data = await this.netBridgeCredentialDataSource.findBySecretHash(secretHash);
+
+        return data ? NetBridgeCredential.fromObject(data) : null;
+    }
+
     async listByProject(projectId: ProjectId): Promise<Array<NetBridgeCredential>> {
         const data = await this.netBridgeCredentialDataSource.listByProject(projectId.getValue());
 

@@ -65,11 +65,11 @@ export class NetBridgeCredential {
     readonly name: string | null;
     readonly createdAt: Date;
     readonly expiresAt: Date | null;
-    readonly lastUsedAt: Date | null;
 
     private readonly _id: NetBridgeCredentialId;
     private readonly _projectId: ProjectId;
     private readonly _secretHash: string;
+    private _lastUsedAt: Date | null;
 
     private constructor(params: NetBridgeCredentialConstructorParams) {
         this._id = params.id ?? NetBridgeCredentialId.create();
@@ -78,7 +78,7 @@ export class NetBridgeCredential {
         this._secretHash = params.secretHash;
         this.createdAt = params.createdAt ?? new Date();
         this.expiresAt = params.expiresAt ?? null;
-        this.lastUsedAt = params.lastUsedAt ?? null;
+        this._lastUsedAt = params.lastUsedAt ?? null;
     }
 
     get id(): string {
@@ -89,8 +89,22 @@ export class NetBridgeCredential {
         return this._projectId;
     }
 
+    get lastUsedAt(): Date | null {
+        return this._lastUsedAt;
+    }
+
     belongsTo(projectId: ProjectId): boolean {
         return this._projectId.getValue() === projectId.getValue();
+    }
+
+    // Time-boxed keys stop authenticating once past their expiry (null = never expires).
+    isExpired(now: Date): boolean {
+        return this.expiresAt !== null && this.expiresAt.getTime() <= now.getTime();
+    }
+
+    // Stamp the last time a client authenticated with this key — an audit signal for spotting leaks.
+    recordUse(now: Date): void {
+        this._lastUsedAt = now;
     }
 
     toObject(): NetBridgeCredentialData {
@@ -101,7 +115,7 @@ export class NetBridgeCredential {
             secretHash: this._secretHash,
             createdAt: this.createdAt,
             expiresAt: this.expiresAt,
-            lastUsedAt: this.lastUsedAt,
+            lastUsedAt: this._lastUsedAt,
         };
     }
 }

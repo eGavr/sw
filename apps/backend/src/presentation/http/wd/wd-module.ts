@@ -8,12 +8,21 @@ import type { NextFunction, Request, Response } from "express";
 
 import { WebDriverSessionGateway } from "../../../application/interfaces/gateways/webdriver-session-gateway";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
+import {
+    NetBridgeCredentialRepository,
+} from "../../../application/interfaces/repositories/net-bridge-credential-repository";
 import { ProjectRepository } from "../../../application/interfaces/repositories/project-repository";
 import {
     SessionOwnershipRepository,
 } from "../../../application/interfaces/repositories/session-ownership-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
+import {
+    AuthenticateNetBridgeClientUseCase,
+} from "../../../application/use-cases/net-bridge-tunnel/authenticate-net-bridge-client-use-case";
+import {
+    AuthenticateNetBridgeForwarderUseCase,
+} from "../../../application/use-cases/net-bridge-tunnel/authenticate-net-bridge-forwarder-use-case";
 import {
     CreateSessionUseCase,
     SessionAllocationRetry,
@@ -25,10 +34,14 @@ import {
     defaultHeartbeatFreshnessMs,
 } from "../../../domain/entities/environment/heartbeat-freshness";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
+import { AgentTokenServiceProvider } from "../../../infrastructure/agent-token/agent-token-service-provider";
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
 } from "../../../infrastructure/data-sources/auth/user-data-source-provider";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
+import {
+    NetBridgeCredentialDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/net-bridge-credential-data-source";
 import { ProjectDataSource } from "../../../infrastructure/data-sources/database/postgres/project-data-source";
 import {
     SessionOwnershipDataSource,
@@ -47,6 +60,9 @@ import {
 } from "../../../infrastructure/gateways/webdriver-session/webdriver-session-gateway-impl";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
+import {
+    NetBridgeCredentialRepositoryImpl,
+} from "../../../infrastructure/repositories/net-bridge-credential-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
 import {
     SessionOwnershipRepositoryImpl,
@@ -64,6 +80,8 @@ import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { InteractiveController } from "./controllers/interactive/interactive-controller";
 import { SessionsController } from "./controllers/sessions/sessions-controller";
+import { NetBridgeRegistry } from "./net-bridge-registry";
+import { NetBridgeRendezvous } from "./net-bridge-rendezvous";
 import { WebDriverProxy } from "./webdriver-proxy";
 import { WebSocketProxy } from "./websocket-proxy";
 
@@ -103,6 +121,8 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
     providers: [
         CreateSessionUseCase,
         ProbeSessionLivenessUseCase,
+        AuthenticateNetBridgeClientUseCase,
+        AuthenticateNetBridgeForwarderUseCase,
         // Default budget = the heartbeat freshness window (>= one heartbeat interval by construction),
         // so a just-freed environment's next heartbeat is always caught before the budget elapses.
         {
@@ -117,6 +137,7 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
         AccessControl,
 
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
+        { provide: NetBridgeCredentialRepository, useClass: NetBridgeCredentialRepositoryImpl },
         { provide: UserRepository, useClass: UserRepositoryImpl },
         { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
         { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
@@ -128,6 +149,7 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
 
         WebDriverClient,
         EnvironmentDataSource,
+        NetBridgeCredentialDataSource,
         SessionOwnershipDataSource,
         StorageDestinationDataSource,
         AuthUserDataSourceProvider,
@@ -135,6 +157,11 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
         ProjectDataSource,
         WebDriverProxy,
         WebSocketProxy,
+        // The tunnel rendezvous: the forwarder authenticates by its agent token (needs the token service),
+        // the client by its access key; both legs are glued by project in the registry.
+        AgentTokenServiceProvider,
+        NetBridgeRegistry,
+        NetBridgeRendezvous,
 
         // A session id is a capability secret; mask it out of request logs (WebDriver commands + proxy routes).
         { provide: UrlRedactions, useValue: [sessionIdUrlRedaction] },
