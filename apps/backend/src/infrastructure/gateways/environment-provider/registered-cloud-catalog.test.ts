@@ -38,9 +38,17 @@ describe("RegisteredCloudCatalog", () => {
             .toEqual([{ key: "folderId", pattern: yandexCloudIdPattern }]);
     });
 
-    test("local offers linux via its sole configless kind", () => {
+    test("local offers linux via its sole configless kind, with no ownership proof", () => {
         expect(offer("local", "linux", Execution.Container)?.compute)
-            .toEqual([{ kind: "docker", requiredConfig: [], grants: [] }]);
+            .toEqual([{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }]);
+    });
+
+    test("each yandex kind declares how ownership is proven", () => {
+        const linux = offer("yandex-cloud", "linux", Execution.Container);
+
+        expect(linux?.compute.find((kindOffer) => kindOffer.kind === "vm")?.ownershipProof).toBe("folder-label");
+        expect(linux?.compute.find((kindOffer) => kindOffer.kind === "kubernetes")?.ownershipProof)
+            .toBe("cluster-label");
     });
 
     test("publishes each kind's grants when the install has a compute identity", () => {
@@ -48,9 +56,11 @@ describe("RegisteredCloudCatalog", () => {
         const linux = withIdentity.substrateOffers("yandex-cloud")
             .find((candidate) => candidate.stereotype.matches("linux", Execution.Container));
 
+        // vm reads a folder label to verify ownership → it also needs resource-manager.viewer (read-only).
         expect(linux?.compute.find((kindOffer) => kindOffer.kind === "vm")?.grants).toEqual([
             { role: "compute.editor", serviceAccountId: "aje-compute" },
             { role: "vpc.user", serviceAccountId: "aje-compute" },
+            { role: "resource-manager.viewer", serviceAccountId: "aje-compute" },
         ]);
         expect(linux?.compute.find((kindOffer) => kindOffer.kind === "kubernetes")?.grants)
             .toEqual([{ role: "k8s.cluster-api.editor", serviceAccountId: "aje-compute" }]);

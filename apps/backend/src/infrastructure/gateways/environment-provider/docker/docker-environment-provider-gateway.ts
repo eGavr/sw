@@ -2,6 +2,7 @@ import { AgentTokenService } from "../../../../application/interfaces/agent-toke
 import {
     CloudReachability,
     EnvironmentProviderGateway,
+    OwnershipVerification,
 } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
 import { Environment } from "../../../../domain/entities/environment/environment";
@@ -95,6 +96,11 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
         } catch (error) {
             return { reachable: false, detail: error instanceof Error ? error.message : String(error) };
         }
+    }
+
+    // local = the operator's own machine: nothing is delegated, so there is no ownership to prove.
+    async verifyOwnership(): Promise<OwnershipVerification> {
+        return { verified: true };
     }
 
     private async removeByEnvironmentId(environmentId: string): Promise<void> {

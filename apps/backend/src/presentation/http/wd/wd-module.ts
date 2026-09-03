@@ -33,8 +33,14 @@ import { ProjectDataSource } from "../../../infrastructure/data-sources/database
 import {
     SessionOwnershipDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/session-ownership-data-source";
+import {
+    StorageDestinationDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/storage-destination-data-source";
 import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
 import { UserDataSource as PgUserDataSource } from "../../../infrastructure/data-sources/database/postgres/user-data-source";
+import {
+    ObjectStorageGatewayProvider,
+} from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
 import { WebDriverClient } from "../../../infrastructure/gateways/webdriver-session/webdriver-client";
 import {
     WebDriverSessionGatewayImpl,
@@ -45,6 +51,9 @@ import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/proj
 import {
     SessionOwnershipRepositoryImpl,
 } from "../../../infrastructure/repositories/session-ownership-repository-impl";
+import {
+    StorageDestinationRepositoryProvider,
+} from "../../../infrastructure/repositories/storage-destination-repository-provider";
 import { UserRepositoryImpl } from "../../../infrastructure/repositories/user-repository-impl";
 import { ErrorInterceptor } from "../interceptors/error-interceptor";
 import { ResponseInterceptor } from "../interceptors/response-interceptor";
@@ -112,10 +121,15 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
         { provide: ProjectRepository, useClass: ProjectRepositoryImpl },
         { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
         { provide: WebDriverSessionGateway, useClass: WebDriverSessionGatewayImpl },
+        // Session logging/video refuses to write to a bucket the project has not proven it owns — needs
+        // the storage destination and a read-only object-storage client (the ownership-marker read).
+        StorageDestinationRepositoryProvider,
+        ObjectStorageGatewayProvider,
 
         WebDriverClient,
         EnvironmentDataSource,
         SessionOwnershipDataSource,
+        StorageDestinationDataSource,
         AuthUserDataSourceProvider,
         PgUserDataSource,
         ProjectDataSource,

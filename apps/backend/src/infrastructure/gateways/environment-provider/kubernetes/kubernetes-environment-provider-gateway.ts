@@ -2,11 +2,13 @@ import { AgentTokenService } from "../../../../application/interfaces/agent-toke
 import {
     CloudReachability,
     EnvironmentProviderGateway,
+    OwnershipVerification,
 } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
 import { ComputeBinding } from "../../../../domain/entities/cloud-account/compute-binding";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { InternalError } from "../../../../domain/entities/error/internal-error";
+import { OwnershipMarker } from "../../../../domain/entities/verification/ownership-marker";
 import { agentBootstrap, sessionLogFile } from "../agent-bootstrap";
 
 import { KubernetesClient } from "./kubernetes-client";
@@ -70,6 +72,23 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
             return { reachable: true };
         } catch (error) {
             return { reachable: false, detail: error instanceof Error ? error.message : String(error) };
+        }
+    }
+
+    // The cluster's owner authorises this project by placing a per-project label on the managed cluster;
+    // we read it (k8s.viewer, which cannot set it). Naming someone else's cluster fails: it carries no
+    // marker for this project and only its owner could add one.
+    async verifyOwnership(cloudAccount: CloudAccount, binding: ComputeBinding): Promise<OwnershipVerification> {
+        const markerKey = OwnershipMarker.forProject(cloudAccount.projectId.getValue()).value();
+
+        try {
+            const labels = await this.kubernetes.clusterLabels(this.boundClusterId(binding));
+
+            return Object.prototype.hasOwnProperty.call(labels, markerKey)
+                ? { verified: true }
+                : { verified: false, detail: `cluster is missing the ownership label ${markerKey}` };
+        } catch (error) {
+            return { verified: false, detail: error instanceof Error ? error.message : String(error) };
         }
     }
 

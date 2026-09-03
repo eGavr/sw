@@ -269,6 +269,13 @@ export function StorageSettings({ project }: { project: string }) {
                   <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
                     {`yc resource-manager folder add-access-binding --id <folder-with-your-bucket> --role ${(selectedProvider ?? providers[0]).grant.role} --subject serviceAccount:${(selectedProvider ?? providers[0]).grant.serviceAccountId}`}
                   </Code>
+                  <Text size="xs">
+                    Then prove you own the bucket — put a per-project marker object in it (only you can, so
+                    no other project can claim your bucket):
+                  </Text>
+                  <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                    {`echo -n sw | aws --endpoint-url ${endpoint.trim() || "<endpoint>"} s3 cp - s3://${bucket.trim() || "<bucket>"}/sw-verify-${project}`}
+                  </Code>
                 </>
               )}
             </Stack>

@@ -1,11 +1,23 @@
 import { HttpStatus } from "@nestjs/common";
 import request from "supertest";
 
+import { ObjectStorageGateway } from "../../../../../../../src/application/interfaces/gateways/object-storage-gateway";
+import { StorageDestination } from "../../../../../../../src/domain/entities/storage/storage-destination";
+import { OwnershipMarker } from "../../../../../../../src/domain/entities/verification/ownership-marker";
 import { ApiModule } from "../../../../../../../src/presentation/http/api/api-module";
 import { TestingApp } from "../../../utils/app/testing-app";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { Authorization } from "../../../utils/request/headers/authorization";
 import { CreateProjectBody } from "../../utils/request/body/create-project-body";
+
+// Simulates the bucket owner placing the ownership marker (the app only ever reads it). Seeded into the
+// in-memory object storage the app uses, so :test / logging see it exactly as they would in a real bucket.
+const placeOwnershipMarker = async (app: TestingApp, projectId: string, bucket: string): Promise<void> => {
+    const storage = app.app.get<ObjectStorageGateway>(ObjectStorageGateway);
+    const marker = OwnershipMarker.forProject(projectId);
+
+    await storage.put(StorageDestination.create({ bucket }), marker.value(), { body: Buffer.from("sw") });
+};
 
 type AuthHeader = { authorization: string };
 
@@ -107,7 +119,21 @@ describe("/projects/:project/storageDestination", () => {
         expect(get.body.bucket).toBe("other-logs");
     });
 
-    test("test-probe succeeds against the configured destination (in-memory write)", async () => {
+    test("test-probe succeeds against a configured, ownership-verified destination (in-memory write)", async () => {
+        const owner = Authorization.forUser(UserFactory.createId());
+        const project = await createProject(owner);
+
+        await request(app.getHttpServer()).patch(path(project)).set(owner).send(destinationBody()).expect(HttpStatus.OK);
+        // The bucket carries this project's ownership marker (placed by its owner) — otherwise :test would
+        // report the bucket as not ownership-verified.
+        await placeOwnershipMarker(app, project, "my-logs");
+
+        const probe = await request(app.getHttpServer()).post(`${path(project)}:test`).set(owner).expect(HttpStatus.OK);
+
+        expect(probe.body).toEqual({ ok: true });
+    });
+
+    test("test-probe reports a bucket without the ownership marker as not verified", async () => {
         const owner = Authorization.forUser(UserFactory.createId());
         const project = await createProject(owner);
 
@@ -115,7 +141,7 @@ describe("/projects/:project/storageDestination", () => {
 
         const probe = await request(app.getHttpServer()).post(`${path(project)}:test`).set(owner).expect(HttpStatus.OK);
 
-        expect(probe.body).toEqual({ ok: true });
+        expect(probe.body.ok).toBe(false);
     });
 
     test("test-probe is NOT_FOUND when no destination is configured", async () => {

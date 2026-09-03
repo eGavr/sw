@@ -21,10 +21,11 @@ export type ComputeBindingAccessProbe = {
     readonly message?: string;
 };
 
-// Reports whether one binding is usable with its current settings — the kind's adapter probes exactly
-// what the binding names (the vm kind its folder, kubernetes its cluster) under our identity. Never
-// throws on an access failure: an unreachable binding is the expected answer while the user has not run
-// the grants yet, returned as { ok: false, message }.
+// Reports whether one binding is usable with its current settings: first that its resource is reachable
+// under our identity (the user ran the grants), then that the resource carries this project's ownership
+// marker (the user proved they control it). ok only when both hold; otherwise a message says which step
+// is missing — "run the grants" vs "add the ownership label". Never throws — an unreachable/unverified
+// binding is the expected answer, returned as { ok: false, message }.
 @Injectable()
 export class TestComputeBindingAccessUseCase {
     private readonly permissionName = UserPermissionName.CloudAccount.Get;
@@ -50,6 +51,12 @@ export class TestComputeBindingAccessUseCase {
 
         const reachability = await this.environmentProviderGateway.checkAccess(cloudAccount, binding);
 
-        return { ok: reachability.reachable, message: reachability.detail };
+        if (!reachability.reachable) {
+            return { ok: false, message: reachability.detail };
+        }
+
+        const ownership = await this.environmentProviderGateway.verifyOwnership(cloudAccount, binding);
+
+        return { ok: ownership.verified, message: ownership.detail };
     }
 }

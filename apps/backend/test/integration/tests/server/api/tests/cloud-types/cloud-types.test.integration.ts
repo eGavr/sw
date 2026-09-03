@@ -32,7 +32,7 @@ describe("/cloudTypes", () => {
                 provides: [{
                     platform: "linux",
                     execution: "container",
-                    compute: [{ kind: "docker", requiredConfig: [], grants: [] }],
+                    compute: [{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }],
                 }],
             },
             {
@@ -48,7 +48,9 @@ describe("/cloudTypes", () => {
                             grants: [
                                 { role: "compute.editor", serviceAccountId: "aje-test-compute" },
                                 { role: "vpc.user", serviceAccountId: "aje-test-compute" },
+                                { role: "resource-manager.viewer", serviceAccountId: "aje-test-compute" },
                             ],
+                            ownershipProof: "folder-label",
                         }],
                     },
                     {
@@ -61,12 +63,15 @@ describe("/cloudTypes", () => {
                                 grants: [
                                     { role: "compute.editor", serviceAccountId: "aje-test-compute" },
                                     { role: "vpc.user", serviceAccountId: "aje-test-compute" },
+                                    { role: "resource-manager.viewer", serviceAccountId: "aje-test-compute" },
                                 ],
+                                ownershipProof: "folder-label",
                             },
                             {
                                 kind: "kubernetes",
                                 requiredConfig: [{ key: "clusterId", pattern: yandexCloudIdPattern }],
                                 grants: [{ role: "k8s.cluster-api.editor", serviceAccountId: "aje-test-compute" }],
+                                ownershipProof: "cluster-label",
                             },
                         ],
                     },

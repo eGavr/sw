@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 
 import { StorageDestination } from "../../../domain/entities/storage/storage-destination";
+import { OwnershipMarker } from "../../../domain/entities/verification/ownership-marker";
 
 export type StoredObject = {
     readonly body: Buffer;
@@ -25,4 +26,13 @@ export abstract class ObjectStorageGateway {
     // Streams an object back (for large artifacts like video read-back) without buffering it whole.
     abstract getStream(destination: StorageDestination, key: string): Promise<StoredStream | null>;
     abstract list(destination: StorageDestination, prefix: string): Promise<Array<string>>;
+
+    // Whether the bucket carries this project's ownership marker — proof the bucket's owner authorised
+    // the project. The medium (a marker object at the bucket root) is this port's own concern, so callers
+    // ask by project id and never build storage keys themselves. Read-only; we never write the marker.
+    async verifyOwnership(destination: StorageDestination, projectId: string): Promise<boolean> {
+        const marker = OwnershipMarker.forProject(projectId);
+
+        return (await this.get(destination, marker.value())) !== null;
+    }
 }

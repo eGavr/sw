@@ -24,13 +24,15 @@ export type StorageDestinationProbe = {
 
 // The key of the tiny marker the probe writes to prove real write access under our delegated identity —
 // a bucket that does not exist or a policy that does not grant us access fails here, not silently at the
-// next session's upload.
+// next session's upload. Deliberately NOT under the `sw-verify/` prefix, so no write path our identity
+// performs can ever forge an ownership marker.
 const probeKey = ".sw-connectivity-check";
 
-// Verifies the configured storage destination actually works: writes a tiny marker under our identity
-// and reports success or the backend's error. Never throws on a storage failure — a broken destination
-// is the expected answer, returned as `{ ok: false, message }`. The S3 client is bounded (fast connect
-// timeout, few retries), so a wrong endpoint fails in seconds, not minutes.
+// Verifies the configured storage destination is usable: (1) we can actually write under our delegated
+// identity (write-probe), and (2) the bucket carries THIS project's ownership marker object — proof the
+// bucket's owner authorised this project (naming someone else's bucket fails here: it has no marker for
+// this project and only its owner could place one). Never throws on a storage failure — a broken or
+// unverified destination is the expected answer, returned as `{ ok: false, message }`.
 @Injectable()
 export class TestProjectStorageDestinationUseCase {
     private readonly permissionName = UserPermissionName.StorageDestination.Set;
@@ -48,7 +50,8 @@ export class TestProjectStorageDestinationUseCase {
 
         await this.accessControl.authorize(user, project, this.permissionName);
 
-        const destination = await this.storageDestinationRepository.find(ProjectId.fromString(project.id));
+        const projectId = ProjectId.fromString(project.id);
+        const destination = await this.storageDestinationRepository.find(projectId);
 
         if (!destination) {
             throw new NotFoundResourceError(`projects/${params.projectId}/storageDestination`);
@@ -60,6 +63,11 @@ export class TestProjectStorageDestinationUseCase {
                 destination.keyFor(probeKey),
                 { body: Buffer.from("sw"), contentType: "text/plain" },
             );
+
+            // Read-only ownership check — the gateway knows where the marker lives, we just ask by project.
+            if (!await this.objectStorageGateway.verifyOwnership(destination, project.id)) {
+                return { ok: false, message: "bucket is not ownership-verified for this project" };
+            }
 
             return { ok: true };
         } catch (error) {

@@ -17,6 +17,7 @@ class RecordingVmProvisioner extends VmProvisioner {
     created: Array<VmInstanceOptions> = [];
     deleted: Array<{ name: string; folderId?: string }> = [];
     probedFolders: Array<string | undefined> = [];
+    labelsByFolder: Record<string, Record<string, string>> = {};
 
     async createInstance(options: VmInstanceOptions): Promise<void> {
         this.created.push(options);
@@ -30,6 +31,10 @@ class RecordingVmProvisioner extends VmProvisioner {
         this.probedFolders.push(folderId);
 
         return { reachable: true };
+    }
+
+    async folderLabels(folderId: string): Promise<Record<string, string>> {
+        return this.labelsByFolder[folderId] ?? {};
     }
 }
 
@@ -107,5 +112,22 @@ describe("BrowserVmEnvironmentProviderGateway", () => {
 
         expect(compute.deleted).toEqual([{ name: `sw-env-${environment.id}`, folderId: "b1guser" }]);
         expect(compute.probedFolders).toEqual(["b1guser"]);
+    });
+
+    test("verifies ownership only when the folder carries THIS project's marker", async () => {
+        const compute = new RecordingVmProvisioner();
+        const gateway = new BrowserVmEnvironmentProviderGateway(compute, config, agentTokens);
+        const projectId = delegatedAccount.projectId.getValue();
+
+        // No marker → not verified.
+        expect((await gateway.verifyOwnership(delegatedAccount, binding)).verified).toBe(false);
+
+        // Another project's marker on the folder does NOT authorise this project.
+        compute.labelsByFolder["b1guser"] = { "sw-verify-00000000-0000-0000-0000-000000000000": "" };
+        expect((await gateway.verifyOwnership(delegatedAccount, binding)).verified).toBe(false);
+
+        // This project's marker → verified.
+        compute.labelsByFolder["b1guser"] = { [`sw-verify-${projectId}`]: "" };
+        expect((await gateway.verifyOwnership(delegatedAccount, binding)).verified).toBe(true);
     });
 });

@@ -83,6 +83,15 @@ export class YandexComputeClient extends VmProvisioner {
         }
     }
 
+    // The folder's labels (read-only). resource-manager.viewer lets us read them but not write, so the
+    // per-project ownership marker among them can only have been placed by the folder's owner.
+    async folderLabels(folderId: string): Promise<Record<string, string>> {
+        const out = await this.run(["resource-manager", "folder", "get", "--id", folderId, "--format", "json"]);
+        const parsed = JSON.parse(out) as { labels?: Record<string, string> };
+
+        return parsed.labels ?? {};
+    }
+
     private async exec(args: Array<string>, folderId?: string): Promise<string> {
         const folder = folderId ?? this.folderId;
         const folderArgs = folder ? ["--folder-id", folder] : [];

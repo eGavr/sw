@@ -13,15 +13,18 @@ import { toExecution } from "../../../domain/entities/environment/execution";
 import { defaultHeartbeatFreshnessMs } from "../../../domain/entities/environment/heartbeat-freshness";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
 import { ConflictError } from "../../../domain/entities/error/conflict-error";
+import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { Session } from "../../../domain/entities/session/session";
 import { SessionOwnership } from "../../../domain/entities/session/session-ownership";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
+import { ObjectStorageGateway } from "../../interfaces/gateways/object-storage-gateway";
 import { WebDriverSessionGateway, WebDriverSessionOptions } from "../../interfaces/gateways/webdriver-session-gateway";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { SessionOwnershipRepository } from "../../interfaces/repositories/session-ownership-repository";
+import { StorageDestinationRepository } from "../../interfaces/repositories/storage-destination-repository";
 import { AccessControl } from "../../services/access-control";
 
 // How long allocation keeps retrying a transient shortage, and how long it waits between attempts.
@@ -72,6 +75,8 @@ export class CreateSessionUseCase {
         private readonly environmentRepository: EnvironmentRepository,
         private readonly sessionOwnershipRepository: SessionOwnershipRepository,
         private readonly webDriverSessionGateway: WebDriverSessionGateway,
+        private readonly storageDestinationRepository: StorageDestinationRepository,
+        private readonly objectStorageGateway: ObjectStorageGateway,
         private readonly retry: SessionAllocationRetry,
     ) {}
 
@@ -82,6 +87,14 @@ export class CreateSessionUseCase {
         await this.accessControl.authorize(user, project, this.permissionName);
 
         const projectId = ProjectId.fromString(project.id);
+
+        // Logging/video upload artifacts to the project's bucket under our delegated identity. Refuse
+        // unless the bucket carries THIS project's ownership marker — so a project cannot make us write
+        // into a bucket it merely NAMED but does not control.
+        if (params.logging || params.video) {
+            await this.ensureStorageOwned(projectId);
+        }
+
         const requested = RequestedApplication.create(params.application);
 
         const reserved = await this.reserveWithinBudget(projectId, params, requested);
@@ -99,6 +112,24 @@ export class CreateSessionUseCase {
         }));
 
         return session;
+    }
+
+    // The project's storage bucket must carry this project's ownership marker before we write artifacts
+    // into it — read-only proof the bucket's owner authorised this project (we never write the marker).
+    private async ensureStorageOwned(projectId: ProjectId): Promise<void> {
+        const destination = await this.storageDestinationRepository.find(projectId);
+
+        if (!destination) {
+            throw new InvalidArgumentError(
+                "session logging/video requires a storage bucket configured for the project",
+            );
+        }
+
+        if (!await this.objectStorageGateway.verifyOwnership(destination, projectId.getValue())) {
+            throw new InvalidArgumentError(
+                "storage bucket is not ownership-verified for this project: add its ownership marker object",
+            );
+        }
     }
 
     // Keep trying to reserve a matching environment until one is taken or the budget runs out. A
