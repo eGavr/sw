@@ -216,7 +216,7 @@ describe("/projects/:project/environments", () => {
                 .expect((response) => expect(response.body.error.status).toBe("RESOURCE_EXHAUSTED"));
         });
 
-        test("refuses to write a quota above the install ceiling into the binding", async () => {
+        test("refuses to write a quota above the install max into the binding", async () => {
             const owner = Authorization.forUser(UserFactory.createId());
             const { body } = await request(app.getHttpServer())
                 .post("/projects")
@@ -236,7 +236,7 @@ describe("/projects/:project/environments", () => {
                     platform: "linux",
                     execution: "container",
                     kind: "docker",
-                    config: { maxEnvironments: 999 },
+                    config: { maxEnvironments: 1001 },
                 })
                 .expect(HttpStatus.BAD_REQUEST);
         });

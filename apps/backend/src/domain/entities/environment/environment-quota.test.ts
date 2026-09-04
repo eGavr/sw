@@ -11,7 +11,7 @@ describe("EnvironmentQuota", () => {
         expect(EnvironmentQuota.fromBindingConfig({ maxEnvironments: "junk" }, policy).limit).toBe(5);
     });
 
-    test("a binding may widen its own quota, clamped by the install ceiling", () => {
+    test("a binding may widen its own quota, clamped by the install max", () => {
         expect(EnvironmentQuota.fromBindingConfig({ maxEnvironments: 20 }, policy).limit).toBe(20);
         expect(EnvironmentQuota.fromBindingConfig({ maxEnvironments: 999 }, policy).limit).toBe(50);
     });
