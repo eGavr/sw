@@ -218,7 +218,7 @@ describe("host-pool placement (local byo route)", () => {
             "SELECT provider_context FROM pool_host WHERE id = $1",
             [host?.id],
         ) as Array<{ provider_context: Record<string, unknown> }>;
-        expect(row.provider_context).toEqual({ hostProvider: "byo" });
+        expect(row.provider_context).toEqual({ cloud: "local" });
     });
 
     test("the operator's agent registers the machine and receives the desired seats", async () => {

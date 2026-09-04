@@ -5,20 +5,17 @@ import { HostTokenService } from "../../../application/interfaces/host-token-ser
 import { Logger } from "../../logging/logger";
 
 import { ByoHostProvider } from "./byo-host/byo-host-provider";
-import {
-    RoutingHostProviderGateway,
-    byoHostProviderKey,
-    yandexBaremetalHostProviderKey,
-} from "./routing-host-provider-gateway";
+import { RoutingHostProviderGateway } from "./routing-host-provider-gateway";
 import { YandexBaremetalClient } from "./yandex-baremetal/yandex-baremetal-client";
 import { YandexBaremetalHostProvider } from "./yandex-baremetal/yandex-baremetal-host-provider";
 
 // Fallback callback-API port when INTERNAL_PORT is unset; the env files always set it to 3002.
 const defaultInternalCallbackPort = 3002;
 
-// Every host provider of this install, behind one routed port: yandex-baremetal leases real machines
-// in the binding's folder, byo is the operator's own machines attached by hand (dev Macs, lab boxes).
-// A new cloud with big machines plugs in here — the pool code never changes.
+// Where each cloud's big machines come from, behind one routed port keyed by CLOUD TYPE (no
+// vocabulary of its own): yandex-cloud leases metal in the binding's folder, local is the operator's
+// own machines attached by hand (dev Macs, lab boxes). Adapter classes are named by mechanism and
+// reusable — a new cloud with big machines adds an entry here, the pool code never changes.
 export const HostProviderGatewayProvider = {
     provide: HostProviderGateway,
     useFactory: (
@@ -31,7 +28,7 @@ export const HostProviderGatewayProvider = {
             ?? `http://127.0.0.1:${internalPort}`;
 
         return new RoutingHostProviderGateway(new Map<string, HostProviderGateway>([
-            [yandexBaremetalHostProviderKey, new YandexBaremetalHostProvider(
+            ["yandex-cloud", new YandexBaremetalHostProvider(
                 new YandexBaremetalClient(configService.get<string>("COMPUTE_BAREMETAL_FOLDER_ID")),
                 {
                     configurationId: configService.get<string>("COMPUTE_BAREMETAL_CONFIGURATION_ID") ?? "",
@@ -41,7 +38,7 @@ export const HostProviderGatewayProvider = {
                 },
                 hostTokens,
             )],
-            [byoHostProviderKey, new ByoHostProvider(hostTokens, internalUrl, logger)],
+            ["local", new ByoHostProvider(hostTokens, internalUrl, logger)],
         ]));
     },
     inject: [ConfigService, HostTokenService, Logger],

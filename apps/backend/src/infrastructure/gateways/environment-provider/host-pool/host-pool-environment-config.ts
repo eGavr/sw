@@ -2,8 +2,6 @@
 // agent needs to call home. There is no machine cap here on purpose: the spend limit is the binding's
 // ENVIRONMENT quota, and the machine budget derives from it (ceil(quota / slotsPerHost)).
 export type HostPoolEnvironmentConfig = {
-    // Which host provider this route's machines come from (the routing key inside provider contexts).
-    hostProviderKey: string;
     // Seats per machine. Set from the leased configuration's size (e.g. 48 cores / 4 per emulator = 12);
     // the domain caps it at the adb-imposed 16 regardless.
     slotsPerHost: number;
@@ -14,7 +12,6 @@ export type HostPoolEnvironmentConfig = {
 };
 
 export type BuildHostPoolEnvironmentConfigOptions = {
-    hostProviderKey: string;
     slotsPerHost: number;
     defaultAndroidVersion: string;
     internalUrl: string;
@@ -34,7 +31,6 @@ export function buildHostPoolEnvironmentConfig(
     options: BuildHostPoolEnvironmentConfigOptions,
 ): HostPoolEnvironmentConfig {
     return {
-        hostProviderKey: options.hostProviderKey,
         slotsPerHost: options.slotsPerHost,
         avdName: (platformVersion: string): string => toAvdName(platformVersion, options.defaultAndroidVersion),
         internalUrl: options.internalUrl,

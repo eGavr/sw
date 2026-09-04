@@ -9,19 +9,17 @@ import {
 import { InternalError } from "../../../domain/entities/error/internal-error";
 import { PoolHost } from "../../../domain/entities/host-pool/pool-host";
 
-// The routing discriminator inside the otherwise-opaque provider context/config. The bridge stamps it
-// when placing (and probing), every host row carries it in providerContext from birth — so any later
-// call (return, orphan sweep) still knows which cloud the machine belongs to, even if the binding is
-// long gone.
-export const hostProviderContextKey = "hostProvider";
+// The routing discriminator inside the otherwise-opaque provider context/config: the CLOUD TYPE the
+// machines come from — no vocabulary of its own, clouds are already the "who provides resources"
+// axis. The bridge stamps it from the binding's cloud account when placing (and probing), every host
+// row carries it in providerContext from birth — so any later call (return, orphan sweep) still knows
+// a machine's cloud even after the binding is gone.
+export const hostProviderCloudKey = "cloud";
 
-// Bring-your-own-host: pre-existing machines the operator attaches by hand (dev Macs, lab boxes).
-export const byoHostProviderKey = "byo";
-export const yandexBaremetalHostProviderKey = "yandex-baremetal";
-
-// One HostProviderGateway over many clouds-with-big-machines, dispatching by the context's provider
-// key — the pool's use cases stay single-ported and never learn which cloud a machine lives in
-// (mirrors RoutingEnvironmentProviderGateway).
+// One HostProviderGateway over many clouds-with-big-machines, dispatching by the context's cloud type
+// — the pool's use cases stay single-ported and never learn which cloud a machine lives in (mirrors
+// RoutingEnvironmentProviderGateway). Adapter CLASSES are named by mechanism (byo, yandex-baremetal)
+// and reusable: a future cloud type may plug an existing class under its own key.
 export class RoutingHostProviderGateway extends HostProviderGateway {
     constructor(private readonly providers: Map<string, HostProviderGateway>) {
         super();
@@ -48,11 +46,11 @@ export class RoutingHostProviderGateway extends HostProviderGateway {
     }
 
     private at(config: HostProviderConfig): HostProviderGateway {
-        const key = config[hostProviderContextKey];
-        const provider = typeof key === "string" ? this.providers.get(key) : undefined;
+        const cloud = config[hostProviderCloudKey];
+        const provider = typeof cloud === "string" ? this.providers.get(cloud) : undefined;
 
         if (!provider) {
-            throw new InternalError(`host provider: ${String(key)}: unknown`);
+            throw new InternalError(`host provider: no machines source for cloud ${String(cloud)}`);
         }
 
         return provider;
