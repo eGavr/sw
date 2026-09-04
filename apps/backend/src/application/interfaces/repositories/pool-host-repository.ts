@@ -21,10 +21,16 @@ export abstract class PoolHostRepository {
     // when the host is gone. The lock/tx are the data source's job.
     abstract with(hostId: PoolHostId, mutate: (host: PoolHost) => void): Promise<PoolHost | null>;
 
-    // Atomically claim the pool's fullest host that still has a free seat and run `mutate` (e.g.
-    // host.place(...)) on it; null when every machine is full or gone — the caller orders a new one.
-    // Fullest-first consolidates seats so empty machines can be returned to the cloud.
-    abstract withMostLoadedPlaceable(poolKey: HostPoolKey, mutate: (host: PoolHost) => void): Promise<PoolHost | null>;
+    // Atomically seat a workload in the pool: `mutate` runs on the fullest placeable host, else the
+    // pool persists the host `build` returns (already seated) — serialised per pool, so concurrent
+    // placers can never order surplus machines. Null when every machine is full and the pool is at its
+    // cap. Fullest-first consolidates seats so empty machines can be returned to the cloud.
+    abstract placeOrCreate(
+        poolKey: HostPoolKey,
+        mutate: (host: PoolHost) => void,
+        build: () => PoolHost,
+        maxHosts: number,
+    ): Promise<{ host: PoolHost; created: boolean } | null>;
 
     abstract save(host: PoolHost): Promise<void>;
 

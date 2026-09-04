@@ -1,9 +1,10 @@
 import { BadRequestException, MiddlewareConsumer, Module, NestModule, RequestMethod, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
+import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { raw } from "express";
 
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
+import { PoolHostRepository } from "../../../application/interfaces/repositories/pool-host-repository";
 import {
     SessionOwnershipRepository,
 } from "../../../application/interfaces/repositories/session-ownership-repository";
@@ -16,11 +17,17 @@ import {
 import {
     UploadSessionVideoUseCase,
 } from "../../../application/use-cases/environments/upload-session-video-use-case";
+import {
+    RecordHostHeartbeatUseCase,
+} from "../../../application/use-cases/host-pool/record-host-heartbeat-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import {
     AgentTokenServiceProvider,
 } from "../../../infrastructure/agent-token/agent-token-service-provider";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
+import {
+    PoolHostDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/pool-host-data-source";
 import {
     SessionOwnershipDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/session-ownership-data-source";
@@ -31,8 +38,12 @@ import { PostgresModule } from "../../../infrastructure/data-sources/database/po
 import {
     ObjectStorageGatewayProvider,
 } from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
+import {
+    HostTokenServiceProvider,
+} from "../../../infrastructure/host-token/host-token-service-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
+import { PoolHostRepositoryImpl } from "../../../infrastructure/repositories/pool-host-repository-impl";
 import {
     SessionOwnershipRepositoryImpl,
 } from "../../../infrastructure/repositories/session-ownership-repository-impl";
@@ -48,7 +59,9 @@ import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { InternalAgentController } from "./controllers/agent/agent-controller";
 import { InternalEnvironmentsController } from "./controllers/environments/environments-controller";
+import { InternalPoolHostsController } from "./controllers/pool-hosts/pool-hosts-controller";
 import { InternalAgentTokenGuard } from "./guards/internal-agent-token-guard";
+import { InternalHostTokenGuard } from "./guards/internal-host-token-guard";
 
 @Module({
     imports: [
@@ -61,29 +74,35 @@ import { InternalAgentTokenGuard } from "./guards/internal-agent-token-guard";
     controllers: [
         InternalEnvironmentsController,
         InternalAgentController,
+        InternalPoolHostsController,
     ],
     providers: [
         RecordEnvironmentHeartbeatUseCase,
         UploadSessionLogsUseCase,
         UploadSessionVideoUseCase,
+        RecordHostHeartbeatUseCase,
 
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
+        { provide: PoolHostRepository, useClass: PoolHostRepositoryImpl },
         StorageDestinationRepositoryProvider,
         ObjectStorageGatewayProvider,
 
         EnvironmentDataSource,
         SessionOwnershipDataSource,
         StorageDestinationDataSource,
+        PoolHostDataSource,
         AgentTokenServiceProvider,
+        HostTokenServiceProvider,
+
+        // Two token audiences guard two caller kinds: environment agents (their controllers) and host
+        // agents (the hosts controller); each controller declares its guard, there is no global one.
+        InternalAgentTokenGuard,
+        InternalHostTokenGuard,
 
         // A session id is a capability secret; mask it out of request logs (session log/video upload routes).
         { provide: UrlRedactions, useValue: [sessionIdUrlRedaction] },
 
-        {
-            provide: APP_GUARD,
-            useClass: InternalAgentTokenGuard,
-        },
         {
             provide: APP_FILTER,
             useClass: AipExceptionFilter,

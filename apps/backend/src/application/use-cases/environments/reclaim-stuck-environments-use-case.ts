@@ -2,13 +2,17 @@ import { Injectable } from "@nestjs/common";
 
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentState } from "../../../domain/entities/environment/environment-state";
-import { StuckProvisioningCriteria } from "../../../domain/entities/environment/stuck-provisioning-criteria";
+import {
+    PreparingTimeoutOverride,
+    StuckProvisioningCriteria,
+} from "../../../domain/entities/environment/stuck-provisioning-criteria";
 import { EnvironmentProviderGateway } from "../../interfaces/gateways/environment-provider-gateway";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
 
 export type ReclaimStuckEnvironmentsParams = {
     readonly startingTimeoutMs: number;
     readonly preparingTimeoutMs: number;
+    readonly preparingTimeoutOverrides?: ReadonlyArray<PreparingTimeoutOverride>;
     readonly maxAttempts: number;
 };
 
@@ -24,10 +28,14 @@ export class ReclaimStuckEnvironmentsUseCase {
     ) {}
 
     async execute(params: ReclaimStuckEnvironmentsParams): Promise<void> {
-        const criteria = StuckProvisioningCriteria.from(new Date(), {
-            startingMs: params.startingTimeoutMs,
-            preparingMs: params.preparingTimeoutMs,
-        });
+        const criteria = StuckProvisioningCriteria.from(
+            new Date(),
+            {
+                startingMs: params.startingTimeoutMs,
+                preparingMs: params.preparingTimeoutMs,
+            },
+            params.preparingTimeoutOverrides ?? [],
+        );
 
         const stuck = await this.environmentRepository.listStuckProvisioning(criteria);
 

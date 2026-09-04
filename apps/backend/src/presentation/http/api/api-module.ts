@@ -12,6 +12,7 @@ import { EnvironmentRepository } from "../../../application/interfaces/repositor
 import {
     NetBridgeCredentialRepository,
 } from "../../../application/interfaces/repositories/net-bridge-credential-repository";
+import { PoolHostRepository } from "../../../application/interfaces/repositories/pool-host-repository";
 import { ProjectRepository } from "../../../application/interfaces/repositories/project-repository";
 import {
     SessionOwnershipRepository,
@@ -50,6 +51,8 @@ import { CreateEnvironmentUseCase } from "../../../application/use-cases/environ
 import { DeleteEnvironmentUseCase } from "../../../application/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../application/use-cases/environments/get-environment-use-case";
 import { ListEnvironmentsUseCase } from "../../../application/use-cases/environments/list-environments-use-case";
+import { PlaceWorkloadUseCase } from "../../../application/use-cases/host-pool/place-workload-use-case";
+import { ReleaseWorkloadUseCase } from "../../../application/use-cases/host-pool/release-workload-use-case";
 import {
     CreateNetBridgeCredentialUseCase,
 } from "../../../application/use-cases/net-bridge-credentials/create-net-bridge-credential-use-case";
@@ -104,6 +107,9 @@ import { EnvironmentDataSource } from "../../../infrastructure/data-sources/data
 import {
     NetBridgeCredentialDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/net-bridge-credential-data-source";
+import {
+    PoolHostDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/pool-host-data-source";
 import { ProjectDataSource } from "../../../infrastructure/data-sources/database/postgres/project-data-source";
 import {
     SessionOwnershipDataSource,
@@ -120,18 +126,23 @@ import {
     RegisteredCloudCatalogProvider,
 } from "../../../infrastructure/gateways/environment-provider/registered-cloud-catalog-provider";
 import {
+    HostProviderGatewayProvider,
+} from "../../../infrastructure/gateways/host-provider/host-provider-gateway-provider";
+import {
     ObjectStorageGatewayProvider,
 } from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
 import { WebDriverClient } from "../../../infrastructure/gateways/webdriver-session/webdriver-client";
 import {
     WebDriverSessionGatewayImpl,
 } from "../../../infrastructure/gateways/webdriver-session/webdriver-session-gateway-impl";
+import { HostTokenServiceProvider } from "../../../infrastructure/host-token/host-token-service-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { CloudAccountRepositoryImpl } from "../../../infrastructure/repositories/cloud-account-repository-impl";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import {
     NetBridgeCredentialRepositoryImpl,
 } from "../../../infrastructure/repositories/net-bridge-credential-repository-impl";
+import { PoolHostRepositoryImpl } from "../../../infrastructure/repositories/pool-host-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
 import {
     SessionOwnershipRepositoryImpl,
@@ -240,11 +251,19 @@ import {
         // identity; the gateway needs the agent-token service to construct (it is not used by the probe).
         EnvironmentProviderGatewayProvider,
         AgentTokenServiceProvider,
+        // The baremetal route's construction chain: the routed gateway holds the host-pool bridge,
+        // which drives the pool use cases over their repository and host provider.
+        PlaceWorkloadUseCase,
+        ReleaseWorkloadUseCase,
+        { provide: PoolHostRepository, useClass: PoolHostRepositoryImpl },
+        HostProviderGatewayProvider,
+        HostTokenServiceProvider,
 
         ProjectDataSource,
         EnvironmentDataSource,
         CloudAccountDataSource,
         NetBridgeCredentialDataSource,
+        PoolHostDataSource,
         SessionOwnershipDataSource,
         WebDriverClient,
         StorageDestinationDataSource,

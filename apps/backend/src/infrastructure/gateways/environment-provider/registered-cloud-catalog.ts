@@ -44,6 +44,16 @@ function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArr
     const kubernetesGrants: Array<CloudGrant> = identity
         ? [{ role: "k8s.cluster-api.editor", serviceAccountId: identity }]
         : [];
+    // The baremetal kind leases whole physical servers in the user's folder and slices them into
+    // emulator slots. TODO(s4-verify): confirm the exact editor role name against a real BareMetal
+    // order before the live run.
+    const baremetalGrants: Array<CloudGrant> = identity
+        ? [
+            { role: "baremetal.editor", serviceAccountId: identity },
+            { role: "vpc.user", serviceAccountId: identity },
+            { role: "resource-manager.viewer", serviceAccountId: identity },
+        ]
+        : [];
 
     return new Map<string, ReadonlyArray<SubstrateOffer>>([
         // The machine sw itself runs on, driven through its docker daemon — one configless kind, and the
@@ -54,12 +64,21 @@ function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArr
                 compute: [{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }],
             },
         ]],
-        // android/emulator has an adapter but is not offered until verified on real KVM hardware.
         ["yandex-cloud", [
             {
                 stereotype: new Stereotype("android", Execution.Container),
                 compute: [{
                     kind: "vm", requiredConfig: [folderIdRequirement], grants: vmGrants,
+                    ownershipProof: "folder-label",
+                }],
+            },
+            {
+                stereotype: new Stereotype("android", Execution.Emulator),
+                // QEMU needs /dev/kvm and standard YC VMs expose no nested virt, so the emulator runs
+                // on leased bare-metal servers sliced into slots (the pool is our internals — the kind
+                // names the substrate).
+                compute: [{
+                    kind: "baremetal", requiredConfig: [folderIdRequirement], grants: baremetalGrants,
                     ownershipProof: "folder-label",
                 }],
             },

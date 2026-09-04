@@ -126,6 +126,8 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         const predicates = criteria.toPredicates().map((predicate) => ({
             state: predicate.state,
             cutoff: predicate.cutoff,
+            computeKind: predicate.computeKind,
+            excludeComputeKinds: predicate.excludeComputeKinds ? [...predicate.excludeComputeKinds] : undefined,
         }));
 
         const data = await this.environmentDataSource.findByStateUpdatedBefore(predicates);

@@ -21,6 +21,9 @@ import {
     ReleaseStaleReservationsUseCase,
 } from "../../application/use-cases/environments/release-stale-reservations-use-case";
 import { defaultHeartbeatFreshnessMs } from "../../domain/entities/environment/heartbeat-freshness";
+import {
+    PreparingTimeoutOverride,
+} from "../../domain/entities/environment/stuck-provisioning-criteria";
 import { Logger } from "../../infrastructure/logging/logger";
 
 const channel = "environment_work";
@@ -43,6 +46,25 @@ const defaultFailedTtlMs = 3_600_000;
 const defaultReservationSweepIntervalMs = 3_000;
 const defaultReservationStalenessMs = 10_000;
 
+// Per-kind preparing leases, e.g. WORKER_PREPARING_TIMEOUTS="baremetal=2700000": a physical machine is
+// handed over in minutes, not the seconds the default lease assumes. Malformed entries fail fast.
+function parsePreparingTimeouts(configured: string | undefined): ReadonlyArray<PreparingTimeoutOverride> {
+    if (!configured) {
+        return [];
+    }
+
+    return configured.split(",").map((entry) => {
+        const [kind, timeout] = entry.split("=").map((part) => part.trim());
+        const preparingMs = Number(timeout);
+
+        if (!kind || !Number.isFinite(preparingMs) || preparingMs <= 0) {
+            throw new Error(`WORKER_PREPARING_TIMEOUTS: malformed entry "${entry}" (want kind=milliseconds)`);
+        }
+
+        return { kind, preparingMs };
+    });
+}
+
 // Presentation runtime of the worker: holds a raw pg LISTEN connection (the doorbell) and, on each
 // wakeup, drives the use cases. It does no SQL/locks itself — that lives in the data source; the
 // notification is just a dumb broadcast, so N workers can all wake and the atomic claim de-dupes them.
@@ -58,6 +80,7 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     private readonly reaperIntervalMs: number;
     private readonly startingTimeoutMs: number;
     private readonly preparingTimeoutMs: number;
+    private readonly preparingTimeoutOverrides: ReadonlyArray<PreparingTimeoutOverride>;
     private readonly maxAttempts: number;
     private readonly gcIntervalMs: number;
     private readonly freshnessMs: number;
@@ -78,6 +101,9 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         this.reaperIntervalMs = this.number("WORKER_REAPER_INTERVAL_MS", defaultReaperIntervalMs);
         this.startingTimeoutMs = this.number("WORKER_STARTING_TIMEOUT_MS", defaultStartingTimeoutMs);
         this.preparingTimeoutMs = this.number("WORKER_PREPARING_TIMEOUT_MS", defaultPreparingTimeoutMs);
+        this.preparingTimeoutOverrides = parsePreparingTimeouts(
+            this.configService.get<string>("WORKER_PREPARING_TIMEOUTS"),
+        );
         this.maxAttempts = this.number("WORKER_PROVISION_MAX_ATTEMPTS", defaultMaxAttempts);
         this.gcIntervalMs = this.number("WORKER_GC_INTERVAL_MS", defaultGcIntervalMs);
         this.freshnessMs = this.number("HEARTBEAT_FRESHNESS_MS", defaultHeartbeatFreshnessMs);
@@ -187,6 +213,7 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
             await this.reclaimStuckEnvironments.execute({
                 startingTimeoutMs: this.startingTimeoutMs,
                 preparingTimeoutMs: this.preparingTimeoutMs,
+                preparingTimeoutOverrides: this.preparingTimeoutOverrides,
                 maxAttempts: this.maxAttempts,
             });
             await this.reclaimCrashedEnvironments.execute({ freshnessMs: this.freshnessMs });

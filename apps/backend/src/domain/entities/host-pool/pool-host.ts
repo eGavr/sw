@@ -3,7 +3,7 @@ import { InvalidArgumentError } from "../error/invalid-argument-error";
 import { InvalidPoolHostStateTransitionError } from "./error/invalid-pool-host-state-transition-error";
 import { PoolHostCapacityExceededError } from "./error/pool-host-capacity-exceeded-error";
 import { PoolHostNotPlaceableError } from "./error/pool-host-not-placeable-error";
-import { HostPlacement, HostPlacementData } from "./host-placement";
+import { HostPlacement, HostPlacementData, WorkloadLaunch } from "./host-placement";
 import { HostPoolKey } from "./host-pool-key";
 import { PoolHostId } from "./pool-host-id";
 import { PoolHostState, placeablePoolHostStates } from "./pool-host-state";
@@ -160,7 +160,7 @@ export class PoolHost {
 
     // Seat an environment on this host. Idempotent per environment (a provisioning retry gets its
     // existing seat back); the lowest free slot index keeps the port ranges dense.
-    place(environmentId: string): HostPlacement {
+    place(environmentId: string, launch: WorkloadLaunch): HostPlacement {
         const existing = this.placementFor(environmentId);
 
         if (existing) {
@@ -178,6 +178,7 @@ export class PoolHost {
         const placement = HostPlacement.create({
             environmentId,
             slotIndex: this.lowestFreeSlotIndex(),
+            launch,
         });
 
         this._placements.push(placement);

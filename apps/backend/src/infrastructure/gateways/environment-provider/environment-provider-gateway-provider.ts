@@ -2,6 +2,9 @@ import { ConfigService } from "@nestjs/config";
 
 import { AgentTokenService } from "../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
+import { HostProviderGateway } from "../../../application/interfaces/gateways/host-provider-gateway";
+import { PlaceWorkloadUseCase } from "../../../application/use-cases/host-pool/place-workload-use-case";
+import { ReleaseWorkloadUseCase } from "../../../application/use-cases/host-pool/release-workload-use-case";
 import { Execution } from "../../../domain/entities/environment/execution";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 
@@ -43,6 +46,15 @@ import {
     DockerEnvironmentConfig,
 } from "./docker/docker-environment-config";
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
+import {
+    buildHostPoolEnvironmentConfig,
+    defaultMaxHosts,
+    defaultPoolAndroidVersion,
+    defaultSlotsPerHost,
+} from "./host-pool/host-pool-environment-config";
+import {
+    HostPoolEnvironmentProviderGateway,
+} from "./host-pool/host-pool-environment-provider-gateway";
 import { KubernetesClient } from "./kubernetes/kubernetes-client";
 import {
     buildKubernetesEnvironmentConfig,
@@ -65,7 +77,13 @@ const defaultWdPort = "3001";
 // the environment's (cloud type, execution), replacing the install-wide COMPUTE_PROVIDER switch.
 export const EnvironmentProviderGatewayProvider = {
     provide: EnvironmentProviderGateway,
-    useFactory: (configService: ConfigService, agentTokens: AgentTokenService): EnvironmentProviderGateway => {
+    useFactory: (
+        configService: ConfigService,
+        agentTokens: AgentTokenService,
+        placeWorkload: PlaceWorkloadUseCase,
+        releaseWorkload: ReleaseWorkloadUseCase,
+        hostProvider: HostProviderGateway,
+    ): EnvironmentProviderGateway => {
         // One backend-agnostic idle timeout (domain policy), translated by each gateway into the node's
         // SE_NODE_SESSION_TIMEOUT — no per-backend copy of the default.
         const idleTimeoutSeconds = resolveSessionIdleTimeout(configService).toSeconds();
@@ -90,6 +108,15 @@ export const EnvironmentProviderGatewayProvider = {
                 androidEmulatorConfig(configService),
                 agentTokens,
             )],
+            // The emulator's real home: whole leased machines sliced into slots (standard YC VMs expose
+            // no /dev/kvm, and one machine per emulator would be absurd waste).
+            [routingKey("yandex-cloud", "android", Execution.Emulator, "baremetal"),
+                new HostPoolEnvironmentProviderGateway(
+                    placeWorkload,
+                    releaseWorkload,
+                    hostProvider,
+                    hostPoolConfig(configService),
+                )],
             [routingKey("yandex-cloud", "linux", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_BROWSER_FOLDER_ID")),
                 browserVmConfig(configService, idleTimeoutSeconds),
@@ -101,7 +128,7 @@ export const EnvironmentProviderGatewayProvider = {
 
         return new RoutingEnvironmentProviderGateway(gateways);
     },
-    inject: [ConfigService, AgentTokenService],
+    inject: [ConfigService, AgentTokenService, PlaceWorkloadUseCase, ReleaseWorkloadUseCase, HostProviderGateway],
 };
 
 // Resolves the one session idle timeout from SESSION_IDLE_TIMEOUT (a positive integer of seconds),
@@ -207,6 +234,21 @@ function browserVmConfig(configService: ConfigService, sessionTimeoutSeconds: nu
         sessionTimeoutSeconds,
         internalUrl: configService.get<string>("COMPUTE_BROWSER_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
     };
+}
+
+// Pool policy for the baremetal route: how a leased machine is sliced and capped. The machines
+// themselves are shaped by the host provider (COMPUTE_BAREMETAL_*).
+function hostPoolConfig(configService: ConfigService): ReturnType<typeof buildHostPoolEnvironmentConfig> {
+    const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
+
+    return buildHostPoolEnvironmentConfig({
+        slotsPerHost: Number(configService.get<string>("HOST_POOL_SLOTS_PER_HOST") ?? String(defaultSlotsPerHost)),
+        maxHosts: Number(configService.get<string>("HOST_POOL_MAX_HOSTS") ?? String(defaultMaxHosts)),
+        defaultAndroidVersion:
+            configService.get<string>("COMPUTE_BAREMETAL_DEFAULT_VERSION") ?? defaultPoolAndroidVersion,
+        internalUrl: configService.get<string>("COMPUTE_BAREMETAL_INTERNAL_URL")
+            ?? `http://127.0.0.1:${internalPort}`,
+    });
 }
 
 function androidEmulatorConfig(configService: ConfigService): AndroidEmulatorEnvironmentConfig {
