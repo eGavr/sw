@@ -7,16 +7,22 @@
 
 ## Предпосылки (один раз)
 
-- Android SDK с эмулятором (`$ANDROID_HOME/emulator/emulator`, `adb` в PATH; дефолтный путь на маке
-  `~/Library/Android/sdk` агент знает сам).
-- AVD c именем по контракту **`sw-android-<версия>`** (версия = `platform.version` окружения):
+- Android SDK с эмулятором (`emulator`, `adb`); слот сам экспортит `ANDROID_HOME`
+  (дефолт `~/Library/Android/sdk`, переопределяется env) и кладёт `platform-tools`/`emulator` в PATH.
+- AVD c именем по контракту **`sw-android-<версия>`** (версия = `platform.version` окружения). На маке
+  `avdmanager` требует JDK 17+ — задать `JAVA_HOME`:
 
   ```bash
   sdkmanager "system-images;android-34;google_apis;arm64-v8a"
-  avdmanager create avd -n sw-android-34 -k "system-images;android-34;google_apis;arm64-v8a"
+  JAVA_HOME=/opt/homebrew/opt/openjdk \
+    avdmanager create avd -n sw-android-34 -k "system-images;android-34;google_apis;arm64-v8a" --device pixel_3a
   ```
 
-- `appium` в PATH (`npm i -g appium && appium driver install uiautomator2`), `node`, `python3`, `curl`.
+- `appium` + драйвер: `npm i -g appium && appium driver install uiautomator2`. **Гоча свежего appium 3.7:**
+  драйвер `uiautomator2` может упасть с `Cannot find module '@appium/logger'` (пакет не хойстится) —
+  лечится `cd ~/.appium/node_modules/appium-uiautomator2-driver && npm i @appium/logger`.
+- `node` и `curl`. **python3 НЕ нужен** — агент парсит JSON и спавнит слоты через `node` (единственный
+  рантайм, который и так обязателен: wd-дверь и Appium — это node).
 - Запущенный локальный стек: api :4000, wd :3001, internal :3002, worker, Postgres.
 
 ## Прогон
