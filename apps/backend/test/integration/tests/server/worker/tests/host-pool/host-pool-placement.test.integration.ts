@@ -35,6 +35,9 @@ import { CloudAccount } from "../../../../../../../src/domain/entities/cloud-acc
 import { CloudAccountId } from "../../../../../../../src/domain/entities/cloud-account/cloud-account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
+import {
+    EnvironmentQuotaPolicy,
+} from "../../../../../../../src/domain/entities/environment/environment-quota";
 import { EnvironmentState } from "../../../../../../../src/domain/entities/environment/environment-state";
 import {
     EnvironmentStateReason,
@@ -108,9 +111,9 @@ describe("host-pool placement (baremetal route)", () => {
     let folderLabels: jest.Mock;
 
     beforeEach(async () => {
-        // Two seats per machine and a one-machine cap keep the packing arithmetic visible in tests.
+        // Two seats per machine keep the packing arithmetic visible; the machine budget derives from
+        // the binding's environment quota (maxEnvironments: 2 → ceil(2/2) = 1 machine).
         process.env.HOST_POOL_SLOTS_PER_HOST = "2";
-        process.env.HOST_POOL_MAX_HOSTS = "1";
         process.env.COMPUTE_BAREMETAL_INTERNAL_URL = "http://cp:3002";
 
         createServer = jest.fn(async (): Promise<void> => undefined);
@@ -145,6 +148,7 @@ describe("host-pool placement (baremetal route)", () => {
                 { provide: CloudAccountRepository, useClass: CloudAccountRepositoryImpl },
                 { provide: PoolHostRepository, useClass: PoolHostRepositoryImpl },
                 { provide: ApplicationLogger, useValue: noopLogger },
+                { provide: EnvironmentQuotaPolicy, useValue: new EnvironmentQuotaPolicy(5, 50) },
                 {
                     provide: HostProviderGateway,
                     useValue: new YandexBaremetalHostProvider(
@@ -174,7 +178,6 @@ describe("host-pool placement (baremetal route)", () => {
 
     afterEach(async () => {
         delete process.env.HOST_POOL_SLOTS_PER_HOST;
-        delete process.env.HOST_POOL_MAX_HOSTS;
         delete process.env.COMPUTE_BAREMETAL_INTERNAL_URL;
         await app.close();
     });
@@ -197,7 +200,7 @@ describe("host-pool placement (baremetal route)", () => {
             platformName: "android",
             execution: Execution.Emulator,
             kind: "baremetal",
-            config: { folderId },
+            config: { folderId, maxEnvironments: 2 },
         });
         await cloudAccountRepository.save(cloudAccount);
 

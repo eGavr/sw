@@ -137,6 +137,9 @@ import {
 } from "../../../infrastructure/gateways/webdriver-session/webdriver-session-gateway-impl";
 import { HostTokenServiceProvider } from "../../../infrastructure/host-token/host-token-service-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
+import {
+    EnvironmentQuotaPolicyProvider,
+} from "../../../infrastructure/quota/environment-quota-policy-provider";
 import { CloudAccountRepositoryImpl } from "../../../infrastructure/repositories/cloud-account-repository-impl";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import {
@@ -251,6 +254,7 @@ import {
         // identity; the gateway needs the agent-token service to construct (it is not used by the probe).
         EnvironmentProviderGatewayProvider,
         AgentTokenServiceProvider,
+        EnvironmentQuotaPolicyProvider,
         // The baremetal route's construction chain: the routed gateway holds the host-pool bridge,
         // which drives the pool use cases over their repository and host provider.
         PlaceWorkloadUseCase,

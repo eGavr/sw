@@ -6,6 +6,7 @@ import { NoActiveCloudAccountError } from "../../../domain/entities/cloud-accoun
 import { Application } from "../../../domain/entities/environment/application/application";
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
 import { Environment } from "../../../domain/entities/environment/environment";
+import { EnvironmentQuota, EnvironmentQuotaPolicy } from "../../../domain/entities/environment/environment-quota";
 import { defaultExecution, toExecution } from "../../../domain/entities/environment/execution";
 import { Platform } from "../../../domain/entities/environment/platform/platform";
 import { ResourceIdConflictError } from "../../../domain/entities/error/resource-id-conflict-error";
@@ -45,6 +46,7 @@ export class CreateEnvironmentUseCase {
         private readonly projectRepository: ProjectRepository,
         private readonly environmentRepository: EnvironmentRepository,
         private readonly cloudAccountRepository: CloudAccountRepository,
+        private readonly quotaPolicy: EnvironmentQuotaPolicy,
     ) {}
 
     async execute({ creds, params }: CreateEnvironmentInput): Promise<Environment> {
@@ -75,15 +77,22 @@ export class CreateEnvironmentUseCase {
             applications: params.applications.map((application) => Application.create(application)),
         });
 
-        return this.environmentRepository.create({
-            resourceId: params.environmentId,
-            projectId,
-            cloudAccountId: CloudAccountId.fromString(cloudAccount.id),
-            cloudType: cloudAccount.type,
-            computeKind: binding.kind,
-            platform: Platform.fromObject(params.platform),
-            execution,
-            applications,
-        });
+        // The binding's quota is enforced right here, synchronously: a request past the limit gets an
+        // immediate 429, not an asynchronous `failed` from the worker.
+        const quota = EnvironmentQuota.fromBindingConfig(binding.config, this.quotaPolicy);
+
+        return this.environmentRepository.create(
+            {
+                resourceId: params.environmentId,
+                projectId,
+                cloudAccountId: CloudAccountId.fromString(cloudAccount.id),
+                cloudType: cloudAccount.type,
+                computeKind: binding.kind,
+                platform: Platform.fromObject(params.platform),
+                execution,
+                applications,
+            },
+            quota.toClaim(cloudAccount.id, params.platform.name, execution),
+        );
     }
 }

@@ -5,6 +5,7 @@ import { EnvironmentProviderGateway } from "../../../application/interfaces/gate
 import { HostProviderGateway } from "../../../application/interfaces/gateways/host-provider-gateway";
 import { PlaceWorkloadUseCase } from "../../../application/use-cases/host-pool/place-workload-use-case";
 import { ReleaseWorkloadUseCase } from "../../../application/use-cases/host-pool/release-workload-use-case";
+import { EnvironmentQuotaPolicy } from "../../../domain/entities/environment/environment-quota";
 import { Execution } from "../../../domain/entities/environment/execution";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 
@@ -48,7 +49,6 @@ import {
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
 import {
     buildHostPoolEnvironmentConfig,
-    defaultMaxHosts,
     defaultPoolAndroidVersion,
     defaultSlotsPerHost,
 } from "./host-pool/host-pool-environment-config";
@@ -83,6 +83,7 @@ export const EnvironmentProviderGatewayProvider = {
         placeWorkload: PlaceWorkloadUseCase,
         releaseWorkload: ReleaseWorkloadUseCase,
         hostProvider: HostProviderGateway,
+        quotaPolicy: EnvironmentQuotaPolicy,
     ): EnvironmentProviderGateway => {
         // One backend-agnostic idle timeout (domain policy), translated by each gateway into the node's
         // SE_NODE_SESSION_TIMEOUT — no per-backend copy of the default.
@@ -116,6 +117,7 @@ export const EnvironmentProviderGatewayProvider = {
                     releaseWorkload,
                     hostProvider,
                     hostPoolConfig(configService),
+                    quotaPolicy,
                 )],
             [routingKey("yandex-cloud", "linux", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_BROWSER_FOLDER_ID")),
@@ -128,7 +130,14 @@ export const EnvironmentProviderGatewayProvider = {
 
         return new RoutingEnvironmentProviderGateway(gateways);
     },
-    inject: [ConfigService, AgentTokenService, PlaceWorkloadUseCase, ReleaseWorkloadUseCase, HostProviderGateway],
+    inject: [
+        ConfigService,
+        AgentTokenService,
+        PlaceWorkloadUseCase,
+        ReleaseWorkloadUseCase,
+        HostProviderGateway,
+        EnvironmentQuotaPolicy,
+    ],
 };
 
 // Resolves the one session idle timeout from SESSION_IDLE_TIMEOUT (a positive integer of seconds),
@@ -243,7 +252,6 @@ function hostPoolConfig(configService: ConfigService): ReturnType<typeof buildHo
 
     return buildHostPoolEnvironmentConfig({
         slotsPerHost: Number(configService.get<string>("HOST_POOL_SLOTS_PER_HOST") ?? String(defaultSlotsPerHost)),
-        maxHosts: Number(configService.get<string>("HOST_POOL_MAX_HOSTS") ?? String(defaultMaxHosts)),
         defaultAndroidVersion:
             configService.get<string>("COMPUTE_BAREMETAL_DEFAULT_VERSION") ?? defaultPoolAndroidVersion,
         internalUrl: configService.get<string>("COMPUTE_BAREMETAL_INTERNAL_URL")

@@ -2,6 +2,11 @@ import { Injectable } from "@nestjs/common";
 
 import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
 import { ComputeBinding, ComputeBindingConfig } from "../../../domain/entities/cloud-account/compute-binding";
+import {
+    EnvironmentQuota,
+    EnvironmentQuotaPolicy,
+    maxEnvironmentsConfigKey,
+} from "../../../domain/entities/environment/environment-quota";
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { CloudCatalog } from "../../interfaces/cloud-catalog";
@@ -35,6 +40,7 @@ export class UpdateComputeBindingUseCase {
         private readonly cloudAccountAccess: CloudAccountAccess,
         private readonly cloudAccountRepository: CloudAccountRepository,
         private readonly cloudCatalog: CloudCatalog,
+        private readonly quotaPolicy: EnvironmentQuotaPolicy,
     ) {}
 
     async execute({ creds, params }: UpdateComputeBindingInput): Promise<{ binding: ComputeBinding; account: CloudAccount }> {
@@ -57,6 +63,8 @@ export class UpdateComputeBindingUseCase {
             kind: params.kind,
             config: params.config,
         });
+
+        EnvironmentQuota.validateConfigured(params.config?.[maxEnvironmentsConfigKey], this.quotaPolicy);
 
         const binding = cloudAccount.rebindCompute(params.bindingId, params.kind, params.config) as ComputeBinding;
 

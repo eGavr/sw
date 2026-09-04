@@ -10,6 +10,10 @@ import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-ac
 import { ComputeBinding } from "../../../../domain/entities/cloud-account/compute-binding";
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../../domain/entities/environment/environment-id";
+import {
+    EnvironmentQuota,
+    EnvironmentQuotaPolicy,
+} from "../../../../domain/entities/environment/environment-quota";
 import { InternalError } from "../../../../domain/entities/error/internal-error";
 import { HostPoolKey } from "../../../../domain/entities/host-pool/host-pool-key";
 import { OwnershipMarker } from "../../../../domain/entities/verification/ownership-marker";
@@ -27,6 +31,7 @@ export class HostPoolEnvironmentProviderGateway extends EnvironmentProviderGatew
         private readonly releaseWorkload: ReleaseWorkloadUseCase,
         private readonly hostProvider: HostProviderGateway,
         private readonly config: HostPoolEnvironmentConfig,
+        private readonly quotaPolicy: EnvironmentQuotaPolicy,
     ) {
         super();
     }
@@ -34,11 +39,15 @@ export class HostPoolEnvironmentProviderGateway extends EnvironmentProviderGatew
     async provision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
         const { cloudAccount: account, binding } = this.boundBinding(environment, cloudAccount);
 
+        // The machine budget derives from the binding's environment quota: enough machines to seat
+        // every environment the quota admits, not one more — the quota is the single spend knob.
+        const quota = EnvironmentQuota.fromBindingConfig(binding.config, this.quotaPolicy);
+
         await this.placeWorkload.execute({
             environmentId: EnvironmentId.fromString(environment.id),
             poolKey: new HostPoolKey(account.id, binding.id),
             capacitySlots: this.config.slotsPerHost,
-            maxHosts: this.config.maxHosts,
+            maxHosts: Math.ceil(quota.limit / this.config.slotsPerHost),
             providerContext: binding.config,
             launch: {
                 avd: this.config.avdName(environment.platform.version),

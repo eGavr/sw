@@ -179,6 +179,69 @@ describe("/projects/:project/environments", () => {
         });
     });
 
+    describe("environment quota (per binding)", () => {
+        // A project whose binding names its own (tiny) quota via the universal maxEnvironments key.
+        const createQuotedProject = async (maxEnvironments: number): Promise<{
+            owner: { authorization: string };
+            projectId: string;
+        }> => {
+            const owner = Authorization.forUser(UserFactory.createId());
+            const { body } = await request(app.getHttpServer())
+                .post("/projects")
+                .set(owner)
+                .send(CreateProjectBody.create())
+                .expect(HttpStatus.CREATED);
+            const { body: account } = await request(app.getHttpServer())
+                .post(`/projects/${body.uid}/cloudAccounts`)
+                .set(owner)
+                .send({ type: "local" })
+                .expect(HttpStatus.CREATED);
+
+            await request(app.getHttpServer())
+                .post(`/projects/${body.uid}/cloudAccounts/${account.uid}/computeBindings`)
+                .set(owner)
+                .send({ platform: "linux", execution: "container", kind: "docker", config: { maxEnvironments } })
+                .expect(HttpStatus.CREATED);
+
+            return { owner, projectId: body.uid };
+        };
+
+        test("refuses creation past the binding's quota with RESOURCE_EXHAUSTED", async () => {
+            const { owner, projectId } = await createQuotedProject(1);
+
+            await createEnvironment(projectId, owner).expect(HttpStatus.CREATED);
+
+            return createEnvironment(projectId, owner)
+                .expect(HttpStatus.TOO_MANY_REQUESTS)
+                .expect((response) => expect(response.body.error.status).toBe("RESOURCE_EXHAUSTED"));
+        });
+
+        test("refuses to write a quota above the install max into the binding", async () => {
+            const owner = Authorization.forUser(UserFactory.createId());
+            const { body } = await request(app.getHttpServer())
+                .post("/projects")
+                .set(owner)
+                .send(CreateProjectBody.create())
+                .expect(HttpStatus.CREATED);
+            const { body: account } = await request(app.getHttpServer())
+                .post(`/projects/${body.uid}/cloudAccounts`)
+                .set(owner)
+                .send({ type: "local" })
+                .expect(HttpStatus.CREATED);
+
+            return request(app.getHttpServer())
+                .post(`/projects/${body.uid}/cloudAccounts/${account.uid}/computeBindings`)
+                .set(owner)
+                .send({
+                    platform: "linux",
+                    execution: "container",
+                    kind: "docker",
+                    config: { maxEnvironments: 1001 },
+                })
+                .expect(HttpStatus.BAD_REQUEST);
+        });
+    });
+
     describe("occupancy (agent's word + heartbeat freshness)", () => {
         // Occupancy is orthogonal to lifecycle: a session never changes `state`, only the agent's
         // heartbeat flips the occupancy word. The heartbeat itself arrives on the internal server, so
