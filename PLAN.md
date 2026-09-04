@@ -1134,3 +1134,8 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 - session reservation/allocation — выглядит строго (CAS + нода-арбитр), перепроверить письменно;
 - любые in-memory кэши/état в presentation (wd severFor — заявлено per-instance by design, ок).
 - per-env VM-пути (browser-vm/redroid/emulator-vm) без полного orphan-sweep: страховка = deprovision на fail-путях + идемпотентность по имени sw-env-<id>; у пула есть sweep по label. Выровнять (label + sweep) при ревизии робастности.
+
+## [BLOCKER ПРОДА] VNC для baremetal-слотов эмуляторов — сделать ДО раскатки в прод
+
+Сейчас слот поднимает только emulator+appium+wd-дверь+env-агент; VNC-конвейера в слоте НЕТ, wd-дверь не роутит se/vnc → на прод-baremetal (headless linux) Live-VNC пустой (сессии/Appium при этом работают). Флаг окна (-no-window) годится только для дев-мака с дисплеем.
+Сделать пер-слотовый VNC переиспользованием проверенного redroid/android-node конвейера: scrcpy (зеркалит adb-девайс, включая эмулятор) → Xvfb → x11vnc → websockify на своём порту (SlotPorts.vnc = 5900+i, добавить в порт-контракт); wd-дверь роутит /session/*/se/vnc → этот websockify. Golden-образ несёт scrcpy/xvfb/x11vnc/websockify. **Прод baremetal НЕ раскатывать, пока этого нет** (иначе у юзера рабочая сессия, но чёрный VNC).
