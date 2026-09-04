@@ -89,6 +89,14 @@ export const EnvironmentProviderGatewayProvider = {
         // SE_NODE_SESSION_TIMEOUT — no per-backend copy of the default.
         const idleTimeoutSeconds = resolveSessionIdleTimeout(configService).toSeconds();
 
+        const hostPoolGateway = new HostPoolEnvironmentProviderGateway(
+            placeWorkload,
+            releaseWorkload,
+            hostProvider,
+            hostPoolConfig(configService),
+            quotaPolicy,
+        );
+
         // Keyed by cloud type x stereotype (platform, execution): the environment carries all three and the
         // routing gateway dispatches here. Each entry is a subdivision of its cloud — the compute kind the
         // cloud provisions that stereotype with (local drives its docker daemon; yandex-cloud creates
@@ -109,16 +117,13 @@ export const EnvironmentProviderGatewayProvider = {
                 androidEmulatorConfig(configService),
                 agentTokens,
             )],
-            // The emulator's real home: whole leased machines sliced into slots (standard YC VMs expose
-            // no /dev/kvm, and one machine per emulator would be absurd waste).
-            [routingKey("yandex-cloud", "android", Execution.Emulator, "baremetal"),
-                new HostPoolEnvironmentProviderGateway(
-                    placeWorkload,
-                    releaseWorkload,
-                    hostProvider,
-                    hostPoolConfig(configService),
-                    quotaPolicy,
-                )],
+            // The emulator's home on both clouds: whole machines sliced into slots (standard YC VMs
+            // expose no /dev/kvm; one machine per emulator would be absurd waste). ONE bridge serves
+            // both routes — it stamps the account's cloud type into every provider call, and the host
+            // provider registry routes by it (yandex-cloud leases metal, local is the operator's own
+            // machine attached by hand).
+            [routingKey("yandex-cloud", "android", Execution.Emulator, "baremetal"), hostPoolGateway],
+            [routingKey("local", "android", Execution.Emulator, "baremetal"), hostPoolGateway],
             [routingKey("yandex-cloud", "linux", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_BROWSER_FOLDER_ID")),
                 browserVmConfig(configService, idleTimeoutSeconds),
@@ -245,8 +250,8 @@ function browserVmConfig(configService: ConfigService, sessionTimeoutSeconds: nu
     };
 }
 
-// Pool policy for the baremetal route: how a leased machine is sliced and capped. The machines
-// themselves are shaped by the host provider (COMPUTE_BAREMETAL_*).
+// Pool policy for the baremetal routes: how a machine is sliced. The machines themselves come from
+// each cloud's host provider (leased via COMPUTE_BAREMETAL_*, or the operator's own byo machine).
 function hostPoolConfig(configService: ConfigService): ReturnType<typeof buildHostPoolEnvironmentConfig> {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 

@@ -17,6 +17,7 @@ import {
 import { InternalError } from "../../../../domain/entities/error/internal-error";
 import { HostPoolKey } from "../../../../domain/entities/host-pool/host-pool-key";
 import { OwnershipMarker } from "../../../../domain/entities/verification/ownership-marker";
+import { hostProviderCloudKey } from "../../host-provider/routing-host-provider-gateway";
 
 import { HostPoolEnvironmentConfig } from "./host-pool-environment-config";
 
@@ -48,7 +49,7 @@ export class HostPoolEnvironmentProviderGateway extends EnvironmentProviderGatew
             poolKey: new HostPoolKey(account.id, binding.id),
             capacitySlots: this.config.slotsPerHost,
             maxHosts: Math.ceil(quota.limit / this.config.slotsPerHost),
-            providerContext: binding.config,
+            providerContext: this.withCloud(binding.config, account),
             launch: {
                 avd: this.config.avdName(environment.platform.version),
                 internalUrl: this.config.internalUrl,
@@ -60,24 +61,23 @@ export class HostPoolEnvironmentProviderGateway extends EnvironmentProviderGatew
         await this.releaseWorkload.execute({ environmentId: EnvironmentId.fromString(environment.id) });
     }
 
-    async checkAccess(_cloudAccount: CloudAccount, binding: ComputeBinding): Promise<CloudReachability> {
-        return this.hostProvider.checkAccess(binding.config);
+    async checkAccess(cloudAccount: CloudAccount, binding: ComputeBinding): Promise<CloudReachability> {
+        return this.hostProvider.checkAccess(this.withCloud(binding.config, cloudAccount));
     }
 
-    // Same ownership gate as every folder-scoped kind: the folder's owner authorises this project by
-    // placing a per-project label we can read but never write.
+    // The bridge only names the project's marker; HOW ownership is proven is the host provider's
+    // business (a folder label on a delegated cloud, nothing at all on the operator's own machine).
     async verifyOwnership(cloudAccount: CloudAccount, binding: ComputeBinding): Promise<OwnershipVerification> {
         const markerKey = OwnershipMarker.forProject(cloudAccount.projectId.getValue()).value();
 
-        try {
-            const labels = await this.hostProvider.ownershipLabels(binding.config);
+        return this.hostProvider.verifyOwnership(this.withCloud(binding.config, cloudAccount), markerKey);
+    }
 
-            return Object.prototype.hasOwnProperty.call(labels, markerKey)
-                ? { verified: true }
-                : { verified: false, detail: `the binding's folder is missing the ownership label ${markerKey}` };
-        } catch (error) {
-            return { verified: false, detail: error instanceof Error ? error.message : String(error) };
-        }
+    // Every provider-bound call carries the account's cloud type inside the otherwise-opaque config —
+    // the machines-source key. Host rows inherit it in providerContext from birth, so return and
+    // orphan sweep always know a machine's cloud even after the binding is gone.
+    private withCloud(config: Record<string, unknown>, cloudAccount: CloudAccount): Record<string, unknown> {
+        return { ...config, [hostProviderCloudKey]: cloudAccount.type };
     }
 
     // A pooled placement is keyed by the binding: without it there is no pool to seat the environment
