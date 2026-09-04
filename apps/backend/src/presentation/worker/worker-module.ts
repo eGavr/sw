@@ -44,6 +44,9 @@ import { HostTokenServiceProvider } from "../../infrastructure/host-token/host-t
 import { Logger } from "../../infrastructure/logging/logger";
 import { LoggerModule } from "../../infrastructure/logging/logger-module";
 import {
+    EnvironmentQuotaPolicyProvider,
+} from "../../infrastructure/quota/environment-quota-policy-provider";
+import {
     CloudAccountRepositoryImpl,
 } from "../../infrastructure/repositories/cloud-account-repository-impl";
 import { EnvironmentRepositoryImpl } from "../../infrastructure/repositories/environment-repository-impl";
@@ -77,6 +80,7 @@ import { EnvironmentWorker } from "./environment-worker";
         CloudAccountDataSource,
         PoolHostDataSource,
         AgentTokenServiceProvider,
+        EnvironmentQuotaPolicyProvider,
         HostTokenServiceProvider,
         HostProviderGatewayProvider,
         EnvironmentProviderGatewayProvider,

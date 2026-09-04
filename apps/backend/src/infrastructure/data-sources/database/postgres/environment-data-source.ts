@@ -12,12 +12,43 @@ import { keysetPage } from "./typeorm/keyset-page";
 export class EnvironmentDataSource {
     constructor(private readonly dataSource: DataSource) {}
 
-    async create(environment: EnvironmentEntity): Promise<void> {
+    // Insert the environment; with a quota claim, count-and-insert run atomically under a per-binding
+    // advisory lock — concurrent creators must see each other's rows, or N of them could each pass a
+    // "one seat left" check. The counted states and the limit arrive ready from the domain claim.
+    async create(
+        environment: EnvironmentEntity,
+        quota?: {
+            cloudAccountId: string;
+            platformName: string;
+            execution: string;
+            countedStates: ReadonlyArray<string>;
+            limit: number;
+        },
+    ): Promise<{ created: boolean; current: number }> {
         const entity = Environment.from(environment);
 
-        await this.dataSource.transaction(async (manager) => {
+        return this.dataSource.transaction(async (manager) => {
+            if (quota) {
+                await manager.query(
+                    "SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))",
+                    [quota.cloudAccountId, `${quota.platformName}:${quota.execution}`],
+                );
+
+                const [{ count }] = (await manager.query(
+                    `SELECT count(*)::int AS count FROM environment
+                     WHERE cloud_account_id = $1 AND platform_name = $2 AND execution = $3 AND state = ANY($4)`,
+                    [quota.cloudAccountId, quota.platformName, quota.execution, quota.countedStates],
+                )) as Array<{ count: number }>;
+
+                if (count >= quota.limit) {
+                    return { created: false, current: count };
+                }
+            }
+
             await manager.getRepository(Environment).save(entity);
             await manager.getRepository(EnvironmentApplication).save(entity.applications);
+
+            return { created: true, current: 0 };
         });
     }
 

@@ -4,6 +4,7 @@ import { FailedPreconditionError } from "../../../domain/entities/error/failed-p
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { NotFoundError } from "../../../domain/entities/error/not-found/not-found-error";
 import { PermissionDeniedError } from "../../../domain/entities/error/permission-denied-error";
+import { ResourceExhaustedError } from "../../../domain/entities/error/resource-exhausted-error";
 import { UnauthenticatedError } from "../../../domain/entities/error/unauthenticated-error";
 
 const rpcStatusByHttpStatus: Record<number, string> = {
@@ -51,6 +52,10 @@ export function domainErrorHttpStatus(error: unknown): number | null {
 
     if (error instanceof ConflictError) {
         return 409;
+    }
+
+    if (error instanceof ResourceExhaustedError) {
+        return 429;
     }
 
     if (error instanceof DomainError) {

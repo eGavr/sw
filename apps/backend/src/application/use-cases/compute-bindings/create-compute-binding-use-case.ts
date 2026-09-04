@@ -4,6 +4,11 @@ import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-accou
 import { CloudAccountList } from "../../../domain/entities/cloud-account/cloud-account-list";
 import { ComputeBinding, ComputeBindingConfig } from "../../../domain/entities/cloud-account/compute-binding";
 import { ComputeBindingConflictError } from "../../../domain/entities/cloud-account/error/compute-binding-conflict-error";
+import {
+    EnvironmentQuota,
+    EnvironmentQuotaPolicy,
+    maxEnvironmentsConfigKey,
+} from "../../../domain/entities/environment/environment-quota";
 import { toExecution } from "../../../domain/entities/environment/execution";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
@@ -37,6 +42,7 @@ export class CreateComputeBindingUseCase {
         private readonly cloudAccountRepository: CloudAccountRepository,
         private readonly cloudCatalog: CloudCatalog,
         private readonly cloudAccountAccess: CloudAccountAccess,
+        private readonly quotaPolicy: EnvironmentQuotaPolicy,
     ) {}
 
     async execute({ creds, params }: CreateComputeBindingInput): Promise<{ binding: ComputeBinding; account: CloudAccount }> {
@@ -49,6 +55,8 @@ export class CreateComputeBindingUseCase {
 
         const execution = toExecution(params.execution);
         const offer = validateOffer(this.cloudCatalog, cloudAccount.type, params);
+
+        EnvironmentQuota.validateConfigured(params.config?.[maxEnvironmentsConfigKey], this.quotaPolicy);
 
         // One binding per substrate ACROSS the project, or provisioning could not pick a connection.
         const connected = await this.cloudAccountRepository.listByProject(project);

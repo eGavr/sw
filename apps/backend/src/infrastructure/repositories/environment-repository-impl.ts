@@ -8,8 +8,12 @@ import { Page, PageRequest } from "../../application/pagination";
 import { CrashedExecutionCriteria } from "../../domain/entities/environment/crashed-execution-criteria";
 import { Environment } from "../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../domain/entities/environment/environment-id";
+import { EnvironmentQuotaClaim } from "../../domain/entities/environment/environment-quota";
 import { EnvironmentState } from "../../domain/entities/environment/environment-state";
 import { EnvironmentNotFoundError } from "../../domain/entities/environment/error/environment-not-found-error";
+import {
+    EnvironmentQuotaExceededError,
+} from "../../domain/entities/environment/error/environment-quota-exceeded-error";
 import { GarbageCollectionCriteria } from "../../domain/entities/environment/garbage-collection-criteria";
 import { SessionAllocationCriteria } from "../../domain/entities/environment/session-allocation-criteria";
 import { StaleReservationCriteria } from "../../domain/entities/environment/stale-reservation-criteria";
@@ -26,10 +30,23 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         super();
     }
 
-    async create(params: CreateEnvironmentParams): Promise<Environment> {
+    async create(params: CreateEnvironmentParams, quota?: EnvironmentQuotaClaim): Promise<Environment> {
         const environment = Environment.create(params);
 
-        await this.environmentDataSource.create(environment);
+        const result = await this.environmentDataSource.create(
+            environment,
+            quota && {
+                cloudAccountId: quota.cloudAccountId,
+                platformName: quota.platformName,
+                execution: quota.execution,
+                countedStates: quota.countedStates,
+                limit: quota.limit,
+            },
+        );
+
+        if (!result.created) {
+            throw new EnvironmentQuotaExceededError(result.current, quota?.limit ?? 0);
+        }
 
         return environment;
     }

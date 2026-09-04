@@ -3,6 +3,7 @@ import { ApplicationList } from "../../../domain/entities/environment/applicatio
 import { CrashedExecutionCriteria } from "../../../domain/entities/environment/crashed-execution-criteria";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
+import { EnvironmentQuotaClaim } from "../../../domain/entities/environment/environment-quota";
 import { EnvironmentState } from "../../../domain/entities/environment/environment-state";
 import { Execution } from "../../../domain/entities/environment/execution";
 import { GarbageCollectionCriteria } from "../../../domain/entities/environment/garbage-collection-criteria";
@@ -25,7 +26,9 @@ export type CreateEnvironmentParams = {
 };
 
 export abstract class EnvironmentRepository {
-    abstract create(params: CreateEnvironmentParams): Promise<Environment>;
+    // With a quota claim, count-and-insert are atomic per binding — creation past the limit throws
+    // EnvironmentQuotaExceededError instead of inserting.
+    abstract create(params: CreateEnvironmentParams, quota?: EnvironmentQuotaClaim): Promise<Environment>;
 
     abstract get(environmentId: EnvironmentId): Promise<Environment>;
 
