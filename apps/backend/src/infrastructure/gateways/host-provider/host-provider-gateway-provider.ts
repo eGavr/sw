@@ -16,8 +16,9 @@ import { YandexBaremetalHostProvider } from "./yandex-baremetal/yandex-baremetal
 // Fallback callback-API port when INTERNAL_PORT is unset; the env files always set it to 3002.
 const defaultInternalCallbackPort = 3002;
 
-// Every host provider of this install, behind one routed port: // in the binding's folder, byo is the operator's own machines attached by hand (dev Macs, lab boxes). A new cloud with
-// big machines plugs in here — the pool code never changes.
+// Every host provider of this install, behind one routed port: yandex-baremetal leases real machines
+// in the binding's folder, byo is the operator's own machines attached by hand (dev Macs, lab boxes).
+// A new cloud with big machines plugs in here — the pool code never changes.
 export const HostProviderGatewayProvider = {
     provide: HostProviderGateway,
     useFactory: (
