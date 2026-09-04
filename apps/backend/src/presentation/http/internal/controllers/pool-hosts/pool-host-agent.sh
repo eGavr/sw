@@ -46,15 +46,22 @@ run_slot() {
 
     slot_pids=""
 
+    # Software rendering (SwiftShader): a metal host is headless and the agent may be a daemon with no
+    # GPU/WindowServer, where hardware/auto GPU probes "UNKNOWN" and the emulator crashes. SwiftShader
+    # needs neither and still renders (headless or into a window). Override with SW_EMULATOR_GPU.
+    gpu_mode="${SW_EMULATOR_GPU:-swiftshader_indirect}"
+
     # Headless by default (a metal host has no display); local dev sets SW_EMULATOR_WINDOW=1 to watch
-    # the emulator in a native window on the machine (there is no per-slot VNC yet).
+    # the emulator in a native window — which only works when the agent runs in a desktop session (your
+    # Terminal), not when the control plane auto-started it as a daemon (no WindowServer). No per-slot
+    # VNC yet.
     window_flag="-no-window"
     [ "${SW_EMULATOR_WINDOW:-}" = "1" ] && window_flag=""
 
-    echo "[slot ${SW_ENVIRONMENT_ID}] starting emulator ${SW_AVD} on console ${SW_CONSOLE_PORT}"
+    echo "[slot ${SW_ENVIRONMENT_ID}] starting emulator ${SW_AVD} on console ${SW_CONSOLE_PORT} (gpu ${gpu_mode})"
     # -read-only lets N instances share one AVD; the console port pins the adb serial to this slot.
     "${emulator_bin}" -avd "${SW_AVD}" -port "${SW_CONSOLE_PORT}" -read-only \
-        ${window_flag} -no-audio -no-boot-anim -no-snapshot &
+        -gpu "${gpu_mode}" -no-audio -no-boot-anim -no-snapshot ${window_flag} &
     slot_pids="${slot_pids} $!"
 
     adb start-server >/dev/null 2>&1 || true
