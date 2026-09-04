@@ -9,7 +9,7 @@ import { EnvironmentQuotaPolicy } from "../../../domain/entities/environment/env
 import { Execution } from "../../../domain/entities/environment/execution";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 import {
-    staticHostProviderKey,
+    byoHostProviderKey,
     yandexBaremetalHostProviderKey,
 } from "../host-provider/routing-host-provider-gateway";
 
@@ -130,7 +130,7 @@ export const EnvironmentProviderGatewayProvider = {
                     placeWorkload,
                     releaseWorkload,
                     hostProvider,
-                    hostPoolConfig(configService, staticHostProviderKey),
+                    hostPoolConfig(configService, byoHostProviderKey),
                     quotaPolicy,
                 )],
             [routingKey("yandex-cloud", "linux", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(

@@ -15,7 +15,8 @@ import { PoolHost } from "../../../domain/entities/host-pool/pool-host";
 // long gone.
 export const hostProviderContextKey = "hostProvider";
 
-export const staticHostProviderKey = "static";
+// Bring-your-own-host: pre-existing machines the operator attaches by hand (dev Macs, lab boxes).
+export const byoHostProviderKey = "byo";
 export const yandexBaremetalHostProviderKey = "yandex-baremetal";
 
 // One HostProviderGateway over many clouds-with-big-machines, dispatching by the context's provider

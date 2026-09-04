@@ -92,10 +92,10 @@ import { UserFactory } from "../../../utils/entities/user/user-factory";
 
 const noopLogger = { log: (): void => undefined, warn: (): void => undefined, error: (): void => undefined };
 
-// The local baremetal route end to end with NOTHING mocked: the static host provider's only external
+// The local baremetal route end to end with NOTHING mocked: the byo host provider's only external
 // system is the operator (a log line), so the whole vertical — routing, bridge, pool, ownership —
 // runs for real against Postgres. This is the CP half of "my Mac is the machine".
-describe("host-pool placement (local static route)", () => {
+describe("host-pool placement (local byo route)", () => {
     let app: INestApplication;
     let dataSource: DataSource;
     let projectRepository: ProjectRepository;
@@ -218,7 +218,7 @@ describe("host-pool placement (local static route)", () => {
             "SELECT provider_context FROM pool_host WHERE id = $1",
             [host?.id],
         ) as Array<{ provider_context: Record<string, unknown> }>;
-        expect(row.provider_context).toEqual({ hostProvider: "static" });
+        expect(row.provider_context).toEqual({ hostProvider: "byo" });
     });
 
     test("the operator's agent registers the machine and receives the desired seats", async () => {

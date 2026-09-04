@@ -4,20 +4,19 @@ import { HostProviderGateway } from "../../../application/interfaces/gateways/ho
 import { HostTokenService } from "../../../application/interfaces/host-token-service";
 import { Logger } from "../../logging/logger";
 
+import { ByoHostProvider } from "./byo-host/byo-host-provider";
 import {
     RoutingHostProviderGateway,
-    staticHostProviderKey,
+    byoHostProviderKey,
     yandexBaremetalHostProviderKey,
 } from "./routing-host-provider-gateway";
-import { StaticHostProvider } from "./static/static-host-provider";
 import { YandexBaremetalClient } from "./yandex-baremetal/yandex-baremetal-client";
 import { YandexBaremetalHostProvider } from "./yandex-baremetal/yandex-baremetal-host-provider";
 
 // Fallback callback-API port when INTERNAL_PORT is unset; the env files always set it to 3002.
 const defaultInternalCallbackPort = 3002;
 
-// Every host provider of this install, behind one routed port: yandex-baremetal leases real machines
-// in the binding's folder, static is the operator's own machine (dev Mac, lab box). A new cloud with
+// Every host provider of this install, behind one routed port: // in the binding's folder, byo is the operator's own machines attached by hand (dev Macs, lab boxes). A new cloud with
 // big machines plugs in here — the pool code never changes.
 export const HostProviderGatewayProvider = {
     provide: HostProviderGateway,
@@ -41,7 +40,7 @@ export const HostProviderGatewayProvider = {
                 },
                 hostTokens,
             )],
-            [staticHostProviderKey, new StaticHostProvider(hostTokens, internalUrl, logger)],
+            [byoHostProviderKey, new ByoHostProvider(hostTokens, internalUrl, logger)],
         ]));
     },
     inject: [ConfigService, HostTokenService, Logger],

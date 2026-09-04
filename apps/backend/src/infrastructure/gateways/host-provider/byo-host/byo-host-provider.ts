@@ -11,7 +11,7 @@ import { Logger } from "../../../logging/logger";
 // is leased or returned: "ordering" a machine means telling the operator to start the host agent on
 // it with the printed credentials; the ordering timeout gives them plenty of time. This is the same
 // pool, bridge and agent protocol as real bare metal — only the lease is a human.
-export class StaticHostProvider extends HostProviderGateway {
+export class ByoHostProvider extends HostProviderGateway {
     constructor(
         private readonly hostTokens: HostTokenService,
         private readonly internalUrl: string,
@@ -26,7 +26,7 @@ export class StaticHostProvider extends HostProviderGateway {
         // The machine cannot receive boot metadata (it already runs), so the hand-over goes through
         // the operator: start the agent with these credentials and the pool proceeds as usual.
         this.logger.log([
-            `static host provider: host ${host.id} ordered — start the host agent on the machine:`,
+            `byo host provider: host ${host.id} ordered — start the host agent on the machine:`,
             `  SW_HOST_ID=${host.id} \\`,
             `  SW_HOST_TOKEN=${token} \\`,
             `  SW_INTERNAL_URL=${this.internalUrl} \\`,
@@ -37,7 +37,7 @@ export class StaticHostProvider extends HostProviderGateway {
     // Nothing to return — the machine is the operator's. Forgetting the row is the whole teardown;
     // the agent on the machine gets 404 on its next check-in and self-fences (stops its slots).
     async deprovision(hostId: string): Promise<void> {
-        this.logger.log(`static host provider: host ${hostId} forgotten (the machine itself stays yours)`);
+        this.logger.log(`byo host provider: host ${hostId} forgotten (the machine itself stays yours)`);
     }
 
     // No cloud to sweep: a machine here exists only while its row does, so there is nothing leased
