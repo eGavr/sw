@@ -1,17 +1,22 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import {
     BadRequestException,
     Controller,
+    Get,
     HttpCode,
     HttpStatus,
     NotFoundException,
     Param,
     Post,
     Req,
+    Res,
     UseGuards,
 } from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 
 import { AgentTokenService } from "../../../../../application/interfaces/agent-token-service";
 import {
@@ -33,10 +38,21 @@ const heartbeatVerb = "heartbeat";
 @Controller("internal/poolHosts")
 @UseGuards(InternalHostTokenGuard)
 export class InternalPoolHostsController {
+    private readonly agentScript = readFileSync(join(__dirname, "pool-host-agent.sh"), "utf8");
+
     constructor(
         private readonly recordHostHeartbeatUseCase: RecordHostHeartbeatUseCase,
         private readonly agentTokens: AgentTokenService,
     ) {}
+
+    // The agent itself is fetched from the control plane (never baked into an image or a machine), so
+    // every check-in generation runs the current protocol. Any valid host token may download it — the
+    // route acts on no specific machine.
+    @Get("agent\\::download")
+    downloadAgent(@Res() response: Response): void {
+        response.setHeader("content-type", "text/x-shellscript");
+        response.send(this.agentScript);
+    }
 
     @Post(":resource")
     @HttpCode(HttpStatus.OK)
