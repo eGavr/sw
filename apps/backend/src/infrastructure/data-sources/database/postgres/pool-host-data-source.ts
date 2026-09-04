@@ -33,6 +33,12 @@ export class PoolHostDataSource {
         return host?.toObject() ?? null;
     }
 
+    async findAll(): Promise<Array<PoolHostData>> {
+        const hosts = await this.dataSource.getRepository(PoolHost).find();
+
+        return hosts.map((host) => host.toObject());
+    }
+
     // The host holding this environment's seat, if any — the release path starts from the environment.
     async findByEnvironment(environmentId: string): Promise<PoolHostData | null> {
         const placement = await this.dataSource.getRepository(HostPlacement).findOne({ where: { environmentId } });

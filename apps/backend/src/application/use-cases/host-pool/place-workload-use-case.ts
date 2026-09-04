@@ -6,6 +6,7 @@ import { WorkloadLaunch } from "../../../domain/entities/host-pool/host-placemen
 import { HostPoolKey } from "../../../domain/entities/host-pool/host-pool-key";
 import { PoolHost, PoolHostProviderContext } from "../../../domain/entities/host-pool/pool-host";
 import { PoolHostId } from "../../../domain/entities/host-pool/pool-host-id";
+import { placeablePoolHostStates } from "../../../domain/entities/host-pool/pool-host-state";
 import { HostProviderGateway } from "../../interfaces/gateways/host-provider-gateway";
 import { PoolHostRepository } from "../../interfaces/repositories/pool-host-repository";
 
@@ -32,11 +33,20 @@ export class PlaceWorkloadUseCase {
     ) {}
 
     async execute(params: PlaceWorkloadParams): Promise<void> {
-        if (await this.poolHostRepository.findByEnvironment(params.environmentId)) {
-            return;
-        }
-
         const environmentId = params.environmentId.getValue();
+        const existing = await this.poolHostRepository.findByEnvironment(params.environmentId);
+
+        if (existing) {
+            if (placeablePoolHostStates.includes(existing.state)) {
+                return;
+            }
+
+            // The seat is on a written-off machine (silent / never arrived): leave the sinking ship —
+            // free the seat there and get seated afresh below.
+            await this.poolHostRepository.with(PoolHostId.fromString(existing.id), (host) => {
+                host.release(environmentId);
+            });
+        }
 
         const seated = await this.poolHostRepository.placeOrCreate(
             params.poolKey,

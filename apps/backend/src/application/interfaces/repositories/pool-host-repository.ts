@@ -32,6 +32,10 @@ export abstract class PoolHostRepository {
         maxHosts: number,
     ): Promise<{ host: PoolHost; created: boolean } | null>;
 
+    // Every machine of every pool — the reconcile sweep's working set (machines are expensive, the
+    // table is small by construction).
+    abstract listAll(): Promise<Array<PoolHost>>;
+
     abstract save(host: PoolHost): Promise<void>;
 
     abstract delete(hostId: PoolHostId): Promise<void>;

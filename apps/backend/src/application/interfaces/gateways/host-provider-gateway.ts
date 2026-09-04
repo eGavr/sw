@@ -17,8 +17,13 @@ export abstract class HostProviderGateway {
     abstract provision(host: PoolHost): Promise<void>;
 
     // Return the machine to the cloud (idempotent: already-gone is success — deprovision must never
-    // leave a machine because it was "too gone to delete").
-    abstract deprovision(host: PoolHost): Promise<void>;
+    // leave a machine because it was "too gone to delete"). Addressed by host id + whereabouts rather
+    // than the aggregate: the orphan sweep returns machines NO pool row knows anymore.
+    abstract deprovision(hostId: string, config: HostProviderConfig): Promise<void>;
+
+    // The ids of every machine currently leased under our label in this location — the orphan sweep's
+    // eyes: a machine labelled ours that no pool row knows is a leak, and leaked metal costs money.
+    abstract listLeasedHostIds(config: HostProviderConfig): Promise<Array<string>>;
 
     // Read-only probes for the binding's availability badge and the per-project ownership gate; both
     // report failure as data, never as an exception.
