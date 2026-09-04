@@ -43,6 +43,8 @@ RUN pnpm --filter @sw/netbridge run build \
     && pnpm --filter @sw/backend run build \
     && cp apps/backend/src/presentation/http/internal/controllers/agent/heartbeat-agent.sh \
           apps/backend/build/src/presentation/http/internal/controllers/agent/heartbeat-agent.sh \
+    && cp apps/backend/src/presentation/http/internal/controllers/pool-hosts/pool-host-agent.sh \
+          apps/backend/build/src/presentation/http/internal/controllers/pool-hosts/pool-host-agent.sh \
     && cp apps/backend/src/presentation/http/wd/controllers/interactive/interactive.html \
           apps/backend/build/src/presentation/http/wd/controllers/interactive/interactive.html
 

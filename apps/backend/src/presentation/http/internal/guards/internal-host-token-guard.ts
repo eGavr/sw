@@ -42,10 +42,12 @@ export class InternalHostTokenGuard implements CanActivate {
     }
 }
 
-// The host id from the request path: `/internal/poolHosts/<id>:<verb>`. Returns null for host routes that
-// act on no specific machine (none today; the agent download will be one).
+// The host id from the request path: `/internal/poolHosts/<uuid>:<verb>`. Only a uuid-shaped segment
+// is a target — routes acting on no specific machine (the agent download) need just a valid token.
 function targetHostId(request: Request): string | null {
-    const match = request.path.match(/\/poolHosts\/([^/?]+)/);
+    const match = request.path.match(
+        /\/poolHosts\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i,
+    );
 
-    return match ? match[1].split(":")[0] : null;
+    return match ? match[1] : null;
 }

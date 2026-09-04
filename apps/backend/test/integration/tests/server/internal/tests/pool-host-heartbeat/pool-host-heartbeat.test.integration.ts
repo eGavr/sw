@@ -274,4 +274,26 @@ describe("/internal/poolHosts/:id:heartbeat", () => {
             .send({ hostIp })
             .expect(404);
     });
+
+    describe("GET /internal/poolHosts/agent:download", () => {
+        test("serves the pool-host agent to any valid host token — the route acts on no machine", () => {
+            return request(app.getHttpServer())
+                .get("/internal/poolHosts/agent:download")
+                .set("authorization", `Bearer ${internalHostToken(uuidv4())}`)
+                .expect(200)
+                .expect("content-type", /shellscript/)
+                .expect((response) => expect(response.text).toContain("#!/usr/bin/env bash"));
+        });
+
+        test("responds UNAUTHENTICATED without a token", () => {
+            return request(app.getHttpServer()).get("/internal/poolHosts/agent:download").expect(401);
+        });
+
+        test("responds UNAUTHENTICATED for an environment agent token", () => {
+            return request(app.getHttpServer())
+                .get("/internal/poolHosts/agent:download")
+                .set("authorization", `Bearer ${internalAgentToken(uuidv4())}`)
+                .expect(401);
+        });
+    });
 });
