@@ -51,8 +51,13 @@ export class PoolHostRepositoryImpl extends PoolHostRepository {
         return data ? PoolHost.fromObject(data) : null;
     }
 
-    async withMostLoadedPlaceable(poolKey: HostPoolKey, mutate: (host: PoolHost) => void): Promise<PoolHost | null> {
-        const data = await this.poolHostDataSource.withMostLoadedPlaceable(
+    async placeOrCreate(
+        poolKey: HostPoolKey,
+        mutate: (host: PoolHost) => void,
+        build: () => PoolHost,
+        maxHosts: number,
+    ): Promise<{ host: PoolHost; created: boolean } | null> {
+        const result = await this.poolHostDataSource.placeOrCreate(
             {
                 cloudAccountId: poolKey.cloudAccountId,
                 bindingId: poolKey.bindingId,
@@ -65,13 +70,11 @@ export class PoolHostRepositoryImpl extends PoolHostRepository {
 
                 return host.toObject();
             },
+            () => build().toObject(),
+            maxHosts,
         );
 
-        return data ? PoolHost.fromObject(data) : null;
-    }
-
-    async countByPool(poolKey: HostPoolKey): Promise<number> {
-        return this.poolHostDataSource.countByPool(poolKey.cloudAccountId, poolKey.bindingId);
+        return result ? { host: PoolHost.fromObject(result.data), created: result.created } : null;
     }
 
     async save(host: PoolHost): Promise<void> {

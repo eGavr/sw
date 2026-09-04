@@ -66,40 +66,64 @@ export class PoolHostDataSource {
         });
     }
 
-    // Atomically take the pool's fullest host that still has a free seat (in one of the given states)
-    // under a row lock, and apply the caller's transition to it. Fullest-first consolidates seats onto
-    // few machines so empty ones can be returned to the cloud. FOR UPDATE SKIP LOCKED lets concurrent
-    // placers claim different machines without waiting; the states arrive ready from the domain.
-    async withMostLoadedPlaceable(
+    // Atomically seat a workload somewhere in the pool: on the fullest host that still has a free seat
+    // (fullest-first consolidates seats so empty machines can be returned), else — while the pool is
+    // below its machine cap — as a brand-new row built by the caller. The whole decision runs under a
+    // per-pool advisory lock taken for this transaction: machines are expensive, so concurrent placers
+    // must SEE each other's outcome — without the lock two of them could each order a machine where one
+    // had room for both. The candidate row lock is a plain FOR UPDATE (not SKIP LOCKED): placers are
+    // already serialised by the pool lock, and a concurrent release holding the row is worth the wait.
+    // The states arrive ready from the domain; the cap arrives ready from the caller's policy.
+    async placeOrCreate(
         pool: { cloudAccountId: string; bindingId: string; states: ReadonlyArray<string> },
-        apply: (data: PoolHostData) => PoolHostData,
-    ): Promise<PoolHostData | null> {
+        applyToExisting: (data: PoolHostData) => PoolHostData,
+        buildNew: () => PoolHostData,
+        maxHosts: number,
+    ): Promise<{ data: PoolHostData; created: boolean } | null> {
         return this.dataSource.transaction(async (manager) => {
-            const locked = (await manager.query(
+            await manager.query(
+                "SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))",
+                [pool.cloudAccountId, pool.bindingId],
+            );
+
+            const candidates = (await manager.query(
                 `SELECT id FROM pool_host
                  WHERE cloud_account_id = $1 AND binding_id = $2 AND state = ANY($3)
                    AND (SELECT count(*) FROM host_placement p WHERE p.host_id = pool_host.id) < capacity_slots
                  ORDER BY (SELECT count(*) FROM host_placement p WHERE p.host_id = pool_host.id) DESC, created_at
-                 FOR UPDATE SKIP LOCKED
+                 FOR UPDATE
                  LIMIT 1`,
                 [pool.cloudAccountId, pool.bindingId, pool.states],
             )) as Array<{ id: string }>;
 
-            if (locked.length === 0) {
+            if (candidates.length > 0) {
+                const entity = await manager.getRepository(PoolHost).findOneOrFail({
+                    where: { id: candidates[0].id },
+                });
+                const next = applyToExisting(entity.toObject());
+
+                await this.persist(manager, next);
+
+                return { data: next, created: false };
+            }
+
+            const [{ count }] = (await manager.query(
+                "SELECT count(*)::int AS count FROM pool_host WHERE cloud_account_id = $1 AND binding_id = $2",
+                [pool.cloudAccountId, pool.bindingId],
+            )) as Array<{ count: number }>;
+
+            if (count >= maxHosts) {
                 return null;
             }
 
-            const entity = await manager.getRepository(PoolHost).findOneOrFail({ where: { id: locked[0].id } });
-            const next = apply(entity.toObject());
+            const entity = PoolHost.from(HostEntity.fromObject(buildNew()));
+            const { placements, ...row } = entity;
 
-            await this.persist(manager, next);
+            await manager.getRepository(PoolHost).save(row);
+            await manager.getRepository(HostPlacement).save(placements);
 
-            return next;
+            return { data: entity.toObject(), created: true };
         });
-    }
-
-    async countByPool(cloudAccountId: string, bindingId: string): Promise<number> {
-        return this.dataSource.getRepository(PoolHost).count({ where: { cloudAccountId, bindingId } });
     }
 
     // Hard delete; placements go with the machine via ON DELETE CASCADE.

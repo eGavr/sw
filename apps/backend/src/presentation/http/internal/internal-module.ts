@@ -59,7 +59,7 @@ import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { InternalAgentController } from "./controllers/agent/agent-controller";
 import { InternalEnvironmentsController } from "./controllers/environments/environments-controller";
-import { InternalHostsController } from "./controllers/hosts/hosts-controller";
+import { InternalPoolHostsController } from "./controllers/pool-hosts/pool-hosts-controller";
 import { InternalAgentTokenGuard } from "./guards/internal-agent-token-guard";
 import { InternalHostTokenGuard } from "./guards/internal-host-token-guard";
 
@@ -74,7 +74,7 @@ import { InternalHostTokenGuard } from "./guards/internal-host-token-guard";
     controllers: [
         InternalEnvironmentsController,
         InternalAgentController,
-        InternalHostsController,
+        InternalPoolHostsController,
     ],
     providers: [
         RecordEnvironmentHeartbeatUseCase,

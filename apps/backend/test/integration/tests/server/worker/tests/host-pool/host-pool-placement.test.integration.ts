@@ -310,6 +310,20 @@ describe("host-pool placement (baremetal route)", () => {
         expect(createServer).toHaveBeenCalledTimes(1);
     });
 
+    // The per-pool advisory lock is what makes this deterministic: the placers run truly in parallel
+    // (each claims its own environment via SKIP LOCKED), and without the lock both could find no free
+    // seat and each lease a machine where one had room for both.
+    test("concurrent provisioning never leases a second machine when one has room", async () => {
+        const seeded = await seedProjectWithBaremetalBinding();
+        await createEnvironment(seeded);
+        await createEnvironment(seeded);
+
+        await Promise.all([prepareNext(), prepareNext()]);
+
+        expect(createServer).toHaveBeenCalledTimes(1);
+        expect((await placements()).map((row) => row.slot_index).sort()).toEqual([0, 1]);
+    });
+
     test("a provisioning retry keeps its existing seat (idempotent placement)", async () => {
         const seeded = await seedProjectWithBaremetalBinding();
         const envId = await createEnvironment(seeded);

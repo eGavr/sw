@@ -42,10 +42,10 @@ export class InternalHostTokenGuard implements CanActivate {
     }
 }
 
-// The host id from the request path: `/internal/hosts/<id>:<verb>`. Returns null for host routes that
+// The host id from the request path: `/internal/poolHosts/<id>:<verb>`. Returns null for host routes that
 // act on no specific machine (none today; the agent download will be one).
 function targetHostId(request: Request): string | null {
-    const match = request.path.match(/\/hosts\/([^/?]+)/);
+    const match = request.path.match(/\/poolHosts\/([^/?]+)/);
 
     return match ? match[1].split(":")[0] : null;
 }

@@ -69,8 +69,8 @@ import {
     ResponseInterceptor,
 } from "../../../../../../../src/presentation/http/interceptors/response-interceptor";
 import {
-    InternalHostsController,
-} from "../../../../../../../src/presentation/http/internal/controllers/hosts/hosts-controller";
+    InternalPoolHostsController,
+} from "../../../../../../../src/presentation/http/internal/controllers/pool-hosts/pool-hosts-controller";
 import {
     InternalHostTokenGuard,
 } from "../../../../../../../src/presentation/http/internal/guards/internal-host-token-guard";
@@ -81,7 +81,7 @@ import { internalHostToken } from "../../../utils/request/internal-host-token";
 const hostIp = "10.128.0.15";
 const launch = { avd: "sw-android-34", internalUrl: "http://cp:3002" };
 
-describe("/internal/hosts/:id:heartbeat", () => {
+describe("/internal/poolHosts/:id:heartbeat", () => {
     let app: INestApplication;
     let poolHostRepository: PoolHostRepository;
     let environmentRepository: EnvironmentRepository;
@@ -95,7 +95,7 @@ describe("/internal/hosts/:id:heartbeat", () => {
                 PostgresModule,
                 LoggerModule,
             ],
-            controllers: [InternalHostsController],
+            controllers: [InternalPoolHostsController],
             providers: [
                 RecordHostHeartbeatUseCase,
                 ProjectDataSource,
@@ -182,13 +182,13 @@ describe("/internal/hosts/:id:heartbeat", () => {
 
     const heartbeat = (id: string, body: object, token = internalHostToken(id)): request.Test =>
         request(app.getHttpServer())
-            .post(`/internal/hosts/${id}:heartbeat`)
+            .post(`/internal/poolHosts/${id}:heartbeat`)
             .set("authorization", `Bearer ${token}`)
             .send(body);
 
     test("responds UNAUTHENTICATED without a token", () => {
         return request(app.getHttpServer())
-            .post(`/internal/hosts/${uuidv4()}:heartbeat`)
+            .post(`/internal/poolHosts/${uuidv4()}:heartbeat`)
             .send({ hostIp })
             .expect(401);
     });
@@ -269,7 +269,7 @@ describe("/internal/hosts/:id:heartbeat", () => {
         const host = await seedHost(cloudAccountId);
 
         return request(app.getHttpServer())
-            .post(`/internal/hosts/${host.id}:frobnicate`)
+            .post(`/internal/poolHosts/${host.id}:frobnicate`)
             .set("authorization", `Bearer ${internalHostToken(host.id)}`)
             .send({ hostIp })
             .expect(404);

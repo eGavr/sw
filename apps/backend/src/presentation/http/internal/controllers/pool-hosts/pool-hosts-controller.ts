@@ -27,12 +27,12 @@ import { HostHeartbeatRequestModel } from "./io/host-heartbeat-request-model";
 const heartbeatVerb = "heartbeat";
 
 // The host agent's check-in door, mirroring the environment agent's heartbeat: custom method (AIP-136)
-// POST /internal/hosts/{id}:heartbeat. The response carries the machine's desired seats — a check-in
+// POST /internal/poolHosts/{id}:heartbeat. The response carries the machine's desired seats — a check-in
 // that returns desired state is the reconcile-agent canon (kubelet-style), so one exchange covers
 // registration, liveness and convergence.
-@Controller("internal/hosts")
+@Controller("internal/poolHosts")
 @UseGuards(InternalHostTokenGuard)
-export class InternalHostsController {
+export class InternalPoolHostsController {
     constructor(
         private readonly recordHostHeartbeatUseCase: RecordHostHeartbeatUseCase,
         private readonly agentTokens: AgentTokenService,
