@@ -29,11 +29,18 @@ describe("/cloudTypes", () => {
             {
                 name: "cloudTypes/local",
                 type: "local",
-                provides: [{
-                    platform: "linux",
-                    execution: "container",
-                    compute: [{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }],
-                }],
+                provides: [
+                    {
+                        platform: "linux",
+                        execution: "container",
+                        compute: [{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }],
+                    },
+                    {
+                        platform: "android",
+                        execution: "emulator",
+                        compute: [{ kind: "baremetal", requiredConfig: [], grants: [], ownershipProof: "none" }],
+                    },
+                ],
             },
             {
                 name: "cloudTypes/yandex-cloud",

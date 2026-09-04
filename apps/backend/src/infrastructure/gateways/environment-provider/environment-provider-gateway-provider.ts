@@ -8,6 +8,10 @@ import { ReleaseWorkloadUseCase } from "../../../application/use-cases/host-pool
 import { EnvironmentQuotaPolicy } from "../../../domain/entities/environment/environment-quota";
 import { Execution } from "../../../domain/entities/environment/execution";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
+import {
+    staticHostProviderKey,
+    yandexBaremetalHostProviderKey,
+} from "../host-provider/routing-host-provider-gateway";
 
 import { defaultAgentEntrypoint } from "./agent-bootstrap";
 import {
@@ -116,7 +120,17 @@ export const EnvironmentProviderGatewayProvider = {
                     placeWorkload,
                     releaseWorkload,
                     hostProvider,
-                    hostPoolConfig(configService),
+                    hostPoolConfig(configService, yandexBaremetalHostProviderKey),
+                    quotaPolicy,
+                )],
+            // The same pool over the operator's own machine (a dev Mac IS bare metal): nothing is
+            // leased, the operator starts the host agent by hand — everything else is identical.
+            [routingKey("local", "android", Execution.Emulator, "baremetal"),
+                new HostPoolEnvironmentProviderGateway(
+                    placeWorkload,
+                    releaseWorkload,
+                    hostProvider,
+                    hostPoolConfig(configService, staticHostProviderKey),
                     quotaPolicy,
                 )],
             [routingKey("yandex-cloud", "linux", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(
@@ -245,12 +259,16 @@ function browserVmConfig(configService: ConfigService, sessionTimeoutSeconds: nu
     };
 }
 
-// Pool policy for the baremetal route: how a leased machine is sliced and capped. The machines
-// themselves are shaped by the host provider (COMPUTE_BAREMETAL_*).
-function hostPoolConfig(configService: ConfigService): ReturnType<typeof buildHostPoolEnvironmentConfig> {
+// Pool policy for a baremetal route: how a machine is sliced. The machines themselves come from the
+// route's host provider (leased via COMPUTE_BAREMETAL_*, or the operator's own static machine).
+function hostPoolConfig(
+    configService: ConfigService,
+    hostProviderKey: string,
+): ReturnType<typeof buildHostPoolEnvironmentConfig> {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
     return buildHostPoolEnvironmentConfig({
+        hostProviderKey,
         slotsPerHost: Number(configService.get<string>("POOL_HOST_SLOTS") ?? String(defaultSlotsPerHost)),
         defaultAndroidVersion:
             configService.get<string>("COMPUTE_BAREMETAL_DEFAULT_VERSION") ?? defaultPoolAndroidVersion,

@@ -1,4 +1,7 @@
-import { CloudReachability } from "../../../../application/interfaces/gateways/environment-provider-gateway";
+import {
+    CloudReachability,
+    OwnershipVerification,
+} from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import {
     HostProviderConfig,
     HostProviderGateway,
@@ -55,18 +58,28 @@ export class YandexBaremetalHostProvider extends HostProviderGateway {
             .filter((id): id is string => typeof id === "string" && id.length > 0);
     }
 
-    async checkAccess(config: HostProviderConfig): Promise<CloudReachability> {
-        return this.baremetal.checkAccess(baremetalBindingConfig(config).folderId);
-    }
-
-    async ownershipLabels(config: HostProviderConfig): Promise<Record<string, string>> {
+    // The folder's owner authorises the project by placing its marker label on the folder; we read it
+    // (resource-manager.viewer, which cannot write it), so naming someone else's folder proves nothing.
+    async verifyOwnership(config: HostProviderConfig, markerKey: string): Promise<OwnershipVerification> {
         const { folderId } = baremetalBindingConfig(config);
 
         if (!folderId) {
-            throw new Error("no folder configured on the binding");
+            return { verified: false, detail: "no folder configured on the binding" };
         }
 
-        return this.baremetal.folderLabels(folderId);
+        try {
+            const labels = await this.baremetal.folderLabels(folderId);
+
+            return Object.prototype.hasOwnProperty.call(labels, markerKey)
+                ? { verified: true }
+                : { verified: false, detail: `folder ${folderId} is missing the ownership label ${markerKey}` };
+        } catch (error) {
+            return { verified: false, detail: error instanceof Error ? error.message : String(error) };
+        }
+    }
+
+    async checkAccess(config: HostProviderConfig): Promise<CloudReachability> {
+        return this.baremetal.checkAccess(baremetalBindingConfig(config).folderId);
     }
 
     // cloud-init user-data: the whole hand-over to the machine. The golden image's bootstrap unit

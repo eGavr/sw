@@ -56,12 +56,17 @@ function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArr
         : [];
 
     return new Map<string, ReadonlyArray<SubstrateOffer>>([
-        // The machine sw itself runs on, driven through its docker daemon — one configless kind, and the
-        // operator's own machine, so no ownership proof.
+        // The machine sw itself runs on — the operator's own hardware, so no config and no ownership
+        // proof for either kind: browsers run through its docker daemon, android emulators as slots of
+        // the machine itself (a dev Mac IS bare metal; the operator starts the host agent by hand).
         ["local", [
             {
                 stereotype: new Stereotype("linux", Execution.Container),
                 compute: [{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }],
+            },
+            {
+                stereotype: new Stereotype("android", Execution.Emulator),
+                compute: [{ kind: "baremetal", requiredConfig: [], grants: [], ownershipProof: "none" }],
             },
         ]],
         ["yandex-cloud", [

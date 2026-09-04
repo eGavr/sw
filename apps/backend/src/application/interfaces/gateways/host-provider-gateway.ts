@@ -1,6 +1,6 @@
 import { PoolHost } from "../../../domain/entities/host-pool/pool-host";
 
-import { CloudReachability } from "./environment-provider-gateway";
+import { CloudReachability, OwnershipVerification } from "./environment-provider-gateway";
 
 // The kind-specific, non-secret settings of the binding a pool serves (e.g. the user's folderId).
 // Opaque here — the concrete provider adapter interprets it.
@@ -26,8 +26,10 @@ export abstract class HostProviderGateway {
     abstract listLeasedHostIds(config: HostProviderConfig): Promise<Array<string>>;
 
     // Read-only probes for the binding's availability badge and the per-project ownership gate; both
-    // report failure as data, never as an exception.
+    // report failure as data, never as an exception. How ownership is proven is the adapter's business
+    // (a folder label on a delegated cloud; nothing at all on the operator's own machine) — the caller
+    // only supplies the project's marker key.
     abstract checkAccess(config: HostProviderConfig): Promise<CloudReachability>;
 
-    abstract ownershipLabels(config: HostProviderConfig): Promise<Record<string, string>>;
+    abstract verifyOwnership(config: HostProviderConfig, markerKey: string): Promise<OwnershipVerification>;
 }
