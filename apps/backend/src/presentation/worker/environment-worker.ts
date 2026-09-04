@@ -133,16 +133,16 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         );
         this.reservationStalenessMs = this.number("RESERVATION_STALENESS_MS", defaultReservationStalenessMs);
         this.hostPoolReconcileIntervalMs = this.number(
-            "HOST_POOL_RECONCILE_INTERVAL_MS",
+            "POOL_HOST_RECONCILE_INTERVAL_MS",
             defaultHostPoolReconcileIntervalMs,
         );
-        this.hostPoolIdleTtlMs = this.number("HOST_POOL_IDLE_TTL_MS", defaultHostPoolIdleTtlMs);
+        this.hostPoolIdleTtlMs = this.number("POOL_HOST_IDLE_TTL_MS", defaultHostPoolIdleTtlMs);
         this.hostPoolSilenceAllowanceMs = this.number(
-            "HOST_POOL_SILENCE_ALLOWANCE_MS",
+            "POOL_HOST_SILENCE_ALLOWANCE_MS",
             defaultHostPoolSilenceAllowanceMs,
         );
         this.hostPoolOrderingTimeoutMs = this.number(
-            "HOST_POOL_ORDERING_TIMEOUT_MS",
+            "POOL_HOST_ORDERING_TIMEOUT_MS",
             defaultHostPoolOrderingTimeoutMs,
         );
     }
