@@ -46,10 +46,15 @@ run_slot() {
 
     slot_pids=""
 
+    # Headless by default (a metal host has no display); local dev sets SW_EMULATOR_WINDOW=1 to watch
+    # the emulator in a native window on the machine (there is no per-slot VNC yet).
+    window_flag="-no-window"
+    [ "${SW_EMULATOR_WINDOW:-}" = "1" ] && window_flag=""
+
     echo "[slot ${SW_ENVIRONMENT_ID}] starting emulator ${SW_AVD} on console ${SW_CONSOLE_PORT}"
     # -read-only lets N instances share one AVD; the console port pins the adb serial to this slot.
     "${emulator_bin}" -avd "${SW_AVD}" -port "${SW_CONSOLE_PORT}" -read-only \
-        -no-window -no-audio -no-boot-anim -no-snapshot &
+        ${window_flag} -no-audio -no-boot-anim -no-snapshot &
     slot_pids="${slot_pids} $!"
 
     adb start-server >/dev/null 2>&1 || true

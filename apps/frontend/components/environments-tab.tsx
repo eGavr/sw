@@ -83,6 +83,29 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const noClouds = !clouds.isLoading
     && !(clouds.data ?? []).some((cloud) => cloud.computeBindings.length > 0);
 
+  // An environment can only land on a substrate the project actually BOUND, so the execution choices
+  // are exactly the executions bound for the typed platform (emulator shows up enabled once its
+  // baremetal binding exists — no hardcoded "soon"). Falls back to container before anything is bound.
+  const boundExecutions = [
+    ...new Set(
+      (clouds.data ?? [])
+        .flatMap((cloud) => cloud.computeBindings)
+        .filter((binding) => binding.platform === platformName)
+        .map((binding) => binding.execution),
+    ),
+  ];
+  const executionOptions = (boundExecutions.length > 0 ? boundExecutions : ["container"])
+    .map((value) => ({ value, label: value }));
+
+  // Keep the chosen execution valid as the platform changes: snap to the first option the platform
+  // actually offers, so the Select never sits on a value no binding serves (e.g. android has only
+  // emulator bound, but the field still held the default container).
+  useEffect(() => {
+    if (!executionOptions.some((option) => option.value === execution)) {
+      setExecution(executionOptions[0].value);
+    }
+  }, [executionOptions, execution]);
+
   const invalidate = (): Promise<void> =>
     queryClient.invalidateQueries({ queryKey: ["environments", project] });
 
@@ -385,11 +408,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
           </Group>
           <Select
             label="Execution"
-            data={[
-              { value: "container", label: "container" },
-              { value: "emulator", label: "emulator (soon)", disabled: true },
-              { value: "device", label: "device (soon)", disabled: true },
-            ]}
+            data={executionOptions}
             value={execution}
             onChange={(v) => setExecution(v ?? "container")}
           />
