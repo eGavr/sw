@@ -7,24 +7,49 @@ import { HostTokenService } from "../../../../application/interfaces/host-token-
 import { PoolHost } from "../../../../domain/entities/host-pool/pool-host";
 import { Logger } from "../../../logging/logger";
 
-// A "cloud" of exactly one pre-existing machine — the operator's own (a dev Mac, a lab box). Nothing
-// is leased or returned: "ordering" a machine means telling the operator to start the host agent on
-// it with the printed credentials; the ordering timeout gives them plenty of time. This is the same
-// pool, bridge and agent protocol as real bare metal — only the lease is a human.
+import { HostAgentLauncher } from "./host-agent-launcher";
+
+export type ByoHostProviderOptions = {
+    // When to watch the emulator in a native window (local dev; there is no per-slot VNC yet).
+    readonly emulatorWindow?: boolean;
+    // Present for the `local` cloud (the machine IS this box): provision starts the agent itself, so
+    // the user never copies credentials into a terminal. Absent for a remote BYO host — a human does.
+    readonly launcher?: HostAgentLauncher;
+};
+
+// A "cloud" of pre-existing machines the operator brings (a dev Mac, a lab box). Nothing is leased or
+// returned. For the `local` box the control plane launches the agent itself (see launcher) — same
+// zero-ceremony feel as the docker kind. For a remote BYO host, "ordering" means telling the operator
+// to start the agent with the printed credentials. Either way it is the same pool, bridge and agent
+// protocol as real bare metal — only the lease is a human (or, locally, us).
 export class ByoHostProvider extends HostProviderGateway {
     constructor(
         private readonly hostTokens: HostTokenService,
         private readonly internalUrl: string,
         private readonly logger: Logger,
+        private readonly options: ByoHostProviderOptions = {},
     ) {
         super();
     }
 
     async provision(host: PoolHost): Promise<void> {
         const token = await this.hostTokens.issue(host.id);
+        const env: Record<string, string> = {
+            SW_HOST_ID: host.id,
+            SW_HOST_TOKEN: token,
+            SW_INTERNAL_URL: this.internalUrl,
+            ...(this.options.emulatorWindow ? { SW_EMULATOR_WINDOW: "1" } : {}),
+        };
 
-        // The machine cannot receive boot metadata (it already runs), so the hand-over goes through
-        // the operator: start the agent with these credentials and the pool proceeds as usual.
+        if (this.options.launcher) {
+            this.options.launcher.launch(env);
+            this.logger.log(`byo host provider: host ${host.id} ordered — agent started on this machine`);
+
+            return;
+        }
+
+        // A remote machine cannot receive boot metadata (it already runs), so the hand-over goes
+        // through the operator: start the agent with these credentials and the pool proceeds as usual.
         this.logger.log([
             `byo host provider: host ${host.id} ordered — start the host agent on the machine:`,
             `  SW_HOST_ID=${host.id} \\`,
