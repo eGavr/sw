@@ -57,6 +57,13 @@ export class YandexBaremetalClient {
             .catch(() => undefined);
     }
 
+    // Every server in the folder with its labels — the orphan sweep matches ours by the sw-host-id label.
+    async listServers(folderId?: string): Promise<Array<{ name: string; labels?: Record<string, string> }>> {
+        const out = await this.exec(["baremetal", "server", "list", "--format", "json"], folderId);
+
+        return JSON.parse(out) as Array<{ name: string; labels?: Record<string, string> }>;
+    }
+
     // Same probe as the compute client: reading the target folder proves our delegated identity can
     // operate there. A failure is the answer, not an exception.
     async checkAccess(folderId?: string): Promise<CloudReachability> {

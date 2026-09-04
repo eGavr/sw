@@ -24,6 +24,9 @@ import {
     ReleaseStaleReservationsUseCase,
 } from "../../application/use-cases/environments/release-stale-reservations-use-case";
 import { PlaceWorkloadUseCase } from "../../application/use-cases/host-pool/place-workload-use-case";
+import {
+    ReconcileHostPoolUseCase,
+} from "../../application/use-cases/host-pool/reconcile-host-pool-use-case";
 import { ReleaseWorkloadUseCase } from "../../application/use-cases/host-pool/release-workload-use-case";
 import { AgentTokenServiceProvider } from "../../infrastructure/agent-token/agent-token-service-provider";
 import {
@@ -72,6 +75,7 @@ import { EnvironmentWorker } from "./environment-worker";
         ReleaseStaleReservationsUseCase,
         PlaceWorkloadUseCase,
         ReleaseWorkloadUseCase,
+        ReconcileHostPoolUseCase,
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: CloudAccountRepository, useClass: CloudAccountRepositoryImpl },
         { provide: PoolHostRepository, useClass: PoolHostRepositoryImpl },

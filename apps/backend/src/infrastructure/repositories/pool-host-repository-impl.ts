@@ -77,6 +77,12 @@ export class PoolHostRepositoryImpl extends PoolHostRepository {
         return result ? { host: PoolHost.fromObject(result.data), created: result.created } : null;
     }
 
+    async listAll(): Promise<Array<PoolHost>> {
+        const data = await this.poolHostDataSource.findAll();
+
+        return data.map(PoolHost.fromObject);
+    }
+
     async save(host: PoolHost): Promise<void> {
         await this.poolHostDataSource.save(host);
     }

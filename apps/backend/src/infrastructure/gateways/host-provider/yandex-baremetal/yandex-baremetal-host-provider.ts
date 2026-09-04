@@ -28,7 +28,7 @@ export class YandexBaremetalHostProvider extends HostProviderGateway {
 
     async provision(host: PoolHost): Promise<void> {
         await this.baremetal.createServer({
-            name: serverName(host),
+            name: serverNameFor(host.id),
             folderId: baremetalBindingConfig(host.providerContext).folderId,
             configurationId: this.shape.configurationId,
             zone: this.shape.zone,
@@ -38,13 +38,21 @@ export class YandexBaremetalHostProvider extends HostProviderGateway {
         });
     }
 
-    async deprovision(host: PoolHost): Promise<void> {
+    async deprovision(hostId: string, config: HostProviderConfig): Promise<void> {
         // Return it in the same folder it was leased in, or the user's machine leaks (and keeps
-        // costing them) — that is exactly what providerContext preserves.
+        // costing them) — that is exactly what the stored whereabouts preserve.
         await this.baremetal.deleteServer(
-            serverName(host),
-            baremetalBindingConfig(host.providerContext).folderId,
+            serverNameFor(hostId),
+            baremetalBindingConfig(config).folderId,
         );
+    }
+
+    async listLeasedHostIds(config: HostProviderConfig): Promise<Array<string>> {
+        const servers = await this.baremetal.listServers(baremetalBindingConfig(config).folderId);
+
+        return servers
+            .map((server) => server.labels?.[hostIdLabel])
+            .filter((id): id is string => typeof id === "string" && id.length > 0);
     }
 
     async checkAccess(config: HostProviderConfig): Promise<CloudReachability> {
@@ -80,6 +88,6 @@ export class YandexBaremetalHostProvider extends HostProviderGateway {
 }
 
 // A DNS-label-safe, per-host-unique server name; order and return address the same machine by it.
-function serverName(host: PoolHost): string {
-    return `sw-host-${host.id}`;
+function serverNameFor(hostId: string): string {
+    return `sw-host-${hostId}`;
 }

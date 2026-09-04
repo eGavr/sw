@@ -251,7 +251,7 @@ function hostPoolConfig(configService: ConfigService): ReturnType<typeof buildHo
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
     return buildHostPoolEnvironmentConfig({
-        slotsPerHost: Number(configService.get<string>("HOST_POOL_SLOTS_PER_HOST") ?? String(defaultSlotsPerHost)),
+        slotsPerHost: Number(configService.get<string>("POOL_HOST_SLOTS") ?? String(defaultSlotsPerHost)),
         defaultAndroidVersion:
             configService.get<string>("COMPUTE_BAREMETAL_DEFAULT_VERSION") ?? defaultPoolAndroidVersion,
         internalUrl: configService.get<string>("COMPUTE_BAREMETAL_INTERNAL_URL")

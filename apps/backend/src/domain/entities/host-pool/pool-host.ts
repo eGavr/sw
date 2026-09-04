@@ -5,9 +5,13 @@ import { PoolHostCapacityExceededError } from "./error/pool-host-capacity-exceed
 import { PoolHostNotPlaceableError } from "./error/pool-host-not-placeable-error";
 import { HostPlacement, HostPlacementData, WorkloadLaunch } from "./host-placement";
 import { HostPoolKey } from "./host-pool-key";
+import { IdleHostCriteria } from "./idle-host-criteria";
 import { PoolHostId } from "./pool-host-id";
 import { PoolHostState, placeablePoolHostStates } from "./pool-host-state";
+import { ReturnableHostCriteria } from "./returnable-host-criteria";
+import { SilentHostCriteria } from "./silent-host-criteria";
 import { SlotPorts } from "./slot-ports";
+import { StuckOrderingCriteria } from "./stuck-ordering-criteria";
 
 // The cloud-specific whereabouts of the machine (e.g. the folder it was ordered in). Opaque to the
 // domain — the host provider adapter wrote it at ordering time and reads it back at teardown, so the
@@ -243,6 +247,56 @@ export class PoolHost {
 
         this._state = PoolHostState.Failed;
         this.touch();
+    }
+
+    // The sweep commands run against the freshest row under the repository's lock, so each re-checks
+    // its own criterion and no-ops when the world moved on (a seat landed, the agent checked in).
+
+    // Lingering empty is the point — the next environment starts in seconds; past the pool's TTL the
+    // machine only burns money, so it is chosen for return.
+    retireIfIdle(criteria: IdleHostCriteria): void {
+        const predicate = criteria.toPredicate();
+
+        if (!predicate.states.includes(this._state) || !this.isEmpty()) {
+            return;
+        }
+
+        if (this._lastEmptiedAt < predicate.emptiedBefore) {
+            this.markDeleting();
+        }
+    }
+
+    // The agent polls every few seconds; a long silence means the machine, its network or the agent
+    // is gone — stop placing onto it (its workloads die on their own clocks).
+    writeOffIfSilent(criteria: SilentHostCriteria): void {
+        const predicate = criteria.toPredicate();
+
+        if (!predicate.states.includes(this._state) || this._lastSeenAt === null) {
+            return;
+        }
+
+        if (this._lastSeenAt < predicate.lastSeenBefore) {
+            this.markFailed();
+        }
+    }
+
+    // The first check-in flips a host to ready, so age in `ordering` is exactly how long the hand-over
+    // has been pending; past the allowance the order is written off (and returned, in case it half-exists).
+    writeOffIfStuckOrdering(criteria: StuckOrderingCriteria): void {
+        if (this._state !== criteria.toPredicate().state) {
+            return;
+        }
+
+        if (this.createdAt < criteria.toPredicate().createdBefore) {
+            this.markFailed();
+        }
+    }
+
+    // Ready to be handed back to the cloud: chosen for return or written off — and holding no seats.
+    isReturnable(criteria: ReturnableHostCriteria): boolean {
+        const predicate = criteria.toPredicate();
+
+        return predicate.states.includes(this._state) && this.isEmpty();
     }
 
     toObject(): PoolHostData {

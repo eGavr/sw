@@ -1133,3 +1133,4 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 - docker-адаптер: выбор свободного host-порта (reserve → run окно);
 - session reservation/allocation — выглядит строго (CAS + нода-арбитр), перепроверить письменно;
 - любые in-memory кэши/état в presentation (wd severFor — заявлено per-instance by design, ок).
+- per-env VM-пути (browser-vm/redroid/emulator-vm) без полного orphan-sweep: страховка = deprovision на fail-путях + идемпотентность по имени sw-env-<id>; у пула есть sweep по label. Выровнять (label + sweep) при ревизии робастности.

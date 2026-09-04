@@ -5,8 +5,12 @@ import { InvalidPoolHostStateTransitionError } from "./error/invalid-pool-host-s
 import { PoolHostCapacityExceededError } from "./error/pool-host-capacity-exceeded-error";
 import { PoolHostNotPlaceableError } from "./error/pool-host-not-placeable-error";
 import { HostPoolKey } from "./host-pool-key";
-import { PoolHost } from "./pool-host";
+import { IdleHostCriteria } from "./idle-host-criteria";
+import { PoolHost, PoolHostData } from "./pool-host";
 import { PoolHostState } from "./pool-host-state";
+import { ReturnableHostCriteria } from "./returnable-host-criteria";
+import { SilentHostCriteria } from "./silent-host-criteria";
+import { StuckOrderingCriteria } from "./stuck-ordering-criteria";
 
 const poolKey = new HostPoolKey(Uuid.create().getValue(), Uuid.create().getValue());
 
@@ -131,6 +135,73 @@ describe("PoolHost", () => {
         host.place(environmentId(), {});
 
         expect(() => host.markDeleting()).toThrow(InvalidPoolHostStateTransitionError);
+    });
+
+    describe("sweep commands (each re-checks its criterion, so a raced world wins over the sweep)", () => {
+        const now = new Date("2026-09-04T12:00:00.000Z");
+        const past = new Date(now.getTime() - 90_000);
+
+        const hostWith = (overrides: Partial<PoolHostData>): PoolHost =>
+            PoolHost.fromObject({ ...createHost().toObject(), ...overrides });
+
+        test("an empty ready host past the idle TTL is chosen for return; a fresh or seated one stays", () => {
+            const criteria = IdleHostCriteria.from(now, 60_000);
+
+            const idle = hostWith({ state: PoolHostState.Ready, lastEmptiedAt: past });
+            idle.retireIfIdle(criteria);
+            expect(idle.state).toBe(PoolHostState.Deleting);
+
+            const fresh = hostWith({ state: PoolHostState.Ready, lastEmptiedAt: now });
+            fresh.retireIfIdle(criteria);
+            expect(fresh.state).toBe(PoolHostState.Ready);
+
+            const seated = hostWith({ state: PoolHostState.Ready, lastEmptiedAt: past });
+            seated.place(environmentId(), {});
+            seated.retireIfIdle(criteria);
+            expect(seated.state).toBe(PoolHostState.Ready);
+        });
+
+        test("a ready host silent past the allowance is written off; a talkative one stays", () => {
+            const criteria = SilentHostCriteria.from(now, 60_000);
+
+            const silent = hostWith({ state: PoolHostState.Ready, lastSeenAt: past });
+            silent.writeOffIfSilent(criteria);
+            expect(silent.state).toBe(PoolHostState.Failed);
+
+            const talkative = hostWith({ state: PoolHostState.Ready, lastSeenAt: now });
+            talkative.writeOffIfSilent(criteria);
+            expect(talkative.state).toBe(PoolHostState.Ready);
+
+            // An ordering host has not checked in yet by definition — silence does not condemn it.
+            const ordering = createHost();
+            ordering.writeOffIfSilent(criteria);
+            expect(ordering.state).toBe(PoolHostState.Ordering);
+        });
+
+        test("an order the agent never answered past the allowance is written off", () => {
+            const stuck = hostWith({ createdAt: past });
+            stuck.writeOffIfStuckOrdering(StuckOrderingCriteria.from(now, 60_000));
+            expect(stuck.state).toBe(PoolHostState.Failed);
+
+            const pending = hostWith({ createdAt: now });
+            pending.writeOffIfStuckOrdering(StuckOrderingCriteria.from(now, 60_000));
+            expect(pending.state).toBe(PoolHostState.Ordering);
+        });
+
+        test("only an empty deleting or failed host is returnable to the cloud", () => {
+            const criteria = ReturnableHostCriteria.create();
+
+            const deleting = createHost();
+            deleting.markDeleting();
+            expect(deleting.isReturnable(criteria)).toBe(true);
+
+            const failedSeated = createHost();
+            failedSeated.place(environmentId(), {});
+            failedSeated.markFailed();
+            expect(failedSeated.isReturnable(criteria)).toBe(false);
+
+            expect(createHost().isReturnable(criteria)).toBe(false);
+        });
     });
 
     test("round-trips through toObject/fromObject with its placements", () => {

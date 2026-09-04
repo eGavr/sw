@@ -113,7 +113,7 @@ describe("host-pool placement (baremetal route)", () => {
     beforeEach(async () => {
         // Two seats per machine keep the packing arithmetic visible; the machine budget derives from
         // the binding's environment quota (maxEnvironments: 2 → ceil(2/2) = 1 machine).
-        process.env.HOST_POOL_SLOTS_PER_HOST = "2";
+        process.env.POOL_HOST_SLOTS = "2";
         process.env.COMPUTE_BAREMETAL_INTERNAL_URL = "http://cp:3002";
 
         createServer = jest.fn(async (): Promise<void> => undefined);
@@ -177,7 +177,7 @@ describe("host-pool placement (baremetal route)", () => {
     });
 
     afterEach(async () => {
-        delete process.env.HOST_POOL_SLOTS_PER_HOST;
+        delete process.env.POOL_HOST_SLOTS;
         delete process.env.COMPUTE_BAREMETAL_INTERNAL_URL;
         await app.close();
     });
