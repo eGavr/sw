@@ -226,10 +226,11 @@ export class EnvironmentDataSource {
     }
 
     // Free environments an project may allocate a session onto, in random order. The state/busy rule,
-    // freshness cutoff and requested application arrive ready from the domain criteria; this only
-    // translates them into SQL. A null `applicationVersion` means "latest" — match by name only and skip
-    // the row limit, since the newest is chosen upstream and must not be capped away (the set is bounded
-    // by free inventory). The row limit is a query bound for exact requests, not a business threshold.
+    // freshness cutoff and the requested application (expanded into candidate names and a version
+    // segment prefix) arrive ready from the domain criteria; this only translates them into SQL. A null
+    // prefix means "latest" — match by name only and skip the row limit, since the newest is chosen
+    // upstream and must not be capped away (the set is bounded by free inventory). The row limit is a
+    // query bound for prefixed requests, not a business threshold.
     async findAllocatable(
         projectId: string,
         predicate: {
@@ -237,8 +238,8 @@ export class EnvironmentDataSource {
             occupancy: string;
             heartbeatCutoff: Date;
             execution: string;
-            applicationName: string;
-            applicationVersion: string | null;
+            applicationNames: ReadonlyArray<string>;
+            applicationVersionPrefix: string | null;
         },
         limit: number,
     ): Promise<Array<EnvironmentData>> {
@@ -249,20 +250,11 @@ export class EnvironmentDataSource {
             .andWhere("environment.state = :state", { state: predicate.state })
             .andWhere("environment.occupancy = :occupancy", { occupancy: predicate.occupancy })
             .andWhere("environment.execution = :execution", { execution: predicate.execution })
-            .andWhere("environment.lastHeartbeatAt > :cutoff", { cutoff: predicate.heartbeatCutoff });
+            .andWhere("environment.lastHeartbeatAt > :cutoff", { cutoff: predicate.heartbeatCutoff })
+            .andWhere(offersApplicationSql(predicate), offersApplicationParams(predicate));
 
-        if (predicate.applicationVersion === null) {
-            idQuery.andWhere(
-                "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
-                + " AND ea.application_name = :applicationName)",
-                { applicationName: predicate.applicationName },
-            );
-        } else {
-            idQuery.andWhere(
-                "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
-                + " AND ea.application_name = :applicationName AND ea.application_version = :applicationVersion)",
-                { applicationName: predicate.applicationName, applicationVersion: predicate.applicationVersion },
-            ).limit(limit);
+        if (predicate.applicationVersionPrefix !== null) {
+            idQuery.limit(limit);
         }
 
         const rows = await idQuery.orderBy("RANDOM()").getRawMany<{ id: string }>();
@@ -303,8 +295,8 @@ export class EnvironmentDataSource {
         predicate: {
             states: Array<string>;
             execution: string;
-            applicationName: string;
-            applicationVersion: string | null;
+            applicationNames: ReadonlyArray<string>;
+            applicationVersionPrefix: string | null;
         },
     ): Promise<boolean> {
         const query = this.dataSource.getRepository(Environment)
@@ -313,21 +305,8 @@ export class EnvironmentDataSource {
             .where("environment.projectId = :projectId", { projectId })
             .andWhere("environment.state IN (:...states)", { states: predicate.states })
             .andWhere("environment.execution = :execution", { execution: predicate.execution })
+            .andWhere(offersApplicationSql(predicate), offersApplicationParams(predicate))
             .limit(1);
-
-        if (predicate.applicationVersion === null) {
-            query.andWhere(
-                "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
-                + " AND ea.application_name = :applicationName)",
-                { applicationName: predicate.applicationName },
-            );
-        } else {
-            query.andWhere(
-                "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
-                + " AND ea.application_name = :applicationName AND ea.application_version = :applicationVersion)",
-                { applicationName: predicate.applicationName, applicationVersion: predicate.applicationVersion },
-            );
-        }
 
         return (await query.getRawOne()) !== undefined;
     }
@@ -362,4 +341,39 @@ export class EnvironmentDataSource {
 
         return { items: items.map((environment) => environment.toObject()), nextCursor };
     }
+}
+
+type OffersApplicationPredicate = {
+    applicationNames: ReadonlyArray<string>;
+    applicationVersionPrefix: string | null;
+};
+
+// The domain's "offers the requested application" clause in SQL: any candidate name, and — when the
+// request carries a version prefix — a version equal to it or opening with it segment-wise
+// ("140" → "140.…", never "1400.…"). A null prefix is "latest": name only.
+function offersApplicationSql(predicate: OffersApplicationPredicate): string {
+    const versionClause = predicate.applicationVersionPrefix === null
+        ? ""
+        : " AND (ea.application_version = :versionPrefix"
+            + " OR ea.application_version LIKE :versionPrefixOpen ESCAPE '\\')";
+
+    return "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
+        + ` AND ea.application_name IN (:...applicationNames)${versionClause})`;
+}
+
+function offersApplicationParams(predicate: OffersApplicationPredicate): Record<string, unknown> {
+    if (predicate.applicationVersionPrefix === null) {
+        return { applicationNames: [...predicate.applicationNames] };
+    }
+
+    return {
+        applicationNames: [...predicate.applicationNames],
+        versionPrefix: predicate.applicationVersionPrefix,
+        versionPrefixOpen: `${escapeLikePattern(predicate.applicationVersionPrefix)}.%`,
+    };
+}
+
+// `_` is a LIKE wildcard and legal in versions ("1_2"); backslash is the ESCAPE character.
+function escapeLikePattern(value: string): string {
+    return value.replace(/[\\%_]/g, (character) => `\\${character}`);
 }

@@ -68,7 +68,7 @@ describe("POST /sessions allocation retry", () => {
         const environmentRepository = app.get(EnvironmentRepository);
         await environmentRepository.create({
             projectId: ProjectId.fromString(project.id),
-            platform: Platform.fromObject({ name: "linux", version: "latest" }),
+            platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: chromeVersion }]),
         });
 

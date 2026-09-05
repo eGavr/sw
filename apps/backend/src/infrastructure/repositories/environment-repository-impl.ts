@@ -99,8 +99,8 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
                 occupancy: predicate.occupancy,
                 heartbeatCutoff: predicate.heartbeatCutoff,
                 execution: predicate.execution,
-                applicationName: predicate.applicationName,
-                applicationVersion: predicate.applicationVersion,
+                applicationNames: predicate.applicationNames,
+                applicationVersionPrefix: predicate.applicationVersionPrefix,
             },
             allocationCandidateLimit,
         );
@@ -125,8 +125,8 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         return this.environmentDataSource.existsOffering(projectId.getValue(), {
             states: [...predicate.states],
             execution: predicate.execution,
-            applicationName: predicate.applicationName,
-            applicationVersion: predicate.applicationVersion,
+            applicationNames: predicate.applicationNames,
+            applicationVersionPrefix: predicate.applicationVersionPrefix,
         });
     }
 

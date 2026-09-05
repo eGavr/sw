@@ -33,7 +33,7 @@ describe("WebDriverClient", () => {
     const alwaysMatch = (): Record<string, unknown> =>
         (JSON.parse(lastBody) as { capabilities: { alwaysMatch: Record<string, unknown> } }).capabilities.alwaysMatch;
 
-    const chrome = { name: "chrome", version: "latest", platformName: "linux" };
+    const chrome = { name: "chrome", version: "latest", platformName: "ubuntu" };
     const android = { name: "com.android.settings", version: "11", platformName: "android" };
 
     test("adds the sw:logging capability when logging is opted in", async () => {

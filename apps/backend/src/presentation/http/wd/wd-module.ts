@@ -35,6 +35,7 @@ import {
 } from "../../../domain/entities/environment/heartbeat-freshness";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import { AgentTokenServiceProvider } from "../../../infrastructure/agent-token/agent-token-service-provider";
+import { ApplicationCatalogProvider } from "../../../infrastructure/application-catalog/application-catalog-provider";
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
 } from "../../../infrastructure/data-sources/auth/user-data-source-provider";
@@ -160,6 +161,7 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
         // The tunnel rendezvous: the forwarder authenticates by its agent token (needs the token service),
         // the client by its access key; both legs are glued by project in the registry.
         AgentTokenServiceProvider,
+        ApplicationCatalogProvider,
         NetBridgeRegistry,
         NetBridgeRendezvous,
 

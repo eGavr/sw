@@ -3,6 +3,8 @@ import { NonConcreteApplicationVersionError } from "../error/non-concrete-applic
 
 import { Application } from "./application";
 import { ApplicationList } from "./application-list";
+import { ApplicationMatch } from "./application-match";
+import { ApplicationSource } from "./application-source";
 
 describe("Application", () => {
     describe(".create", () => {
@@ -22,6 +24,38 @@ describe("Application", () => {
             const create = (): Application => Application.create({ name: "chrome", version: "LATEST" });
 
             expect(create).toThrow(NonConcreteApplicationVersionError);
+        });
+
+        test("accepts a canonical reverse-DNS name", () => {
+            expect(() => Application.create({ name: "com.android.chrome", version: "140.0.7339.80" })).not.toThrow();
+        });
+
+        test("rejects a malformed reverse-DNS name (empty segment)", () => {
+            expect(() => Application.create({ name: "com..chrome", version: "1" })).toThrow(InvalidArgumentError);
+        });
+
+        test("defaults the source to provided", () => {
+            expect(Application.create({ name: "chrome", version: "100" }).source.isCustom()).toBe(false);
+        });
+    });
+
+    describe("custom source", () => {
+        test("carries the user's artifact keys and survives a roundtrip", () => {
+            const application = Application.create({
+                name: "com.mycorp.app",
+                version: "7.1.0",
+                source: ApplicationSource.custom({ appKey: "builds/app.apk", webdriverKey: "builds/driver" }),
+            });
+
+            const restored = Application.fromObject(application.toObject());
+
+            expect(restored.source.isCustom()).toBe(true);
+            expect(restored.source.appKey).toBe("builds/app.apk");
+            expect(restored.source.webdriverKey).toBe("builds/driver");
+        });
+
+        test("requires a non-empty appKey", () => {
+            expect(() => ApplicationSource.custom({ appKey: "  " })).toThrow(InvalidArgumentError);
         });
     });
 
@@ -44,6 +78,34 @@ describe("Application", () => {
 });
 
 describe("ApplicationList", () => {
+    describe("#bestMatch", () => {
+        const list = ApplicationList.create({
+            applications: [
+                Application.create({ name: "com.google.chrome", version: "151.0.7890.10" }),
+                Application.create({ name: "com.google.chrome", version: "152.0.7977.82" }),
+                Application.create({ name: "org.mozilla.firefox", version: "144.0.1" }),
+            ],
+        });
+
+        test("picks the newest application among the candidate names", () => {
+            const match = ApplicationMatch.create({ names: ["chrome", "com.google.chrome"], versionPrefix: null });
+
+            expect(list.bestMatch(match)?.version).toBe("152.0.7977.82");
+        });
+
+        test("narrows by the version prefix", () => {
+            const match = ApplicationMatch.create({ names: ["com.google.chrome"], versionPrefix: "151" });
+
+            expect(list.bestMatch(match)?.version).toBe("151.0.7890.10");
+        });
+
+        test("returns null when nothing qualifies", () => {
+            const match = ApplicationMatch.create({ names: ["com.google.chrome"], versionPrefix: "150" });
+
+            expect(list.bestMatch(match)).toBeNull();
+        });
+    });
+
     describe("#has", () => {
         const chrome100 = Application.create({ name: "chrome", version: "100" });
         const list = ApplicationList.create({ applications: [chrome100] });

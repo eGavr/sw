@@ -26,3 +26,20 @@ describe("ApplicationVersion", () => {
         expect(version("141.0.7390.54").compareTo(version("141.0.7390.9"))).toBeGreaterThan(0);
     });
 });
+
+describe("ApplicationVersion.matchesPrefix", () => {
+    const version = (value: string): ApplicationVersion => new ApplicationVersion(value);
+
+    test("matches itself and any version it opens segment-wise", () => {
+        expect(version("140.0.7339.80").matchesPrefix("140")).toBe(true);
+        expect(version("140.0.7339.80").matchesPrefix("140.0")).toBe(true);
+        expect(version("140.0.7339.80").matchesPrefix("140.0.7339.80")).toBe(true);
+        expect(version("140").matchesPrefix("140")).toBe(true);
+    });
+
+    test("never matches across a segment boundary", () => {
+        expect(version("1400.1").matchesPrefix("140")).toBe(false);
+        expect(version("14.0.1").matchesPrefix("140")).toBe(false);
+        expect(version("140.0.7339.80").matchesPrefix("140.0.7")).toBe(false);
+    });
+});

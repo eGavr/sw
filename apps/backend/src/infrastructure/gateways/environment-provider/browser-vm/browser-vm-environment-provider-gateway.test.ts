@@ -57,7 +57,7 @@ const config = {
 
 const environment = Environment.create({
     projectId: ProjectId.create(),
-    platform: Platform.fromObject({ name: "linux", version: "1" }),
+    platform: Platform.fromObject({ name: "ubuntu", version: "1" }),
     applications: ApplicationList.fromObject([{ name: "chrome", version: "128" }]),
     cloudType: "yandex-cloud",
 });
@@ -66,7 +66,7 @@ const environment = Environment.create({
 // binding, not on the account.
 const delegatedAccount = CloudAccount.create({ projectId: ProjectId.create(), type: "yandex-cloud" });
 const binding = delegatedAccount.bindCompute({
-    platformName: "linux",
+    platformName: "ubuntu",
     execution: Execution.Container,
     kind: "vm",
     config: { folderId: "b1guser", subnetId: "e9buser" },

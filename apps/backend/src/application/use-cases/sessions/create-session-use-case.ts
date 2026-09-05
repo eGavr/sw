@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
+import { ApplicationCatalog } from "../../../domain/entities/application-catalog/application-catalog";
+import { ApplicationMatch } from "../../../domain/entities/environment/application/application-match";
 import { RequestedApplication } from "../../../domain/entities/environment/application/requested-application";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
@@ -79,6 +81,7 @@ export class CreateSessionUseCase {
         private readonly storageDestinationRepository: StorageDestinationRepository,
         private readonly objectStorageGateway: ObjectStorageGateway,
         private readonly retry: SessionAllocationRetry,
+        private readonly applicationCatalog: ApplicationCatalog,
     ) {}
 
     async execute({ creds, params }: CreateSessionInput): Promise<Session> {
@@ -96,11 +99,14 @@ export class CreateSessionUseCase {
             await this.ensureStorageOwned(projectId);
         }
 
+        // The wire ask stays loose (an alias like `chrome`, a version prefix like `140`); the catalog
+        // expands it once into the canonical names and prefix everything downstream matches against.
         const requested = RequestedApplication.create(params.application);
+        const match = this.applicationCatalog.expand(requested);
 
-        const reserved = await this.reserveWithinBudget(projectId, params, requested);
+        const reserved = await this.reserveWithinBudget(projectId, params, requested, match);
 
-        const session = await this.openReservedSession(reserved, requested, {
+        const session = await this.openReservedSession(reserved, match, {
             logging: params.logging ?? false,
             video: params.video ?? false,
             netBridge: params.netBridge ?? false,
@@ -143,12 +149,13 @@ export class CreateSessionUseCase {
         projectId: ProjectId,
         params: CreateSessionInput["params"],
         requested: RequestedApplication,
+        match: ApplicationMatch,
     ): Promise<Environment> {
         const deadline = Date.now() + this.retry.budgetMs;
 
         for (;;) {
             try {
-                return await this.reserveOnce(projectId, params, requested);
+                return await this.reserveOnce(projectId, params, requested, match);
             } catch (error) {
                 if (!(error instanceof ConflictError) || Date.now() >= deadline) {
                     throw error;
@@ -163,6 +170,7 @@ export class CreateSessionUseCase {
         projectId: ProjectId,
         params: CreateSessionInput["params"],
         requested: RequestedApplication,
+        match: ApplicationMatch,
     ): Promise<Environment> {
         // Rebuilt each attempt so the freshness cutoff moves forward and a newly-arrived heartbeat is
         // seen. Explicitly typed so `refuseTransientShortage(): never` narrows the reserved candidate.
@@ -171,6 +179,7 @@ export class CreateSessionUseCase {
             freshnessMs: defaultHeartbeatFreshnessMs,
             execution: toExecution(params.execution),
             application: requested,
+            match,
         });
         const candidates = params.environmentId
             ? await this.targetedCandidate(projectId, params.environmentId, criteria)
@@ -259,14 +268,14 @@ export class CreateSessionUseCase {
     // "no environments available".
     private async openReservedSession(
         environment: Environment,
-        requested: RequestedApplication,
+        match: ApplicationMatch,
         options: WebDriverSessionOptions,
     ): Promise<Session> {
         const environmentId = EnvironmentId.fromString(environment.id);
         const stopHeartbeat = this.keepReservationAlive(environmentId);
 
         try {
-            const application = environment.applicationFor(requested.name);
+            const application = environment.applicationMatching(match);
 
             if (!environment.endpoint || !application) {
                 throw new TargetEnvironmentNotReadyError(environment.id);

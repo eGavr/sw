@@ -81,19 +81,19 @@ describe("/projects/:project/cloudAccounts", () => {
 
         // The kubernetes kind demands the cluster; without it the binding is refused.
         await request(app.getHttpServer()).post(bindings).set(owner)
-            .send({ platform: "linux", execution: "container", kind: "kubernetes" })
+            .send({ platform: "ubuntu", execution: "container", kind: "kubernetes" })
             .expect(HttpStatus.BAD_REQUEST);
 
         const bound = (await request(app.getHttpServer()).post(bindings).set(owner)
             .send({
-                platform: "linux", execution: "container", kind: "kubernetes", config: { clusterId: stubClusterId },
+                platform: "ubuntu", execution: "container", kind: "kubernetes", config: { clusterId: stubClusterId },
             })
             .expect(HttpStatus.CREATED)).body;
         expect(bound).toMatchObject({ kind: "kubernetes", config: { clusterId: stubClusterId } });
 
         // A second binding for the same substrate is ambiguous.
         await request(app.getHttpServer()).post(bindings).set(owner)
-            .send({ platform: "linux", execution: "container", kind: "vm", config: { folderId: stubFolderId } })
+            .send({ platform: "ubuntu", execution: "container", kind: "vm", config: { folderId: stubFolderId } })
             .expect(HttpStatus.CONFLICT);
 
         // Re-pointing at another kind replaces the kind's config — and demands the new kind's keys.
@@ -115,7 +115,7 @@ describe("/projects/:project/cloudAccounts", () => {
 
         return request(app.getHttpServer())
             .post(`/projects/${uid}/cloudAccounts/${account.uid}/computeBindings`).set(owner)
-            .send({ platform: "linux", execution: "container", kind: "teleportation" })
+            .send({ platform: "ubuntu", execution: "container", kind: "teleportation" })
             .expect(HttpStatus.BAD_REQUEST);
     });
 
@@ -161,14 +161,14 @@ describe("/projects/:project/cloudAccounts", () => {
 
         await request(app.getHttpServer())
             .post(`/projects/${uid}/cloudAccounts/${created.uid}/computeBindings`).set(owner)
-            .send({ platform: "linux", execution: "container", kind: "docker" })
+            .send({ platform: "ubuntu", execution: "container", kind: "docker" })
             .expect(HttpStatus.CREATED);
 
         await request(app.getHttpServer())
             .post(`/projects/${uid}/environments`)
             .set(owner)
             .send({
-                platform: { name: "linux", version: "1" },
+                platform: { name: "ubuntu", version: "24.04" },
                 applications: [{ name: "chrome", version: "128" }],
             })
             .expect(HttpStatus.CREATED);
@@ -192,7 +192,7 @@ describe("/projects/:project/cloudAccounts", () => {
         const local = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
         await request(app.getHttpServer())
             .post(`/projects/${uid}/cloudAccounts/${local.uid}/computeBindings`).set(owner)
-            .send({ platform: "linux", execution: "container", kind: "docker" })
+            .send({ platform: "ubuntu", execution: "container", kind: "docker" })
             .expect(HttpStatus.CREATED);
 
         // yandex-cloud connects fine, but binding ITS linux would make routing ambiguous.
@@ -200,7 +200,7 @@ describe("/projects/:project/cloudAccounts", () => {
 
         return request(app.getHttpServer())
             .post(`/projects/${uid}/cloudAccounts/${yandex.uid}/computeBindings`).set(owner)
-            .send({ platform: "linux", execution: "container", kind: "vm", config: { folderId: stubFolderId } })
+            .send({ platform: "ubuntu", execution: "container", kind: "vm", config: { folderId: stubFolderId } })
             .expect(HttpStatus.CONFLICT);
     });
 
@@ -214,7 +214,7 @@ describe("/projects/:project/cloudAccounts", () => {
         const account = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
         const binding = (await request(app.getHttpServer())
             .post(`/projects/${uid}/cloudAccounts/${account.uid}/computeBindings`).set(owner)
-            .send({ platform: "linux", execution: "container", kind: "docker" })
+            .send({ platform: "ubuntu", execution: "container", kind: "docker" })
             .expect(HttpStatus.CREATED)).body;
 
         return { account: account.uid, binding: binding.uid };

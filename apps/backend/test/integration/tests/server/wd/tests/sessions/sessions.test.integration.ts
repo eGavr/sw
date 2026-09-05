@@ -100,7 +100,7 @@ describe("/sessions", () => {
 
         await environmentRepository.create({
             projectId: ProjectId.fromString(projectId),
-            platform: Platform.fromObject({ name: "linux", version: "latest" }),
+            platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
             execution,
             applications: ApplicationList.fromObject([{ name: "chrome", version }]),
         });
@@ -217,7 +217,7 @@ describe("/sessions", () => {
 
             expect(createSessionOnNode).toHaveBeenCalledWith(
                 nodeEndpoint,
-                expect.objectContaining({ platformName: "linux" }),
+                expect.objectContaining({ platformName: "ubuntu" }),
                 { logging: true, video: false, netBridge: false },
             );
         });
@@ -230,7 +230,7 @@ describe("/sessions", () => {
 
             expect(createSessionOnNode).toHaveBeenCalledWith(
                 nodeEndpoint,
-                expect.objectContaining({ platformName: "linux" }),
+                expect.objectContaining({ platformName: "ubuntu" }),
                 { logging: false, video: true, netBridge: false },
             );
         });
@@ -242,7 +242,7 @@ describe("/sessions", () => {
 
             expect(createSessionOnNode).toHaveBeenCalledWith(
                 nodeEndpoint,
-                expect.objectContaining({ platformName: "linux" }),
+                expect.objectContaining({ platformName: "ubuntu" }),
                 { logging: false, video: false, netBridge: true },
             );
         });
@@ -263,7 +263,7 @@ describe("/sessions", () => {
 
             expect(createSessionOnNode).toHaveBeenCalledWith(
                 nodeEndpoint,
-                expect.objectContaining({ platformName: "linux" }),
+                expect.objectContaining({ platformName: "ubuntu" }),
                 { logging: false, video: false, netBridge: false },
             );
         });
@@ -319,7 +319,7 @@ describe("/sessions", () => {
             const environmentRepository = app.get(EnvironmentRepository);
             await environmentRepository.create({
                 projectId: ProjectId.fromString(projectId),
-                platform: Platform.fromObject({ name: "linux", version: "latest" }),
+                platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
                 applications: ApplicationList.fromObject([{ name: "chrome", version: chromeVersion }]),
             });
 
@@ -480,7 +480,7 @@ describe("/sessions", () => {
             const environmentRepository = app.get(EnvironmentRepository);
             const enqueued = await environmentRepository.create({
                 projectId: ProjectId.fromString(projectId),
-                platform: Platform.fromObject({ name: "linux", version: "latest" }),
+                platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
                 applications: ApplicationList.fromObject([{ name: "chrome", version: chromeVersion }]),
             });
 

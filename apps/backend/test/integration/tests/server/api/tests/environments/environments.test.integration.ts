@@ -14,7 +14,7 @@ import { Authorization } from "../../../utils/request/headers/authorization";
 import { CreateProjectBody } from "../../utils/request/body/create-project-body";
 
 const validEnvironmentBody = {
-    platform: { name: "linux", version: "latest" },
+    platform: { name: "ubuntu", version: "24.04" },
     applications: [{ name: "chrome", version: "126" }],
 };
 
@@ -48,7 +48,7 @@ describe("/projects/:project/environments", () => {
         await request(app.getHttpServer())
             .post(`/projects/${body.uid}/cloudAccounts/${account.uid}/computeBindings`)
             .set(owner)
-            .send({ platform: "linux", execution: "container", kind: "docker" })
+            .send({ platform: "ubuntu", execution: "container", kind: "docker" })
             .expect(HttpStatus.CREATED);
 
         return { owner, projectId: body.uid };
@@ -67,9 +67,15 @@ describe("/projects/:project/environments", () => {
                 name: `projects/${projectId}/environments/${body.uid}`,
                 uid: expect.any(String),
                 state: "ENQUEUED",
-                platform: { name: "linux", version: "latest", deviceModel: "desktop" },
+                platform: { name: "ubuntu", version: "24.04", deviceModel: "desktop" },
                 execution: "container",
-                applications: [{ name: "chrome", version: "126" }],
+                // The loose ask (alias + version prefix) came back concrete: the canonical name at
+                // the catalog's full version, with its provenance.
+                applications: [{
+                    name: "com.google.chrome",
+                    version: "126.0.6478.182",
+                    source: { type: "provided" },
+                }],
                 occupancy: "FREE",
                 createTime: expect.any(String),
             });
@@ -129,7 +135,7 @@ describe("/projects/:project/environments", () => {
                 .then(async ({ body: account }) => request(app.getHttpServer())
                     .post(`/projects/${project.uid}/cloudAccounts/${account.uid}/computeBindings`)
                     .set(owner)
-                    .send({ platform: "linux", execution: "container", kind: "docker" })
+                    .send({ platform: "ubuntu", execution: "container", kind: "docker" })
                     .expect(HttpStatus.CREATED));
 
             await request(app.getHttpServer())
@@ -168,13 +174,75 @@ describe("/projects/:project/environments", () => {
                 .expect(HttpStatus.NOT_FOUND);
         });
 
-        test("responds INVALID_ARGUMENT for a non-concrete application version", async () => {
+        test("a catalog application accepts latest and resolves it to the newest full version", async () => {
+            const { owner, projectId } = await createProject();
+
+            const { body } = await request(app.getHttpServer())
+                .post(`/projects/${projectId}/environments`)
+                .set(owner)
+                .send({ ...validEnvironmentBody, applications: [{ name: "chrome", version: "latest" }] })
+                .expect(HttpStatus.CREATED);
+
+            expect(body.applications).toEqual([{
+                name: "com.google.chrome",
+                version: "141.0.7390.54",
+                source: { type: "provided" },
+            }]);
+        });
+
+        test("responds INVALID_ARGUMENT for an application the catalog does not offer", async () => {
             const { owner, projectId } = await createProject();
 
             return request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
                 .set(owner)
-                .send({ ...validEnvironmentBody, applications: [{ name: "chrome", version: "latest" }] })
+                .send({ ...validEnvironmentBody, applications: [{ name: "org.mozilla.firefox" }] })
+                .expect(HttpStatus.BAD_REQUEST);
+        });
+
+        test("responds INVALID_ARGUMENT for a platform version outside the catalog's lines", async () => {
+            const { owner, projectId } = await createProject();
+
+            return request(app.getHttpServer())
+                .post(`/projects/${projectId}/environments`)
+                .set(owner)
+                .send({ ...validEnvironmentBody, platform: { name: "ubuntu", version: "22.04" } })
+                .expect(HttpStatus.BAD_REQUEST);
+        });
+
+        test("a custom-source application skips the catalog and echoes its artifact keys", async () => {
+            const { owner, projectId } = await createProject();
+
+            const { body } = await request(app.getHttpServer())
+                .post(`/projects/${projectId}/environments`)
+                .set(owner)
+                .send({
+                    ...validEnvironmentBody,
+                    applications: [{
+                        name: "com.mycorp.app",
+                        version: "7.1.0",
+                        source: { appKey: "builds/app-7.1.0.zip", webdriverKey: "builds/driver-7.1.0" },
+                    }],
+                })
+                .expect(HttpStatus.CREATED);
+
+            expect(body.applications).toEqual([{
+                name: "com.mycorp.app",
+                version: "7.1.0",
+                source: { type: "custom", appKey: "builds/app-7.1.0.zip", webdriverKey: "builds/driver-7.1.0" },
+            }]);
+        });
+
+        test("responds INVALID_ARGUMENT for a custom source without an exact version", async () => {
+            const { owner, projectId } = await createProject();
+
+            return request(app.getHttpServer())
+                .post(`/projects/${projectId}/environments`)
+                .set(owner)
+                .send({
+                    ...validEnvironmentBody,
+                    applications: [{ name: "com.mycorp.app", source: { appKey: "builds/app.zip" } }],
+                })
                 .expect(HttpStatus.BAD_REQUEST);
         });
     });
@@ -200,7 +268,7 @@ describe("/projects/:project/environments", () => {
             await request(app.getHttpServer())
                 .post(`/projects/${body.uid}/cloudAccounts/${account.uid}/computeBindings`)
                 .set(owner)
-                .send({ platform: "linux", execution: "container", kind: "docker", config: { maxEnvironments } })
+                .send({ platform: "ubuntu", execution: "container", kind: "docker", config: { maxEnvironments } })
                 .expect(HttpStatus.CREATED);
 
             return { owner, projectId: body.uid };
@@ -233,7 +301,7 @@ describe("/projects/:project/environments", () => {
                 .post(`/projects/${body.uid}/cloudAccounts/${account.uid}/computeBindings`)
                 .set(owner)
                 .send({
-                    platform: "linux",
+                    platform: "ubuntu",
                     execution: "container",
                     kind: "docker",
                     config: { maxEnvironments: 1001 },
@@ -363,7 +431,7 @@ describe("/projects/:project/environments", () => {
                             kind: "vm",
                             config: { folderId: "b1gstubstubstubstub0" },
                         }
-                        : { platform: "linux", execution: "container", kind: "docker" })
+                        : { platform: "ubuntu", execution: "container", kind: "docker" })
                     .expect(HttpStatus.CREATED);
             }
 
@@ -383,7 +451,7 @@ describe("/projects/:project/environments", () => {
                 .post(`/projects/${projectId}/cloudAccounts/${body.cloudAccounts[0].uid}/computeBindings`)
                 .set(owner)
                 .send({
-                    platform: "linux",
+                    platform: "ubuntu",
                     execution: "container",
                     kind: "vm",
                     config: { folderId: "b1gstubstubstubstub0" },
