@@ -26,13 +26,17 @@ import { BusySessionLink } from "@/components/busy-session-link";
 import { NewSessionModal } from "@/components/new-session-modal";
 import {
   createEnvironment,
+  catalogProject,
   deleteEnvironment,
   Environment,
   environmentHandle,
   getEnvironmentSession,
   killSession,
+  listApplicationVersions,
   listCloudAccounts,
   listEnvironmentsPage,
+  listPlatforms,
+  listProjectApplications,
 } from "@/lib/sw";
 import { addFreeing, loadFreeing, removeFreeing } from "@/lib/freeing-store";
 import { shortId } from "@/lib/format";
@@ -54,9 +58,8 @@ export function EnvironmentsTab({ project }: { project: string }) {
 
   const [platformName, setPlatformName] = useState("ubuntu");
   const [platformVersion, setPlatformVersion] = useState("24.04");
-  const [appName, setAppName] = useState("chrome");
-  // Empty app version = latest: the catalog resolves the newest full version it offers.
-  const [appVersion, setAppVersion] = useState("");
+  const [appName, setAppName] = useState("com.google.chrome");
+  const [appVersion, setAppVersion] = useState("latest");
   const [execution, setExecution] = useState("container");
   const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);
   // A busy environment's delete asks first: deprovision kills the running session with the container,
@@ -83,6 +86,76 @@ export function EnvironmentsTab({ project }: { project: string }) {
   });
   const noClouds = !clouds.isLoading
     && !(clouds.data ?? []).some((cloud) => cloud.computeBindings.length > 0);
+
+  // The delivery vocabulary: platform lines, then the applications of the reserved catalog project
+  // (the install's provided set) merged with the project's own registered customs — the whole form is
+  // picks, platforms narrowed to what the project actually bound. Registering customs lives in the
+  // project's Applications surface, not here.
+  const platformsQuery = useQuery({ queryKey: ["platforms"], queryFn: listPlatforms });
+  const applicationsQuery = useQuery({
+    queryKey: ["projectApplications", project, platformName],
+    queryFn: async () => {
+      const [provided, own] = await Promise.all([
+        listProjectApplications(catalogProject, platformName),
+        listProjectApplications(project, platformName),
+      ]);
+
+      return [
+        ...provided.map((offering) => ({ ...offering, owner: catalogProject })),
+        ...own.map((offering) => ({ ...offering, owner: project })),
+      ];
+    },
+    enabled: platformName !== "",
+  });
+  const boundPlatforms = new Set(
+    (clouds.data ?? []).flatMap((cloud) => cloud.computeBindings).map((binding) => binding.platform),
+  );
+  const platformLines = (platformsQuery.data ?? [])
+    .filter((line) => boundPlatforms.size === 0 || boundPlatforms.has(line.platform));
+  const platformVersions = platformLines.find((line) => line.platform === platformName)?.versions ?? [];
+  const offerings = applicationsQuery.data ?? [];
+  const applicationOptions = offerings.map((offering) => ({
+    value: offering.application,
+    label: (offering.aliases[0] ? `${offering.aliases[0]} (${offering.application})` : offering.application)
+      + (offering.owner === catalogProject ? "" : " — custom"),
+  }));
+  const selectedOffering = offerings.find((offering) => offering.application === appName);
+  const versionsQuery = useQuery({
+    queryKey: ["applicationVersions", selectedOffering?.owner, platformName, appName],
+    queryFn: () => listApplicationVersions(selectedOffering?.owner ?? catalogProject, platformName, appName),
+    enabled: selectedOffering !== undefined,
+  });
+  const appVersions = versionsQuery.data ?? [];
+
+  // Snap every dependent select when its options move (platform → its versions and applications,
+  // application → its versions), mirroring the execution snap below.
+  useEffect(() => {
+    if (platformLines.length > 0 && !platformLines.some((line) => line.platform === platformName)) {
+      setPlatformName(platformLines[0].platform);
+    }
+  }, [platformLines, platformName]);
+
+  useEffect(() => {
+    if (platformVersions.length > 0 && !platformVersions.includes(platformVersion)) {
+      setPlatformVersion(platformVersions[0]);
+    }
+  }, [platformVersions, platformVersion]);
+
+  useEffect(() => {
+    if (!applicationsQuery.data || offerings.length === 0) {
+      return;
+    }
+
+    if (!offerings.some((offering) => offering.application === appName)) {
+      setAppName(offerings[0].application);
+    }
+  }, [offerings, appName, applicationsQuery.data]);
+
+  useEffect(() => {
+    if (appVersion !== "latest" && !appVersions.includes(appVersion)) {
+      setAppVersion("latest");
+    }
+  }, [appVersions, appVersion]);
 
   // An environment can only land on a substrate the project actually BOUND, so the execution choices
   // are exactly the executions bound for the typed platform (emulator shows up enabled once its
@@ -114,7 +187,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
     mutationFn: () =>
       createEnvironment(project, {
         platform: { name: platformName, version: platformVersion },
-        applications: [{ name: appName, ...(appVersion ? { version: appVersion } : {}) }],
+        applications: [{ name: appName, ...(appVersion !== "latest" ? { version: appVersion } : {}) }],
         execution,
       }),
     onSuccess: async () => {
@@ -384,29 +457,31 @@ export function EnvironmentsTab({ project }: { project: string }) {
       <Modal opened={opened} onClose={close} title="New environment">
         <Stack>
           <Group grow>
-            <TextInput
+            <Select
               label="Platform"
+              data={platformLines.map((line) => line.platform)}
               value={platformName}
-              onChange={(e) => setPlatformName(e.currentTarget.value)}
+              onChange={(v) => v && setPlatformName(v)}
             />
-            <TextInput
+            <Select
               label="Version"
+              data={[...platformVersions]}
               value={platformVersion}
-              onChange={(e) => setPlatformVersion(e.currentTarget.value)}
+              onChange={(v) => v && setPlatformVersion(v)}
             />
           </Group>
-          <Group grow>
-            <TextInput
-              label="Application"
-              value={appName}
-              onChange={(e) => setAppName(e.currentTarget.value)}
-            />
-            <TextInput
-              label="App version"
-              value={appVersion}
-              onChange={(e) => setAppVersion(e.currentTarget.value)}
-            />
-          </Group>
+          <Select
+            label="Application"
+            data={applicationOptions}
+            value={appName}
+            onChange={(v) => v && setAppName(v)}
+          />
+          <Select
+            label="App version"
+            data={["latest", ...appVersions]}
+            value={appVersion}
+            onChange={(v) => v && setAppVersion(v)}
+          />
           <Select
             label="Execution"
             data={executionOptions}
@@ -422,7 +497,11 @@ export function EnvironmentsTab({ project }: { project: string }) {
             <Button variant="default" onClick={close}>
               Cancel
             </Button>
-            <Button onClick={() => create.mutate()} loading={create.isPending}>
+            <Button
+              onClick={() => create.mutate()}
+              loading={create.isPending}
+              disabled={!selectedOffering}
+            >
               Create
             </Button>
           </Group>

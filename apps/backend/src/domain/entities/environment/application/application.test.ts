@@ -40,22 +40,29 @@ describe("Application", () => {
     });
 
     describe("custom source", () => {
-        test("carries the user's artifact keys and survives a roundtrip", () => {
+        test("carries the build's artifact refs and survives a roundtrip", () => {
             const application = Application.create({
                 name: "com.mycorp.app",
                 version: "7.1.0",
-                source: ApplicationSource.custom({ appKey: "builds/app.apk", webdriverKey: "builds/driver" }),
+                source: ApplicationSource.custom({ appRef: "builds/app.apk", webdriverRef: "builds/driver" }),
             });
 
             const restored = Application.fromObject(application.toObject());
 
             expect(restored.source.isCustom()).toBe(true);
-            expect(restored.source.appKey).toBe("builds/app.apk");
-            expect(restored.source.webdriverKey).toBe("builds/driver");
+            expect(restored.source.appRef).toBe("builds/app.apk");
+            expect(restored.source.webdriverRef).toBe("builds/driver");
         });
 
-        test("requires a non-empty appKey", () => {
-            expect(() => ApplicationSource.custom({ appKey: "  " })).toThrow(InvalidArgumentError);
+        test("requires a non-empty appRef", () => {
+            expect(() => ApplicationSource.custom({ appRef: "  " })).toThrow(InvalidArgumentError);
+        });
+
+        test("a provided source may carry the catalog build's refs", () => {
+            const provided = ApplicationSource.provided({ appRef: "ref://chrome", webdriverRef: "ref://driver" });
+
+            expect(provided.isCustom()).toBe(false);
+            expect(provided.appRef).toBe("ref://chrome");
         });
     });
 

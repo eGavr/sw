@@ -18,6 +18,7 @@ import { ConflictError } from "../../../domain/entities/error/conflict-error";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
+import { ensureNotCatalogProject } from "../../../domain/entities/project-application/catalog-project";
 import { Session } from "../../../domain/entities/session/session";
 import { SessionOwnership } from "../../../domain/entities/session/session-ownership";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
@@ -28,6 +29,7 @@ import { ProjectRepository } from "../../interfaces/repositories/project-reposit
 import { SessionOwnershipRepository } from "../../interfaces/repositories/session-ownership-repository";
 import { StorageDestinationRepository } from "../../interfaces/repositories/storage-destination-repository";
 import { AccessControl } from "../../services/access-control";
+import { ApplicationCatalogLoader } from "../../services/application-catalog-loader";
 
 // How long allocation keeps retrying a transient shortage, and how long it waits between attempts.
 // The budget must cover one agent heartbeat interval so a just-freed environment is always caught:
@@ -81,7 +83,7 @@ export class CreateSessionUseCase {
         private readonly storageDestinationRepository: StorageDestinationRepository,
         private readonly objectStorageGateway: ObjectStorageGateway,
         private readonly retry: SessionAllocationRetry,
-        private readonly applicationCatalog: ApplicationCatalog,
+        private readonly applicationCatalogLoader: ApplicationCatalogLoader,
     ) {}
 
     async execute({ creds, params }: CreateSessionInput): Promise<Session> {
@@ -89,6 +91,8 @@ export class CreateSessionUseCase {
         const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
+
+        ensureNotCatalogProject(project, "creating sessions");
 
         const projectId = ProjectId.fromString(project.id);
 
@@ -99,14 +103,16 @@ export class CreateSessionUseCase {
             await this.ensureStorageOwned(projectId);
         }
 
-        // The wire ask stays loose (an alias like `chrome`, a version prefix like `140`); the catalog
-        // expands it once into the canonical names and prefix everything downstream matches against.
+        // The wire ask stays loose (an alias like `chrome`, a version prefix like `140`); the
+        // project's vocabulary expands it once into the canonical names and prefix everything
+        // downstream matches against.
+        const catalog = await this.applicationCatalogLoader.loadFor(projectId);
         const requested = RequestedApplication.create(params.application);
-        const match = this.applicationCatalog.expand(requested);
+        const match = catalog.expand(requested);
 
         const reserved = await this.reserveWithinBudget(projectId, params, requested, match);
 
-        const session = await this.openReservedSession(reserved, match, {
+        const session = await this.openReservedSession(reserved, catalog, match, {
             logging: params.logging ?? false,
             video: params.video ?? false,
             netBridge: params.netBridge ?? false,
@@ -268,6 +274,7 @@ export class CreateSessionUseCase {
     // "no environments available".
     private async openReservedSession(
         environment: Environment,
+        catalog: ApplicationCatalog,
         match: ApplicationMatch,
         options: WebDriverSessionOptions,
     ): Promise<Session> {
@@ -281,9 +288,12 @@ export class CreateSessionUseCase {
                 throw new TargetEnvironmentNotReadyError(environment.id);
             }
 
+            // The node hears the wire vocabulary (`browserName: chrome`), not our canonical id — the
+            // vocabulary translates; a custom application passes through under its own name.
             const webDriverSessionId = await this.webDriverSessionGateway.create(
                 environment.endpoint,
                 application,
+                catalog.wireName(application.name),
                 environment.platform.name,
                 options,
             );

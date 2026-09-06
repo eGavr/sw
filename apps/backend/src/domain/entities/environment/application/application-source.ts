@@ -2,58 +2,64 @@ import { InvalidArgumentError } from "../../error/invalid-argument-error";
 
 export type ApplicationSourceData = {
     type: "provided" | "custom";
-    appKey?: string;
-    webdriverKey?: string;
+    appRef?: string;
+    webdriverRef?: string;
 };
 
-// Where an environment's application comes from: `provided` — the service's own catalog delivers the
-// artifacts (or the application is preinstalled on the platform image); `custom` — the user's build,
-// pulled from the project's delegated storage bucket by object key, with an optional paired webdriver
-// (a browser-like custom app needs one; a native app does not).
+type ArtifactRefs = {
+    appRef?: string;
+    webdriverRef?: string;
+};
+
+// Where an environment's application comes from, snapshotted at creation so the environment stays
+// self-contained (later registry edits never touch a live environment): `provided` — the install
+// catalog's build, refs into the install's own store (absent refs = preinstalled on the platform
+// image); `custom` — the user's registered build, refs are object keys in the project's delegated
+// bucket, with an optional paired webdriver.
 export class ApplicationSource {
-    static provided(): ApplicationSource {
-        return new ApplicationSource("provided", null, null);
+    static provided(refs: ArtifactRefs = {}): ApplicationSource {
+        return new ApplicationSource("provided", refs.appRef ?? null, refs.webdriverRef ?? null);
     }
 
-    static custom(params: { appKey: string; webdriverKey?: string }): ApplicationSource {
-        if (!params.appKey || params.appKey.trim() === "") {
-            throw new InvalidArgumentError("custom application source requires an appKey");
+    static custom(refs: ArtifactRefs): ApplicationSource {
+        if (!refs.appRef || refs.appRef.trim() === "") {
+            throw new InvalidArgumentError("a custom application build requires an appRef");
         }
 
-        return new ApplicationSource("custom", params.appKey, params.webdriverKey ?? null);
+        return new ApplicationSource("custom", refs.appRef, refs.webdriverRef ?? null);
     }
 
     static fromObject(data?: ApplicationSourceData): ApplicationSource {
         if (!data || data.type === "provided") {
-            return ApplicationSource.provided();
+            return ApplicationSource.provided({ appRef: data?.appRef, webdriverRef: data?.webdriverRef });
         }
 
-        return ApplicationSource.custom({ appKey: data.appKey ?? "", webdriverKey: data.webdriverKey });
+        return ApplicationSource.custom({ appRef: data.appRef ?? "", webdriverRef: data.webdriverRef });
     }
 
     private constructor(
         private readonly _type: "provided" | "custom",
-        private readonly _appKey: string | null,
-        private readonly _webdriverKey: string | null,
+        private readonly _appRef: string | null,
+        private readonly _webdriverRef: string | null,
     ) {}
 
     isCustom(): boolean {
         return this._type === "custom";
     }
 
-    get appKey(): string | null {
-        return this._appKey;
+    get appRef(): string | null {
+        return this._appRef;
     }
 
-    get webdriverKey(): string | null {
-        return this._webdriverKey;
+    get webdriverRef(): string | null {
+        return this._webdriverRef;
     }
 
     toObject(): ApplicationSourceData {
         return {
             type: this._type,
-            ...(this._appKey !== null ? { appKey: this._appKey } : {}),
-            ...(this._webdriverKey !== null ? { webdriverKey: this._webdriverKey } : {}),
+            ...(this._appRef !== null ? { appRef: this._appRef } : {}),
+            ...(this._webdriverRef !== null ? { webdriverRef: this._webdriverRef } : {}),
         };
     }
 }

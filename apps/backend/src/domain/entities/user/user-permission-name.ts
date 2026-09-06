@@ -24,6 +24,15 @@ export enum SessionPermission {
     Create = "sw.sessions.create",
 }
 
+// Registered applications: the project's own deliverable builds (and, in the reserved catalog
+// project, the install's provided set — managed by install admins through the same permissions).
+export enum ApplicationPermission {
+    Get = "sw.applications.get",
+    List = "sw.applications.list",
+    Create = "sw.applications.create",
+    Delete = "sw.applications.delete",
+}
+
 export enum StorageDestinationPermission {
     Get = "sw.storageDestinations.get",
     Set = "sw.storageDestinations.set",
@@ -54,6 +63,8 @@ export class UserPermissionName {
 
     static readonly Session = SessionPermission;
 
+    static readonly Application = ApplicationPermission;
+
     static readonly StorageDestination = StorageDestinationPermission;
 
     static readonly CloudAccount = CloudAccountPermission;
@@ -64,6 +75,7 @@ export class UserPermissionName {
         ...Object.values(ProjectPermission),
         ...Object.values(EnvironmentPermission),
         ...Object.values(SessionPermission),
+        ...Object.values(ApplicationPermission),
         ...Object.values(StorageDestinationPermission),
         ...Object.values(CloudAccountPermission),
         ...Object.values(NetBridgeCredentialPermission),

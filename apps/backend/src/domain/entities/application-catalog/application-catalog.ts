@@ -2,69 +2,61 @@ import { Application } from "../environment/application/application";
 import { ApplicationMatch } from "../environment/application/application-match";
 import { ApplicationSource } from "../environment/application/application-source";
 import { RequestedApplication } from "../environment/application/requested-application";
-import { Platform } from "../environment/platform/platform";
+import { ProjectApplication } from "../project-application/project-application";
+import { ProjectApplicationVersion } from "../project-application/project-application-version";
 
 import { ApplicationNotInCatalogError } from "./error/application-not-in-catalog-error";
-import { UnsupportedPlatformError } from "./error/unsupported-platform-error";
-import { ProvidedApplication, ProvidedApplicationData } from "./provided-application";
 
-export type ApplicationCatalogData = {
-    platforms: Array<{ name: string; versions: Array<string> }>;
-    applications: Array<ProvidedApplicationData>;
+export type ApplicationCatalogParams = {
+    // The reserved catalog project's applications — the install's provided set, whose words (canonical
+    // names AND aliases) are reserved install-wide.
+    catalog: ReadonlyArray<ProjectApplication>;
+    // The acting project's own applications — customs, addressed by canonical name only.
+    own: ReadonlyArray<ProjectApplication>;
 };
 
-// What this install can put onto an environment: the platform base-image lines it provisions (an
-// environment's platform must name one honestly) and the applications the service itself delivers,
-// each a canonical reverse-DNS id at one FULL version with its wire aliases. Static install data built
-// at the composition root; a custom (user-artifact) application bypasses it entirely.
+// The applications one project can put onto an environment: the install's provided set plus its own
+// registered customs, under the docker rule — a catalog word means the same thing in EVERY project, a
+// custom never takes one, so every word resolves deterministically: catalog first, then the project's
+// canonical names.
 export class ApplicationCatalog {
-    static fromObject(data: ApplicationCatalogData): ApplicationCatalog {
-        return new ApplicationCatalog(
-            new Map(data.platforms.map((platform) => [platform.name, platform.versions])),
-            data.applications.map(ProvidedApplication.fromObject),
-        );
+    static of(params: ApplicationCatalogParams): ApplicationCatalog {
+        return new ApplicationCatalog(params.catalog, params.own);
     }
 
     private constructor(
-        private readonly platformVersions: Map<string, Array<string>>,
-        private readonly applications: Array<ProvidedApplication>,
+        private readonly catalog: ReadonlyArray<ProjectApplication>,
+        private readonly own: ReadonlyArray<ProjectApplication>,
     ) {}
 
-    ensurePlatformSupported(platform: Platform): void {
-        const versions = this.platformVersions.get(platform.name) ?? [];
+    // Resolves a create-environment ask — a loose word with a loose version (segment prefix, "latest"
+    // or omitted) — into the concrete application to install, carrying the build's artifact refs so the
+    // environment can snapshot them and stay self-contained.
+    resolve(platformName: string, requested: RequestedApplication): Application {
+        const application = this.applicationAnswering(platformName, requested.name);
 
-        if (!versions.includes(platform.version)) {
-            throw new UnsupportedPlatformError(platform.name, platform.version, versions);
-        }
-    }
-
-    // Resolves a create-environment ask — an alias or canonical name with a loose version (segment
-    // prefix, "latest" or omitted) — into the concrete provided application to install: canonical name,
-    // full version (newest when several qualify).
-    resolveProvided(platformName: string, requested: RequestedApplication): Application {
-        const candidates = this.applications.filter((application) =>
-            application.platform === platformName
-            && application.answersTo(requested.name)
-            && application.matchesVersion(requested.version()));
-
-        if (candidates.length === 0) {
+        if (!application) {
             throw new ApplicationNotInCatalogError(platformName, requested.name, requested.version());
         }
 
-        const newest = candidates.reduce((best, candidate) => (candidate.isNewerThan(best) ? candidate : best));
+        const build = application.newestMatching(requested.version());
+
+        if (!build) {
+            throw new ApplicationNotInCatalogError(platformName, requested.name, requested.version());
+        }
 
         return Application.create({
-            name: newest.name,
-            version: newest.version,
-            source: ApplicationSource.provided(),
+            name: application.name,
+            version: build.version,
+            source: this.sourceFor(application, build),
         });
     }
 
-    // Expands a session ask into every name it may be installed under: the requested name itself (a
-    // canonical id or a custom application's own name) plus each canonical id the catalog knows the
-    // word as an alias of — across platforms; narrowing by platform is the allocation's business.
+    // Expands a session ask into every name it may be installed under: the requested word itself (a
+    // canonical id — catalog, custom or a legacy install) plus each catalog canonical the word aliases,
+    // across platforms; narrowing by platform is the allocation's business.
     expand(requested: RequestedApplication): ApplicationMatch {
-        const aliased = this.applications
+        const aliased = this.catalog
             .filter((application) => application.answersTo(requested.name))
             .map((application) => application.name);
 
@@ -75,18 +67,46 @@ export class ApplicationCatalog {
     }
 
     // The wire vocabulary word for a canonical name (`com.google.chrome` → `chrome`) — what a browser
-    // node actually understands as browserName. Unknown names pass through: a custom application is
-    // addressed as-is.
+    // node actually understands as browserName. Customs pass through: they are addressed as-is.
     wireName(canonicalName: string): string {
-        const known = this.applications.find((application) => application.name === canonicalName);
+        const known = this.catalog.find((application) => application.name === canonicalName);
 
-        return known ? known.wireName() : canonicalName;
+        return known ? (known.aliases[0] ?? known.name) : canonicalName;
     }
 
-    providedFor(platformName: string, name: string, version: string): ProvidedApplication | null {
-        return this.applications.find((application) =>
-            application.platform === platformName
-            && application.name === name
-            && application.version === version) ?? null;
+    // Whether a word is taken on the platform — by the install catalog (reserved everywhere) or within
+    // the given set. Registration uses both: a custom may not take a catalog word, and no two
+    // applications of one project may share a word.
+    catalogReserves(platformName: string, word: string): boolean {
+        return this.catalog.some((application) =>
+            application.platformName === platformName && application.answersTo(word));
+    }
+
+    ownAnswers(platformName: string, word: string): boolean {
+        return this.own.some((application) =>
+            application.platformName === platformName && application.answersTo(word));
+    }
+
+    private applicationAnswering(platformName: string, word: string): ProjectApplication | null {
+        const provided = this.catalog.find((application) =>
+            application.platformName === platformName && application.answersTo(word));
+
+        if (provided) {
+            return provided;
+        }
+
+        return this.own.find((application) =>
+            application.platformName === platformName && application.name === word) ?? null;
+    }
+
+    private sourceFor(application: ProjectApplication, build: ProjectApplicationVersion): ApplicationSource {
+        const refs = {
+            appRef: build.appRef ?? undefined,
+            webdriverRef: build.webdriverRef ?? undefined,
+        };
+
+        return this.catalog.includes(application)
+            ? ApplicationSource.provided(refs)
+            : ApplicationSource.custom(refs);
     }
 }

@@ -11,12 +11,19 @@ import { EnvironmentRepository } from "../../../application/interfaces/repositor
 import {
     NetBridgeCredentialRepository,
 } from "../../../application/interfaces/repositories/net-bridge-credential-repository";
+import {
+    ProjectApplicationRepository,
+} from "../../../application/interfaces/repositories/project-application-repository";
 import { ProjectRepository } from "../../../application/interfaces/repositories/project-repository";
 import {
     SessionOwnershipRepository,
 } from "../../../application/interfaces/repositories/session-ownership-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
+import { ApplicationCatalogLoader } from "../../../application/services/application-catalog-loader";
+import {
+    EnsureCatalogProjectUseCase,
+} from "../../../application/use-cases/catalog/ensure-catalog-project-use-case";
 import {
     AuthenticateNetBridgeClientUseCase,
 } from "../../../application/use-cases/net-bridge-tunnel/authenticate-net-bridge-client-use-case";
@@ -35,7 +42,7 @@ import {
 } from "../../../domain/entities/environment/heartbeat-freshness";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import { AgentTokenServiceProvider } from "../../../infrastructure/agent-token/agent-token-service-provider";
-import { ApplicationCatalogProvider } from "../../../infrastructure/application-catalog/application-catalog-provider";
+import { CatalogBootstrap } from "../../../infrastructure/catalog-bootstrap/catalog-bootstrap";
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
 } from "../../../infrastructure/data-sources/auth/user-data-source-provider";
@@ -43,6 +50,9 @@ import { EnvironmentDataSource } from "../../../infrastructure/data-sources/data
 import {
     NetBridgeCredentialDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/net-bridge-credential-data-source";
+import {
+    ProjectApplicationDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/project-application-data-source";
 import { ProjectDataSource } from "../../../infrastructure/data-sources/database/postgres/project-data-source";
 import {
     SessionOwnershipDataSource,
@@ -64,6 +74,9 @@ import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/
 import {
     NetBridgeCredentialRepositoryImpl,
 } from "../../../infrastructure/repositories/net-bridge-credential-repository-impl";
+import {
+    ProjectApplicationRepositoryImpl,
+} from "../../../infrastructure/repositories/project-application-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
 import {
     SessionOwnershipRepositoryImpl,
@@ -161,7 +174,11 @@ function novncStatic(request: Request, response: Response, next: NextFunction): 
         // The tunnel rendezvous: the forwarder authenticates by its agent token (needs the token service),
         // the client by its access key; both legs are glued by project in the registry.
         AgentTokenServiceProvider,
-        ApplicationCatalogProvider,
+        ApplicationCatalogLoader,
+        { provide: ProjectApplicationRepository, useClass: ProjectApplicationRepositoryImpl },
+        ProjectApplicationDataSource,
+        EnsureCatalogProjectUseCase,
+        CatalogBootstrap,
         NetBridgeRegistry,
         NetBridgeRendezvous,
 

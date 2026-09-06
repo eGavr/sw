@@ -6,6 +6,7 @@ import {
 } from "../../../domain/entities/net-bridge-credential/net-bridge-credential";
 import { NetBridgeSecret } from "../../../domain/entities/net-bridge-credential/net-bridge-secret";
 import { ProjectId } from "../../../domain/entities/project/project-id";
+import { ensureNotCatalogProject } from "../../../domain/entities/project-application/catalog-project";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import {
     NetBridgeCredentialRepository,
@@ -39,6 +40,8 @@ export class CreateNetBridgeCredentialUseCase {
         const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
+
+        ensureNotCatalogProject(project, "minting NetBridge keys");
 
         const secret = NetBridgeSecret.generate();
         const credential = NetBridgeCredential.create({

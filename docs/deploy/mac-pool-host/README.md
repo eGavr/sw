@@ -9,14 +9,18 @@
 
 - Android SDK с эмулятором (`emulator`, `adb`); слот сам экспортит `ANDROID_HOME`
   (дефолт `~/Library/Android/sdk`, переопределяется env) и кладёт `platform-tools`/`emulator` в PATH.
-- AVD c именем по контракту **`sw-android-<версия>`** (версия = `platform.version` окружения). На маке
-  `avdmanager` требует JDK 17+ — задать `JAVA_HOME`:
+- AVD c именем по контракту **`sw-android-<версия>`**, где версия — ПОЛЬЗОВАТЕЛЬСКАЯ версия Android
+  (`platform.version` окружения: `14`, не API level 34 — маппинг на API-образ живёт здесь, при
+  создании AVD). На маке `avdmanager` требует JDK 17+ — задать `JAVA_HOME`:
 
   ```bash
   sdkmanager "system-images;android-34;google_apis;arm64-v8a"
   JAVA_HOME=/opt/homebrew/opt/openjdk \
-    avdmanager create avd -n sw-android-34 -k "system-images;android-34;google_apis;arm64-v8a" --device pixel_3a
+    avdmanager create avd -n sw-android-14 -k "system-images;android-34;google_apis;arm64-v8a" --device pixel_3a
   ```
+
+  Существующий `sw-android-34` переименовать: `avdmanager rename avd -n sw-android-34 --new-name sw-android-14`
+  (или пересоздать).
 
 - `appium` + драйвер: `npm i -g appium && appium driver install uiautomator2`. **Гоча свежего appium 3.7:**
   драйвер `uiautomator2` может упасть с `Cannot find module '@appium/logger'` (пакет не хойстится) —

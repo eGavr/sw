@@ -16,6 +16,8 @@ import { PoolHost } from "./entities/host-pool/pool-host";
 import { NetBridgeCredential } from "./entities/net-bridge-credential/net-bridge-credential";
 import { Project } from "./entities/project/project";
 import { ProjectIamBinding } from "./entities/project/project-iam-binding";
+import { ProjectApplication } from "./entities/project-application/project-application";
+import { ProjectApplicationVersion } from "./entities/project-application/project-application-version";
 import { SessionOwnership } from "./entities/session-ownership/session-ownership";
 import { StorageDestination } from "./entities/storage-destination/storage-destination";
 import { User } from "./entities/user/user";
@@ -57,6 +59,8 @@ export class PostgresConnection {
                 NetBridgeCredential,
                 SessionOwnership,
                 StorageDestination,
+                ProjectApplication,
+                ProjectApplicationVersion,
             ],
         })
     }

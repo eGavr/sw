@@ -79,7 +79,7 @@ import { internalAgentToken } from "../../../utils/request/internal-agent-token"
 import { internalHostToken } from "../../../utils/request/internal-host-token";
 
 const hostIp = "10.128.0.15";
-const launch = { avd: "sw-android-34", internalUrl: "http://cp:3002" };
+const launch = { avd: "sw-android-14", internalUrl: "http://cp:3002" };
 
 describe("/internal/poolHosts/:id:heartbeat", () => {
     let app: INestApplication;
@@ -158,7 +158,7 @@ describe("/internal/poolHosts/:id:heartbeat", () => {
     const seedEnvironmentId = async (projectId: string): Promise<string> => {
         const environment = await environmentRepository.create({
             projectId: ProjectId.fromString(projectId),
-            platform: Platform.fromObject({ name: "android", version: "34" }),
+            platform: Platform.fromObject({ name: "android", version: "14" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
 
