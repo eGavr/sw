@@ -33,6 +33,7 @@ import {
   killSession,
   listCloudAccounts,
   listEnvironmentsPage,
+  listApplicationVersions,
   listPlatformApplications,
   listPlatforms,
 } from "@/lib/sw";
@@ -115,8 +116,13 @@ export function EnvironmentsTab({ project }: { project: string }) {
     })),
     { value: customApplication, label: "Custom application…" },
   ];
-  const appVersions = offerings.find((offering) => offering.application === appName)?.versions ?? [];
   const isCustomApplication = appName === customApplication;
+  const versionsQuery = useQuery({
+    queryKey: ["applicationVersions", platformName, appName],
+    queryFn: () => listApplicationVersions(platformName, appName),
+    enabled: !isCustomApplication && offerings.some((offering) => offering.application === appName),
+  });
+  const appVersions = versionsQuery.data ?? [];
 
   // Snap every dependent select when its options move (platform → its versions and applications,
   // application → its versions), mirroring the execution snap below.

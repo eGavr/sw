@@ -453,7 +453,11 @@ export interface PlatformApplication {
   name: string;
   application: string;
   aliases: Array<string>;
-  versions: Array<string>;
+}
+
+export interface ApplicationVersion {
+  name: string;
+  version: string;
 }
 
 export function listPlatforms(): Promise<Array<PlatformLine>> {
@@ -464,6 +468,12 @@ export function listPlatformApplications(platform: string): Promise<Array<Platfo
   return swRequest<{ applications?: Array<PlatformApplication> }>(
     `v1/platforms/${platform}/applications`,
   ).then((d) => d.applications ?? []);
+}
+
+export function listApplicationVersions(platform: string, application: string): Promise<Array<string>> {
+  return swRequest<{ versions?: Array<ApplicationVersion> }>(
+    `v1/platforms/${platform}/applications/${application}/versions`,
+  ).then((d) => (d.versions ?? []).map((v) => v.version));
 }
 
 export function listCloudAccounts(project: string): Promise<Array<CloudAccount>> {

@@ -66,9 +66,15 @@ import {
     ListNetBridgeCredentialsUseCase,
 } from "../../../application/use-cases/net-bridge-credentials/list-net-bridge-credentials-use-case";
 import {
+    GetApplicationVersionUseCase,
+} from "../../../application/use-cases/platforms/get-application-version-use-case";
+import {
     GetPlatformApplicationUseCase,
 } from "../../../application/use-cases/platforms/get-platform-application-use-case";
 import { GetPlatformUseCase } from "../../../application/use-cases/platforms/get-platform-use-case";
+import {
+    ListApplicationVersionsUseCase,
+} from "../../../application/use-cases/platforms/list-application-versions-use-case";
 import {
     ListPlatformApplicationsUseCase,
 } from "../../../application/use-cases/platforms/list-platform-applications-use-case";
@@ -242,6 +248,8 @@ import {
         GetPlatformUseCase,
         ListPlatformApplicationsUseCase,
         GetPlatformApplicationUseCase,
+        ListApplicationVersionsUseCase,
+        GetApplicationVersionUseCase,
 
         CreateNetBridgeCredentialUseCase,
         ListNetBridgeCredentialsUseCase,

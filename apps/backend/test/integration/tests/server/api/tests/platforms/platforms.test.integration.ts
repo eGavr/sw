@@ -45,7 +45,7 @@ describe("/platforms", () => {
         expect(body).toEqual({ name: "platforms/ubuntu", platform: "ubuntu", versions: ["24.04"] });
     });
 
-    test("lists a platform's deliverable applications, versions newest-first and artifacts private", async () => {
+    test("lists a platform's deliverable applications, artifacts staying private", async () => {
         const { body } = await request(app.getHttpServer())
             .get("/platforms/ubuntu/applications")
             .set(owner())
@@ -56,7 +56,6 @@ describe("/platforms", () => {
                 name: "platforms/ubuntu/applications/com.google.chrome",
                 application: "com.google.chrome",
                 aliases: ["chrome"],
-                versions: ["141.0.7390.54", "140.0.7339.80", "128.0.6613.86", "126.0.6478.182"],
             }],
         });
 
@@ -73,8 +72,42 @@ describe("/platforms", () => {
             name: "platforms/android/applications/com.android.settings",
             application: "com.android.settings",
             aliases: ["settings"],
-            versions: ["34", "13"],
         });
+    });
+
+    test("lists an application's versions newest-first, each its own resource", async () => {
+        const { body } = await request(app.getHttpServer())
+            .get("/platforms/ubuntu/applications/com.google.chrome/versions")
+            .set(owner())
+            .expect(HttpStatus.OK);
+
+        expect(body).toEqual({
+            versions: [
+                { name: "platforms/ubuntu/applications/com.google.chrome/versions/141.0.7390.54", version: "141.0.7390.54" },
+                { name: "platforms/ubuntu/applications/com.google.chrome/versions/140.0.7339.80", version: "140.0.7339.80" },
+                { name: "platforms/ubuntu/applications/com.google.chrome/versions/128.0.6613.86", version: "128.0.6613.86" },
+                { name: "platforms/ubuntu/applications/com.google.chrome/versions/126.0.6478.182", version: "126.0.6478.182" },
+            ],
+        });
+    });
+
+    test("gets one version", async () => {
+        const { body } = await request(app.getHttpServer())
+            .get("/platforms/ubuntu/applications/com.google.chrome/versions/140.0.7339.80")
+            .set(owner())
+            .expect(HttpStatus.OK);
+
+        expect(body).toEqual({
+            name: "platforms/ubuntu/applications/com.google.chrome/versions/140.0.7339.80",
+            version: "140.0.7339.80",
+        });
+    });
+
+    test("responds NOT_FOUND for a version the install does not deliver", async () => {
+        return request(app.getHttpServer())
+            .get("/platforms/ubuntu/applications/com.google.chrome/versions/1.0")
+            .set(owner())
+            .expect(HttpStatus.NOT_FOUND);
     });
 
     test("an alias is request vocabulary, not a resource id", async () => {
