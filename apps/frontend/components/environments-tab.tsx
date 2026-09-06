@@ -28,6 +28,7 @@ import {
   createEnvironment,
   deleteEnvironment,
   Environment,
+  getApplicationCatalog,
   environmentHandle,
   getEnvironmentSession,
   killSession,
@@ -54,9 +55,15 @@ export function EnvironmentsTab({ project }: { project: string }) {
 
   const [platformName, setPlatformName] = useState("ubuntu");
   const [platformVersion, setPlatformVersion] = useState("24.04");
-  const [appName, setAppName] = useState("chrome");
-  // Empty app version = latest: the catalog resolves the newest full version it offers.
-  const [appVersion, setAppVersion] = useState("");
+  // The Application select holds a catalog canonical name, or this sentinel for the bring-your-own
+  // branch (the only free-form part of the form).
+  const customApplication = "__custom__";
+  const [appName, setAppName] = useState("com.google.chrome");
+  const [appVersion, setAppVersion] = useState("latest");
+  const [customName, setCustomName] = useState("");
+  const [customVersion, setCustomVersion] = useState("");
+  const [customAppKey, setCustomAppKey] = useState("");
+  const [customWebdriverKey, setCustomWebdriverKey] = useState("");
   const [execution, setExecution] = useState("container");
   const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);
   // A busy environment's delete asks first: deprovision kills the running session with the container,
@@ -83,6 +90,59 @@ export function EnvironmentsTab({ project }: { project: string }) {
   });
   const noClouds = !clouds.isLoading
     && !(clouds.data ?? []).some((cloud) => cloud.computeBindings.length > 0);
+
+  // The install's delivery catalog: platform lines and provided applications — everything in the form
+  // except the custom branch is a pick from it, narrowed to the platforms the project actually bound.
+  const catalog = useQuery({ queryKey: ["applicationCatalog"], queryFn: getApplicationCatalog });
+  const boundPlatforms = new Set(
+    (clouds.data ?? []).flatMap((cloud) => cloud.computeBindings).map((binding) => binding.platform),
+  );
+  const platformLines = (catalog.data?.platforms ?? [])
+    .filter((line) => boundPlatforms.size === 0 || boundPlatforms.has(line.name));
+  const platformVersions = platformLines.find((line) => line.name === platformName)?.versions ?? [];
+  const offerings = (catalog.data?.applications ?? [])
+    .filter((offering) => offering.platform === platformName);
+  const applicationOptions = [
+    ...offerings.map((offering) => ({
+      value: offering.name,
+      label: offering.aliases[0] ? `${offering.aliases[0]} (${offering.name})` : offering.name,
+    })),
+    { value: customApplication, label: "Custom application…" },
+  ];
+  const appVersions = offerings.find((offering) => offering.name === appName)?.versions ?? [];
+  const isCustomApplication = appName === customApplication;
+
+  // Snap every dependent select when its options move (platform → its versions and applications,
+  // application → its versions), mirroring the execution snap below.
+  useEffect(() => {
+    if (platformLines.length > 0 && !platformLines.some((line) => line.name === platformName)) {
+      setPlatformName(platformLines[0].name);
+    }
+  }, [platformLines, platformName]);
+
+  useEffect(() => {
+    if (platformVersions.length > 0 && !platformVersions.includes(platformVersion)) {
+      setPlatformVersion(platformVersions[0]);
+    }
+  }, [platformVersions, platformVersion]);
+
+  useEffect(() => {
+    if (isCustomApplication || !catalog.data) {
+      return;
+    }
+
+    if (offerings.length === 0) {
+      setAppName(customApplication);
+    } else if (!offerings.some((offering) => offering.name === appName)) {
+      setAppName(offerings[0].name);
+    }
+  }, [offerings, appName, isCustomApplication, catalog.data]);
+
+  useEffect(() => {
+    if (appVersion !== "latest" && !appVersions.includes(appVersion)) {
+      setAppVersion("latest");
+    }
+  }, [appVersions, appVersion]);
 
   // An environment can only land on a substrate the project actually BOUND, so the execution choices
   // are exactly the executions bound for the typed platform (emulator shows up enabled once its
@@ -114,7 +174,18 @@ export function EnvironmentsTab({ project }: { project: string }) {
     mutationFn: () =>
       createEnvironment(project, {
         platform: { name: platformName, version: platformVersion },
-        applications: [{ name: appName, ...(appVersion ? { version: appVersion } : {}) }],
+        applications: [
+          isCustomApplication
+            ? {
+                name: customName,
+                version: customVersion,
+                source: {
+                  appKey: customAppKey,
+                  ...(customWebdriverKey ? { webdriverKey: customWebdriverKey } : {}),
+                },
+              }
+            : { name: appName, ...(appVersion !== "latest" ? { version: appVersion } : {}) },
+        ],
         execution,
       }),
     onSuccess: async () => {
@@ -384,29 +455,62 @@ export function EnvironmentsTab({ project }: { project: string }) {
       <Modal opened={opened} onClose={close} title="New environment">
         <Stack>
           <Group grow>
-            <TextInput
+            <Select
               label="Platform"
+              data={platformLines.map((line) => line.name)}
               value={platformName}
-              onChange={(e) => setPlatformName(e.currentTarget.value)}
+              onChange={(v) => v && setPlatformName(v)}
             />
-            <TextInput
+            <Select
               label="Version"
+              data={[...platformVersions]}
               value={platformVersion}
-              onChange={(e) => setPlatformVersion(e.currentTarget.value)}
+              onChange={(v) => v && setPlatformVersion(v)}
             />
           </Group>
-          <Group grow>
-            <TextInput
-              label="Application"
-              value={appName}
-              onChange={(e) => setAppName(e.currentTarget.value)}
-            />
-            <TextInput
+          <Select
+            label="Application"
+            data={applicationOptions}
+            value={appName}
+            onChange={(v) => v && setAppName(v)}
+          />
+          {isCustomApplication ? (
+            <>
+              <Group grow>
+                <TextInput
+                  label="Name"
+                  placeholder="com.mycorp.app"
+                  value={customName}
+                  onChange={(e) => setCustomName(e.currentTarget.value)}
+                />
+                <TextInput
+                  label="Version"
+                  placeholder="7.1.0"
+                  value={customVersion}
+                  onChange={(e) => setCustomVersion(e.currentTarget.value)}
+                />
+              </Group>
+              <TextInput
+                label="App key in the project bucket"
+                placeholder="builds/app-7.1.0.apk"
+                value={customAppKey}
+                onChange={(e) => setCustomAppKey(e.currentTarget.value)}
+              />
+              <TextInput
+                label="WebDriver key (optional, for browser-like apps)"
+                placeholder="builds/chromedriver-140"
+                value={customWebdriverKey}
+                onChange={(e) => setCustomWebdriverKey(e.currentTarget.value)}
+              />
+            </>
+          ) : (
+            <Select
               label="App version"
+              data={["latest", ...appVersions]}
               value={appVersion}
-              onChange={(e) => setAppVersion(e.currentTarget.value)}
+              onChange={(v) => v && setAppVersion(v)}
             />
-          </Group>
+          )}
           <Select
             label="Execution"
             data={executionOptions}
@@ -422,7 +526,11 @@ export function EnvironmentsTab({ project }: { project: string }) {
             <Button variant="default" onClick={close}>
               Cancel
             </Button>
-            <Button onClick={() => create.mutate()} loading={create.isPending}>
+            <Button
+              onClick={() => create.mutate()}
+              loading={create.isPending}
+              disabled={isCustomApplication && !(customName && customVersion && customAppKey)}
+            >
               Create
             </Button>
           </Group>

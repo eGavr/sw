@@ -33,6 +33,9 @@ import {
     ListCloudAccountsUseCase,
 } from "../../../application/use-cases/cloud-accounts/list-cloud-accounts-use-case";
 import {
+    GetApplicationCatalogUseCase,
+} from "../../../application/use-cases/application-catalog/get-application-catalog-use-case";
+import {
     ListCloudTypesUseCase,
 } from "../../../application/use-cases/cloud-types/list-cloud-types-use-case";
 import {
@@ -164,6 +167,9 @@ import { UrlRedactions } from "../middlewares/url-redaction";
 import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { CloudAccountsController } from "./controllers/cloud-accounts/cloud-accounts-controller";
+import {
+    ApplicationCatalogController,
+} from "./controllers/application-catalog/application-catalog-controller";
 import { CloudTypesController } from "./controllers/cloud-types/cloud-types-controller";
 import { ComputeBindingsController } from "./controllers/compute-bindings/compute-bindings-controller";
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
@@ -193,6 +199,7 @@ import {
         CloudAccountsController,
         ComputeBindingsController,
         CloudTypesController,
+        ApplicationCatalogController,
         NetBridgeCredentialsController,
         StorageDestinationController,
         StorageDelegationController,
@@ -228,6 +235,7 @@ import {
         DeleteComputeBindingUseCase,
 
         ListCloudTypesUseCase,
+        GetApplicationCatalogUseCase,
 
         CreateNetBridgeCredentialUseCase,
         ListNetBridgeCredentialsUseCase,
