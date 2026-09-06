@@ -152,13 +152,13 @@ describe("SessionAllocationCriteria", () => {
                 freshnessMs: 6_000,
                 execution: Execution.Container,
                 application: requested,
-                match: ApplicationMatch.create({ names: ["chrome", "com.google.chrome"], versionPrefix: null }),
+                match: ApplicationMatch.create({ names: ["chrome", "com.android.chrome"], versionPrefix: null }),
             });
             const canonical = Environment.create({
                 projectId: ProjectId.create(),
                 platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
                 applications: ApplicationList.create({
-                    applications: [Application.create({ name: "com.google.chrome", version: "152.0.7977.82" })],
+                    applications: [Application.create({ name: "com.android.chrome", version: "152.0.7977.82" })],
                 }),
             });
 

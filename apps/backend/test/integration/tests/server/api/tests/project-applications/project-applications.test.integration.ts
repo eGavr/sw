@@ -45,14 +45,14 @@ describe("/projects/:project/platforms/:platform/applications", () => {
                 .expect(HttpStatus.OK);
 
             expect(body.applications).toEqual([{
-                name: "projects/catalog/platforms/ubuntu/applications/com.google.chrome",
-                application: "com.google.chrome",
-                aliases: ["chrome"],
+                name: "projects/catalog/platforms/ubuntu/applications/chrome",
+                application: "chrome",
+                aliases: [],
                 createTime: expect.any(String),
             }]);
 
             const { body: versions } = await request(app.getHttpServer())
-                .get("/projects/catalog/platforms/ubuntu/applications/com.google.chrome/versions")
+                .get("/projects/catalog/platforms/ubuntu/applications/chrome/versions")
                 .set(stranger)
                 .expect(HttpStatus.OK);
 
@@ -67,17 +67,17 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             await request(app.getHttpServer())
                 .post("/projects/catalog/platforms/ubuntu/applications")
                 .set(stranger)
-                .send({ name: "org.mozilla.firefox", aliases: ["firefox"] })
+                .send({ name: "firefox" })
                 .expect(HttpStatus.FORBIDDEN);
 
             await request(app.getHttpServer())
                 .post("/projects/catalog/platforms/ubuntu/applications")
                 .set(catalogAdmin)
-                .send({ name: "org.mozilla.firefox", aliases: ["firefox"] })
+                .send({ name: "firefox" })
                 .expect(HttpStatus.CREATED);
 
             await request(app.getHttpServer())
-                .post("/projects/catalog/platforms/ubuntu/applications/org.mozilla.firefox/versions")
+                .post("/projects/catalog/platforms/ubuntu/applications/firefox/versions")
                 .set(catalogAdmin)
                 .send({ version: "144.0.1", appRef: "https://catalog.test/firefox-144.zip" })
                 .expect(HttpStatus.CREATED);
@@ -87,7 +87,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             return request(app.getHttpServer())
                 .post("/projects/catalog/platforms/ubuntu/applications")
                 .set(catalogAdmin)
-                .send({ name: "org.chromium.chrome", aliases: ["chrome"] })
+                .send({ name: "chromium", aliases: ["chrome"] })
                 .expect(HttpStatus.BAD_REQUEST);
         });
 
@@ -153,7 +153,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/ubuntu/applications`)
                 .set(owner)
-                .send({ name: "com.google.chrome" })
+                .send({ name: "chrome" })
                 .expect(HttpStatus.BAD_REQUEST);
 
             await request(app.getHttpServer())

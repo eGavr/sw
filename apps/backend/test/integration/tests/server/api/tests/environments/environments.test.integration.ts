@@ -72,7 +72,7 @@ describe("/projects/:project/environments", () => {
                 // The loose ask (alias + version prefix) came back concrete: the canonical name at
                 // the catalog's full version, with its provenance.
                 applications: [{
-                    name: "com.google.chrome",
+                    name: "chrome",
                     version: "126.0.6478.182",
                     source: { type: "provided" },
                 }],
@@ -184,7 +184,7 @@ describe("/projects/:project/environments", () => {
                 .expect(HttpStatus.CREATED);
 
             expect(body.applications).toEqual([{
-                name: "com.google.chrome",
+                name: "chrome",
                 version: "141.0.7390.54",
                 source: { type: "provided" },
             }]);
