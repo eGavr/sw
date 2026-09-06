@@ -33,9 +33,11 @@ type CreateProjectApplicationInput = {
 };
 
 // Registers an application in a project. In the reserved catalog project this is how install admins
-// grow the provided set (wire aliases included); in a user project it registers a custom — canonical
-// name only, and never a word the install catalog answers to (the docker rule: catalog words mean the
-// same thing in every project).
+// grow the provided set (a canonical id plus wire aliases — declared by the install, the one trusted
+// source). In a user project it registers a custom under ONE word of the user's choosing — an
+// addressing handle, not an identity claim: the honest identity (an APK's package id and version) is
+// MEASURED at delivery, not declared. Never a word the install catalog answers to (the docker rule:
+// catalog words mean the same thing in every project).
 @Injectable()
 export class CreateProjectApplicationUseCase {
     private readonly permissionName = UserPermissionName.Application.Create;
@@ -68,7 +70,7 @@ export class CreateProjectApplicationUseCase {
 
         if (!isCatalogProject(project) && application.aliases.length > 0) {
             throw new InvalidArgumentError(
-                "aliases are install-catalog vocabulary — a custom application is addressed by its canonical name",
+                "aliases are install-catalog vocabulary — a custom application IS its registered word",
             );
         }
 

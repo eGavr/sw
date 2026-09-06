@@ -27,9 +27,12 @@ export type ProjectApplicationCreateParams = {
 };
 
 // An application registered in a project: the unit both catalogs are made of. In the reserved catalog
-// project these are the install's provided applications (with wire aliases — `chrome`); in a user
-// project they are the customs, addressed by canonical name only (the docker rule: short words belong
-// to the install). Versions are its builds, each pointing at its artifacts.
+// project these are the install's provided applications — a canonical id plus wire aliases (`chrome`),
+// declared by the install, the one trusted source. In a user project the `name` is just the user's
+// ONE addressing word (the docker rule: short catalog words belong to the install): it claims no
+// identity — an APK's honest package id and version are MEASURED at delivery and land next to the
+// word. Versions are its builds, each pointing at its artifacts; a build's label is the user's picking
+// handle, the measured version is the truth.
 export class ProjectApplication {
     static create(params: ProjectApplicationCreateParams): ProjectApplication {
         const aliases = params.aliases ?? [];
