@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { ProjectId } from "../../../domain/entities/project/project-id";
+import { ensureNotCatalogProject } from "../../../domain/entities/project-application/catalog-project";
 import { StorageDestination } from "../../../domain/entities/storage/storage-destination";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
@@ -35,6 +36,8 @@ export class SetProjectStorageDestinationUseCase {
         const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
+
+        ensureNotCatalogProject(project, "configuring a storage destination");
 
         const projectId = ProjectId.fromString(project.id);
 

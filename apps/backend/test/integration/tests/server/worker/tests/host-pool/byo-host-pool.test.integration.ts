@@ -182,7 +182,7 @@ describe("host-pool placement (local byo route)", () => {
             cloudAccountId: CloudAccountId.fromString(seeded.cloudAccountId),
             cloudType: "local",
             computeKind: "baremetal",
-            platform: Platform.fromObject({ name: "android", version: "34" }),
+            platform: Platform.fromObject({ name: "android", version: "14" }),
             execution: Execution.Emulator,
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
@@ -209,7 +209,7 @@ describe("host-pool placement (local byo route)", () => {
         expect(host?.placements()).toHaveLength(2);
         expect(host?.placementFor(second)?.slotIndex).toBe(1);
         expect(host?.placementFor(first)?.launch).toEqual({
-            avd: "sw-android-34",
+            avd: "sw-android-14",
             internalUrl: expect.stringContaining("http://"),
         });
 

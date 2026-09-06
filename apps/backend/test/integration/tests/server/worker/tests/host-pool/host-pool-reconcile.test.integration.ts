@@ -171,7 +171,7 @@ describe("host-pool reconcile", () => {
         ) as Array<{ project_id: string }>;
         const environment = await environmentRepository.create({
             projectId: ProjectId.fromString(projects[0].project_id),
-            platform: Platform.fromObject({ name: "android", version: "34" }),
+            platform: Platform.fromObject({ name: "android", version: "14" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
 
@@ -287,7 +287,7 @@ describe("host-pool reconcile", () => {
             capacitySlots: 2,
             maxHosts: 2,
             providerContext: { folderId },
-            launch: { avd: "sw-android-34" },
+            launch: { avd: "sw-android-14" },
         });
 
         const rescued = await poolHostRepository.findByEnvironment(EnvironmentId.fromString(environmentId));

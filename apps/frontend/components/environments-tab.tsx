@@ -26,16 +26,17 @@ import { BusySessionLink } from "@/components/busy-session-link";
 import { NewSessionModal } from "@/components/new-session-modal";
 import {
   createEnvironment,
+  catalogProject,
   deleteEnvironment,
   Environment,
   environmentHandle,
   getEnvironmentSession,
   killSession,
+  listApplicationVersions,
   listCloudAccounts,
   listEnvironmentsPage,
-  listApplicationVersions,
-  listPlatformApplications,
   listPlatforms,
+  listProjectApplications,
 } from "@/lib/sw";
 import { addFreeing, loadFreeing, removeFreeing } from "@/lib/freeing-store";
 import { shortId } from "@/lib/format";
@@ -57,15 +58,8 @@ export function EnvironmentsTab({ project }: { project: string }) {
 
   const [platformName, setPlatformName] = useState("ubuntu");
   const [platformVersion, setPlatformVersion] = useState("24.04");
-  // The Application select holds a catalog canonical name, or this sentinel for the bring-your-own
-  // branch (the only free-form part of the form).
-  const customApplication = "__custom__";
   const [appName, setAppName] = useState("com.google.chrome");
   const [appVersion, setAppVersion] = useState("latest");
-  const [customName, setCustomName] = useState("");
-  const [customVersion, setCustomVersion] = useState("");
-  const [customAppKey, setCustomAppKey] = useState("");
-  const [customWebdriverKey, setCustomWebdriverKey] = useState("");
   const [execution, setExecution] = useState("container");
   const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);
   // A busy environment's delete asks first: deprovision kills the running session with the container,
@@ -93,13 +87,24 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const noClouds = !clouds.isLoading
     && !(clouds.data ?? []).some((cloud) => cloud.computeBindings.length > 0);
 
-  // The install's delivery catalog: platform lines and the selected platform's applications —
-  // everything in the form except the custom branch is a pick from it, platforms narrowed to what
-  // the project actually bound.
+  // The delivery vocabulary: platform lines, then the applications of the reserved catalog project
+  // (the install's provided set) merged with the project's own registered customs — the whole form is
+  // picks, platforms narrowed to what the project actually bound. Registering customs lives in the
+  // project's Applications surface, not here.
   const platformsQuery = useQuery({ queryKey: ["platforms"], queryFn: listPlatforms });
   const applicationsQuery = useQuery({
-    queryKey: ["platformApplications", platformName],
-    queryFn: () => listPlatformApplications(platformName),
+    queryKey: ["projectApplications", project, platformName],
+    queryFn: async () => {
+      const [provided, own] = await Promise.all([
+        listProjectApplications(catalogProject, platformName),
+        listProjectApplications(project, platformName),
+      ]);
+
+      return [
+        ...provided.map((offering) => ({ ...offering, owner: catalogProject })),
+        ...own.map((offering) => ({ ...offering, owner: project })),
+      ];
+    },
     enabled: platformName !== "",
   });
   const boundPlatforms = new Set(
@@ -109,18 +114,16 @@ export function EnvironmentsTab({ project }: { project: string }) {
     .filter((line) => boundPlatforms.size === 0 || boundPlatforms.has(line.platform));
   const platformVersions = platformLines.find((line) => line.platform === platformName)?.versions ?? [];
   const offerings = applicationsQuery.data ?? [];
-  const applicationOptions = [
-    ...offerings.map((offering) => ({
-      value: offering.application,
-      label: offering.aliases[0] ? `${offering.aliases[0]} (${offering.application})` : offering.application,
-    })),
-    { value: customApplication, label: "Custom application…" },
-  ];
-  const isCustomApplication = appName === customApplication;
+  const applicationOptions = offerings.map((offering) => ({
+    value: offering.application,
+    label: (offering.aliases[0] ? `${offering.aliases[0]} (${offering.application})` : offering.application)
+      + (offering.owner === catalogProject ? "" : " — custom"),
+  }));
+  const selectedOffering = offerings.find((offering) => offering.application === appName);
   const versionsQuery = useQuery({
-    queryKey: ["applicationVersions", platformName, appName],
-    queryFn: () => listApplicationVersions(platformName, appName),
-    enabled: !isCustomApplication && offerings.some((offering) => offering.application === appName),
+    queryKey: ["applicationVersions", selectedOffering?.owner, platformName, appName],
+    queryFn: () => listApplicationVersions(selectedOffering?.owner ?? catalogProject, platformName, appName),
+    enabled: selectedOffering !== undefined,
   });
   const appVersions = versionsQuery.data ?? [];
 
@@ -139,16 +142,14 @@ export function EnvironmentsTab({ project }: { project: string }) {
   }, [platformVersions, platformVersion]);
 
   useEffect(() => {
-    if (isCustomApplication || !applicationsQuery.data) {
+    if (!applicationsQuery.data || offerings.length === 0) {
       return;
     }
 
-    if (offerings.length === 0) {
-      setAppName(customApplication);
-    } else if (!offerings.some((offering) => offering.application === appName)) {
+    if (!offerings.some((offering) => offering.application === appName)) {
       setAppName(offerings[0].application);
     }
-  }, [offerings, appName, isCustomApplication, applicationsQuery.data]);
+  }, [offerings, appName, applicationsQuery.data]);
 
   useEffect(() => {
     if (appVersion !== "latest" && !appVersions.includes(appVersion)) {
@@ -186,18 +187,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
     mutationFn: () =>
       createEnvironment(project, {
         platform: { name: platformName, version: platformVersion },
-        applications: [
-          isCustomApplication
-            ? {
-                name: customName,
-                version: customVersion,
-                source: {
-                  appKey: customAppKey,
-                  ...(customWebdriverKey ? { webdriverKey: customWebdriverKey } : {}),
-                },
-              }
-            : { name: appName, ...(appVersion !== "latest" ? { version: appVersion } : {}) },
-        ],
+        applications: [{ name: appName, ...(appVersion !== "latest" ? { version: appVersion } : {}) }],
         execution,
       }),
     onSuccess: async () => {
@@ -486,43 +476,12 @@ export function EnvironmentsTab({ project }: { project: string }) {
             value={appName}
             onChange={(v) => v && setAppName(v)}
           />
-          {isCustomApplication ? (
-            <>
-              <Group grow>
-                <TextInput
-                  label="Name"
-                  placeholder="com.mycorp.app"
-                  value={customName}
-                  onChange={(e) => setCustomName(e.currentTarget.value)}
-                />
-                <TextInput
-                  label="Version"
-                  placeholder="7.1.0"
-                  value={customVersion}
-                  onChange={(e) => setCustomVersion(e.currentTarget.value)}
-                />
-              </Group>
-              <TextInput
-                label="App key in the project bucket"
-                placeholder="builds/app-7.1.0.apk"
-                value={customAppKey}
-                onChange={(e) => setCustomAppKey(e.currentTarget.value)}
-              />
-              <TextInput
-                label="WebDriver key (optional, for browser-like apps)"
-                placeholder="builds/chromedriver-140"
-                value={customWebdriverKey}
-                onChange={(e) => setCustomWebdriverKey(e.currentTarget.value)}
-              />
-            </>
-          ) : (
-            <Select
-              label="App version"
-              data={["latest", ...appVersions]}
-              value={appVersion}
-              onChange={(v) => v && setAppVersion(v)}
-            />
-          )}
+          <Select
+            label="App version"
+            data={["latest", ...appVersions]}
+            value={appVersion}
+            onChange={(v) => v && setAppVersion(v)}
+          />
           <Select
             label="Execution"
             data={executionOptions}
@@ -541,7 +500,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
             <Button
               onClick={() => create.mutate()}
               loading={create.isPending}
-              disabled={isCustomApplication && !(customName && customVersion && customAppKey)}
+              disabled={!selectedOffering}
             >
               Create
             </Button>

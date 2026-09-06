@@ -1,0 +1,15 @@
+[
+    {
+        "platformName": "ubuntu", "name": "com.google.chrome", "aliases": ["chrome"],
+        "versions": [
+            { "version": "126.0.6478.182", "appRef": "https://catalog.test/chrome-126.zip", "webdriverRef": "https://catalog.test/driver-126.zip" },
+            { "version": "128.0.6613.86", "appRef": "https://catalog.test/chrome-128.zip", "webdriverRef": "https://catalog.test/driver-128.zip" },
+            { "version": "140.0.7339.80", "appRef": "https://catalog.test/chrome-140.zip", "webdriverRef": "https://catalog.test/driver-140.zip" },
+            { "version": "141.0.7390.54", "appRef": "https://catalog.test/chrome-141.zip", "webdriverRef": "https://catalog.test/driver-141.zip" }
+        ]
+    },
+    {
+        "platformName": "android", "name": "com.android.settings", "aliases": ["settings"],
+        "versions": [{ "version": "13" }, { "version": "14" }]
+    }
+]

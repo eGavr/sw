@@ -4,7 +4,6 @@ import {
     WebDriverSessionGateway,
     WebDriverSessionOptions,
 } from "../../../application/interfaces/gateways/webdriver-session-gateway";
-import { ApplicationCatalog } from "../../../domain/entities/application-catalog/application-catalog";
 import { Application } from "../../../domain/entities/environment/application/application";
 import { SessionNotCreatedError } from "../../../domain/entities/session/error/session-not-created-error";
 
@@ -12,10 +11,7 @@ import { WebDriverClient } from "./webdriver-client";
 
 @Injectable()
 export class WebDriverSessionGatewayImpl extends WebDriverSessionGateway {
-    constructor(
-        private readonly webDriverClient: WebDriverClient,
-        private readonly applicationCatalog: ApplicationCatalog,
-    ) {
+    constructor(private readonly webDriverClient: WebDriverClient) {
         super();
     }
 
@@ -24,19 +20,14 @@ export class WebDriverSessionGatewayImpl extends WebDriverSessionGateway {
     async create(
         endpoint: string,
         application: Application,
+        wireName: string,
         platformName: string,
         options?: WebDriverSessionOptions,
     ): Promise<string> {
         try {
             return await this.webDriverClient.createSession(
                 endpoint,
-                {
-                    // The node speaks the wire vocabulary (`browserName: chrome`), not our canonical
-                    // reverse-DNS id — the catalog translates; a custom application passes through as-is.
-                    name: this.applicationCatalog.wireName(application.name),
-                    version: application.version,
-                    platformName,
-                },
+                { name: wireName, version: application.version, platformName },
                 options,
             );
         } catch (error) {

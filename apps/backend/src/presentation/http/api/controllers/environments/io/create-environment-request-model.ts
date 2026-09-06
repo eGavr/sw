@@ -1,13 +1,5 @@
 import { Type } from "class-transformer";
-import {
-    ArrayNotEmpty,
-    IsDefined,
-    IsEnum,
-    IsNotEmpty,
-    IsOptional,
-    IsString,
-    ValidateNested,
-} from "class-validator";
+import { ArrayNotEmpty, IsDefined, IsEnum, IsOptional, IsString, ValidateNested } from "class-validator";
 
 import { Execution } from "../../../../../../domain/entities/environment/execution";
 
@@ -23,32 +15,16 @@ class PlatformModel {
     deviceModel?: string;
 }
 
-// The user's own artifact in the project's delegated bucket: the app by object key, plus an optional
-// paired webdriver (a custom browser build needs one; a native app does not).
-class ApplicationSourceModel {
-    @IsString()
-    @IsNotEmpty()
-    appKey: string;
-
-    @IsOptional()
-    @IsString()
-    webdriverKey?: string;
-}
-
 class ApplicationModel {
+    // A word of the project's vocabulary: an install-catalog alias (`chrome`), a canonical id, or the
+    // canonical name of an application registered in the project.
     @IsString()
     name: string;
 
-    // Optional for a catalog application (omitted or a prefix resolves to the newest full version);
-    // a custom-source application must name its exact version — enforced by the scenario.
+    // Optional: omitted or a prefix resolves to the newest registered full version.
     @IsOptional()
     @IsString()
     version?: string;
-
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => ApplicationSourceModel)
-    source?: ApplicationSourceModel;
 }
 
 export class CreateEnvironmentRequestModel {

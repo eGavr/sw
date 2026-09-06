@@ -1,25 +1,24 @@
 import { Injectable } from "@nestjs/common";
 
-import { ApplicationCatalog } from "../../../domain/entities/application-catalog/application-catalog";
+import { PlatformCatalog } from "../../../domain/entities/application-catalog/platform-catalog";
 import { CloudAccountId } from "../../../domain/entities/cloud-account/cloud-account-id";
 import { CloudAccountList } from "../../../domain/entities/cloud-account/cloud-account-list";
 import { NoActiveCloudAccountError } from "../../../domain/entities/cloud-account/error/no-active-cloud-account-error";
-import { Application } from "../../../domain/entities/environment/application/application";
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
-import { ApplicationSource } from "../../../domain/entities/environment/application/application-source";
 import { RequestedApplication } from "../../../domain/entities/environment/application/requested-application";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentQuota, EnvironmentQuotaPolicy } from "../../../domain/entities/environment/environment-quota";
 import { defaultExecution, toExecution } from "../../../domain/entities/environment/execution";
 import { Platform } from "../../../domain/entities/environment/platform/platform";
-import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { ResourceIdConflictError } from "../../../domain/entities/error/resource-id-conflict-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
+import { ensureNotCatalogProject } from "../../../domain/entities/project-application/catalog-project";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { CloudAccountRepository } from "../../interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
+import { ApplicationCatalogLoader } from "../../services/application-catalog-loader";
 
 type CreateEnvironmentInput = {
     creds: {
@@ -37,10 +36,6 @@ type CreateEnvironmentInput = {
         applications: Array<{
             name: string;
             version?: string;
-            source?: {
-                appKey: string;
-                webdriverKey?: string;
-            };
         }>;
     },
 }
@@ -55,7 +50,8 @@ export class CreateEnvironmentUseCase {
         private readonly environmentRepository: EnvironmentRepository,
         private readonly cloudAccountRepository: CloudAccountRepository,
         private readonly quotaPolicy: EnvironmentQuotaPolicy,
-        private readonly applicationCatalog: ApplicationCatalog,
+        private readonly platformCatalog: PlatformCatalog,
+        private readonly applicationCatalogLoader: ApplicationCatalogLoader,
     ) {}
 
     async execute({ creds, params }: CreateEnvironmentInput): Promise<Environment> {
@@ -63,6 +59,8 @@ export class CreateEnvironmentUseCase {
         const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
+
+        ensureNotCatalogProject(project, "creating environments");
 
         const projectId = ProjectId.fromString(project.id);
 
@@ -84,10 +82,16 @@ export class CreateEnvironmentUseCase {
 
         const platform = Platform.fromObject(params.platform);
 
-        this.applicationCatalog.ensurePlatformSupported(platform);
+        this.platformCatalog.ensurePlatformSupported(platform);
 
+        // The boundary is loose, the environment is concrete: every word resolves through the project's
+        // vocabulary (install catalog first, then the project's registered customs) to the canonical
+        // name at a full version, snapshotting the build's artifact refs — the environment stays
+        // self-contained whatever happens to the registry later.
+        const catalog = await this.applicationCatalogLoader.loadFor(projectId);
         const applications = ApplicationList.create({
-            applications: params.applications.map((application) => this.toApplication(platform, application)),
+            applications: params.applications.map((requested) =>
+                catalog.resolve(platform.name, RequestedApplication.create(requested))),
         });
 
         // The binding's quota is enforced right here, synchronously: a request past the limit gets an
@@ -107,31 +111,5 @@ export class CreateEnvironmentUseCase {
             },
             quota.toClaim(cloudAccount.id, params.platform.name, execution),
         );
-    }
-
-    // The boundary is loose, the environment is concrete. A catalog ask (no source) may use an alias
-    // and a version prefix/latest — the catalog resolves it to the canonical name at its full version.
-    // A custom ask brings the user's own artifact and must name its exact version itself: nobody but
-    // the owner knows what "latest" of a private build is.
-    private toApplication(
-        platform: Platform,
-        requested: CreateEnvironmentInput["params"]["applications"][number],
-    ): Application {
-        if (!requested.source) {
-            return this.applicationCatalog.resolveProvided(
-                platform.name,
-                RequestedApplication.create(requested),
-            );
-        }
-
-        if (requested.version === undefined) {
-            throw new InvalidArgumentError(`application ${requested.name}: a custom source requires an exact version`);
-        }
-
-        return Application.create({
-            name: requested.name,
-            version: requested.version,
-            source: ApplicationSource.custom(requested.source),
-        });
     }
 }

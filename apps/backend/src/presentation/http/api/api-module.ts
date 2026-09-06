@@ -13,12 +13,19 @@ import {
     NetBridgeCredentialRepository,
 } from "../../../application/interfaces/repositories/net-bridge-credential-repository";
 import { PoolHostRepository } from "../../../application/interfaces/repositories/pool-host-repository";
+import {
+    ProjectApplicationRepository,
+} from "../../../application/interfaces/repositories/project-application-repository";
 import { ProjectRepository } from "../../../application/interfaces/repositories/project-repository";
 import {
     SessionOwnershipRepository,
 } from "../../../application/interfaces/repositories/session-ownership-repository";
 import { UserRepository } from "../../../application/interfaces/repositories/user-repository";
 import { AccessControl } from "../../../application/services/access-control";
+import { ApplicationCatalogLoader } from "../../../application/services/application-catalog-loader";
+import {
+    EnsureCatalogProjectUseCase,
+} from "../../../application/use-cases/catalog/ensure-catalog-project-use-case";
 import { CloudAccountAccess } from "../../../application/use-cases/cloud-accounts/cloud-account-access";
 import {
     CreateCloudAccountUseCase,
@@ -65,20 +72,23 @@ import {
 import {
     ListNetBridgeCredentialsUseCase,
 } from "../../../application/use-cases/net-bridge-credentials/list-net-bridge-credentials-use-case";
-import {
-    GetApplicationVersionUseCase,
-} from "../../../application/use-cases/platforms/get-application-version-use-case";
-import {
-    GetPlatformApplicationUseCase,
-} from "../../../application/use-cases/platforms/get-platform-application-use-case";
 import { GetPlatformUseCase } from "../../../application/use-cases/platforms/get-platform-use-case";
-import {
-    ListApplicationVersionsUseCase,
-} from "../../../application/use-cases/platforms/list-application-versions-use-case";
-import {
-    ListPlatformApplicationsUseCase,
-} from "../../../application/use-cases/platforms/list-platform-applications-use-case";
 import { ListPlatformsUseCase } from "../../../application/use-cases/platforms/list-platforms-use-case";
+import {
+    AddApplicationVersionUseCase,
+} from "../../../application/use-cases/project-applications/add-application-version-use-case";
+import {
+    CreateProjectApplicationUseCase,
+} from "../../../application/use-cases/project-applications/create-project-application-use-case";
+import {
+    DeleteProjectApplicationUseCase,
+} from "../../../application/use-cases/project-applications/delete-project-application-use-case";
+import {
+    GetProjectApplicationUseCase,
+} from "../../../application/use-cases/project-applications/get-project-application-use-case";
+import {
+    ListProjectApplicationsUseCase,
+} from "../../../application/use-cases/project-applications/list-project-applications-use-case";
 import { CreateProjectUseCase } from "../../../application/use-cases/projects/create-project-use-case";
 import {
     GetProjectIamPolicyUseCase,
@@ -111,7 +121,8 @@ import {
 } from "../../../application/use-cases/storage-destinations/test-project-storage-destination-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import { AgentTokenServiceProvider } from "../../../infrastructure/agent-token/agent-token-service-provider";
-import { ApplicationCatalogProvider } from "../../../infrastructure/application-catalog/application-catalog-provider";
+import { PlatformCatalogProvider } from "../../../infrastructure/application-catalog/platform-catalog-provider";
+import { CatalogBootstrap } from "../../../infrastructure/catalog-bootstrap/catalog-bootstrap";
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
 } from "../../../infrastructure/data-sources/auth/user-data-source-provider";
@@ -125,6 +136,9 @@ import {
 import {
     PoolHostDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/pool-host-data-source";
+import {
+    ProjectApplicationDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/project-application-data-source";
 import { ProjectDataSource } from "../../../infrastructure/data-sources/database/postgres/project-data-source";
 import {
     SessionOwnershipDataSource,
@@ -161,6 +175,9 @@ import {
     NetBridgeCredentialRepositoryImpl,
 } from "../../../infrastructure/repositories/net-bridge-credential-repository-impl";
 import { PoolHostRepositoryImpl } from "../../../infrastructure/repositories/pool-host-repository-impl";
+import {
+    ProjectApplicationRepositoryImpl,
+} from "../../../infrastructure/repositories/project-application-repository-impl";
 import { ProjectRepositoryImpl } from "../../../infrastructure/repositories/project-repository-impl";
 import {
     SessionOwnershipRepositoryImpl,
@@ -185,6 +202,9 @@ import {
     NetBridgeCredentialsController,
 } from "./controllers/net-bridge-credentials/net-bridge-credentials-controller";
 import { PlatformsController } from "./controllers/platforms/platforms-controller";
+import {
+    ProjectApplicationsController,
+} from "./controllers/project-applications/project-applications-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
 import { SessionArtifactsController } from "./controllers/sessions/session-artifacts-controller";
 import {
@@ -209,6 +229,7 @@ import {
         ComputeBindingsController,
         CloudTypesController,
         PlatformsController,
+        ProjectApplicationsController,
         NetBridgeCredentialsController,
         StorageDestinationController,
         StorageDelegationController,
@@ -246,10 +267,12 @@ import {
         ListCloudTypesUseCase,
         ListPlatformsUseCase,
         GetPlatformUseCase,
-        ListPlatformApplicationsUseCase,
-        GetPlatformApplicationUseCase,
-        ListApplicationVersionsUseCase,
-        GetApplicationVersionUseCase,
+        CreateProjectApplicationUseCase,
+        AddApplicationVersionUseCase,
+        ListProjectApplicationsUseCase,
+        GetProjectApplicationUseCase,
+        DeleteProjectApplicationUseCase,
+        EnsureCatalogProjectUseCase,
 
         CreateNetBridgeCredentialUseCase,
         ListNetBridgeCredentialsUseCase,
@@ -278,7 +301,11 @@ import {
         EnvironmentProviderGatewayProvider,
         AgentTokenServiceProvider,
         EnvironmentQuotaPolicyProvider,
-        ApplicationCatalogProvider,
+        PlatformCatalogProvider,
+        CatalogBootstrap,
+        ApplicationCatalogLoader,
+        { provide: ProjectApplicationRepository, useClass: ProjectApplicationRepositoryImpl },
+        ProjectApplicationDataSource,
         // The baremetal route's construction chain: the routed gateway holds the host-pool bridge,
         // which drives the pool use cases over their repository and host provider.
         PlaceWorkloadUseCase,

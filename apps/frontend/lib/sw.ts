@@ -440,39 +440,51 @@ export function listCloudTypes(): Promise<Array<CloudType>> {
   return swRequest<{ cloudTypes?: Array<CloudType> }>("v1/cloudTypes").then((d) => d.cloudTypes ?? []);
 }
 
-// The install's delivery catalog as read-only resources: the platform base-image lines and, under
-// each, the applications the install itself delivers (versions newest-first). The new-environment
-// form renders from these two lists.
+// The delivery catalog as project resources (the GCE vendor-project model): the reserved `catalog`
+// project's applications are the install's provided set (readable by everyone), a user project's are
+// its registered customs. The new-environment form merges the two lists.
+export const catalogProject = "catalog";
+
 export interface PlatformLine {
   name: string;
   platform: string;
   versions: Array<string>;
 }
 
-export interface PlatformApplication {
+export interface ProjectApplication {
   name: string;
   application: string;
   aliases: Array<string>;
+  createTime: string;
 }
 
 export interface ApplicationVersion {
   name: string;
   version: string;
+  appRef?: string;
+  webdriverRef?: string;
 }
 
 export function listPlatforms(): Promise<Array<PlatformLine>> {
   return swRequest<{ platforms?: Array<PlatformLine> }>("v1/platforms").then((d) => d.platforms ?? []);
 }
 
-export function listPlatformApplications(platform: string): Promise<Array<PlatformApplication>> {
-  return swRequest<{ applications?: Array<PlatformApplication> }>(
-    `v1/platforms/${platform}/applications`,
+export function listProjectApplications(
+  project: string,
+  platform: string,
+): Promise<Array<ProjectApplication>> {
+  return swRequest<{ applications?: Array<ProjectApplication> }>(
+    `v1/projects/${project}/platforms/${platform}/applications`,
   ).then((d) => d.applications ?? []);
 }
 
-export function listApplicationVersions(platform: string, application: string): Promise<Array<string>> {
+export function listApplicationVersions(
+  project: string,
+  platform: string,
+  application: string,
+): Promise<Array<string>> {
   return swRequest<{ versions?: Array<ApplicationVersion> }>(
-    `v1/platforms/${platform}/applications/${application}/versions`,
+    `v1/projects/${project}/platforms/${platform}/applications/${application}/versions`,
   ).then((d) => (d.versions ?? []).map((v) => v.version));
 }
 

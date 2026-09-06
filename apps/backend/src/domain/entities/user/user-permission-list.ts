@@ -6,6 +6,7 @@ export class UserPermissionList {
         const project = Object.values(UserPermissionName.Project);
         const environment = Object.values(UserPermissionName.Environment);
         const session = Object.values(UserPermissionName.Session);
+        const application = Object.values(UserPermissionName.Application);
         const storageDestination = Object.values(UserPermissionName.StorageDestination);
         const cloudAccount = Object.values(UserPermissionName.CloudAccount);
         const netBridgeCredential = Object.values(UserPermissionName.NetBridgeCredential);
@@ -15,6 +16,7 @@ export class UserPermissionList {
                 ...project,
                 ...environment,
                 ...session,
+                ...application,
                 ...storageDestination,
                 ...cloudAccount,
                 ...netBridgeCredential,

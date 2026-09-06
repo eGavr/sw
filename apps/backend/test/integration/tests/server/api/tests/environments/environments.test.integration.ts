@@ -210,40 +210,64 @@ describe("/projects/:project/environments", () => {
                 .expect(HttpStatus.BAD_REQUEST);
         });
 
-        test("a custom-source application skips the catalog and echoes its artifact keys", async () => {
+        test("a registered custom resolves by its canonical name and snapshots its refs", async () => {
             const { owner, projectId } = await createProject();
+
+            await request(app.getHttpServer())
+                .post(`/projects/${projectId}/platforms/ubuntu/applications`)
+                .set(owner)
+                .send({ name: "com.mycorp.browser" })
+                .expect(HttpStatus.CREATED);
+            await request(app.getHttpServer())
+                .post(`/projects/${projectId}/platforms/ubuntu/applications/com.mycorp.browser/versions`)
+                .set(owner)
+                .send({ version: "7.1.0", appRef: "builds/app-7.1.0.zip", webdriverRef: "builds/driver-7.1.0" })
+                .expect(HttpStatus.CREATED);
 
             const { body } = await request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
                 .set(owner)
-                .send({
-                    ...validEnvironmentBody,
-                    applications: [{
-                        name: "com.mycorp.app",
-                        version: "7.1.0",
-                        source: { appKey: "builds/app-7.1.0.zip", webdriverKey: "builds/driver-7.1.0" },
-                    }],
-                })
+                .send({ ...validEnvironmentBody, applications: [{ name: "com.mycorp.browser" }] })
                 .expect(HttpStatus.CREATED);
 
             expect(body.applications).toEqual([{
-                name: "com.mycorp.app",
+                name: "com.mycorp.browser",
                 version: "7.1.0",
-                source: { type: "custom", appKey: "builds/app-7.1.0.zip", webdriverKey: "builds/driver-7.1.0" },
+                source: { type: "custom", appRef: "builds/app-7.1.0.zip", webdriverRef: "builds/driver-7.1.0" },
             }]);
         });
 
-        test("responds INVALID_ARGUMENT for a custom source without an exact version", async () => {
+        test("the environment keeps its snapshot when the registration is deleted afterwards", async () => {
             const { owner, projectId } = await createProject();
 
-            return request(app.getHttpServer())
+            await request(app.getHttpServer())
+                .post(`/projects/${projectId}/platforms/ubuntu/applications`)
+                .set(owner)
+                .send({ name: "com.mycorp.browser" })
+                .expect(HttpStatus.CREATED);
+            await request(app.getHttpServer())
+                .post(`/projects/${projectId}/platforms/ubuntu/applications/com.mycorp.browser/versions`)
+                .set(owner)
+                .send({ version: "7.1.0", appRef: "builds/app-7.1.0.zip" })
+                .expect(HttpStatus.CREATED);
+
+            const { body: created } = await request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
                 .set(owner)
-                .send({
-                    ...validEnvironmentBody,
-                    applications: [{ name: "com.mycorp.app", source: { appKey: "builds/app.zip" } }],
-                })
-                .expect(HttpStatus.BAD_REQUEST);
+                .send({ ...validEnvironmentBody, applications: [{ name: "com.mycorp.browser" }] })
+                .expect(HttpStatus.CREATED);
+
+            await request(app.getHttpServer())
+                .delete(`/projects/${projectId}/platforms/ubuntu/applications/com.mycorp.browser`)
+                .set(owner)
+                .expect(HttpStatus.NO_CONTENT);
+
+            const { body: fetched } = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/environments/${created.uid}`)
+                .set(owner)
+                .expect(HttpStatus.OK);
+
+            expect(fetched.applications[0].source.appRef).toBe("builds/app-7.1.0.zip");
         });
     });
 

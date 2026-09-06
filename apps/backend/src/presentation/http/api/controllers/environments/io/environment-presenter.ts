@@ -23,7 +23,13 @@ export class EnvironmentPresenter implements Presenter {
             ...(reason ? { stateReason: reason } : {}),
             platform: this.environment.platform.toObject(),
             execution: this.environment.execution,
-            applications: this.environment.applications.toArray(),
+            // A custom's refs are the project's own bucket keys and are echoed; a provided build's
+            // artifact locations are the install's internals and stay private (only the provenance shows).
+            applications: this.environment.applications.toArray().map(({ name, version, source }) => ({
+                name,
+                version,
+                source: source?.type === "custom" ? source : { type: "provided" },
+            })),
             // Occupancy is orthogonal to lifecycle (a session never changes `state`); the liveness rules
             // live in the entity. Not secrets — the session id is.
             occupancy: this.environment.effectiveOccupancy().toUpperCase(),

@@ -1,143 +1,115 @@
 import { RequestedApplication } from "../environment/application/requested-application";
-import { Platform } from "../environment/platform/platform";
+import { ProjectApplication } from "../project-application/project-application";
 
 import { ApplicationCatalog } from "./application-catalog";
 import { ApplicationNotInCatalogError } from "./error/application-not-in-catalog-error";
-import { UnsupportedPlatformError } from "./error/unsupported-platform-error";
 
 describe("ApplicationCatalog", () => {
-    const catalog = ApplicationCatalog.fromObject({
-        platforms: [
-            { name: "ubuntu", versions: ["24.04"] },
-            { name: "android", versions: ["14", "34"] },
+    const provided = (
+        platformName: string,
+        name: string,
+        aliases: Array<string>,
+        versions: Array<{ version: string; appRef?: string; webdriverRef?: string }>,
+    ): ProjectApplication => {
+        const application = ProjectApplication.create({ projectId: "catalog-id", platformName, name, aliases });
+
+        versions.forEach((version) => application.addVersion(version));
+
+        return application;
+    };
+
+    const custom = (
+        platformName: string,
+        name: string,
+        versions: Array<{ version: string; appRef: string; webdriverRef?: string }>,
+    ): ProjectApplication => {
+        const application = ProjectApplication.create({ projectId: "project-id", platformName, name });
+
+        versions.forEach((version) => application.addVersion(version));
+
+        return application;
+    };
+
+    const catalog = ApplicationCatalog.of({
+        catalog: [
+            provided("ubuntu", "com.google.chrome", ["chrome"], [
+                { version: "152.0.7977.82", appRef: "ref://chrome-152", webdriverRef: "ref://driver-152" },
+                { version: "151.0.7890.10", appRef: "ref://chrome-151" },
+            ]),
+            provided("android", "com.android.settings", ["settings"], [{ version: "34" }]),
         ],
-        applications: [
-            {
-                platform: "ubuntu",
-                name: "com.google.chrome",
-                aliases: ["chrome"],
-                version: "152.0.7977.82",
-                artifacts: { app: "https://example.test/chrome.zip", webdriver: "https://example.test/driver.zip" },
-            },
-            {
-                platform: "ubuntu",
-                name: "com.google.chrome",
-                aliases: ["chrome"],
-                version: "151.0.7890.10",
-                artifacts: { app: "https://example.test/chrome-151.zip" },
-            },
-            { platform: "android", name: "com.android.settings", aliases: ["settings"], version: "34" },
+        own: [
+            custom("android", "com.mycorp.app", [
+                { version: "7.1.0", appRef: "builds/app-7.1.0.apk", webdriverRef: "builds/driver-7.1.0" },
+            ]),
         ],
     });
 
-    describe("ensurePlatformSupported", () => {
-        test("admits a catalog platform line", () => {
-            expect(() => catalog.ensurePlatformSupported(
-                Platform.fromObject({ name: "ubuntu", version: "24.04" }),
-            )).not.toThrow();
-        });
-
-        test("refuses an unknown version, naming the supported ones", () => {
-            expect(() => catalog.ensurePlatformSupported(Platform.fromObject({ name: "ubuntu", version: "22.04" })))
-                .toThrow(UnsupportedPlatformError);
-            expect(() => catalog.ensurePlatformSupported(Platform.fromObject({ name: "ubuntu", version: "22.04" })))
-                .toThrow(/24\.04/);
-        });
-
-        test("refuses a platform with no lines at all", () => {
-            expect(() => catalog.ensurePlatformSupported(Platform.fromObject({ name: "ios", version: "18" })))
-                .toThrow(UnsupportedPlatformError);
-        });
-    });
-
-    describe("resolveProvided (create-environment: loose ask → concrete application)", () => {
-        test("resolves an alias with no version to the canonical name at the newest full version", () => {
-            const application = catalog.resolveProvided("ubuntu", RequestedApplication.create({ name: "chrome" }));
+    describe("resolve (create-environment: loose word → concrete build)", () => {
+        test("an alias with no version resolves to the canonical name at the newest full version", () => {
+            const application = catalog.resolve("ubuntu", RequestedApplication.create({ name: "chrome" }));
 
             expect(application.name).toBe("com.google.chrome");
             expect(application.version).toBe("152.0.7977.82");
             expect(application.source.isCustom()).toBe(false);
+            expect(application.source.appRef).toBe("ref://chrome-152");
+            expect(application.source.webdriverRef).toBe("ref://driver-152");
         });
 
-        test("resolves a version prefix to the newest full version it opens", () => {
-            const application = catalog.resolveProvided(
-                "ubuntu",
-                RequestedApplication.create({ name: "chrome", version: "151" }),
-            );
-
-            expect(application.version).toBe("151.0.7890.10");
+        test("a version prefix resolves to the newest full version it opens", () => {
+            expect(catalog.resolve("ubuntu", RequestedApplication.create({ name: "chrome", version: "151" })).version)
+                .toBe("151.0.7890.10");
         });
 
-        test("resolves the canonical name itself", () => {
-            expect(catalog.resolveProvided("ubuntu", RequestedApplication.create({ name: "com.google.chrome" })).name)
-                .toBe("com.google.chrome");
+        test("a preinstalled build resolves with nothing to deliver", () => {
+            const application = catalog.resolve("android", RequestedApplication.create({ name: "settings" }));
+
+            expect(application.version).toBe("34");
+            expect(application.source.appRef).toBeNull();
         });
 
-        test("resolves a preinstalled entry (no artifacts)", () => {
-            expect(catalog.resolveProvided("android", RequestedApplication.create({ name: "settings" })).version)
-                .toBe("34");
+        test("a registered custom resolves by its canonical name, snapshotting its refs", () => {
+            const application = catalog.resolve("android", RequestedApplication.create({ name: "com.mycorp.app" }));
+
+            expect(application.source.isCustom()).toBe(true);
+            expect(application.source.appRef).toBe("builds/app-7.1.0.apk");
+            expect(application.source.webdriverRef).toBe("builds/driver-7.1.0");
         });
 
-        test("refuses a name the platform's catalog does not offer", () => {
-            expect(() => catalog.resolveProvided("android", RequestedApplication.create({ name: "chrome" })))
+        test("refuses a word nothing on the platform answers to", () => {
+            expect(() => catalog.resolve("android", RequestedApplication.create({ name: "chrome" })))
                 .toThrow(ApplicationNotInCatalogError);
         });
 
         test("refuses a version prefix nothing opens", () => {
-            expect(() => catalog.resolveProvided(
-                "ubuntu",
-                RequestedApplication.create({ name: "chrome", version: "150" }),
-            )).toThrow(ApplicationNotInCatalogError);
+            expect(() => catalog.resolve("ubuntu", RequestedApplication.create({ name: "chrome", version: "150" })))
+                .toThrow(ApplicationNotInCatalogError);
         });
     });
 
     describe("expand (session ask → candidate names)", () => {
-        test("an alias expands to itself plus every canonical id it names, across platforms", () => {
+        test("a catalog alias expands to itself plus every canonical it names, across platforms", () => {
             const match = catalog.expand(RequestedApplication.create({ name: "chrome", version: "152" }));
 
             expect(match.names).toEqual(["chrome", "com.google.chrome"]);
             expect(match.versionPrefix).toBe("152");
         });
 
-        test("a canonical id expands to itself once", () => {
-            expect(catalog.expand(RequestedApplication.create({ name: "com.google.chrome" })).names)
-                .toEqual(["com.google.chrome"]);
-        });
-
-        test("an unknown (custom) name passes through untouched", () => {
+        test("a custom name passes through untouched — customs have no aliases by the docker rule", () => {
             expect(catalog.expand(RequestedApplication.create({ name: "com.mycorp.app" })).names)
                 .toEqual(["com.mycorp.app"]);
         });
     });
 
-    describe("catalog invariants", () => {
-        test("a word ambiguous within one platform fails construction", () => {
-            expect(() => ApplicationCatalog.fromObject({
-                platforms: [{ name: "ubuntu", versions: ["24.04"] }],
-                applications: [
-                    { platform: "ubuntu", name: "com.google.chrome", aliases: ["chrome"], version: "1" },
-                    { platform: "ubuntu", name: "org.chromium.chrome", aliases: ["chrome"], version: "2" },
-                ],
-            })).toThrow(/"chrome" is ambiguous/);
+    describe("the docker rule's helpers", () => {
+        test("catalogReserves covers canonical names and aliases per platform", () => {
+            expect(catalog.catalogReserves("ubuntu", "chrome")).toBe(true);
+            expect(catalog.catalogReserves("ubuntu", "com.google.chrome")).toBe(true);
+            expect(catalog.catalogReserves("android", "chrome")).toBe(false);
         });
 
-        test("the same word on different platforms is legal — that is what aliases are for", () => {
-            expect(() => ApplicationCatalog.fromObject({
-                platforms: [],
-                applications: [
-                    { platform: "ubuntu", name: "com.google.chrome", aliases: ["chrome"], version: "1" },
-                    { platform: "android", name: "com.android.chrome", aliases: ["chrome"], version: "1" },
-                ],
-            })).not.toThrow();
-        });
-    });
-
-    describe("wireName", () => {
-        test("translates a canonical id to its wire vocabulary word", () => {
+        test("wireName translates a catalog canonical to its wire word, passing customs through", () => {
             expect(catalog.wireName("com.google.chrome")).toBe("chrome");
-        });
-
-        test("passes a custom name through as-is", () => {
             expect(catalog.wireName("com.mycorp.app")).toBe("com.mycorp.app");
         });
     });

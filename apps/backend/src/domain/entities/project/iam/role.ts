@@ -21,12 +21,18 @@ const catalogue: Record<RoleName, Array<UserPermissionName>> = {
         UserPermissionName.Environment.Delete,
         UserPermissionName.Session.Get,
         UserPermissionName.Session.Create,
+        UserPermissionName.Application.Get,
+        UserPermissionName.Application.List,
+        UserPermissionName.Application.Create,
+        UserPermissionName.Application.Delete,
     ],
     [RoleName.Viewer]: [
         UserPermissionName.Project.Get,
         UserPermissionName.Environment.Get,
         UserPermissionName.Environment.List,
         UserPermissionName.Session.Get,
+        UserPermissionName.Application.Get,
+        UserPermissionName.Application.List,
     ],
 };
 

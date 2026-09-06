@@ -3,6 +3,7 @@ import { Injectable } from "@nestjs/common";
 import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
+import { ensureNotCatalogProject } from "../../../domain/entities/project-application/catalog-project";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import { CloudCatalog } from "../../interfaces/cloud-catalog";
 import { CloudAccountRepository } from "../../interfaces/repositories/cloud-account-repository";
@@ -35,6 +36,8 @@ export class CreateCloudAccountUseCase {
         const project = await this.projectRepository.getByHandle(params.projectId);
 
         await this.accessControl.authorize(user, project, this.permissionName);
+
+        ensureNotCatalogProject(project, "connecting clouds");
 
         if (!this.cloudCatalog.supports(params.type)) {
             throw new InvalidArgumentError(

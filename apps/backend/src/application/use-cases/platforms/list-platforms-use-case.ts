@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 
 import {
-    ApplicationCatalog,
+    PlatformCatalog,
     PlatformLine,
-} from "../../../domain/entities/application-catalog/application-catalog";
+} from "../../../domain/entities/application-catalog/platform-catalog";
 import { AccessControl } from "../../services/access-control";
 
 type ListPlatformsInput = {
@@ -18,12 +18,12 @@ type ListPlatformsInput = {
 export class ListPlatformsUseCase {
     constructor(
         private readonly accessControl: AccessControl,
-        private readonly applicationCatalog: ApplicationCatalog,
+        private readonly platformCatalog: PlatformCatalog,
     ) {}
 
     async execute({ creds }: ListPlatformsInput): Promise<ReadonlyArray<PlatformLine>> {
         await this.accessControl.authenticate(creds);
 
-        return this.applicationCatalog.platformLines();
+        return this.platformCatalog.lines();
     }
 }

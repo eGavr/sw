@@ -1,4 +1,4 @@
-import { PlatformLine } from "../../../../../../domain/entities/application-catalog/application-catalog";
+import { PlatformLine } from "../../../../../../domain/entities/application-catalog/platform-catalog";
 import { Presenter } from "../../../../presenters/presenter";
 
 // One platform base-image line the install provisions: the OS name and the versions it exists for.

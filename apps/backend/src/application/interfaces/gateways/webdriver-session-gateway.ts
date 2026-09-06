@@ -18,9 +18,12 @@ export type WebDriverSessionOptions = {
 // platform selects the capability dialect — a browser (browserName) vs an Appium device (platformName +
 // appium:* on an Android node).
 export abstract class WebDriverSessionGateway {
+    // `wireName` is the vocabulary word the node understands as browserName (`chrome`), resolved by
+    // the caller from the project's catalog — the application itself carries the canonical id.
     abstract create(
         endpoint: string,
         application: Application,
+        wireName: string,
         platformName: string,
         options?: WebDriverSessionOptions,
     ): Promise<string>;
