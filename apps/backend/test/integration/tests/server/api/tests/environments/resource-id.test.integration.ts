@@ -12,7 +12,7 @@ type AuthHeader = { authorization: string };
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const environmentBody = {
-    platform: { name: "linux", version: "latest" },
+    platform: { name: "ubuntu", version: "24.04" },
     applications: [{ name: "chrome", version: "126" }],
 };
 
@@ -41,7 +41,7 @@ describe("human-readable environment ids", () => {
         const { body: account } = await connectCloud(body.uid, owner).expect(HttpStatus.CREATED);
         await request(app.getHttpServer())
             .post(`/projects/${body.uid}/cloudAccounts/${account.uid}/computeBindings`).set(owner)
-            .send({ platform: "linux", execution: "container", kind: "docker" })
+            .send({ platform: "ubuntu", execution: "container", kind: "docker" })
             .expect(HttpStatus.CREATED);
 
         return { owner, projectId: body.uid };
@@ -112,7 +112,7 @@ describe("human-readable environment ids", () => {
         const { body: account } = await connectCloud(projectId, owner).expect(HttpStatus.CREATED);
         await request(app.getHttpServer())
             .post(`/projects/${projectId}/cloudAccounts/${account.uid}/computeBindings`).set(owner)
-            .send({ platform: "linux", execution: "container", kind: "docker" })
+            .send({ platform: "ubuntu", execution: "container", kind: "docker" })
             .expect(HttpStatus.CREATED);
 
         const environmentId = humanId();

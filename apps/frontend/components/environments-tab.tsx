@@ -52,10 +52,11 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
 
-  const [platformName, setPlatformName] = useState("linux");
-  const [platformVersion, setPlatformVersion] = useState("1");
+  const [platformName, setPlatformName] = useState("ubuntu");
+  const [platformVersion, setPlatformVersion] = useState("24.04");
   const [appName, setAppName] = useState("chrome");
-  const [appVersion, setAppVersion] = useState("128");
+  // Empty app version = latest: the catalog resolves the newest full version it offers.
+  const [appVersion, setAppVersion] = useState("");
   const [execution, setExecution] = useState("container");
   const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);
   // A busy environment's delete asks first: deprovision kills the running session with the container,
@@ -113,7 +114,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
     mutationFn: () =>
       createEnvironment(project, {
         platform: { name: platformName, version: platformVersion },
-        applications: [{ name: appName, version: appVersion }],
+        applications: [{ name: appName, ...(appVersion ? { version: appVersion } : {}) }],
         execution,
       }),
     onSuccess: async () => {

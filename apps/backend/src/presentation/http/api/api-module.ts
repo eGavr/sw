@@ -97,6 +97,7 @@ import {
 } from "../../../application/use-cases/storage-destinations/test-project-storage-destination-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import { AgentTokenServiceProvider } from "../../../infrastructure/agent-token/agent-token-service-provider";
+import { ApplicationCatalogProvider } from "../../../infrastructure/application-catalog/application-catalog-provider";
 import {
     UserDataSourceProvider as AuthUserDataSourceProvider,
 } from "../../../infrastructure/data-sources/auth/user-data-source-provider";
@@ -255,6 +256,7 @@ import {
         EnvironmentProviderGatewayProvider,
         AgentTokenServiceProvider,
         EnvironmentQuotaPolicyProvider,
+        ApplicationCatalogProvider,
         // The baremetal route's construction chain: the routed gateway holds the host-pool bridge,
         // which drives the pool use cases over their repository and host provider.
         PlaceWorkloadUseCase,

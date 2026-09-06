@@ -7,7 +7,7 @@ describe("resolveDockerProvisioning", () => {
 
     describe("prebuilt strategy", () => {
         test("falls back to the selenium image keyed by version", () => {
-            expect(resolveDockerProvisioning(chrome, {})).toEqual({ image: "selenium/standalone-chrome:124" });
+            expect(resolveDockerProvisioning(chrome, {})).toEqual({ image: "selenium/standalone-chrome:124.0" });
         });
 
         test("uses a fixed image tag as-is", () => {

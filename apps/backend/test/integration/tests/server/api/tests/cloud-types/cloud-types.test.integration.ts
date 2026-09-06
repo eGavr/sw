@@ -31,7 +31,7 @@ describe("/cloudTypes", () => {
                 type: "local",
                 provides: [
                     {
-                        platform: "linux",
+                        platform: "ubuntu",
                         execution: "container",
                         compute: [{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }],
                     },
@@ -75,7 +75,7 @@ describe("/cloudTypes", () => {
                         }],
                     },
                     {
-                        platform: "linux",
+                        platform: "ubuntu",
                         execution: "container",
                         compute: [
                             {

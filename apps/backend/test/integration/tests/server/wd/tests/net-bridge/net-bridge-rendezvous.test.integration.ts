@@ -94,7 +94,7 @@ describe("NetBridge rendezvous", () => {
 
         const environment = await app.get<EnvironmentRepository>(EnvironmentRepository).create({
             projectId,
-            platform: Platform.fromObject({ name: "linux", version: "latest" }),
+            platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
         const environmentToken = await app.get<AgentTokenService>(AgentTokenService).issue(environment.id);

@@ -5,6 +5,7 @@ import { ProjectId } from "../project/project-id";
 
 import { Application, ApplicationData } from "./application/application";
 import { ApplicationList } from "./application/application-list";
+import { ApplicationMatch } from "./application/application-match";
 import { EnvironmentEndpoint } from "./environment-endpoint";
 import { EnvironmentId } from "./environment-id";
 import { EnvironmentOccupancy, toEnvironmentOccupancy } from "./environment-occupancy";
@@ -242,6 +243,12 @@ export class Environment {
     // here will run, and what "latest" ranks environments by.
     applicationFor(name: string): Application | null {
         return this.applications.find(name);
+    }
+
+    // The installed application a session request expands to on this environment (alias-aware names,
+    // version-prefix loose), newest first when several qualify.
+    applicationMatching(match: ApplicationMatch): Application | null {
+        return this.applications.bestMatch(match);
     }
 
     // Whether the compute backend should be running a container for this environment right now.

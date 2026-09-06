@@ -61,7 +61,7 @@ function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArr
         // the machine itself (a dev Mac IS bare metal; the operator starts the host agent by hand).
         ["local", [
             {
-                stereotype: new Stereotype("linux", Execution.Container),
+                stereotype: new Stereotype("ubuntu", Execution.Container),
                 compute: [{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }],
             },
             {
@@ -88,7 +88,7 @@ function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArr
                 }],
             },
             {
-                stereotype: new Stereotype("linux", Execution.Container),
+                stereotype: new Stereotype("ubuntu", Execution.Container),
                 compute: [
                     // Per-env VM: pay-per-use, start ~minutes, lives off the binding's folder.
                     {

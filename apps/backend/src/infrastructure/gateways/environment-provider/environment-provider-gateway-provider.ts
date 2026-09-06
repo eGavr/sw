@@ -102,7 +102,7 @@ export const EnvironmentProviderGatewayProvider = {
         // cloud provisions that stereotype with (local drives its docker daemon; yandex-cloud creates
         // Compute VMs for both android substrates).
         const gateways = new Map<string, EnvironmentProviderGateway>([
-            [routingKey("local", "linux", Execution.Container, "docker"), new DockerEnvironmentProviderGateway(
+            [routingKey("local", "ubuntu", Execution.Container, "docker"), new DockerEnvironmentProviderGateway(
                 new DockerClient(),
                 dockerConfig(configService, idleTimeoutSeconds),
                 agentTokens,
@@ -124,12 +124,12 @@ export const EnvironmentProviderGatewayProvider = {
             // machine attached by hand).
             [routingKey("yandex-cloud", "android", Execution.Emulator, "baremetal"), hostPoolGateway],
             [routingKey("local", "android", Execution.Emulator, "baremetal"), hostPoolGateway],
-            [routingKey("yandex-cloud", "linux", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(
+            [routingKey("yandex-cloud", "ubuntu", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_BROWSER_FOLDER_ID")),
                 browserVmConfig(configService, idleTimeoutSeconds),
                 agentTokens,
             )],
-            [routingKey("yandex-cloud", "linux", Execution.Container, "kubernetes"),
+            [routingKey("yandex-cloud", "ubuntu", Execution.Container, "kubernetes"),
                 kubernetesGateway(configService, idleTimeoutSeconds, agentTokens)],
         ]);
 

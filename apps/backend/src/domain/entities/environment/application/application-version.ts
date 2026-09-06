@@ -10,6 +10,14 @@ export class ApplicationVersion extends Value<string> {
     @Matches(/^[a-zA-Z0-9.\-_]+$/)
     declare protected value: string;
 
+    // A request names leading segments and matches any version they open ("140" matches "140.0.7339.80"
+    // and "140" itself, never "1400.1") — installed versions are honestly full, nobody types them whole.
+    matchesPrefix(prefix: string): boolean {
+        const value = this.getValue();
+
+        return value === prefix || value.startsWith(`${prefix}.`);
+    }
+
     // Orders two versions by dotted segments, newest greater: numeric segments compare as numbers
     // ("9" < "10", "141" > "139"), a missing segment counts as "0" ("1.2" == "1.2.0" < "1.2.1"), and a
     // non-numeric segment falls back to a string comparison. Returns <0, 0 or >0 like a comparator.

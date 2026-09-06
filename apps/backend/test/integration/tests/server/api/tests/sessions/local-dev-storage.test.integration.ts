@@ -177,7 +177,7 @@ describe("local dev storage (LOG_STORAGE=fs)", () => {
 
         const environment = await internalApp.get(EnvironmentRepository).create({
             projectId: ProjectId.fromString(project.id),
-            platform: Platform.fromObject({ name: "linux", version: "latest" }),
+            platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
         });
 

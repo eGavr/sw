@@ -16,7 +16,13 @@ export interface Environment {
   stateReason?: string;
   platform: { name: string; version: string; deviceModel?: string };
   execution: string;
-  applications: Array<{ name: string; version: string }>;
+  // An environment's applications are concrete (canonical name, full version); `source` says where the
+  // artifact comes from (the service's catalog or the user's bucket).
+  applications: Array<{
+    name: string;
+    version: string;
+    source?: { type: string; appKey?: string; webdriverKey?: string };
+  }>;
   // Orthogonal to state: FREE | RESERVED (a session create is in flight) | BUSY (a session runs).
   occupancy: "FREE" | "RESERVED" | "BUSY";
   lastHeartbeatTime?: string;
@@ -27,7 +33,12 @@ export interface Environment {
 
 export interface CreateEnvironmentInput {
   platform: { name: string; version: string; deviceModel?: string };
-  applications: Array<{ name: string; version: string }>;
+  // Version omitted = latest the catalog offers; `source` attaches the user's own artifact instead.
+  applications: Array<{
+    name: string;
+    version?: string;
+    source?: { appKey: string; webdriverKey?: string };
+  }>;
   execution: string;
   environmentId?: string;
 }

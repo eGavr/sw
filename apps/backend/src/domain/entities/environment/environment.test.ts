@@ -19,7 +19,7 @@ const freshnessMs = 6_000;
 function makeEnvironment(): Environment {
     return Environment.create({
         projectId: ProjectId.create(),
-        platform: Platform.fromObject({ name: "linux", version: "6" }),
+        platform: Platform.fromObject({ name: "ubuntu", version: "6" }),
         applications: ApplicationList.create({ applications: [Application.create({ name: "chrome", version: "100" })] }),
     });
 }
@@ -40,7 +40,7 @@ function makeStuck(state: EnvironmentState, attempts: number): Environment {
         id,
         projectId: ProjectId.create().getValue(),
         state,
-        platform: { name: "linux", version: "6", deviceModel: "desktop" },
+        platform: { name: "ubuntu", version: "6", deviceModel: "desktop" },
         applications: [{ name: "chrome", version: "100" }],
         occupancy: EnvironmentOccupancy.Free,
         attempts,

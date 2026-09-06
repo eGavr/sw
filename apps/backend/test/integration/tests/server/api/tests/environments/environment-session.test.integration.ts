@@ -60,7 +60,7 @@ describe("GET /projects/:project/environments/:environment/session", () => {
         const environmentRepository = app.get(EnvironmentRepository);
         await environmentRepository.create({
             projectId: ProjectId.fromString(project.uid),
-            platform: Platform.fromObject({ name: "linux", version: "latest" }),
+            platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
             applications: ApplicationList.fromObject([{ name: "chrome", version: "141" }]),
         });
 
