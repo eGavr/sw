@@ -1,0 +1,99 @@
+import { HttpStatus } from "@nestjs/common";
+import request from "supertest";
+
+import { ApiModule } from "../../../../../../../src/presentation/http/api/api-module";
+import { TestingApp } from "../../../utils/app/testing-app";
+import { UserFactory } from "../../../utils/entities/user/user-factory";
+import { Authorization } from "../../../utils/request/headers/authorization";
+
+// The suite runs against the fixture catalog (APPLICATION_CATALOG_FILE). The install's delivery
+// catalog is published as read-only AIP resources: platform lines and, under each, the applications
+// the install itself delivers — versions newest-first, artifact locations staying private.
+describe("/platforms", () => {
+    let app: TestingApp;
+
+    const owner = (): { authorization: string } => Authorization.forUser(UserFactory.createId());
+
+    beforeEach(async () => {
+        app = await TestingApp.create(ApiModule);
+    });
+
+    afterEach(async () => {
+        await app.close();
+    });
+
+    test("lists the platform base-image lines", async () => {
+        const { body } = await request(app.getHttpServer())
+            .get("/platforms")
+            .set(owner())
+            .expect(HttpStatus.OK);
+
+        expect(body).toEqual({
+            platforms: expect.arrayContaining([
+                { name: "platforms/ubuntu", platform: "ubuntu", versions: ["24.04"] },
+                { name: "platforms/android", platform: "android", versions: ["13", "34"] },
+            ]),
+        });
+    });
+
+    test("gets one platform line", async () => {
+        const { body } = await request(app.getHttpServer())
+            .get("/platforms/ubuntu")
+            .set(owner())
+            .expect(HttpStatus.OK);
+
+        expect(body).toEqual({ name: "platforms/ubuntu", platform: "ubuntu", versions: ["24.04"] });
+    });
+
+    test("lists a platform's deliverable applications, versions newest-first and artifacts private", async () => {
+        const { body } = await request(app.getHttpServer())
+            .get("/platforms/ubuntu/applications")
+            .set(owner())
+            .expect(HttpStatus.OK);
+
+        expect(body).toEqual({
+            applications: [{
+                name: "platforms/ubuntu/applications/com.google.chrome",
+                application: "com.google.chrome",
+                aliases: ["chrome"],
+                versions: ["141.0.7390.54", "140.0.7339.80", "128.0.6613.86", "126.0.6478.182"],
+            }],
+        });
+
+        expect(JSON.stringify(body)).not.toContain("catalog.test");
+    });
+
+    test("gets one application by its canonical name", async () => {
+        const { body } = await request(app.getHttpServer())
+            .get("/platforms/android/applications/com.android.settings")
+            .set(owner())
+            .expect(HttpStatus.OK);
+
+        expect(body).toEqual({
+            name: "platforms/android/applications/com.android.settings",
+            application: "com.android.settings",
+            aliases: ["settings"],
+            versions: ["34", "13"],
+        });
+    });
+
+    test("an alias is request vocabulary, not a resource id", async () => {
+        return request(app.getHttpServer())
+            .get("/platforms/android/applications/settings")
+            .set(owner())
+            .expect(HttpStatus.NOT_FOUND);
+    });
+
+    test("responds NOT_FOUND for a platform outside the catalog", async () => {
+        return request(app.getHttpServer())
+            .get("/platforms/ios")
+            .set(owner())
+            .expect(HttpStatus.NOT_FOUND);
+    });
+
+    test("requires authentication", async () => {
+        return request(app.getHttpServer())
+            .get("/platforms")
+            .expect(HttpStatus.UNAUTHORIZED);
+    });
+});

@@ -28,12 +28,13 @@ import {
   createEnvironment,
   deleteEnvironment,
   Environment,
-  getApplicationCatalog,
   environmentHandle,
   getEnvironmentSession,
   killSession,
   listCloudAccounts,
   listEnvironmentsPage,
+  listPlatformApplications,
+  listPlatforms,
 } from "@/lib/sw";
 import { addFreeing, loadFreeing, removeFreeing } from "@/lib/freeing-store";
 import { shortId } from "@/lib/format";
@@ -91,32 +92,37 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const noClouds = !clouds.isLoading
     && !(clouds.data ?? []).some((cloud) => cloud.computeBindings.length > 0);
 
-  // The install's delivery catalog: platform lines and provided applications — everything in the form
-  // except the custom branch is a pick from it, narrowed to the platforms the project actually bound.
-  const catalog = useQuery({ queryKey: ["applicationCatalog"], queryFn: getApplicationCatalog });
+  // The install's delivery catalog: platform lines and the selected platform's applications —
+  // everything in the form except the custom branch is a pick from it, platforms narrowed to what
+  // the project actually bound.
+  const platformsQuery = useQuery({ queryKey: ["platforms"], queryFn: listPlatforms });
+  const applicationsQuery = useQuery({
+    queryKey: ["platformApplications", platformName],
+    queryFn: () => listPlatformApplications(platformName),
+    enabled: platformName !== "",
+  });
   const boundPlatforms = new Set(
     (clouds.data ?? []).flatMap((cloud) => cloud.computeBindings).map((binding) => binding.platform),
   );
-  const platformLines = (catalog.data?.platforms ?? [])
-    .filter((line) => boundPlatforms.size === 0 || boundPlatforms.has(line.name));
-  const platformVersions = platformLines.find((line) => line.name === platformName)?.versions ?? [];
-  const offerings = (catalog.data?.applications ?? [])
-    .filter((offering) => offering.platform === platformName);
+  const platformLines = (platformsQuery.data ?? [])
+    .filter((line) => boundPlatforms.size === 0 || boundPlatforms.has(line.platform));
+  const platformVersions = platformLines.find((line) => line.platform === platformName)?.versions ?? [];
+  const offerings = applicationsQuery.data ?? [];
   const applicationOptions = [
     ...offerings.map((offering) => ({
-      value: offering.name,
-      label: offering.aliases[0] ? `${offering.aliases[0]} (${offering.name})` : offering.name,
+      value: offering.application,
+      label: offering.aliases[0] ? `${offering.aliases[0]} (${offering.application})` : offering.application,
     })),
     { value: customApplication, label: "Custom application…" },
   ];
-  const appVersions = offerings.find((offering) => offering.name === appName)?.versions ?? [];
+  const appVersions = offerings.find((offering) => offering.application === appName)?.versions ?? [];
   const isCustomApplication = appName === customApplication;
 
   // Snap every dependent select when its options move (platform → its versions and applications,
   // application → its versions), mirroring the execution snap below.
   useEffect(() => {
-    if (platformLines.length > 0 && !platformLines.some((line) => line.name === platformName)) {
-      setPlatformName(platformLines[0].name);
+    if (platformLines.length > 0 && !platformLines.some((line) => line.platform === platformName)) {
+      setPlatformName(platformLines[0].platform);
     }
   }, [platformLines, platformName]);
 
@@ -127,16 +133,16 @@ export function EnvironmentsTab({ project }: { project: string }) {
   }, [platformVersions, platformVersion]);
 
   useEffect(() => {
-    if (isCustomApplication || !catalog.data) {
+    if (isCustomApplication || !applicationsQuery.data) {
       return;
     }
 
     if (offerings.length === 0) {
       setAppName(customApplication);
-    } else if (!offerings.some((offering) => offering.name === appName)) {
-      setAppName(offerings[0].name);
+    } else if (!offerings.some((offering) => offering.application === appName)) {
+      setAppName(offerings[0].application);
     }
-  }, [offerings, appName, isCustomApplication, catalog.data]);
+  }, [offerings, appName, isCustomApplication, applicationsQuery.data]);
 
   useEffect(() => {
     if (appVersion !== "latest" && !appVersions.includes(appVersion)) {
@@ -457,7 +463,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
           <Group grow>
             <Select
               label="Platform"
-              data={platformLines.map((line) => line.name)}
+              data={platformLines.map((line) => line.platform)}
               value={platformName}
               onChange={(v) => v && setPlatformName(v)}
             />

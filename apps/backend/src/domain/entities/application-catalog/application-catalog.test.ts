@@ -110,6 +110,28 @@ describe("ApplicationCatalog", () => {
         });
     });
 
+    describe("catalog invariants", () => {
+        test("a word ambiguous within one platform fails construction", () => {
+            expect(() => ApplicationCatalog.fromObject({
+                platforms: [{ name: "ubuntu", versions: ["24.04"] }],
+                applications: [
+                    { platform: "ubuntu", name: "com.google.chrome", aliases: ["chrome"], version: "1" },
+                    { platform: "ubuntu", name: "org.chromium.chrome", aliases: ["chrome"], version: "2" },
+                ],
+            })).toThrow(/"chrome" is ambiguous/);
+        });
+
+        test("the same word on different platforms is legal — that is what aliases are for", () => {
+            expect(() => ApplicationCatalog.fromObject({
+                platforms: [],
+                applications: [
+                    { platform: "ubuntu", name: "com.google.chrome", aliases: ["chrome"], version: "1" },
+                    { platform: "android", name: "com.android.chrome", aliases: ["chrome"], version: "1" },
+                ],
+            })).not.toThrow();
+        });
+    });
+
     describe("wireName", () => {
         test("translates a canonical id to its wire vocabulary word", () => {
             expect(catalog.wireName("com.google.chrome")).toBe("chrome");

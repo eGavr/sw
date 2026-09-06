@@ -33,9 +33,6 @@ import {
     ListCloudAccountsUseCase,
 } from "../../../application/use-cases/cloud-accounts/list-cloud-accounts-use-case";
 import {
-    GetApplicationCatalogUseCase,
-} from "../../../application/use-cases/application-catalog/get-application-catalog-use-case";
-import {
     ListCloudTypesUseCase,
 } from "../../../application/use-cases/cloud-types/list-cloud-types-use-case";
 import {
@@ -68,6 +65,14 @@ import {
 import {
     ListNetBridgeCredentialsUseCase,
 } from "../../../application/use-cases/net-bridge-credentials/list-net-bridge-credentials-use-case";
+import {
+    GetPlatformApplicationUseCase,
+} from "../../../application/use-cases/platforms/get-platform-application-use-case";
+import { GetPlatformUseCase } from "../../../application/use-cases/platforms/get-platform-use-case";
+import {
+    ListPlatformApplicationsUseCase,
+} from "../../../application/use-cases/platforms/list-platform-applications-use-case";
+import { ListPlatformsUseCase } from "../../../application/use-cases/platforms/list-platforms-use-case";
 import { CreateProjectUseCase } from "../../../application/use-cases/projects/create-project-use-case";
 import {
     GetProjectIamPolicyUseCase,
@@ -167,15 +172,13 @@ import { UrlRedactions } from "../middlewares/url-redaction";
 import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { CloudAccountsController } from "./controllers/cloud-accounts/cloud-accounts-controller";
-import {
-    ApplicationCatalogController,
-} from "./controllers/application-catalog/application-catalog-controller";
 import { CloudTypesController } from "./controllers/cloud-types/cloud-types-controller";
 import { ComputeBindingsController } from "./controllers/compute-bindings/compute-bindings-controller";
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
 import {
     NetBridgeCredentialsController,
 } from "./controllers/net-bridge-credentials/net-bridge-credentials-controller";
+import { PlatformsController } from "./controllers/platforms/platforms-controller";
 import { ProjectsController } from "./controllers/projects/projects-controller";
 import { SessionArtifactsController } from "./controllers/sessions/session-artifacts-controller";
 import {
@@ -199,7 +202,7 @@ import {
         CloudAccountsController,
         ComputeBindingsController,
         CloudTypesController,
-        ApplicationCatalogController,
+        PlatformsController,
         NetBridgeCredentialsController,
         StorageDestinationController,
         StorageDelegationController,
@@ -235,7 +238,10 @@ import {
         DeleteComputeBindingUseCase,
 
         ListCloudTypesUseCase,
-        GetApplicationCatalogUseCase,
+        ListPlatformsUseCase,
+        GetPlatformUseCase,
+        ListPlatformApplicationsUseCase,
+        GetPlatformApplicationUseCase,
 
         CreateNetBridgeCredentialUseCase,
         ListNetBridgeCredentialsUseCase,

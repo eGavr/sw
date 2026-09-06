@@ -440,15 +440,30 @@ export function listCloudTypes(): Promise<Array<CloudType>> {
   return swRequest<{ cloudTypes?: Array<CloudType> }>("v1/cloudTypes").then((d) => d.cloudTypes ?? []);
 }
 
-// What the install can deliver onto an environment: platform base-image lines and one offering per
-// (platform, application) with versions newest-first. The new-environment form renders from it.
-export interface ApplicationCatalog {
-  platforms: Array<{ name: string; versions: Array<string> }>;
-  applications: Array<{ platform: string; name: string; aliases: Array<string>; versions: Array<string> }>;
+// The install's delivery catalog as read-only resources: the platform base-image lines and, under
+// each, the applications the install itself delivers (versions newest-first). The new-environment
+// form renders from these two lists.
+export interface PlatformLine {
+  name: string;
+  platform: string;
+  versions: Array<string>;
 }
 
-export function getApplicationCatalog(): Promise<ApplicationCatalog> {
-  return swRequest<ApplicationCatalog>("v1/applicationCatalog");
+export interface PlatformApplication {
+  name: string;
+  application: string;
+  aliases: Array<string>;
+  versions: Array<string>;
+}
+
+export function listPlatforms(): Promise<Array<PlatformLine>> {
+  return swRequest<{ platforms?: Array<PlatformLine> }>("v1/platforms").then((d) => d.platforms ?? []);
+}
+
+export function listPlatformApplications(platform: string): Promise<Array<PlatformApplication>> {
+  return swRequest<{ applications?: Array<PlatformApplication> }>(
+    `v1/platforms/${platform}/applications`,
+  ).then((d) => d.applications ?? []);
 }
 
 export function listCloudAccounts(project: string): Promise<Array<CloudAccount>> {
