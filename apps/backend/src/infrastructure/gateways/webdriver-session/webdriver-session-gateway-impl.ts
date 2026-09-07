@@ -26,7 +26,12 @@ export class WebDriverSessionGatewayImpl extends WebDriverSessionGateway {
         try {
             return await this.webDriverClient.createSession(
                 endpoint,
-                { name: application.nameAlias, version: application.version, platformName },
+                {
+                    name: application.nameAlias,
+                    version: application.version,
+                    platformName,
+                    driven: application.source?.webdriverRef !== undefined && application.source?.webdriverRef !== null,
+                },
                 options,
             );
         } catch (error) {

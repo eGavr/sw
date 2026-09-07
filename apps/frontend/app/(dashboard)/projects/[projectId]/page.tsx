@@ -4,9 +4,11 @@ import { Loader, Stack, Tabs, Title } from "@mantine/core";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+import { ApplicationsTab } from "@/components/applications-tab";
 import { EnvironmentsTab } from "@/components/environments-tab";
 import { SessionsTab } from "@/components/sessions-tab";
 import { SettingsTab } from "@/components/settings-tab";
+import { catalogProject } from "@/lib/sw";
 
 // Tabs live in the URL (?tab=…&session=…) so environment rows and modals can deep-link into the
 // Sessions viewer with the id prefilled.
@@ -24,6 +26,17 @@ function ProjectContent() {
     router.replace(next && next !== "environments" ? `${pathname}?tab=${next}` : pathname);
   };
 
+  // The install catalog is a project by shape only: it hosts the provided applications and nothing
+  // else, so its page is that one surface.
+  if (projectId === catalogProject) {
+    return (
+      <Stack>
+        <Title order={2}>Application catalog</Title>
+        <ApplicationsTab project={projectId} />
+      </Stack>
+    );
+  }
+
   return (
     <Stack>
       <Title order={2}>{projectId}</Title>
@@ -32,6 +45,7 @@ function ProjectContent() {
         <Tabs.List>
           <Tabs.Tab value="environments">Environments</Tabs.Tab>
           <Tabs.Tab value="sessions">Sessions</Tabs.Tab>
+          <Tabs.Tab value="applications">Applications</Tabs.Tab>
           <Tabs.Tab value="settings">Settings</Tabs.Tab>
         </Tabs.List>
 
@@ -48,6 +62,10 @@ function ProjectContent() {
             initialSessionId={session}
             environmentUid={environmentUid}
           />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="applications" pt="md">
+          <ApplicationsTab project={projectId} />
         </Tabs.Panel>
 
         <Tabs.Panel value="settings" pt="md">

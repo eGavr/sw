@@ -30,22 +30,29 @@ export const detectedApplicationsFile = "/tmp/sw-detected.json";
 
 // What every linux compute adapter runs, whatever hosts the container (the operator's docker, a pod, a
 // VM): the base image of the platform version, and the node script's parameters as container env — the
-// delivery list it pulls through the control plane (every application with an artifact, encoded as
-// `word~webdriverFlag` pairs, both characters outside the application-name alphabet; preinstalled ones
-// having nothing to pull), the detection report path, the idle timeout and the display geometry.
+// delivery list it pulls through the control plane (see deliveryList), the detection report path, the
+// idle timeout and the display geometry.
 export function linuxNodeProvisioning(params: LinuxNodeParams): LinuxNodeProvisioning {
-    const delivered = params.applications
-        .filter((application) => application.source?.appRef)
-        .map((application) => `${application.nameAlias}~${application.source?.webdriverRef ? 1 : 0}`);
-
     return {
         image: params.baseImage.replace("{version}", params.platform.version),
         env: {
-            SW_APPS: delivered.join(","),
+            SW_APPS: deliveryList(params.applications),
             SW_DETECTED_APPS_FILE: detectedApplicationsFile,
             SW_SESSION_IDLE_TIMEOUT_SECONDS: String(params.sessionTimeoutSeconds),
             SW_SCREEN_WIDTH: String(params.screen.width),
             SW_SCREEN_HEIGHT: String(params.screen.height),
         },
     };
+}
+
+// The environment's applications as one string every node script parses the same way:
+// `word~appFlag~webdriverFlag` entries (the separators are outside the application-name alphabet) —
+// whether the build's artifact is pulled and installed, and whether a paired webdriver comes along.
+// Every application is listed, a preinstalled one too: the node still detects what the image ships
+// under that word and reports it.
+export function deliveryList(applications: ReadonlyArray<ApplicationData>): string {
+    return applications
+        .map((application) =>
+            `${application.nameAlias}~${application.source?.appRef ? 1 : 0}~${application.source?.webdriverRef ? 1 : 0}`)
+        .join(",");
 }

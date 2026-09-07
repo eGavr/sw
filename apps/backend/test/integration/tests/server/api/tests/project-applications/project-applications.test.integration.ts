@@ -9,9 +9,10 @@ import { CreateProjectBody } from "../../utils/request/body/create-project-body"
 
 // The delivery catalog as project resources (the GCE vendor-project model): the reserved `catalog`
 // project holds the install's provided set (seeded from CATALOG_SEED_FILE, admins from
-// CATALOG_ADMIN_EXTERNAL_IDS = catalog-admin here); a user project registers its customs under the
-// docker rule — catalog words are reserved install-wide. Every application is ONE word (its name
-// alias) and a resource by its server id; its builds are version aliases with their artifacts.
+// CATALOG_ADMIN_EXTERNAL_IDS = catalog-admin here); a user project registers its customs, a catalog
+// word included — the catalog is the default, the project's own word overrides it. Every application
+// is ONE word (its name alias) and a resource by its server id; its builds are version aliases with
+// their artifacts.
 describe("/projects/:project/platforms/:platform/applications", () => {
     let app: TestingApp;
 
@@ -77,10 +78,13 @@ describe("/projects/:project/platforms/:platform/applications", () => {
 
             expect(versions.versions.map((version: { versionAlias: string }) => version.versionAlias))
                 .toEqual(["126", "128", "140", "141"]);
+            // What a build delivers is public, where from is the install's own business.
             expect(versions.versions[0]).toEqual({
                 name: expect.stringMatching(/\/applications\/[0-9a-f-]{36}\/versions\/[0-9a-f-]{36}$/),
                 uid: expect.stringMatching(uuidPattern),
                 versionAlias: "126",
+                preinstalled: false,
+                webdriver: true,
                 createTime: expect.any(String),
             });
             expect(JSON.stringify(versions)).not.toContain("catalog.test");
@@ -157,7 +161,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
         });
     });
 
-    describe("a user project's customs (the docker rule)", () => {
+    describe("a user project's customs (overriding the catalog word for word)", () => {
         test("registers a custom with builds and echoes its own refs back", async () => {
             const { owner, projectId } = await createProject();
 
@@ -186,6 +190,8 @@ describe("/projects/:project/platforms/:platform/applications", () => {
                 name: `projects/${projectId}/platforms/android/applications/${application.uid}/versions/${version.uid}`,
                 uid: expect.stringMatching(uuidPattern),
                 versionAlias: "7.1-rc2",
+                preinstalled: false,
+                webdriver: true,
                 appRef: "builds/app-7.1.apk",
                 webdriverRef: "builds/driver-7.1",
                 createTime: expect.any(String),
@@ -215,14 +221,26 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             expect(byWord.body).toEqual(byId.body);
         });
 
-        test("a custom may not take a catalog word, and the request knows no aliases", async () => {
+        test("a project may register a catalog word as its own — the override lives beside the catalog's", async () => {
             const { owner, projectId } = await createProject();
 
+            const { body } = await request(app.getHttpServer())
+                .post(`/projects/${projectId}/platforms/ubuntu/applications`)
+                .set(owner)
+                .send({ nameAlias: "chrome" })
+                .expect(HttpStatus.CREATED);
+            expect(body.nameAlias).toBe("chrome");
+
+            // Twice in one project is still a conflict.
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/ubuntu/applications`)
                 .set(owner)
                 .send({ nameAlias: "chrome" })
-                .expect(HttpStatus.BAD_REQUEST);
+                .expect(HttpStatus.CONFLICT);
+        });
+
+        test("the request knows no aliases", async () => {
+            const { owner, projectId } = await createProject();
 
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/android/applications`)

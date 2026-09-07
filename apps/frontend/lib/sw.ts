@@ -108,6 +108,16 @@ export interface CloudAccount {
 }
 
 // The URL handle a resource is addressed by (nested resources live under it).
+// Platforms are honest OS names (`ubuntu 24.04`, never "linux"); the family word people say goes in
+// front of the concrete one wherever a platform is shown: "linux (ubuntu)".
+const platformFamilies: Record<string, string> = { ubuntu: "linux" };
+
+export function platformLabel(name: string): string {
+  const family = platformFamilies[name];
+
+  return family ? `${family} (${name})` : name;
+}
+
 export function projectHandle(project: Project): string {
   return project.name.replace(/^projects\//, "");
 }
@@ -197,8 +207,10 @@ export function deleteEnvironment(project: string, environment: string): Promise
 
 export interface CreateSessionInput {
   environmentId: string;
-  // The pinned environment's platform — the W3C platformName the session is matched on.
+  // The pinned environment's platform and execution substrate — the stereotype the session is matched
+  // on (a targeted ask still has to fit its target; the substrate defaults to container otherwise).
   platform: string;
+  execution: string;
   // The word to ask the app by, and optionally a version (the detected one, or a prefix); omitted =
   // whatever the pinned environment offers.
   application: { name: string; version?: string };
@@ -212,8 +224,8 @@ export interface CreatedSession {
 }
 
 // W3C New Session through the wd BFF proxy: the requested application rides as browserName/Version,
-// the platform as platformName, our opt-ins as vendor sw:* capabilities, and sw:environmentId pins the
-// session to the chosen row.
+// the platform as platformName and the substrate as sw:execution, our opt-ins as vendor sw:*
+// capabilities, and sw:environmentId pins the session to the chosen row.
 export async function createSession(project: string, input: CreateSessionInput): Promise<CreatedSession> {
   const res = await fetch("/api/wd/sessions", {
     method: "POST",
@@ -224,6 +236,7 @@ export async function createSession(project: string, input: CreateSessionInput):
           browserName: input.application.name,
           ...(input.application.version ? { browserVersion: input.application.version } : {}),
           platformName: input.platform,
+          "sw:execution": input.execution,
           "sw:projectId": project,
           "sw:environmentId": input.environmentId,
           "sw:logging": input.logging,
@@ -472,6 +485,11 @@ export interface ApplicationVersion {
   uid: string;
   // The owner's label for the build; the honest version is detected on environments.
   versionAlias: string;
+  // No artifact: the platform image ships the application, the node only detects it.
+  preinstalled: boolean;
+  // A paired webdriver (chromedriver / geckodriver) comes along — what makes a build a browser.
+  webdriver: boolean;
+  // The refs themselves are the owner's business: absent for the catalog's builds seen from a project.
   appRef?: string;
   webdriverRef?: string;
   createTime: string;
@@ -490,14 +508,54 @@ export function listProjectApplications(
   ).then((d) => d.applications ?? []);
 }
 
+export function listApplicationBuilds(
+  project: string,
+  platform: string,
+  application: string,
+): Promise<Array<ApplicationVersion>> {
+  return swRequest<{ versions?: Array<ApplicationVersion> }>(
+    `v1/projects/${project}/platforms/${platform}/applications/${application}/versions`,
+  ).then((d) => d.versions ?? []);
+}
+
 export function listApplicationVersions(
   project: string,
   platform: string,
   application: string,
 ): Promise<Array<string>> {
-  return swRequest<{ versions?: Array<ApplicationVersion> }>(
+  return listApplicationBuilds(project, platform, application).then((builds) => builds.map((v) => v.versionAlias));
+}
+
+// Registers an application of the project under one word — a catalog word too, overriding the
+// catalog's for this project; builds are added underneath, each with its artifacts.
+export function createProjectApplication(
+  project: string,
+  platform: string,
+  nameAlias: string,
+): Promise<ProjectApplication> {
+  return swRequest<ProjectApplication>(`v1/projects/${project}/platforms/${platform}/applications`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ nameAlias }),
+  });
+}
+
+export function addApplicationBuild(
+  project: string,
+  platform: string,
+  application: string,
+  input: { versionAlias: string; appRef?: string; webdriverRef?: string },
+): Promise<ApplicationVersion> {
+  return swRequest<ApplicationVersion>(
     `v1/projects/${project}/platforms/${platform}/applications/${application}/versions`,
-  ).then((d) => (d.versions ?? []).map((v) => v.versionAlias));
+    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) },
+  );
+}
+
+export function deleteProjectApplication(project: string, platform: string, application: string): Promise<void> {
+  return swRequest<void>(`v1/projects/${project}/platforms/${platform}/applications/${application}`, {
+    method: "DELETE",
+  });
 }
 
 export function listCloudAccounts(project: string): Promise<Array<CloudAccount>> {

@@ -21,7 +21,7 @@ describe("linuxNodeProvisioning", () => {
         expect(linuxNodeProvisioning(params)).toEqual({
             image: "sw-linux-base:24.04",
             env: {
-                SW_APPS: "chrome~1",
+                SW_APPS: "chrome~1~1",
                 SW_DETECTED_APPS_FILE: "/tmp/sw-detected.json",
                 SW_SESSION_IDLE_TIMEOUT_SECONDS: "300",
                 SW_SCREEN_WIDTH: "1360",
@@ -35,13 +35,16 @@ describe("linuxNodeProvisioning", () => {
             .toBe("cr.example/linux:24.04");
     });
 
-    test("leaves preinstalled applications out of the delivery list, flags the webdriver per build", () => {
+    test("lists every application with its artifact and webdriver flags — a bare preinstall included", () => {
         const preinstalled: ApplicationData = { nameAlias: "settings", versionAlias: "1", source: { type: "provided" } };
+        const driven: ApplicationData = {
+            nameAlias: "chrome", versionAlias: "1", source: { type: "provided", webdriverRef: "https://store/driver.zip" },
+        };
         const noDriver: ApplicationData = {
             nameAlias: "myapp", versionAlias: "1", source: { type: "custom", appRef: "builds/app.zip" },
         };
 
-        expect(linuxNodeProvisioning({ ...params, applications: [preinstalled, chrome, noDriver] }).env.SW_APPS)
-            .toBe("chrome~1,myapp~0");
+        expect(linuxNodeProvisioning({ ...params, applications: [preinstalled, driven, chrome, noDriver] }).env.SW_APPS)
+            .toBe("settings~0~0,chrome~0~1,chrome~1~1,myapp~1~0");
     });
 });

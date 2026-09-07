@@ -92,7 +92,7 @@ describe("BrowserVmEnvironmentProviderGateway", () => {
         expect(created.metadata).toEqual({
             "sw-environment-id": environment.id,
             "sw-base-image": "cr.yandex/reg/sw-linux-base:24.04",
-            "sw-apps": "chrome~1",
+            "sw-apps": "chrome~1~1",
             "sw-detected-apps-file": "/tmp/sw-detected.json",
             "sw-idle-timeout": "300",
             "sw-screen-width": "1360",

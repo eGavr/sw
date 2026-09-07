@@ -212,7 +212,7 @@ describe("host-pool placement (local byo route)", () => {
             avd: "sw-android-14",
             device: "pixel-7",
             internalUrl: expect.stringContaining("http://"),
-            apps: [],
+            apps: [{ name: "chrome", app: false, webdriver: false }],
         });
 
         // The row carries its provider route from birth — return and sweep never need the binding.

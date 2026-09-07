@@ -25,9 +25,11 @@ describe("ProjectApplication", () => {
                 .toThrow(InvalidArgumentError);
         });
 
-        test("a webdriver ref is paired to a build — it cannot come alone", () => {
-            expect(() => chrome().addVersion({ versionAlias: "1.0", webdriverRef: "ref://driver" }))
-                .toThrow(InvalidArgumentError);
+        test("a preinstalled build may bring the webdriver that drives it, with nothing to install", () => {
+            const version = chrome().addVersion({ versionAlias: "113", webdriverRef: "ref://driver-113" });
+
+            expect(version.appRef).toBeNull();
+            expect(version.webdriverRef).toBe("ref://driver-113");
         });
 
         test("newestMatching: an ask is a build alias; null means the last registered", () => {

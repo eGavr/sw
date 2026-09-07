@@ -22,16 +22,12 @@ export type ProjectApplicationVersionCreateParams = {
 // catalog: the honest version exists only as detected on the device, and it is always there by the
 // time anything is allocatable (detection rides the registration heartbeat). The refs say where the
 // artifacts live: the install's own store for the catalog, the project's delegated bucket for a
-// custom; no refs = preinstalled on the platform image. A webdriver ref without an app ref is
-// meaningless — the webdriver is PAIRED to a build.
+// custom; no app ref = preinstalled on the platform image — which may still bring the webdriver that
+// drives it (the image's browser and the chromedriver of its version, run on the host).
 export class ProjectApplicationVersion {
     static create(params: ProjectApplicationVersionCreateParams): ProjectApplicationVersion {
         if (params.versionAlias.trim() === "" || params.versionAlias.toLowerCase() === latestApplicationVersion) {
             throw new InvalidArgumentError(`version alias: "${params.versionAlias}" is reserved`);
-        }
-
-        if (params.webdriverRef !== undefined && params.appRef === undefined) {
-            throw new InvalidArgumentError("a webdriver ref requires an app ref — it is paired to a build");
         }
 
         return new ProjectApplicationVersion(

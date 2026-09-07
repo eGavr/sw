@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { shortId } from "@/lib/format";
-import { createSession, Environment, environmentHandle, getStorageDestination } from "@/lib/sw";
+import { createSession, Environment, environmentHandle, getStorageDestination, platformLabel } from "@/lib/sw";
 
 // Creates a session pinned to one environment (sw:environmentId), fire-and-forget: the modal closes on
 // the click and the environment row tells the story (reserved while the node creates, then busy). The
@@ -48,6 +48,7 @@ export function NewSessionModal({
       return createSession(project, {
         environmentId: environment.uid,
         platform: environment.platform.name,
+        execution: environment.execution,
         // Pin to this environment and ask by its word; the detected version narrows it when known.
         application: { name: application.nameAlias, version: application.version },
         logging,
@@ -86,7 +87,7 @@ export function NewSessionModal({
         {environment && application && (
           <Text size="sm">
             {application.nameAlias}{application.version ? ` ${application.version}` : ""} ·{" "}
-            {environment.platform.name} ·{" "}
+            {platformLabel(environment.platform.name)} ·{" "}
             {environment.execution}
           </Text>
         )}

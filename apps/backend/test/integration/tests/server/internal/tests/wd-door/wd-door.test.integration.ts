@@ -84,19 +84,35 @@ describe("wd door (linux node)", () => {
         doorPort = await listen(free);
         await new Promise<void>((resolve) => free.close(() => resolve()));
 
+        vncPortInUse = vncPort;
+        await startDoor("chromedriver");
+    });
+
+    let vncPortInUse = 0;
+
+    // The door as the node script launches it: in front of the driver the build brought, speaking that
+    // driver's dialect.
+    const startDoor = async (driver: string): Promise<void> => {
         door = spawn("node", [doorFile], {
             env: {
                 ...process.env,
                 SW_DOOR_PORT: String(doorPort),
                 SW_DOOR_UPSTREAM_PORT: String(chromedriverPort),
-                SW_DOOR_VNC_WS_PORT: String(vncPort),
+                SW_DOOR_VNC_WS_PORT: String(vncPortInUse),
                 SW_DOOR_BROWSER_BINARY: "/opt/sw/apps/chrome/chrome-linux64/chrome",
                 SW_DOOR_IDLE_TIMEOUT_SECONDS: "1",
+                SW_DOOR_DRIVER: driver,
             },
             stdio: ["ignore", "pipe", "pipe"],
         });
         await waitFor(async () => (await status()).value.ready === true);
-    });
+    };
+
+    const restartDoor = async (driver: string): Promise<void> => {
+        door.kill();
+        await new Promise((resolve) => door.once("exit", resolve));
+        await startDoor(driver);
+    };
 
     afterEach(async () => {
         door.kill();
@@ -178,6 +194,19 @@ describe("wd door (linux node)", () => {
         expect(alwaysMatch.browserVersion).toBeUndefined();
         expect(options.binary).toBe("/opt/sw/apps/chrome/chrome-linux64/chrome");
         expect(options.args).toEqual(["--headless=new", "--no-sandbox"]);
+    });
+
+    test("speaks geckodriver's dialect in front of a firefox build: its browser word and options key, no sandbox flag", async () => {
+        await restartDoor("geckodriver");
+
+        await createSession({ browserName: "firefox", browserVersion: "155", "goog:chromeOptions": { args: ["-x"] } });
+
+        const [payload] = createRequests;
+        const alwaysMatch = (payload.capabilities as { alwaysMatch: Record<string, unknown> }).alwaysMatch;
+        expect(alwaysMatch.browserName).toBe("firefox");
+        expect(alwaysMatch.browserVersion).toBeUndefined();
+        expect(alwaysMatch["moz:firefoxOptions"]).toEqual({ args: [], binary: "/opt/sw/apps/chrome/chrome-linux64/chrome" });
+        expect(alwaysMatch["goog:chromeOptions"]).toEqual({ args: ["-x"] });
     });
 
     test("holds one session: a second New Session is refused as session-not-created", async () => {

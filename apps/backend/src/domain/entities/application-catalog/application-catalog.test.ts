@@ -44,28 +44,32 @@ describe("ApplicationCatalog", () => {
             custom("android", "com.mycorp.app", [
                 { versionAlias: "7.1-rc2", appRef: "builds/app-7.1.apk", webdriverRef: "builds/driver-7.1" },
             ]),
+            // The project's own chrome: overrides the catalog's under the same word.
+            custom("ubuntu", "chrome", [{ versionAlias: "nightly", appRef: "builds/chrome-nightly.zip" }]),
         ],
     });
 
     describe("resolve (create-environment: loose word → concrete build)", () => {
         test("a word with no ask resolves to the last registered build", () => {
-            const application = catalog.resolve("ubuntu", RequestedApplication.create({ name: "chrome" }));
+            const application = catalog.resolve("android", RequestedApplication.create({ name: "chrome" }));
 
             expect(application.nameAlias).toBe("chrome");
             expect(application.versionAlias).toBe("152");
             expect(application.source.isCustom()).toBe(false);
-            expect(application.source.appRef).toBe("ref://chrome-152");
-            expect(application.source.webdriverRef).toBe("ref://driver-152");
+            expect(application.source.appRef).toBe("ref://chrome-apk-152");
         });
 
-        test("a version ask addresses a build by its alias", () => {
-            expect(catalog.resolve("ubuntu", RequestedApplication.create({ name: "chrome", version: "151" }))
-                .versionAlias).toBe("151");
+        test("the project's own word overrides the catalog's: its build wins, as a custom", () => {
+            const application = catalog.resolve("ubuntu", RequestedApplication.create({ name: "chrome" }));
+
+            expect(application.versionAlias).toBe("nightly");
+            expect(application.source.isCustom()).toBe(true);
+            expect(application.source.appRef).toBe("builds/chrome-nightly.zip");
         });
 
-        test("the same word resolves per platform to that platform's build", () => {
-            expect(catalog.resolve("android", RequestedApplication.create({ name: "chrome" })).source.appRef)
-                .toBe("ref://chrome-apk-152");
+        test("a version ask addresses a build by its alias — within the overriding set only", () => {
+            expect(() => catalog.resolve("ubuntu", RequestedApplication.create({ name: "chrome", version: "151" })))
+                .toThrow(ApplicationNotInCatalogError);
         });
 
         test("a preinstalled build resolves with nothing to deliver", () => {
@@ -90,22 +94,14 @@ describe("ApplicationCatalog", () => {
         });
 
         test("refuses an ask no build answers to", () => {
-            expect(() => catalog.resolve("ubuntu", RequestedApplication.create({ name: "chrome", version: "150" })))
+            expect(() => catalog.resolve("android", RequestedApplication.create({ name: "chrome", version: "150" })))
                 .toThrow(ApplicationNotInCatalogError);
         });
     });
 
-    describe("the docker rule's helpers", () => {
-        test("catalogReserves covers the catalog's words per platform", () => {
-            expect(catalog.catalogReserves("ubuntu", "chrome")).toBe(true);
-            expect(catalog.catalogReserves("android", "chrome")).toBe(true);
-            expect(catalog.catalogReserves("android", "firefox")).toBe(false);
-            expect(catalog.catalogReserves("android", "com.mycorp.app")).toBe(false);
-        });
-
-        test("ownAnswers covers the project's own words per platform", () => {
-            expect(catalog.ownAnswers("android", "com.mycorp.app")).toBe(true);
-            expect(catalog.ownAnswers("ubuntu", "com.mycorp.app")).toBe(false);
-        });
+    test("ownAnswers covers the project's own words per platform", () => {
+        expect(catalog.ownAnswers("android", "com.mycorp.app")).toBe(true);
+        expect(catalog.ownAnswers("ubuntu", "com.mycorp.app")).toBe(false);
+        expect(catalog.ownAnswers("ubuntu", "chrome")).toBe(true);
     });
 });

@@ -21,6 +21,24 @@ set -u
 
 MODE="${1:-agent}"
 
+# Makes a downloaded webdriver runnable: an archive (Chrome for Testing ships chromedriver as a zip with
+# a versioned folder) is unpacked and the chromedriver binary inside located; a bare binary is used as
+# is. Prints the executable's path, nothing on failure.
+stage_webdriver() {
+    local artifact="$1" into="$2" binary
+    [ -s "${artifact}" ] || return 0
+    case "$(file -b --mime-type "${artifact}" 2>/dev/null || echo unknown)" in
+        application/zip)
+            mkdir -p "${into}" && unzip -q -o "${artifact}" -d "${into}" || return 0
+            binary="$(find "${into}" -type f -name chromedriver | head -1)"
+            ;;
+        *) binary="${artifact}" ;;
+    esac
+    [ -n "${binary}" ] || return 0
+    chmod +x "${binary}" 2>/dev/null || true
+    echo "${binary}"
+}
+
 # Creates `<name>` as a copy of the base AVD's system image under the emulator's `<definition>` device
 # profile (screen, density, RAM, sensors, keys) when it does not exist yet. The system image package is
 # read off the base AVD (`image.sysdir.1`), so the version -> API-level mapping stays where the base was
@@ -122,43 +140,62 @@ run_slot() {
         sleep 3
     done
 
-    # Deliver the seat's applications: pull each build's artifact through the control plane (the slot
-    # holds no storage credentials), detect the APK's honest identity from its manifest BEFORE the
-    # install (aapt2 ships with the SDK build-tools), install it, and stage a paired webdriver for
-    # Appium when the build brings one. The detected identities ride the environment agent's
-    # registration heartbeat.
+    # The seat's applications: a build with an artifact is pulled through the control plane (the slot
+    # holds no storage credentials), its honest identity detected from the APK manifest BEFORE the
+    # install (aapt2 ships with the SDK build-tools), then installed; a preinstalled one is looked up on
+    # the device by its word (the package whose last segment is the word) and reported from there; a
+    # paired webdriver (a browser's chromedriver, for Appium on THIS host) is staged either way. The
+    # detected identities ride the environment agent's registration heartbeat.
     detected_file="${SW_SLOT_DIR}/detected.json"
     echo "[]" >"${detected_file}"
     chromedriver_path=""
     aapt2_bin="$(ls "${ANDROID_HOME}"/build-tools/*/aapt2 2>/dev/null | sort | tail -1)"
 
     for app_entry in $(echo "${SW_APPS:-}" | tr ',' ' '); do
-        app_name="${app_entry%%~*}"
-        wants_webdriver="${app_entry##*~}"
-        apk_file="${SW_SLOT_DIR}/${app_name}.apk"
-
-        echo "[slot ${SW_ENVIRONMENT_ID}] delivering ${app_name}"
-        for _ in $(seq 1 3); do
-            curl -sf -H "Authorization: Bearer ${SW_ENV_AGENT_TOKEN}" \
-                "${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/applications/${app_name}:downloadApp" \
-                -o "${apk_file}" && break
-            sleep 2
-        done
-
-        if [ ! -s "${apk_file}" ]; then
-            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: artifact download failed — stopping the slot"
-            kill 0
-        fi
-
+        IFS='~' read -r app_name has_app wants_webdriver <<<"${app_entry}"
         detected_name=""
         detected_version=""
-        if [ -n "${aapt2_bin}" ]; then
-            badging="$("${aapt2_bin}" dump badging "${apk_file}" 2>/dev/null | head -1)"
-            detected_name="$(echo "${badging}" | sed -n "s/.*package: name='\([^']*\)'.*/\1/p")"
-            detected_version="$(echo "${badging}" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
-            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: detected ${detected_name:-?} ${detected_version:-?}"
+
+        if [ "${has_app}" = "1" ]; then
+            apk_file="${SW_SLOT_DIR}/${app_name}.apk"
+
+            echo "[slot ${SW_ENVIRONMENT_ID}] delivering ${app_name}"
+            for _ in $(seq 1 3); do
+                curl -sf -H "Authorization: Bearer ${SW_ENV_AGENT_TOKEN}" \
+                    "${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/applications/${app_name}:downloadApp" \
+                    -o "${apk_file}" && break
+                sleep 2
+            done
+
+            if [ ! -s "${apk_file}" ]; then
+                echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: artifact download failed — stopping the slot"
+                kill 0
+            fi
+
+            if [ -n "${aapt2_bin}" ]; then
+                badging="$("${aapt2_bin}" dump badging "${apk_file}" 2>/dev/null | head -1)"
+                detected_name="$(echo "${badging}" | sed -n "s/.*package: name='\([^']*\)'.*/\1/p")"
+                detected_version="$(echo "${badging}" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
+                echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: detected ${detected_name:-?} ${detected_version:-?}"
+            else
+                echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: no aapt2 in build-tools — installing undetected"
+            fi
+
+            if ! adb -s "${serial}" install -r "${apk_file}"; then
+                echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: adb install failed — stopping the slot"
+                kill 0
+            fi
         else
-            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: no aapt2 in build-tools — installing undetected"
+            package="$(adb -s "${serial}" shell pm list packages 2>/dev/null | tr -d '\r' \
+                | sed 's/^package://' | grep -E "\.${app_name}\$" | head -1)"
+            if [ -n "${package}" ]; then
+                detected_name="${package}"
+                detected_version="$(adb -s "${serial}" shell dumpsys package "${package}" 2>/dev/null | tr -d '\r' \
+                    | sed -n 's/^ *versionName=//p' | head -1)"
+                echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: preinstalled ${detected_name} ${detected_version:-?}"
+            else
+                echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: no preinstalled package answers to the word — undetected"
+            fi
         fi
 
         node -e '
@@ -173,20 +210,19 @@ reports.push({
 fs.writeFileSync(file, JSON.stringify(reports));
 ' "${detected_file}" "${app_name}" "${detected_name}" "${detected_version}"
 
-        if ! adb -s "${serial}" install -r "${apk_file}"; then
-            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: adb install failed — stopping the slot"
-            kill 0
-        fi
-
         if [ "${wants_webdriver}" = "1" ]; then
-            driver_file="${SW_SLOT_DIR}/webdriver-${app_name}"
+            driver_download="${SW_SLOT_DIR}/webdriver-${app_name}.artifact"
             for _ in $(seq 1 3); do
                 curl -sf -H "Authorization: Bearer ${SW_ENV_AGENT_TOKEN}" \
                     "${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/applications/${app_name}:downloadWebdriver" \
-                    -o "${driver_file}" && break
+                    -o "${driver_download}" && break
                 sleep 2
             done
-            chmod +x "${driver_file}" 2>/dev/null || true
+            driver_file="$(stage_webdriver "${driver_download}" "${SW_SLOT_DIR}/webdriver-${app_name}")"
+            if [ -z "${driver_file}" ]; then
+                echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: webdriver download failed — stopping the slot"
+                kill 0
+            fi
             # One webdriver per slot: Appium runs one chromedriver binary; the first browser-like app wins.
             [ -z "${chromedriver_path}" ] && chromedriver_path="${driver_file}"
         fi
@@ -204,6 +240,12 @@ fs.writeFileSync(file, JSON.stringify(reports));
     appium --address 127.0.0.1 --port "${SW_APPIUM_PORT}" --base-path / --relaxed-security \
         --default-capabilities "${default_caps}" &
     slot_pids="${slot_pids} $!"
+    # The door reports ready the moment it listens, and the environment registers on that — so Appium
+    # must already answer, or the first session lands on a closed port.
+    for _ in $(seq 1 120); do
+        curl -sf "http://127.0.0.1:${SW_APPIUM_PORT}/status" >/dev/null 2>&1 && break
+        sleep 1
+    done
 
     # The slot's single wd door: a Selenium-Grid-shaped /status (the heartbeat agent reads it for
     # readiness and busy), everything else proxied to Appium. Busy is tracked by WATCHING the proxied
@@ -336,14 +378,14 @@ reconcile() {
 
     # One line per desired seat: envId wd appium console avd device internalUrl token apps. Parsed with node —
     # already a hard dependency of every slot (the wd door and Appium are node), so the agent needs no
-    # second runtime (macOS no longer ships python3). apps encodes the launch's delivery list as
-    # name~webdriverFlag pairs (both characters are outside the application-name alphabet).
+    # second runtime (macOS no longer ships python3). apps encodes the launch's application list as
+    # name~appFlag~webdriverFlag entries (the separators are outside the application-name alphabet).
     desired_file="${state_dir}/desired.tsv"
     node -e '
 const doc = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 for (const s of doc.slots || []) {
     const l = s.launch || {}, p = s.ports || {};
-    const apps = (l.apps || []).map((a) => `${a.name}~${a.webdriver ? 1 : 0}`).join(",");
+    const apps = (l.apps || []).map((a) => `${a.name}~${a.app ? 1 : 0}~${a.webdriver ? 1 : 0}`).join(",");
     process.stdout.write([
         s.environmentId, p.wd, p.appium, p.console, l.avd || "", l.device || "", l.internalUrl || "", s.agentToken, apps,
     ].join("\t") + "\n");

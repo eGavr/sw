@@ -33,8 +33,9 @@ describe("WebDriverClient", () => {
     const alwaysMatch = (): Record<string, unknown> =>
         (JSON.parse(lastBody) as { capabilities: { alwaysMatch: Record<string, unknown> } }).capabilities.alwaysMatch;
 
-    const chrome = { name: "chrome", version: "latest", platformName: "ubuntu" };
-    const android = { name: "com.android.settings", version: "11", platformName: "android" };
+    const chrome = { name: "chrome", version: "latest", platformName: "ubuntu", driven: true };
+    const android = { name: "com.android.settings", version: "11", platformName: "android", driven: false };
+    const androidChrome = { name: "chrome", version: "152", platformName: "android", driven: true };
 
     test("adds the sw:logging capability when logging is opted in", async () => {
         await new WebDriverClient().createSession(endpoint, chrome, { logging: true });
@@ -60,6 +61,13 @@ describe("WebDriverClient", () => {
         await new WebDriverClient().createSession(endpoint, chrome);
 
         expect(alwaysMatch()).not.toHaveProperty("sw:video");
+    });
+
+    test("drives an Android browser build (one with a paired webdriver) as a Chrome session", async () => {
+        await new WebDriverClient().createSession(endpoint, androidChrome);
+
+        expect(alwaysMatch().platformName).toBe("Android");
+        expect(alwaysMatch().browserName).toBe("Chrome");
     });
 
     test("uses Appium capabilities for an Android platform", async () => {
