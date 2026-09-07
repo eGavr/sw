@@ -31,7 +31,7 @@ function ProjectContent() {
   if (projectId === catalogProject) {
     return (
       <Stack>
-        <Title order={2}>Install catalog</Title>
+        <Title order={2}>Application catalog</Title>
         <ApplicationsTab project={projectId} />
       </Stack>
     );

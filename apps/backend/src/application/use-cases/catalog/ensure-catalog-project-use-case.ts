@@ -60,7 +60,7 @@ export class EnsureCatalogProjectUseCase {
         try {
             const created = await this.projectRepository.create({
                 resourceId: catalogProjectHandle,
-                name: "Install catalog",
+                name: "Application catalog",
                 createdBy: User.create({ externalId: catalogProjectHandle, providerType: "system" }),
             });
 
