@@ -253,23 +253,12 @@ export class Environment {
     }
 
     // The agent's per-application report from the device (measured at delivery): the honest identities
-    // land next to the declared words. Returns false when a catalog build's declared claims did not
-    // survive measurement — the caller fails the environment instead of registering a lie.
-    applyMeasurements(reports: ReadonlyArray<ApplicationMeasurement>): boolean {
-        let truthful = true;
-
+    // land next to the declared words, keyed by the word each application was asked by.
+    applyMeasurements(reports: ReadonlyArray<ApplicationMeasurement>): void {
         for (const report of reports) {
-            const application = this.applications.find(report.name);
-
-            if (!application) {
-                continue;
-            }
-
-            truthful = application.applyMeasurement(report.measuredName ?? null, report.measuredVersion ?? null)
-                && truthful;
+            this.applications.find(report.name)
+                ?.applyMeasurement(report.measuredName ?? null, report.measuredVersion ?? null);
         }
-
-        return truthful;
     }
 
     // Whether the compute backend should be running a container for this environment right now.

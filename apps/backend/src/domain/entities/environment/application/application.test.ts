@@ -60,7 +60,8 @@ describe("Application", () => {
         test("measurement lands next to the word and becomes the only version there is", () => {
             const application = Application.create({ name: "myapp", buildAlias: "7.1-rc2" });
 
-            expect(application.applyMeasurement("com.mycorp.app", "7.1.3")).toBe(true);
+            application.applyMeasurement("com.mycorp.app", "7.1.3");
+
             expect(application.measuredVersion).toBe("7.1.3");
             expect(application.answersToWord("com.mycorp.app")).toBe(true);
             expect(application.answersToWord("myapp")).toBe(true);
@@ -68,26 +69,14 @@ describe("Application", () => {
             expect(application.matchesVersionAsk("7.1-rc2")).toBe(true);
         });
 
-        test("a dotted name is a canonical claim and must match the measured package id", () => {
+        test("no word is a claim — the measured identity is stored, never judged", () => {
             const application = Application.create({ name: "com.android.chrome", buildAlias: "152" });
 
-            expect(application.applyMeasurement("com.android.chrome", "152.0.7977.80")).toBe(true);
-            expect(application.applyMeasurement("org.other.browser", "152.0.7977.80")).toBe(false);
-        });
+            application.applyMeasurement("org.other.browser", "152.0.7977.80");
 
-        test("a bare word claims nothing — any measured identity is welcome", () => {
-            const application = Application.create({ name: "settings" });
-
-            expect(application.applyMeasurement("com.android.settings", "14")).toBe(true);
-        });
-
-        test("a custom never mismatches — it declared nothing to contradict", () => {
-            const application = Application.create({
-                name: "myapp",
-                source: ApplicationSource.custom({ appRef: "builds/app.apk" }),
-            });
-
-            expect(application.applyMeasurement("whatever.it.really.is", "9.9")).toBe(true);
+            expect(application.measuredName).toBe("org.other.browser");
+            expect(application.answersToWord("com.android.chrome")).toBe(true);
+            expect(application.answersToWord("org.other.browser")).toBe(true);
         });
     });
 

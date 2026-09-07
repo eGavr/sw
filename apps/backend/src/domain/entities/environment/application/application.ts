@@ -84,18 +84,12 @@ export class Application {
         return this._measuredVersion !== null && new ApplicationVersion(this._measuredVersion).matchesPrefix(ask);
     }
 
-    // The agent's report from the device. Returns the mismatch verdict so the caller can fail the
-    // environment: a dotted word is a reverse-DNS identity claim (android package ids — the catalog
-    // declares them) and must equal the measured package id; a bare word claims nothing.
-    applyMeasurement(measuredName: string | null, measuredVersion: string | null): boolean {
+    // The agent's report from the device: the honest identity lands next to the word. Nothing is
+    // verified against it — the word is an ADDRESS, not a claim (everything declared is an alias);
+    // artifact integrity is the digest check at delivery, not a name comparison.
+    applyMeasurement(measuredName: string | null, measuredVersion: string | null): void {
         this._measuredName = measuredName;
         this._measuredVersion = measuredVersion;
-
-        if (this._source.isCustom()) {
-            return true;
-        }
-
-        return !(this.claimsCanonicalName() && measuredName !== null && this.name !== measuredName);
     }
 
     // Identity is the word plus the picked build; the source refs are provenance.
@@ -114,10 +108,6 @@ export class Application {
         }
 
         return new ApplicationVersion(mine).compareTo(new ApplicationVersion(theirs));
-    }
-
-    private claimsCanonicalName(): boolean {
-        return this.name.includes(".");
     }
 
     toObject(): ApplicationData {

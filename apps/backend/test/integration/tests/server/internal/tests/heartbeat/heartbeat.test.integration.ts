@@ -235,7 +235,7 @@ describe("/internal/environments/:id:heartbeat", () => {
         expect(application.measuredVersion).toBe("7.1.3");
     });
 
-    test("a catalog build whose measured package id contradicts its canonical claim fails the environment", async () => {
+    test("a measured identity is stored, never judged — words are addresses, not claims", async () => {
         const id = await seedPreparingEnvironment([{
             name: "com.android.chrome",
             buildAlias: "152",
@@ -249,9 +249,10 @@ describe("/internal/environments/:id:heartbeat", () => {
         }).expect(200);
 
         const environment = await reload(id);
+        const [application] = environment.applications.toArray();
 
-        expect(environment.state).toBe(EnvironmentState.Failed);
-        expect(environment.stateReason).toBe("MEASUREMENT_MISMATCH");
+        expect(environment.state).toBe(EnvironmentState.Executing);
+        expect(application.measuredName).toBe("org.other.browser");
     });
 
     test("a later heartbeat updates occupancy and refreshes liveness", async () => {
