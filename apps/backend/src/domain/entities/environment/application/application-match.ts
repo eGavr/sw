@@ -8,7 +8,7 @@ export type ApplicationMatchParams = {
 // A session request expanded into what may satisfy it: the candidate words (the requested name itself
 // plus every canonical id the catalog knows it as an alias of) and the version ask (a build alias, a
 // full version or a segment prefix; null = latest). An installed application answers by its declared
-// word OR its measured identity; the request stays loose — this object is the bridge between the two.
+// word OR its detected identity; the request stays loose — this object is the bridge between the two.
 export class ApplicationMatch {
     static create(params: ApplicationMatchParams): ApplicationMatch {
         return new ApplicationMatch([...new Set(params.names)], params.versionAsk);

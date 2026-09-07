@@ -4,9 +4,9 @@ import { InvalidArgumentError } from "../error/invalid-argument-error";
 import { ProjectId } from "../project/project-id";
 
 import { Application, ApplicationData } from "./application/application";
+import { ApplicationDetection } from "./application/application-detection";
 import { ApplicationList } from "./application/application-list";
 import { ApplicationMatch } from "./application/application-match";
-import { ApplicationMeasurement } from "./application/application-measurement";
 import { EnvironmentEndpoint } from "./environment-endpoint";
 import { EnvironmentId } from "./environment-id";
 import { EnvironmentOccupancy, toEnvironmentOccupancy } from "./environment-occupancy";
@@ -252,12 +252,12 @@ export class Environment {
         return this.applications.bestMatch(match);
     }
 
-    // The agent's per-application report from the device (measured at delivery): the honest identities
+    // The agent's per-application report from the device (detected at delivery): the honest identities
     // land next to the declared words, keyed by the word each application was asked by.
-    applyMeasurements(reports: ReadonlyArray<ApplicationMeasurement>): void {
+    applyDetections(reports: ReadonlyArray<ApplicationDetection>): void {
         for (const report of reports) {
             this.applications.find(report.name)
-                ?.applyMeasurement(report.measuredName ?? null, report.measuredVersion ?? null);
+                ?.applyDetection(report.detectedName ?? null, report.detectedVersion ?? null);
         }
     }
 

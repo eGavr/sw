@@ -13,9 +13,9 @@ const chromeForTestingVersion = "152.0.7977.82";
 const chromeForTestingBase = `https://storage.googleapis.com/chrome-for-testing-public/${chromeForTestingVersion}`;
 
 export const defaultCatalogSeed: ReadonlyArray<CatalogSeedApplication> = [
-    // A linux app has no native measurable id (deb says google-chrome-stable, flatpak
+    // A linux app has no native detectable id (deb says google-chrome-stable, flatpak
     // com.google.Chrome — all conventions), so by the "declared = alias" rule its name IS the word.
-    // Reverse-DNS names exist only where a platform measures them (android package ids).
+    // Reverse-DNS names exist only where a platform detects them (android package ids).
     {
         platformName: "ubuntu",
         name: "chrome",

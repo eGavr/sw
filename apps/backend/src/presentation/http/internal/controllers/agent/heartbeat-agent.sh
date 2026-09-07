@@ -313,13 +313,13 @@ report() {
 
 log "waiting for the browser node at ${NODE_URL} to become ready"
 until node_ready; do sleep 1; done
-# The registration heartbeat carries what the slot measured about each delivered build (the APK
+# The registration heartbeat carries what the slot detected about each delivered build (the APK
 # manifest's honest identity), when the launcher left a report file. Non-slot environments have none.
 registration_body() {
     local apps="[]"
 
-    if [ -n "${SW_MEASURED_APPS_FILE:-}" ] && [ -s "${SW_MEASURED_APPS_FILE}" ]; then
-        apps="$(cat "${SW_MEASURED_APPS_FILE}")"
+    if [ -n "${SW_DETECTED_APPS_FILE:-}" ] && [ -s "${SW_DETECTED_APPS_FILE}" ]; then
+        apps="$(cat "${SW_DETECTED_APPS_FILE}")"
     fi
 
     echo "{\"endpoint\":\"${SW_ENDPOINT}\",\"busy\":$(node_busy),\"applications\":${apps}}"

@@ -70,7 +70,7 @@ describe("POST /sessions allocation retry", () => {
             projectId: ProjectId.fromString(project.id),
             platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
             applications: ApplicationList.fromObject([
-                { name: "chrome", buildAlias: chromeVersion, measuredVersion: chromeVersion },
+                { name: "chrome", buildAlias: chromeVersion, detectedVersion: chromeVersion },
             ]),
         });
 

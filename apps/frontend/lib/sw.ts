@@ -16,13 +16,13 @@ export interface Environment {
   stateReason?: string;
   platform: { name: string; version: string; deviceModel?: string };
   execution: string;
-  // Two layers: the declared word it was asked by (`name` + the picked `buildAlias`) and the measured
-  // truth from the device (`measuredName` + `measuredVersion`, absent until the agent delivers).
+  // Two layers: the declared word it was asked by (`name` + the picked `buildAlias`) and the detected
+  // truth from the device (`detectedName` + `detectedVersion`, absent until the agent delivers).
   applications: Array<{
     name: string;
     buildAlias?: string;
-    measuredName?: string;
-    measuredVersion?: string;
+    detectedName?: string;
+    detectedVersion?: string;
     source?: { type: string; appRef?: string; webdriverRef?: string };
   }>;
   // Orthogonal to state: FREE | RESERVED (a session create is in flight) | BUSY (a session runs).
@@ -198,7 +198,7 @@ export function deleteEnvironment(project: string, environment: string): Promise
 
 export interface CreateSessionInput {
   environmentId: string;
-  // The word to ask the app by, and optionally a version (the measured one, or a prefix); omitted =
+  // The word to ask the app by, and optionally a version (the detected one, or a prefix); omitted =
   // whatever the pinned environment offers.
   application: { name: string; version?: string };
   logging: boolean;

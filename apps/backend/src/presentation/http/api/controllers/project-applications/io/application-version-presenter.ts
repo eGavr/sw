@@ -7,7 +7,7 @@ import {
 import { Presenter } from "../../../../presenters/presenter";
 
 // One registered build, addressed by its alias (the owner's label) — nobody declares a version, the
-// honest one is measured on environments. The refs are echoed for a CUSTOM build — they are the
+// honest one is detected on environments. The refs are echoed for a CUSTOM build — they are the
 // owner's own bucket keys; the catalog project's artifact locations are the install's internals and
 // are not published.
 export class ApplicationVersionPresenter implements Presenter {

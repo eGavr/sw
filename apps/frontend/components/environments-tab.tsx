@@ -335,7 +335,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   </Table.Td>
                   <Table.Td>
                     {e.applications
-                      .map((a) => (a.measuredVersion ? `${a.name} ${a.measuredVersion}` : a.name))
+                      .map((a) => (a.detectedVersion ? `${a.name} ${a.detectedVersion}` : a.name))
                       .join(", ")}
                   </Table.Td>
                   <Table.Td>{e.execution}</Table.Td>

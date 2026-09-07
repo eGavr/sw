@@ -17,8 +17,8 @@ export type ProjectApplicationVersionCreateParams = {
 
 // One registered build of a project application. Everything a human declares is an alias, so the
 // build IS its free-form LABEL ("152", "7.1-rc2") plus its artifacts — nobody declares a version, not
-// even the catalog: the honest version exists only as measured on the device, and it is always there
-// by the time anything is allocatable (measurement rides the registration heartbeat). The refs say
+// even the catalog: the honest version exists only as detected on the device, and it is always there
+// by the time anything is allocatable (detection rides the registration heartbeat). The refs say
 // where the artifacts live: the install's own store for the catalog, the project's delegated bucket
 // for a custom; no refs = preinstalled on the platform image. A webdriver ref without an app ref is
 // meaningless — the webdriver is PAIRED to a build.

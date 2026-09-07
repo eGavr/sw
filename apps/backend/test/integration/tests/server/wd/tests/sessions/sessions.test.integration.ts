@@ -102,8 +102,8 @@ describe("/sessions", () => {
             projectId: ProjectId.fromString(projectId),
             platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
             execution,
-            // Registered environments are measured by construction (measurement rides registration).
-            applications: ApplicationList.fromObject([{ name: "chrome", buildAlias: version, measuredVersion: version }]),
+            // Registered environments are detected by construction (detection rides registration).
+            applications: ApplicationList.fromObject([{ name: "chrome", buildAlias: version, detectedVersion: version }]),
         });
 
         const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());
@@ -322,7 +322,7 @@ describe("/sessions", () => {
                 projectId: ProjectId.fromString(projectId),
                 platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
                 applications: ApplicationList.fromObject([
-                    { name: "chrome", buildAlias: chromeVersion, measuredVersion: chromeVersion },
+                    { name: "chrome", buildAlias: chromeVersion, detectedVersion: chromeVersion },
                 ]),
             });
 
@@ -422,7 +422,7 @@ describe("/sessions", () => {
                 .expect(HttpStatus.BAD_REQUEST);
         });
 
-        // A custom whose delivered build the agent already measured on the device: the word and the
+        // A custom whose delivered build the agent already detected on the device: the word and the
         // alias are declared, the package id and version are the truth — every layer is askable.
         const registerMeasuredCustomEnvironment = async (projectId: string): Promise<void> => {
             const environmentRepository = app.get(EnvironmentRepository);
@@ -434,8 +434,8 @@ describe("/sessions", () => {
                 applications: ApplicationList.fromObject([{
                     name: "myapp",
                     buildAlias: "7.1-rc2",
-                    measuredName: "com.mycorp.app",
-                    measuredVersion: "7.1.3",
+                    detectedName: "com.mycorp.app",
+                    detectedVersion: "7.1.3",
                     source: { type: "custom", appRef: "builds/app.zip" },
                 }]),
             });
@@ -450,7 +450,7 @@ describe("/sessions", () => {
             await environmentRepository.save(claimed);
         };
 
-        test("allocates by the measured package id and a prefix of the measured version", async () => {
+        test("allocates by the detected package id and a prefix of the detected version", async () => {
             const { owner, projectId } = await seedProject();
 
             await registerMeasuredCustomEnvironment(projectId);
@@ -541,7 +541,7 @@ describe("/sessions", () => {
                 projectId: ProjectId.fromString(projectId),
                 platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
                 applications: ApplicationList.fromObject([
-                    { name: "chrome", buildAlias: chromeVersion, measuredVersion: chromeVersion },
+                    { name: "chrome", buildAlias: chromeVersion, detectedVersion: chromeVersion },
                 ]),
             });
 

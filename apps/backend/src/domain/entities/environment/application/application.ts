@@ -5,8 +5,8 @@ import { ApplicationVersion } from "./application-version";
 export type ApplicationData = {
     name: string;
     buildAlias?: string | null;
-    measuredName?: string | null;
-    measuredVersion?: string | null;
+    detectedName?: string | null;
+    detectedVersion?: string | null;
     source?: ApplicationSourceData;
 };
 
@@ -18,9 +18,9 @@ export type ApplicationCreateParams = {
 
 // An application installed on an environment, in two layers. Declared (snapshotted at creation): the
 // WORD it was asked by and the picked build's alias — nothing more, declared identity can lie.
-// Measured (reported by the agent once the build lands on the device): the honest identity from the
-// artifact itself — an APK's package id and versionName. Measurement rides the registration
-// heartbeat, so by the time the environment is allocatable the measured layer is there.
+// Detected (reported by the agent once the build lands on the device): the honest identity read from
+// the artifact itself — an APK's package id and versionName. Detection rides the registration
+// heartbeat, so by the time the environment is allocatable the detected layer is there.
 export class Application {
     static create(params: ApplicationCreateParams): Application {
         return new Application(
@@ -36,8 +36,8 @@ export class Application {
         return new Application(
             new ApplicationName(data.name),
             data.buildAlias ?? null,
-            data.measuredName ?? null,
-            data.measuredVersion ?? null,
+            data.detectedName ?? null,
+            data.detectedVersion ?? null,
             ApplicationSource.fromObject(data.source),
         );
     }
@@ -45,8 +45,8 @@ export class Application {
     private constructor(
         private readonly _name: ApplicationName,
         private readonly _buildAlias: string | null,
-        private _measuredName: string | null,
-        private _measuredVersion: string | null,
+        private _detectedName: string | null,
+        private _detectedVersion: string | null,
         private readonly _source: ApplicationSource,
     ) {}
 
@@ -58,12 +58,12 @@ export class Application {
         return this._buildAlias;
     }
 
-    get measuredName(): string | null {
-        return this._measuredName;
+    get detectedName(): string | null {
+        return this._detectedName;
     }
 
-    get measuredVersion(): string | null {
-        return this._measuredVersion;
+    get detectedVersion(): string | null {
+        return this._detectedVersion;
     }
 
     get source(): ApplicationSource {
@@ -71,25 +71,25 @@ export class Application {
     }
 
     answersToWord(word: string): boolean {
-        return this.name === word || this._measuredName === word;
+        return this.name === word || this._detectedName === word;
     }
 
     // A version ask matches by the picked build's alias, or exactly/segment-prefix against the
-    // measured version.
+    // detected version.
     matchesVersionAsk(ask: string): boolean {
         if (this._buildAlias === ask) {
             return true;
         }
 
-        return this._measuredVersion !== null && new ApplicationVersion(this._measuredVersion).matchesPrefix(ask);
+        return this._detectedVersion !== null && new ApplicationVersion(this._detectedVersion).matchesPrefix(ask);
     }
 
     // The agent's report from the device: the honest identity lands next to the word. Nothing is
     // verified against it — the word is an ADDRESS, not a claim (everything declared is an alias);
     // artifact integrity is the digest check at delivery, not a name comparison.
-    applyMeasurement(measuredName: string | null, measuredVersion: string | null): void {
-        this._measuredName = measuredName;
-        this._measuredVersion = measuredVersion;
+    applyDetection(detectedName: string | null, detectedVersion: string | null): void {
+        this._detectedName = detectedName;
+        this._detectedVersion = detectedVersion;
     }
 
     // Identity is the word plus the picked build; the source refs are provenance.
@@ -97,11 +97,11 @@ export class Application {
         return this.name === other.name && this._buildAlias === other._buildAlias;
     }
 
-    // Orders by the measured version, newest greater; an application not yet measured ranks below any
-    // measured one, ties by nothing (stable sort keeps the load spread).
+    // Orders by the detected version, newest greater; an application not yet detected ranks below any
+    // detected one, ties by nothing (stable sort keeps the load spread).
     compareVersion(other: Application): number {
-        const mine = this._measuredVersion;
-        const theirs = other._measuredVersion;
+        const mine = this._detectedVersion;
+        const theirs = other._detectedVersion;
 
         if (mine === null || theirs === null) {
             return mine === theirs ? 0 : (mine === null ? -1 : 1);
@@ -114,8 +114,8 @@ export class Application {
         return {
             name: this.name,
             buildAlias: this._buildAlias,
-            measuredName: this._measuredName,
-            measuredVersion: this._measuredVersion,
+            detectedName: this._detectedName,
+            detectedVersion: this._detectedVersion,
             source: this._source.toObject(),
         };
     }

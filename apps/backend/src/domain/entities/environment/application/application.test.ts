@@ -20,11 +20,11 @@ describe("Application", () => {
             expect(() => Application.create({ name: "com..chrome" })).toThrow(InvalidArgumentError);
         });
 
-        test("defaults the source to provided and carries no version — versions are measured", () => {
+        test("defaults the source to provided and carries no version — versions are detected", () => {
             const application = Application.create({ name: "chrome", buildAlias: "152" });
 
             expect(application.source.isCustom()).toBe(false);
-            expect(application.measuredVersion).toBeNull();
+            expect(application.detectedVersion).toBeNull();
         });
     });
 
@@ -56,25 +56,25 @@ describe("Application", () => {
         });
     });
 
-    describe("measured identity", () => {
-        test("measurement lands next to the word and becomes the only version there is", () => {
+    describe("detected identity", () => {
+        test("detection lands next to the word and becomes the only version there is", () => {
             const application = Application.create({ name: "myapp", buildAlias: "7.1-rc2" });
 
-            application.applyMeasurement("com.mycorp.app", "7.1.3");
+            application.applyDetection("com.mycorp.app", "7.1.3");
 
-            expect(application.measuredVersion).toBe("7.1.3");
+            expect(application.detectedVersion).toBe("7.1.3");
             expect(application.answersToWord("com.mycorp.app")).toBe(true);
             expect(application.answersToWord("myapp")).toBe(true);
             expect(application.matchesVersionAsk("7.1")).toBe(true);
             expect(application.matchesVersionAsk("7.1-rc2")).toBe(true);
         });
 
-        test("no word is a claim — the measured identity is stored, never judged", () => {
+        test("no word is a claim — the detected identity is stored, never judged", () => {
             const application = Application.create({ name: "com.android.chrome", buildAlias: "152" });
 
-            application.applyMeasurement("org.other.browser", "152.0.7977.80");
+            application.applyDetection("org.other.browser", "152.0.7977.80");
 
-            expect(application.measuredName).toBe("org.other.browser");
+            expect(application.detectedName).toBe("org.other.browser");
             expect(application.answersToWord("com.android.chrome")).toBe(true);
             expect(application.answersToWord("org.other.browser")).toBe(true);
         });
@@ -95,22 +95,22 @@ describe("Application", () => {
 describe("ApplicationList", () => {
     describe("#bestMatch", () => {
         const list = ApplicationList.fromObject([
-            { name: "chrome", buildAlias: "151", measuredVersion: "151.0.7890.10" },
-            { name: "chrome", buildAlias: "152", measuredVersion: "152.0.7977.82" },
-            { name: "org.mozilla.firefox", buildAlias: "144", measuredVersion: "144.0.1" },
+            { name: "chrome", buildAlias: "151", detectedVersion: "151.0.7890.10" },
+            { name: "chrome", buildAlias: "152", detectedVersion: "152.0.7977.82" },
+            { name: "org.mozilla.firefox", buildAlias: "144", detectedVersion: "144.0.1" },
         ]);
 
-        test("picks the newest measured version among the candidate words", () => {
+        test("picks the newest detected version among the candidate words", () => {
             const match = ApplicationMatch.create({ names: ["chrome"], versionAsk: null });
 
-            expect(list.bestMatch(match)?.measuredVersion).toBe("152.0.7977.82");
+            expect(list.bestMatch(match)?.detectedVersion).toBe("152.0.7977.82");
         });
 
-        test("narrows by the version ask: alias or measured prefix", () => {
+        test("narrows by the version ask: alias or detected prefix", () => {
             expect(list.bestMatch(ApplicationMatch.create({ names: ["chrome"], versionAsk: "151" }))
-                ?.measuredVersion).toBe("151.0.7890.10");
+                ?.detectedVersion).toBe("151.0.7890.10");
             expect(list.bestMatch(ApplicationMatch.create({ names: ["chrome"], versionAsk: "151.0.7890" }))
-                ?.measuredVersion).toBe("151.0.7890.10");
+                ?.detectedVersion).toBe("151.0.7890.10");
         });
 
         test("returns null when nothing qualifies", () => {

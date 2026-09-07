@@ -71,7 +71,7 @@ describe("/projects/:project/environments", () => {
                 execution: "container",
                 // The loose ask (alias + version prefix) came back concrete: the canonical name at
                 // the catalog's full version, with its provenance.
-                // No version yet: the honest one is measured on the device at delivery.
+                // No version yet: the honest one is detected on the device at delivery.
                 applications: [{
                     name: "chrome",
                     buildAlias: "126",
@@ -231,7 +231,7 @@ describe("/projects/:project/environments", () => {
                 .send({ ...validEnvironmentBody, applications: [{ name: "com.mycorp.browser" }] })
                 .expect(HttpStatus.CREATED);
 
-            // A custom declares no version: until the agent measures the delivered build, the
+            // A custom declares no version: until the agent detects the delivered build, the
             // environment shows only the word and the picked build's alias.
             expect(body.applications).toEqual([{
                 name: "com.mycorp.browser",

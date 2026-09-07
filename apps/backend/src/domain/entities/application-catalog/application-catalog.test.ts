@@ -32,8 +32,8 @@ describe("ApplicationCatalog", () => {
 
     const catalog = ApplicationCatalog.of({
         catalog: [
-            // A linux app's name IS the word (nothing measurable to canonise); reverse-DNS canonicals
-            // with wire aliases live where the platform measures them — android.
+            // A linux app's name IS the word (nothing detectable to canonise); reverse-DNS canonicals
+            // with wire aliases live where the platform detects them — android.
             provided("ubuntu", "chrome", [], [
                 { alias: "151", appRef: "ref://chrome-151" },
                 { alias: "152", appRef: "ref://chrome-152", webdriverRef: "ref://driver-152" },

@@ -23,7 +23,7 @@ export class SessionPresenter implements Presenter {
                 sessionId,
                 capabilities: {
                     browserName: this.session.application.name,
-                    browserVersion: this.session.application.measuredVersion,
+                    browserVersion: this.session.application.detectedVersion,
                     "sw:environmentId": this.session.environmentId.getValue(),
                     "sw:bidi": `${proxy}/bidi`,
                     "sw:cdp": `${proxy}/cdp`,

@@ -33,7 +33,7 @@ export class ProjectApplicationVersion {
     @Column()
     projectApplicationId: string;
 
-    // The owner's free-form label — the build's id; nobody declares a version, it is measured.
+    // The owner's free-form label — the build's id; nobody declares a version, it is detected.
     @Column()
     alias: string;
 

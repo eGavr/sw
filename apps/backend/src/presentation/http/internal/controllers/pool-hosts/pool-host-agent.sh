@@ -75,12 +75,12 @@ run_slot() {
     done
 
     # Deliver the seat's applications: pull each build's artifact through the control plane (the slot
-    # holds no storage credentials), measure the APK's honest identity from its manifest BEFORE the
+    # holds no storage credentials), detect the APK's honest identity from its manifest BEFORE the
     # install (aapt2 ships with the SDK build-tools), install it, and stage a paired webdriver for
-    # Appium when the build brings one. The measured identities ride the environment agent's
+    # Appium when the build brings one. The detected identities ride the environment agent's
     # registration heartbeat.
-    measured_file="${SW_SLOT_DIR}/measured.json"
-    echo "[]" >"${measured_file}"
+    detected_file="${SW_SLOT_DIR}/detected.json"
+    echo "[]" >"${detected_file}"
     chromedriver_path=""
     aapt2_bin="$(ls "${ANDROID_HOME}"/build-tools/*/aapt2 2>/dev/null | sort | tail -1)"
 
@@ -102,28 +102,28 @@ run_slot() {
             kill 0
         fi
 
-        measured_name=""
-        measured_version=""
+        detected_name=""
+        detected_version=""
         if [ -n "${aapt2_bin}" ]; then
             badging="$("${aapt2_bin}" dump badging "${apk_file}" 2>/dev/null | head -1)"
-            measured_name="$(echo "${badging}" | sed -n "s/.*package: name='\([^']*\)'.*/\1/p")"
-            measured_version="$(echo "${badging}" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
-            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: measured ${measured_name:-?} ${measured_version:-?}"
+            detected_name="$(echo "${badging}" | sed -n "s/.*package: name='\([^']*\)'.*/\1/p")"
+            detected_version="$(echo "${badging}" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
+            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: detected ${detected_name:-?} ${detected_version:-?}"
         else
-            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: no aapt2 in build-tools — installing unmeasured"
+            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: no aapt2 in build-tools — installing undetected"
         fi
 
         node -e '
 const fs = require("fs");
-const [file, name, measuredName, measuredVersion] = process.argv.slice(1);
+const [file, name, detectedName, detectedVersion] = process.argv.slice(1);
 const reports = JSON.parse(fs.readFileSync(file, "utf8"));
 reports.push({
     name,
-    ...(measuredName ? { measuredName } : {}),
-    ...(measuredVersion ? { measuredVersion } : {}),
+    ...(detectedName ? { detectedName } : {}),
+    ...(detectedVersion ? { detectedVersion } : {}),
 });
 fs.writeFileSync(file, JSON.stringify(reports));
-' "${measured_file}" "${app_name}" "${measured_name}" "${measured_version}"
+' "${detected_file}" "${app_name}" "${detected_name}" "${detected_version}"
 
         if ! adb -s "${serial}" install -r "${apk_file}"; then
             echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: adb install failed — stopping the slot"
@@ -218,7 +218,7 @@ DOOR
     SW_ENDPOINT="http://${SW_HOST_IP}:${SW_WD_PORT}" \
     SW_NODE_URL="http://127.0.0.1:${SW_WD_PORT}" \
     SW_SESSION_LOG_GLOB="${SW_SLOT_DIR}/session.log" \
-    SW_MEASURED_APPS_FILE="${measured_file}" \
+    SW_DETECTED_APPS_FILE="${detected_file}" \
         bash "${SW_SLOT_DIR}/heartbeat-agent.sh" &
     slot_pids="${slot_pids} $!"
 

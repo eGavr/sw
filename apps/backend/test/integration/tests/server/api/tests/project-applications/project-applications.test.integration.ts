@@ -140,7 +140,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
                 .expect(HttpStatus.OK);
 
             // No declared version: a custom build is its label plus its artifacts — the true version
-            // is measured at delivery, on the environment.
+            // is detected at delivery, on the environment.
             expect(versions.versions).toEqual([{
                 name: `projects/${projectId}/platforms/android/applications/com.mycorp.app/versions/7.1-rc2`,
                 alias: "7.1-rc2",
@@ -180,7 +180,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
                 .send({ alias: "7.1" })
                 .expect(HttpStatus.BAD_REQUEST);
 
-            // Declared versions died with the measured-identity model; the field is not even accepted.
+            // Declared versions died with the detected-identity model; the field is not even accepted.
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/android/applications/com.mycorp.app/versions`)
                 .set(owner)
