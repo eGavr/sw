@@ -19,7 +19,7 @@ export type CatalogSeedApplication = {
     readonly name: string;
     readonly aliases: ReadonlyArray<string>;
     readonly versions: ReadonlyArray<{
-        readonly version: string;
+        readonly alias: string;
         readonly appRef?: string;
         readonly webdriverRef?: string;
     }>;

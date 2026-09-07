@@ -23,7 +23,7 @@ type AddApplicationVersionInput = {
         projectId: string;
         platform: string;
         application: string;
-        version: string;
+        alias: string;
         appRef?: string;
         webdriverRef?: string;
     },
@@ -34,9 +34,10 @@ export type AddedApplicationVersion = {
     version: ProjectApplicationVersion;
 };
 
-// Registers one build of an application: an honest FULL version plus its artifacts. A custom build
-// always brings its artifact (a key in the project's delegated bucket); only the install catalog may
-// register a version with nothing to deliver — a preinstalled system app.
+// Registers one build of an application under the owner's free-form ALIAS — nobody declares a
+// version, the true one is measured on the device at delivery. A custom build always brings its
+// artifact (a key in the project's delegated bucket); only the install catalog may register a build
+// with nothing to deliver — a preinstalled system app.
 @Injectable()
 export class AddApplicationVersionUseCase {
     private readonly permissionName = UserPermissionName.Application.Create;
@@ -70,7 +71,7 @@ export class AddApplicationVersionUseCase {
         }
 
         const version = application.addVersion({
-            version: params.version,
+            alias: params.alias,
             appRef: params.appRef,
             webdriverRef: params.webdriverRef,
         });

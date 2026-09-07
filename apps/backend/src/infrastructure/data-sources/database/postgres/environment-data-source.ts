@@ -97,6 +97,18 @@ export class EnvironmentDataSource {
                 updatedAt: next.updatedAt,
             });
 
+            // The measured identity layer lives on the child rows and is the only part of them a
+            // transition may touch (registration applies the agent's measurements).
+            for (const application of next.applications) {
+                await manager.getRepository(EnvironmentApplication).update(
+                    { environmentId: id, applicationName: application.name },
+                    {
+                        measuredName: application.measuredName ?? null,
+                        measuredVersion: application.measuredVersion ?? null,
+                    },
+                );
+            }
+
             return next;
         });
     }
@@ -239,7 +251,7 @@ export class EnvironmentDataSource {
             heartbeatCutoff: Date;
             execution: string;
             applicationNames: ReadonlyArray<string>;
-            applicationVersionPrefix: string | null;
+            applicationVersionAsk: string | null;
         },
         limit: number,
     ): Promise<Array<EnvironmentData>> {
@@ -253,7 +265,7 @@ export class EnvironmentDataSource {
             .andWhere("environment.lastHeartbeatAt > :cutoff", { cutoff: predicate.heartbeatCutoff })
             .andWhere(offersApplicationSql(predicate), offersApplicationParams(predicate));
 
-        if (predicate.applicationVersionPrefix !== null) {
+        if (predicate.applicationVersionAsk !== null) {
             idQuery.limit(limit);
         }
 
@@ -296,7 +308,7 @@ export class EnvironmentDataSource {
             states: Array<string>;
             execution: string;
             applicationNames: ReadonlyArray<string>;
-            applicationVersionPrefix: string | null;
+            applicationVersionAsk: string | null;
         },
     ): Promise<boolean> {
         const query = this.dataSource.getRepository(Environment)
@@ -345,31 +357,34 @@ export class EnvironmentDataSource {
 
 type OffersApplicationPredicate = {
     applicationNames: ReadonlyArray<string>;
-    applicationVersionPrefix: string | null;
+    applicationVersionAsk: string | null;
 };
 
-// The domain's "offers the requested application" clause in SQL: any candidate name, and — when the
-// request carries a version prefix — a version equal to it or opening with it segment-wise
-// ("140" → "140.…", never "1400.…"). A null prefix is "latest": name only.
+// The domain's "offers the requested application" clause in SQL: a word matches the declared name OR
+// the measured identity; a version ask matches the picked build's alias, or the measured version
+// exactly or by segment prefix ("140" → "140.…", never "1400.…") — the measured layer is the only
+// version there is. A null ask is "latest": words only.
 function offersApplicationSql(predicate: OffersApplicationPredicate): string {
-    const versionClause = predicate.applicationVersionPrefix === null
+    const versionClause = predicate.applicationVersionAsk === null
         ? ""
-        : " AND (ea.application_version = :versionPrefix"
-            + " OR ea.application_version LIKE :versionPrefixOpen ESCAPE '\\')";
+        : " AND (ea.build_alias = :versionAsk"
+            + " OR ea.measured_version = :versionAsk"
+            + " OR ea.measured_version LIKE :versionAskOpen ESCAPE '\\')";
 
     return "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
-        + ` AND ea.application_name IN (:...applicationNames)${versionClause})`;
+        + " AND (ea.application_name IN (:...applicationNames)"
+        + ` OR ea.measured_name IN (:...applicationNames))${versionClause})`;
 }
 
 function offersApplicationParams(predicate: OffersApplicationPredicate): Record<string, unknown> {
-    if (predicate.applicationVersionPrefix === null) {
+    if (predicate.applicationVersionAsk === null) {
         return { applicationNames: [...predicate.applicationNames] };
     }
 
     return {
         applicationNames: [...predicate.applicationNames],
-        versionPrefix: predicate.applicationVersionPrefix,
-        versionPrefixOpen: `${escapeLikePattern(predicate.applicationVersionPrefix)}.%`,
+        versionAsk: predicate.applicationVersionAsk,
+        versionAskOpen: `${escapeLikePattern(predicate.applicationVersionAsk)}.%`,
     };
 }
 

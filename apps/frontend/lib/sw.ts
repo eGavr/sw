@@ -460,7 +460,9 @@ export interface ProjectApplication {
 
 export interface ApplicationVersion {
   name: string;
-  version: string;
+  // The owner's label — the build's id; a catalog build also declares its exact full version.
+  alias: string;
+  version?: string;
   appRef?: string;
   webdriverRef?: string;
 }
@@ -485,7 +487,7 @@ export function listApplicationVersions(
 ): Promise<Array<string>> {
   return swRequest<{ versions?: Array<ApplicationVersion> }>(
     `v1/projects/${project}/platforms/${platform}/applications/${application}/versions`,
-  ).then((d) => (d.versions ?? []).map((v) => v.version));
+  ).then((d) => (d.versions ?? []).map((v) => v.alias));
 }
 
 export function listCloudAccounts(project: string): Promise<Array<CloudAccount>> {

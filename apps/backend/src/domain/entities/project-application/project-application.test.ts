@@ -1,4 +1,3 @@
-import { NonConcreteApplicationVersionError } from "../environment/error/non-concrete-application-version-error";
 import { InvalidArgumentError } from "../error/invalid-argument-error";
 
 import { ApplicationVersionConflictError } from "./error/application-version-conflict-error";
@@ -29,57 +28,47 @@ describe("ProjectApplication", () => {
         })).toThrow(InvalidArgumentError);
     });
 
-    describe("versions", () => {
-        test("registers builds and refuses a duplicate", () => {
+    describe("builds", () => {
+        test("registers builds and refuses a duplicate alias", () => {
             const application = chrome();
 
-            application.addVersion({ version: "152.0.7977.82", appRef: "ref://152" });
+            application.addVersion({ alias: "152", appRef: "ref://152" });
 
-            expect(() => application.addVersion({ version: "152.0.7977.82", appRef: "ref://again" }))
+            expect(() => application.addVersion({ alias: "152", appRef: "ref://again" }))
                 .toThrow(ApplicationVersionConflictError);
         });
 
-        test("a build's version must be concrete", () => {
-            expect(() => chrome().addVersion({ version: "latest", appRef: "ref://x" }))
-                .toThrow(NonConcreteApplicationVersionError);
-        });
-
-        test("a webdriver ref is paired to a build — it cannot come alone", () => {
-            expect(() => chrome().addVersion({ version: "1.0", webdriverRef: "ref://driver" }))
+        test("the alias may not claim latest — that word is the ask vocabulary", () => {
+            expect(() => chrome().addVersion({ alias: "latest", appRef: "ref://x" }))
                 .toThrow(InvalidArgumentError);
         });
 
-        test("newestMatching honours the segment prefix and picks the newest", () => {
-            const application = chrome();
-
-            application.addVersion({ version: "151.0.7890.10", appRef: "ref://151" });
-            application.addVersion({ version: "152.0.7977.82", appRef: "ref://152" });
-
-            expect(application.newestMatching(null)?.version).toBe("152.0.7977.82");
-            expect(application.newestMatching("151")?.version).toBe("151.0.7890.10");
-            expect(application.newestMatching("150")).toBeNull();
+        test("a webdriver ref is paired to a build — it cannot come alone", () => {
+            expect(() => chrome().addVersion({ alias: "1.0", webdriverRef: "ref://driver" }))
+                .toThrow(InvalidArgumentError);
         });
 
-        test("versionsNewestFirst orders for pickers", () => {
+        test("newestMatching: an ask is a build alias; null means the last registered", () => {
             const application = chrome();
 
-            application.addVersion({ version: "151.0.7890.10", appRef: "ref://151" });
-            application.addVersion({ version: "152.0.7977.82", appRef: "ref://152" });
+            application.addVersion({ alias: "151", appRef: "ref://151" });
+            application.addVersion({ alias: "152", appRef: "ref://152" });
 
-            expect(application.versionsNewestFirst().map((version) => version.version))
-                .toEqual(["152.0.7977.82", "151.0.7890.10"]);
+            expect(application.newestMatching(null)?.alias).toBe("152");
+            expect(application.newestMatching("151")?.alias).toBe("151");
+            expect(application.newestMatching("150")).toBeNull();
         });
     });
 
     test("survives a persistence roundtrip", () => {
         const application = chrome();
 
-        application.addVersion({ version: "152.0.7977.82", appRef: "ref://152", webdriverRef: "ref://driver" });
+        application.addVersion({ alias: "152", appRef: "ref://152", webdriverRef: "ref://driver" });
 
         const restored = ProjectApplication.fromObject(application.toObject());
 
         expect(restored.name).toBe("com.android.chrome");
         expect(restored.aliases).toEqual(["chrome"]);
-        expect(restored.versionOf("152.0.7977.82")?.webdriverRef).toBe("ref://driver");
+        expect(restored.versionOf("152")?.webdriverRef).toBe("ref://driver");
     });
 });

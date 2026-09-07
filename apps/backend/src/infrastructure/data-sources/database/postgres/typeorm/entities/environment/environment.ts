@@ -127,7 +127,9 @@ export class Environment {
             execution: this.execution,
             applications: (this.applications ?? []).map((application) => ({
                 name: application.applicationName,
-                version: application.applicationVersion,
+                buildAlias: application.buildAlias,
+                measuredName: application.measuredName,
+                measuredVersion: application.measuredVersion,
                 source: application.toSourceData(),
             })),
             endpoint: this.endpoint,

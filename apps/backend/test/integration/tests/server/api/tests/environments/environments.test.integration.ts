@@ -71,9 +71,10 @@ describe("/projects/:project/environments", () => {
                 execution: "container",
                 // The loose ask (alias + version prefix) came back concrete: the canonical name at
                 // the catalog's full version, with its provenance.
+                // No version yet: the honest one is measured on the device at delivery.
                 applications: [{
                     name: "chrome",
-                    version: "126.0.6478.182",
+                    buildAlias: "126",
                     source: { type: "provided" },
                 }],
                 occupancy: "FREE",
@@ -174,7 +175,7 @@ describe("/projects/:project/environments", () => {
                 .expect(HttpStatus.NOT_FOUND);
         });
 
-        test("a catalog application accepts latest and resolves it to the newest full version", async () => {
+        test("a catalog application accepts latest and resolves it to the last registered build", async () => {
             const { owner, projectId } = await createProject();
 
             const { body } = await request(app.getHttpServer())
@@ -185,7 +186,7 @@ describe("/projects/:project/environments", () => {
 
             expect(body.applications).toEqual([{
                 name: "chrome",
-                version: "141.0.7390.54",
+                buildAlias: "141",
                 source: { type: "provided" },
             }]);
         });
@@ -221,7 +222,7 @@ describe("/projects/:project/environments", () => {
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/ubuntu/applications/com.mycorp.browser/versions`)
                 .set(owner)
-                .send({ version: "7.1.0", appRef: "builds/app-7.1.0.zip", webdriverRef: "builds/driver-7.1.0" })
+                .send({ alias: "7.1-rc2", appRef: "builds/app-7.1.zip", webdriverRef: "builds/driver-7.1" })
                 .expect(HttpStatus.CREATED);
 
             const { body } = await request(app.getHttpServer())
@@ -230,10 +231,12 @@ describe("/projects/:project/environments", () => {
                 .send({ ...validEnvironmentBody, applications: [{ name: "com.mycorp.browser" }] })
                 .expect(HttpStatus.CREATED);
 
+            // A custom declares no version: until the agent measures the delivered build, the
+            // environment shows only the word and the picked build's alias.
             expect(body.applications).toEqual([{
                 name: "com.mycorp.browser",
-                version: "7.1.0",
-                source: { type: "custom", appRef: "builds/app-7.1.0.zip", webdriverRef: "builds/driver-7.1.0" },
+                buildAlias: "7.1-rc2",
+                source: { type: "custom", appRef: "builds/app-7.1.zip", webdriverRef: "builds/driver-7.1" },
             }]);
         });
 
@@ -248,7 +251,7 @@ describe("/projects/:project/environments", () => {
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/ubuntu/applications/com.mycorp.browser/versions`)
                 .set(owner)
-                .send({ version: "7.1.0", appRef: "builds/app-7.1.0.zip" })
+                .send({ alias: "7.1", appRef: "builds/app-7.1.0.zip" })
                 .expect(HttpStatus.CREATED);
 
             const { body: created } = await request(app.getHttpServer())

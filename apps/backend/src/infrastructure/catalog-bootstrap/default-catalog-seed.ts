@@ -21,7 +21,7 @@ export const defaultCatalogSeed: ReadonlyArray<CatalogSeedApplication> = [
         name: "chrome",
         aliases: [],
         versions: [{
-            version: chromeForTestingVersion,
+            alias: "152",
             appRef: `${chromeForTestingBase}/linux64/chrome-linux64.zip`,
             webdriverRef: `${chromeForTestingBase}/linux64/chromedriver-linux64.zip`,
         }],
@@ -32,6 +32,6 @@ export const defaultCatalogSeed: ReadonlyArray<CatalogSeedApplication> = [
         platformName: "android",
         name: "com.android.settings",
         aliases: ["settings"],
-        versions: [{ version: "13" }, { version: "14" }, { version: "34" }],
+        versions: [{ alias: "13" }, { alias: "14" }],
     },
 ];

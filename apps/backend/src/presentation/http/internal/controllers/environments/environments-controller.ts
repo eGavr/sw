@@ -98,6 +98,7 @@ export class InternalEnvironmentsController {
             environmentId,
             endpoint: body.endpoint,
             busy: body.busy,
+            applications: body.applications,
         });
 
         return new EnvironmentHeartbeatPresenter(environment);

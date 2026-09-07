@@ -47,7 +47,7 @@ export class ApplicationCatalog {
 
         return Application.create({
             name: application.name,
-            version: build.version,
+            buildAlias: build.alias,
             source: this.sourceFor(application, build),
         });
     }
@@ -62,7 +62,7 @@ export class ApplicationCatalog {
 
         return ApplicationMatch.create({
             names: [requested.name, ...aliased],
-            versionPrefix: requested.version(),
+            versionAsk: requested.version(),
         });
     }
 

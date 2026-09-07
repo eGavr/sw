@@ -6,6 +6,7 @@ import { ProjectId } from "../project/project-id";
 import { Application, ApplicationData } from "./application/application";
 import { ApplicationList } from "./application/application-list";
 import { ApplicationMatch } from "./application/application-match";
+import { ApplicationMeasurement } from "./application/application-measurement";
 import { EnvironmentEndpoint } from "./environment-endpoint";
 import { EnvironmentId } from "./environment-id";
 import { EnvironmentOccupancy, toEnvironmentOccupancy } from "./environment-occupancy";
@@ -249,6 +250,15 @@ export class Environment {
     // version-prefix loose), newest first when several qualify.
     applicationMatching(match: ApplicationMatch): Application | null {
         return this.applications.bestMatch(match);
+    }
+
+    // The agent's per-application report from the device (measured at delivery): the honest identities
+    // land next to the declared words, keyed by the word each application was asked by.
+    applyMeasurements(reports: ReadonlyArray<ApplicationMeasurement>): void {
+        for (const report of reports) {
+            this.applications.find(report.name)
+                ?.applyMeasurement(report.measuredName ?? null, report.measuredVersion ?? null);
+        }
     }
 
     // Whether the compute backend should be running a container for this environment right now.

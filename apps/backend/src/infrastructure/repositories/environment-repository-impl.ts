@@ -100,7 +100,7 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
                 heartbeatCutoff: predicate.heartbeatCutoff,
                 execution: predicate.execution,
                 applicationNames: predicate.applicationNames,
-                applicationVersionPrefix: predicate.applicationVersionPrefix,
+                applicationVersionAsk: predicate.applicationVersionAsk,
             },
             allocationCandidateLimit,
         );
@@ -126,7 +126,7 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
             states: [...predicate.states],
             execution: predicate.execution,
             applicationNames: predicate.applicationNames,
-            applicationVersionPrefix: predicate.applicationVersionPrefix,
+            applicationVersionAsk: predicate.applicationVersionAsk,
         });
     }
 

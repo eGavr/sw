@@ -4,20 +4,22 @@ import {
     ProjectApplicationVersionData,
 } from "../../../../../../../domain/entities/project-application/project-application-version";
 import { Uuid } from "../../../../../../../domain/types/uuid/uuid";
+import { DateColumn } from "../../columns-extra/date-column";
 
 import { ProjectApplication } from "./project-application";
 
 @Entity()
-@Unique(["projectApplicationId", "version"])
+@Unique(["projectApplicationId", "alias"])
 export class ProjectApplicationVersion {
     static from(projectApplicationId: string, data: ProjectApplicationVersionData): ProjectApplicationVersion {
         const version = new ProjectApplicationVersion();
 
         version.id = Uuid.create().getValue();
         version.projectApplicationId = projectApplicationId;
-        version.version = data.version;
+        version.alias = data.alias;
         version.appRef = data.appRef ?? null;
         version.webdriverRef = data.webdriverRef ?? null;
+        version.createdAt = data.createdAt;
 
         return version;
     }
@@ -31,8 +33,9 @@ export class ProjectApplicationVersion {
     @Column()
     projectApplicationId: string;
 
+    // The owner's free-form label — the build's id; nobody declares a version, it is measured.
     @Column()
-    version: string;
+    alias: string;
 
     @Column({ type: "varchar", nullable: true })
     appRef: string | null;
@@ -40,11 +43,15 @@ export class ProjectApplicationVersion {
     @Column({ type: "varchar", nullable: true })
     webdriverRef: string | null;
 
+    @DateColumn()
+    createdAt: Date;
+
     toObject(): ProjectApplicationVersionData {
         return {
-            version: this.version,
+            alias: this.alias,
             appRef: this.appRef,
             webdriverRef: this.webdriverRef,
+            createdAt: this.createdAt,
         };
     }
 

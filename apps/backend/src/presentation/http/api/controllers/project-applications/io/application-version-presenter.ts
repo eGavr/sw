@@ -6,9 +6,10 @@ import {
 } from "../../../../../../domain/entities/project-application/project-application-version";
 import { Presenter } from "../../../../presenters/presenter";
 
-// One registered build. The refs are echoed for a CUSTOM build — they are the owner's own bucket
-// keys; the catalog project's artifact locations are the install's internals and are not published
-// (its reads are public — a version there shows only its id).
+// One registered build, addressed by its alias (the owner's label) — nobody declares a version, the
+// honest one is measured on environments. The refs are echoed for a CUSTOM build — they are the
+// owner's own bucket keys; the catalog project's artifact locations are the install's internals and
+// are not published.
 export class ApplicationVersionPresenter implements Presenter {
     constructor(
         private readonly projectHandle: string,
@@ -20,8 +21,8 @@ export class ApplicationVersionPresenter implements Presenter {
     present(): object {
         return {
             name: `projects/${this.projectHandle}/platforms/${this.application.platformName}`
-                + `/applications/${this.application.name}/versions/${this.version.version}`,
-            version: this.version.version,
+                + `/applications/${this.application.name}/versions/${this.version.alias}`,
+            alias: this.version.alias,
             ...(this.exposeRefs && this.version.appRef !== null ? { appRef: this.version.appRef } : {}),
             ...(this.exposeRefs && this.version.webdriverRef !== null
                 ? { webdriverRef: this.version.webdriverRef }
