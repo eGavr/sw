@@ -78,10 +78,13 @@ describe("/projects/:project/platforms/:platform/applications", () => {
 
             expect(versions.versions.map((version: { versionAlias: string }) => version.versionAlias))
                 .toEqual(["126", "128", "140", "141"]);
+            // What a build delivers is public, where from is the install's own business.
             expect(versions.versions[0]).toEqual({
                 name: expect.stringMatching(/\/applications\/[0-9a-f-]{36}\/versions\/[0-9a-f-]{36}$/),
                 uid: expect.stringMatching(uuidPattern),
                 versionAlias: "126",
+                preinstalled: false,
+                webdriver: true,
                 createTime: expect.any(String),
             });
             expect(JSON.stringify(versions)).not.toContain("catalog.test");
@@ -187,6 +190,8 @@ describe("/projects/:project/platforms/:platform/applications", () => {
                 name: `projects/${projectId}/platforms/android/applications/${application.uid}/versions/${version.uid}`,
                 uid: expect.stringMatching(uuidPattern),
                 versionAlias: "7.1-rc2",
+                preinstalled: false,
+                webdriver: true,
                 appRef: "builds/app-7.1.apk",
                 webdriverRef: "builds/driver-7.1",
                 createTime: expect.any(String),

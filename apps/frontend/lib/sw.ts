@@ -472,6 +472,11 @@ export interface ApplicationVersion {
   uid: string;
   // The owner's label for the build; the honest version is detected on environments.
   versionAlias: string;
+  // No artifact: the platform image ships the application, the node only detects it.
+  preinstalled: boolean;
+  // A paired webdriver (chromedriver / geckodriver) comes along — what makes a build a browser.
+  webdriver: boolean;
+  // The refs themselves are the owner's business: absent for the catalog's builds seen from a project.
   appRef?: string;
   webdriverRef?: string;
   createTime: string;

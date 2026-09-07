@@ -191,6 +191,17 @@ function ApplicationSection({
   );
 }
 
+// What a build brings, in words: the platform image's own application (nothing to deliver), or an
+// artifact — the owner's ref when it is theirs, otherwise just the fact — plus the paired webdriver.
+function buildDelivery(build: ApplicationVersion): string {
+  const artifact = build.preinstalled
+    ? "preinstalled on the platform image"
+    : (build.appRef ?? "artifact from the install's store");
+  const webdriver = build.webdriver ? ` · webdriver: ${build.webdriverRef ?? "paired"}` : "";
+
+  return artifact + webdriver;
+}
+
 // One application with its builds, newest last (registration order — a session asking "latest" gets
 // the last registered build).
 function ApplicationCard({
@@ -270,8 +281,7 @@ function ApplicationCard({
                 </Table.Td>
                 <Table.Td>
                   <Text size="xs" c="dimmed" style={{ wordBreak: "break-all" }}>
-                    {build.appRef ?? "preinstalled"}
-                    {build.webdriverRef ? ` · webdriver: ${build.webdriverRef}` : ""}
+                    {buildDelivery(build)}
                   </Text>
                 </Table.Td>
               </Table.Tr>

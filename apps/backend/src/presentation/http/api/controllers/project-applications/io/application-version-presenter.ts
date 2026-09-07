@@ -7,9 +7,11 @@ import {
 import { Presenter } from "../../../../presenters/presenter";
 
 // One registered build: a resource by its server id, addressed by its version alias (the owner's
-// label) — nobody declares a version, the honest one is detected on environments. The refs are echoed
-// for a CUSTOM build — they are the owner's own bucket keys; the catalog project's artifact locations
-// are the install's internals and are not published.
+// label) — nobody declares a version, the honest one is detected on environments. What the build
+// delivers is public: whether it is preinstalled (no artifact — the platform image ships it) and
+// whether a paired webdriver comes along. The refs themselves are echoed for a CUSTOM build — they are
+// the owner's own bucket keys; the catalog project's artifact locations are the install's internals
+// and are not published.
 export class ApplicationVersionPresenter implements Presenter {
     constructor(
         private readonly projectHandle: string,
@@ -24,6 +26,8 @@ export class ApplicationVersionPresenter implements Presenter {
                 + `/applications/${this.application.id}/versions/${this.version.id}`,
             uid: this.version.id,
             versionAlias: this.version.versionAlias,
+            preinstalled: this.version.appRef === null,
+            webdriver: this.version.webdriverRef !== null,
             ...(this.exposeRefs && this.version.appRef !== null ? { appRef: this.version.appRef } : {}),
             ...(this.exposeRefs && this.version.webdriverRef !== null
                 ? { webdriverRef: this.version.webdriverRef }
