@@ -8,10 +8,9 @@ describe("ApplicationCatalog", () => {
     const provided = (
         platformName: string,
         name: string,
-        aliases: Array<string>,
         versions: Array<{ alias: string; appRef?: string; webdriverRef?: string }>,
     ): ProjectApplication => {
-        const application = ProjectApplication.create({ projectId: "catalog-id", platformName, name, aliases });
+        const application = ProjectApplication.create({ projectId: "catalog-id", platformName, name });
 
         versions.forEach((version) => application.addVersion(version));
 
@@ -32,16 +31,14 @@ describe("ApplicationCatalog", () => {
 
     const catalog = ApplicationCatalog.of({
         catalog: [
-            // A linux app's name IS the word (nothing detectable to canonise); reverse-DNS canonicals
-            // with wire aliases live where the platform detects them — android.
-            provided("ubuntu", "chrome", [], [
+            // One word per application, the same on every platform it exists on; identity is
+            // detected on the device, never declared here.
+            provided("ubuntu", "chrome", [
                 { alias: "151", appRef: "ref://chrome-151" },
                 { alias: "152", appRef: "ref://chrome-152", webdriverRef: "ref://driver-152" },
             ]),
-            provided("android", "com.android.chrome", ["chrome"], [
-                { alias: "152", appRef: "ref://chrome-apk-152" },
-            ]),
-            provided("android", "com.android.settings", ["settings"], [{ alias: "14" }]),
+            provided("android", "chrome", [{ alias: "152", appRef: "ref://chrome-apk-152" }]),
+            provided("android", "settings", [{ alias: "14" }]),
         ],
         own: [
             custom("android", "com.mycorp.app", [
@@ -66,9 +63,9 @@ describe("ApplicationCatalog", () => {
                 .versionAlias).toBe("151");
         });
 
-        test("an alias resolves to the canonical name on its platform", () => {
-            expect(catalog.resolve("android", RequestedApplication.create({ name: "chrome" })).nameAlias)
-                .toBe("com.android.chrome");
+        test("the same word resolves per platform to that platform's build", () => {
+            expect(catalog.resolve("android", RequestedApplication.create({ name: "chrome" })).source.appRef)
+                .toBe("ref://chrome-apk-152");
         });
 
         test("a preinstalled build resolves with nothing to deliver", () => {
@@ -98,30 +95,17 @@ describe("ApplicationCatalog", () => {
         });
     });
 
-    describe("expand (session ask → candidate words)", () => {
-        test("a word expands to itself plus every canonical it names or aliases, across platforms", () => {
-            const match = catalog.expand(RequestedApplication.create({ name: "chrome", version: "152" }));
-
-            expect(match.names).toEqual(["chrome", "com.android.chrome"]);
-            expect(match.versionAsk).toBe("152");
-        });
-
-        test("a custom name passes through untouched — customs have no aliases by the docker rule", () => {
-            expect(catalog.expand(RequestedApplication.create({ name: "com.mycorp.app" })).names)
-                .toEqual(["com.mycorp.app"]);
-        });
-    });
-
     describe("the docker rule's helpers", () => {
-        test("catalogReserves covers canonical names and aliases per platform", () => {
+        test("catalogReserves covers the catalog's words per platform", () => {
             expect(catalog.catalogReserves("ubuntu", "chrome")).toBe(true);
             expect(catalog.catalogReserves("android", "chrome")).toBe(true);
             expect(catalog.catalogReserves("android", "firefox")).toBe(false);
+            expect(catalog.catalogReserves("android", "com.mycorp.app")).toBe(false);
         });
 
-        test("wireName translates a catalog canonical to its wire word, passing customs through", () => {
-            expect(catalog.wireName("com.android.chrome")).toBe("chrome");
-            expect(catalog.wireName("com.mycorp.app")).toBe("com.mycorp.app");
+        test("ownAnswers covers the project's own words per platform", () => {
+            expect(catalog.ownAnswers("android", "com.mycorp.app")).toBe(true);
+            expect(catalog.ownAnswers("ubuntu", "com.mycorp.app")).toBe(false);
         });
     });
 });

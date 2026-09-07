@@ -1,6 +1,5 @@
 import { Uuid } from "../../types/uuid/uuid";
 import { ApplicationName } from "../environment/application/application-name";
-import { InvalidArgumentError } from "../error/invalid-argument-error";
 
 import { ApplicationVersionConflictError } from "./error/application-version-conflict-error";
 import {
@@ -14,7 +13,6 @@ export type ProjectApplicationData = {
     projectId: string;
     platformName: string;
     name: string;
-    aliases: Array<string>;
     versions: Array<ProjectApplicationVersionData>;
     createdAt: Date;
 };
@@ -23,30 +21,21 @@ export type ProjectApplicationCreateParams = {
     projectId: string;
     platformName: string;
     name: string;
-    aliases?: Array<string>;
 };
 
-// An application registered in a project: the unit both catalogs are made of. In the reserved catalog
-// project these are the install's provided applications — a canonical id plus wire aliases (`chrome`),
-// declared by the install, the one trusted source. In a user project the `name` is just the user's
-// ONE addressing word (the docker rule: short catalog words belong to the install): it claims no
-// identity — an APK's honest package id and version are DETECTED at delivery and land next to the
-// word. Versions are its builds, each pointing at its artifacts; a build's label is the user's picking
-// handle, the detected version is the truth.
+// An application registered in a project: the unit both catalogs are made of, the same shape whoever
+// owns it. Its `name` is ONE addressing word — `chrome`, `settings`, `myapp` — claiming no identity:
+// an APK's honest package id and version are DETECTED at delivery and land next to the word on the
+// environment. The reserved catalog project's words are reserved install-wide (the docker rule), a
+// user project's words are its own. Versions are its builds, each pointing at its artifacts; a build's
+// label is the picking handle, the detected version is the truth.
 export class ProjectApplication {
     static create(params: ProjectApplicationCreateParams): ProjectApplication {
-        const aliases = params.aliases ?? [];
-
-        for (const alias of aliases) {
-            new ApplicationName(alias);
-        }
-
         return new ProjectApplication(
             Uuid.create().getValue(),
             params.projectId,
             params.platformName,
             new ApplicationName(params.name),
-            aliases,
             [],
             new Date(),
         );
@@ -62,7 +51,6 @@ export class ProjectApplication {
             data.projectId,
             data.platformName,
             new ApplicationName(data.name),
-            data.aliases,
             versions,
             data.createdAt,
         );
@@ -73,30 +61,12 @@ export class ProjectApplication {
         readonly projectId: string,
         readonly platformName: string,
         private readonly _name: ApplicationName,
-        private readonly _aliases: ReadonlyArray<string>,
         private readonly _versions: Array<ProjectApplicationVersion>,
         readonly createdAt: Date,
-    ) {
-        if (new Set(this.words()).size !== this.words().length) {
-            throw new InvalidArgumentError(`application ${this._name.getValue()}: duplicate words`);
-        }
-    }
+    ) {}
 
     get name(): string {
         return this._name.getValue();
-    }
-
-    get aliases(): ReadonlyArray<string> {
-        return this._aliases;
-    }
-
-    // Every word this application answers to: its canonical name plus its wire aliases.
-    words(): Array<string> {
-        return [this.name, ...this._aliases];
-    }
-
-    answersTo(word: string): boolean {
-        return this.words().includes(word);
     }
 
     // Registration time is the ordering axis ("newest" = last registered), so it is kept strictly
@@ -143,7 +113,6 @@ export class ProjectApplication {
             projectId: this.projectId,
             platformName: this.platformName,
             name: this.name,
-            aliases: [...this._aliases],
             versions: this._versions.map((version) => version.toObject()),
             createdAt: this.createdAt,
         };

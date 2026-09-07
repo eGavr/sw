@@ -1,7 +1,6 @@
 import { ProjectId } from "../project/project-id";
 
 import { ApplicationList } from "./application/application-list";
-import { ApplicationMatch } from "./application/application-match";
 import { RequestedApplication, RequestedApplicationParams } from "./application/requested-application";
 import { Environment } from "./environment";
 import { EnvironmentEndpoint } from "./environment-endpoint";
@@ -31,17 +30,11 @@ describe("SessionAllocationCriteria", () => {
         applications: ApplicationList.fromObject([{ nameAlias: "chrome", versionAlias: "b", version }]),
     });
 
-    // The catalog's expansion, reproduced bare: the requested name itself and the version as prefix.
-    const matchFor = (application: RequestedApplication): ApplicationMatch =>
-        ApplicationMatch.create({ names: [application.name], versionAsk: application.version() });
-
     const criteriaFor = (
         application: RequestedApplication,
         platform: RequestedPlatform = RequestedPlatform.any(),
     ): SessionAllocationCriteria =>
-        SessionAllocationCriteria.from({
-            now, freshnessMs: 6_000, execution: Execution.Container, platform, application, match: matchFor(application),
-        });
+        SessionAllocationCriteria.from({ now, freshnessMs: 6_000, execution: Execution.Container, platform, application });
 
     test("forms a free-and-fresh predicate for the requested application and execution substrate", () => {
         const predicate = criteriaFor(RequestedApplication.create({ name: "chrome", version: "100" })).toPredicate();
@@ -54,7 +47,7 @@ describe("SessionAllocationCriteria", () => {
             platformNames: null,
             platformVersionAsk: null,
             deviceModel: null,
-            applicationNames: ["chrome"],
+            applicationName: "chrome",
             applicationVersionAsk: "100",
         });
     });
@@ -98,7 +91,7 @@ describe("SessionAllocationCriteria", () => {
             platformNames: null,
             platformVersionAsk: null,
             deviceModel: null,
-            applicationNames: ["chrome"],
+            applicationName: "chrome",
             applicationVersionAsk: "100",
         });
     });
@@ -190,29 +183,20 @@ describe("SessionAllocationCriteria", () => {
                 .admit(executingEnvironmentWith("141.0.7390.54"))).not.toThrow();
         });
 
-        test("an alias-expanded match admits an environment installed under the canonical name", () => {
-            const requested = RequestedApplication.create({ name: "chrome" });
-            const aliasAware = SessionAllocationCriteria.from({
-                now,
-                freshnessMs: 6_000,
-                execution: Execution.Container,
-                platform: RequestedPlatform.any(),
-                application: requested,
-                match: ApplicationMatch.create({ names: ["chrome", "com.android.chrome"], versionAsk: null }),
-            });
-            const canonical = Environment.create({
+        test("admits by the detected package id as well as by the word", () => {
+            const detected = Environment.create({
                 projectId: ProjectId.create(),
-                platform: Platform.fromObject({ name: "ubuntu", version: "24.04", deviceModel: "desktop" }),
+                platform: Platform.fromObject({ name: "android", version: "14", deviceModel: "pixel-7" }),
                 applications: ApplicationList.fromObject([
-                    { nameAlias: "com.android.chrome", version: "152.0.7977.82" },
+                    { nameAlias: "chrome", name: "com.android.chrome", version: "152.0.7977.82" },
                 ]),
             });
 
-            canonical.claim();
-            canonical.markDispatched();
-            canonical.register(new EnvironmentEndpoint("http://127.0.0.1:4444"), now);
+            detected.claim();
+            detected.markDispatched();
+            detected.register(new EnvironmentEndpoint("http://127.0.0.1:4444"), now);
 
-            expect(() => aliasAware.admit(canonical)).not.toThrow();
+            expect(() => criteria({ name: "com.android.chrome", version: "152" }).admit(detected)).not.toThrow();
         });
 
         test("rejects as incompatible when the environment lacks the application", () => {
@@ -233,7 +217,6 @@ describe("SessionAllocationCriteria", () => {
                 execution: Execution.Emulator,
                 platform: RequestedPlatform.any(),
                 application: requested,
-                match: matchFor(requested),
             });
 
             expect(() => emulator.admit(executingEnvironmentWith("141"))).toThrow(IncompatibleSessionTargetError);

@@ -3,10 +3,8 @@ import {
 } from "../../../../../../domain/entities/project-application/project-application";
 import { Presenter } from "../../../../presenters/presenter";
 
-// One application registered in a project: its word (the resource id — the catalog's canonical
-// reverse-DNS id, or a custom's user-chosen handle) and, in the catalog project, the wire aliases it
-// answers to. Its versions are the child collection; artifact refs live on versions and stay out of
-// this shape.
+// One application registered in a project: its word (the resource id). Its versions are the child
+// collection; artifact refs live on versions and stay out of this shape.
 export class ProjectApplicationPresenter implements Presenter {
     constructor(private readonly projectHandle: string, private readonly application: ProjectApplication) {}
 
@@ -15,7 +13,6 @@ export class ProjectApplicationPresenter implements Presenter {
             name: `projects/${this.projectHandle}/platforms/${this.application.platformName}`
                 + `/applications/${this.application.name}`,
             application: this.application.name,
-            aliases: [...this.application.aliases],
             createTime: this.application.createdAt.toISOString(),
         };
     }

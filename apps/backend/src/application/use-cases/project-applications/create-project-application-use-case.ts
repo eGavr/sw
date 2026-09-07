@@ -1,10 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
 import { PlatformCatalog } from "../../../domain/entities/application-catalog/platform-catalog";
-import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
-import { isCatalogProject } from "../../../domain/entities/project-application/catalog-project";
 import {
     ApplicationConflictError,
 } from "../../../domain/entities/project-application/error/application-conflict-error";
@@ -28,16 +26,14 @@ type CreateProjectApplicationInput = {
         projectId: string;
         platform: string;
         name: string;
-        aliases?: Array<string>;
     },
 };
 
-// Registers an application in a project. In the reserved catalog project this is how install admins
-// grow the provided set (a canonical id plus wire aliases — declared by the install, the one trusted
-// source). In a user project it registers a custom under ONE word of the user's choosing — an
-// addressing handle, not an identity claim: the honest identity (an APK's package id and version) is
-// DETECTED at delivery, not declared. Never a word the install catalog answers to (the docker rule:
-// catalog words mean the same thing in every project).
+// Registers an application in a project under ONE word — the same shape whoever the project is. In
+// the reserved catalog project this is how install admins grow the provided set; in a user project it
+// registers a custom. The word is an addressing handle, not an identity claim: the honest identity
+// (an APK's package id and version) is DETECTED at delivery, not declared. Never a word the install
+// catalog holds (the docker rule: catalog words mean the same thing in every project).
 @Injectable()
 export class CreateProjectApplicationUseCase {
     private readonly permissionName = UserPermissionName.Application.Create;
@@ -65,14 +61,7 @@ export class CreateProjectApplicationUseCase {
             projectId: project.id,
             platformName: params.platform,
             name: params.name,
-            aliases: params.aliases,
         });
-
-        if (!isCatalogProject(project) && application.aliases.length > 0) {
-            throw new InvalidArgumentError(
-                "aliases are install-catalog vocabulary — a custom application IS its registered word",
-            );
-        }
 
         if (await this.projectApplicationRepository.find(projectId, params.platform, params.name)) {
             throw new ApplicationConflictError(params.platform, params.name);
@@ -80,10 +69,8 @@ export class CreateProjectApplicationUseCase {
 
         const catalog = await this.applicationCatalogLoader.loadFor(projectId);
 
-        for (const word of application.words()) {
-            if (catalog.catalogReserves(params.platform, word)) {
-                throw new ReservedApplicationWordError(params.platform, word);
-            }
+        if (catalog.catalogReserves(params.platform, application.name)) {
+            throw new ReservedApplicationWordError(params.platform, application.name);
         }
 
         await this.projectApplicationRepository.save(application);

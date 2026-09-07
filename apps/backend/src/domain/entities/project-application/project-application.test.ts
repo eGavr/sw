@@ -8,24 +8,6 @@ describe("ProjectApplication", () => {
         projectId: "project-id",
         platformName: "android",
         name: "com.android.chrome",
-        aliases: ["chrome"],
-    });
-
-    test("answers to its canonical name and every alias", () => {
-        const application = chrome();
-
-        expect(application.answersTo("com.android.chrome")).toBe(true);
-        expect(application.answersTo("chrome")).toBe(true);
-        expect(application.answersTo("firefox")).toBe(false);
-    });
-
-    test("rejects a malformed alias and duplicate words", () => {
-        expect(() => ProjectApplication.create({
-            projectId: "p", platformName: "android", name: "com.android.chrome", aliases: ["Chrome!"],
-        })).toThrow(InvalidArgumentError);
-        expect(() => ProjectApplication.create({
-            projectId: "p", platformName: "android", name: "chrome", aliases: ["chrome"],
-        })).toThrow(InvalidArgumentError);
     });
 
     describe("builds", () => {
@@ -68,7 +50,6 @@ describe("ProjectApplication", () => {
         const restored = ProjectApplication.fromObject(application.toObject());
 
         expect(restored.name).toBe("com.android.chrome");
-        expect(restored.aliases).toEqual(["chrome"]);
         expect(restored.versionOf("152")?.webdriverRef).toBe("ref://driver");
     });
 });

@@ -1,7 +1,5 @@
 import { Injectable } from "@nestjs/common";
 
-import { ApplicationCatalog } from "../../../domain/entities/application-catalog/application-catalog";
-import { ApplicationMatch } from "../../../domain/entities/environment/application/application-match";
 import { RequestedApplication } from "../../../domain/entities/environment/application/requested-application";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
@@ -30,7 +28,6 @@ import { ProjectRepository } from "../../interfaces/repositories/project-reposit
 import { SessionOwnershipRepository } from "../../interfaces/repositories/session-ownership-repository";
 import { StorageDestinationRepository } from "../../interfaces/repositories/storage-destination-repository";
 import { AccessControl } from "../../services/access-control";
-import { ApplicationCatalogLoader } from "../../services/application-catalog-loader";
 
 // How long allocation keeps retrying a transient shortage, and how long it waits between attempts.
 // The budget must cover one agent heartbeat interval so a just-freed environment is always caught:
@@ -69,11 +66,10 @@ type CreateSessionInput = {
 // worker's sweep frees a reservation whose confirmation went silent (its wd died mid-create).
 const reservationConfirmIntervalMs = 3_000;
 
-// The request as the domain matches it: the application ask, its catalog expansion, and the platform
-// (null = any) — fixed once per request, while the criteria's freshness cutoff moves per attempt.
+// The request as the domain matches it: the application ask and the platform ask — fixed once per
+// request, while the criteria's freshness cutoff moves per attempt.
 type SessionAsk = {
     readonly application: RequestedApplication;
-    readonly match: ApplicationMatch;
     readonly platform: RequestedPlatform;
 };
 
@@ -98,7 +94,6 @@ export class CreateSessionUseCase {
         private readonly storageDestinationRepository: StorageDestinationRepository,
         private readonly objectStorageGateway: ObjectStorageGateway,
         private readonly retry: SessionAllocationRetry,
-        private readonly applicationCatalogLoader: ApplicationCatalogLoader,
     ) {}
 
     async execute({ creds, params }: CreateSessionInput): Promise<Session> {
@@ -118,20 +113,16 @@ export class CreateSessionUseCase {
             await this.ensureStorageOwned(projectId);
         }
 
-        // The wire ask stays loose (an alias like `chrome`, a version prefix like `140`); the
-        // project's vocabulary expands it once into the canonical names and prefix everything
-        // downstream matches against.
-        const catalog = await this.applicationCatalogLoader.loadFor(projectId);
-        const application = RequestedApplication.create(params.application);
+        // The ask stays loose (a word like `chrome` or a detected package id, a version alias or
+        // prefix); installed applications answer by word or detected identity.
         const ask: SessionAsk = {
-            application,
-            match: catalog.expand(application),
+            application: RequestedApplication.create(params.application),
             platform: RequestedPlatform.create(params.platform),
         };
 
         const reserved = await this.reserveWithinBudget(projectId, params, ask);
 
-        const session = await this.openReservedSession(reserved, catalog, ask.match, {
+        const session = await this.openReservedSession(reserved, ask.application, {
             logging: params.logging ?? false,
             video: params.video ?? false,
             netBridge: params.netBridge ?? false,
@@ -203,7 +194,6 @@ export class CreateSessionUseCase {
             execution: toExecution(params.execution),
             platform: ask.platform,
             application: ask.application,
-            match: ask.match,
         });
         const candidates = params.environmentId
             ? await this.targetedCandidate(projectId, params.environmentId, criteria)
@@ -292,26 +282,22 @@ export class CreateSessionUseCase {
     // "no environments available".
     private async openReservedSession(
         environment: Environment,
-        catalog: ApplicationCatalog,
-        match: ApplicationMatch,
+        requested: RequestedApplication,
         options: WebDriverSessionOptions,
     ): Promise<Session> {
         const environmentId = EnvironmentId.fromString(environment.id);
         const stopHeartbeat = this.keepReservationAlive(environmentId);
 
         try {
-            const application = environment.applicationMatching(match);
+            const application = environment.applicationMatching(requested);
 
             if (!environment.endpoint || !application) {
                 throw new TargetEnvironmentNotReadyError(environment.id);
             }
 
-            // The node hears the wire vocabulary (`browserName: chrome`), not our canonical id — the
-            // vocabulary translates; a custom application passes through under its own name.
             const webDriverSessionId = await this.webDriverSessionGateway.create(
                 environment.endpoint,
                 application,
-                catalog.wireName(application.nameAlias),
                 environment.platform.name,
                 options,
             );

@@ -251,7 +251,7 @@ export class EnvironmentDataSource {
             occupancy: string;
             heartbeatCutoff: Date;
             execution: string;
-            applicationNames: ReadonlyArray<string>;
+            applicationName: string;
             applicationVersionAsk: string | null;
         } & PlatformPredicate,
         limit: number,
@@ -310,7 +310,7 @@ export class EnvironmentDataSource {
         predicate: {
             states: Array<string>;
             execution: string;
-            applicationNames: ReadonlyArray<string>;
+            applicationName: string;
             applicationVersionAsk: string | null;
         } & PlatformPredicate,
     ): Promise<boolean> {
@@ -367,7 +367,7 @@ type PlatformPredicate = {
 };
 
 type OffersApplicationPredicate = {
-    applicationNames: ReadonlyArray<string>;
+    applicationName: string;
     applicationVersionAsk: string | null;
 };
 
@@ -406,17 +406,17 @@ function offersApplicationSql(predicate: OffersApplicationPredicate): string {
             + " OR ea.detected_version LIKE :versionAskOpen ESCAPE '\\')";
 
     return "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
-        + " AND (ea.application_name IN (:...applicationNames)"
-        + ` OR ea.detected_name IN (:...applicationNames))${versionClause})`;
+        + " AND (ea.application_name = :applicationName"
+        + ` OR ea.detected_name = :applicationName)${versionClause})`;
 }
 
 function offersApplicationParams(predicate: OffersApplicationPredicate): Record<string, unknown> {
     if (predicate.applicationVersionAsk === null) {
-        return { applicationNames: [...predicate.applicationNames] };
+        return { applicationName: predicate.applicationName };
     }
 
     return {
-        applicationNames: [...predicate.applicationNames],
+        applicationName: predicate.applicationName,
         versionAsk: predicate.applicationVersionAsk,
         versionAskOpen: `${escapeLikePattern(predicate.applicationVersionAsk)}.%`,
     };

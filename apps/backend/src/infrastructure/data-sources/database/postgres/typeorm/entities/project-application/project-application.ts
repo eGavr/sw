@@ -20,7 +20,6 @@ export class ProjectApplication {
         application.projectId = data.projectId;
         application.platformName = data.platformName;
         application.name = data.name;
-        application.aliases = data.aliases;
         application.createdAt = data.createdAt;
         application.versions = data.versions.map((version) => ProjectApplicationVersion.from(data.id, version));
 
@@ -42,9 +41,6 @@ export class ProjectApplication {
     @Column()
     name: string;
 
-    @Column({ type: "jsonb", default: () => "'[]'" })
-    aliases: Array<string>;
-
     @DateColumn()
     createdAt: Date;
 
@@ -57,7 +53,6 @@ export class ProjectApplication {
             projectId: this.projectId,
             platformName: this.platformName,
             name: this.name,
-            aliases: this.aliases ?? [],
             versions: (this.versions ?? []).map((version) => version.toObject()),
             createdAt: this.createdAt,
         };

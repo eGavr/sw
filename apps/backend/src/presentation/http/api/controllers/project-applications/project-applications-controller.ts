@@ -57,7 +57,7 @@ export class ProjectApplicationsController {
     ): Promise<ProjectApplicationPresenter> {
         const application = await this.createProjectApplicationUseCase.execute({
             creds: { token },
-            params: { projectId: project, platform, name: body.name, aliases: body.aliases },
+            params: { projectId: project, platform, name: body.name },
         });
 
         return new ProjectApplicationPresenter(project, application);

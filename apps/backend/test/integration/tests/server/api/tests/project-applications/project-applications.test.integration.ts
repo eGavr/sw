@@ -47,7 +47,6 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             expect(body.applications).toEqual([{
                 name: "projects/catalog/platforms/ubuntu/applications/chrome",
                 application: "chrome",
-                aliases: [],
                 createTime: expect.any(String),
             }]);
 
@@ -83,12 +82,12 @@ describe("/projects/:project/platforms/:platform/applications", () => {
                 .expect(HttpStatus.CREATED);
         });
 
-        test("a word ambiguous within the catalog platform is refused", async () => {
+        test("a word already taken on the catalog platform is refused", async () => {
             return request(app.getHttpServer())
                 .post("/projects/catalog/platforms/ubuntu/applications")
                 .set(catalogAdmin)
-                .send({ name: "chromium", aliases: ["chrome"] })
-                .expect(HttpStatus.BAD_REQUEST);
+                .send({ name: "chrome" })
+                .expect(HttpStatus.CONFLICT);
         });
 
         test("the catalog project hosts nothing but applications", async () => {
@@ -124,7 +123,6 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             expect(application).toEqual({
                 name: `projects/${projectId}/platforms/android/applications/com.mycorp.app`,
                 application: "com.mycorp.app",
-                aliases: [],
                 createTime: expect.any(String),
             });
 
@@ -149,7 +147,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             }]);
         });
 
-        test("a custom may not take a catalog word, and aliases are catalog vocabulary", async () => {
+        test("a custom may not take a catalog word, and the request knows no aliases", async () => {
             const { owner, projectId } = await createProject();
 
             await request(app.getHttpServer())

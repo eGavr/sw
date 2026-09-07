@@ -1,5 +1,5 @@
 import { Application, ApplicationData } from "./application";
-import { ApplicationMatch } from "./application-match";
+import { RequestedApplication } from "./requested-application";
 
 export class ApplicationList {
     static create({ applications }: { applications: Array<Application> }): ApplicationList {
@@ -20,10 +20,10 @@ export class ApplicationList {
         return this.applications.find((application) => application.nameAlias === word) ?? null;
     }
 
-    // The newest installed application satisfying the match — the one a session on this environment
+    // The newest installed application satisfying the ask — the one a session on this environment
     // would actually target.
-    bestMatch(match: ApplicationMatch): Application | null {
-        const matching = this.applications.filter((application) => match.matches(application));
+    bestMatch(requested: RequestedApplication): Application | null {
+        const matching = this.applications.filter((application) => requested.matches(application));
 
         if (matching.length === 0) {
             return null;

@@ -1,4 +1,3 @@
-import { ApplicationMatch } from "./application/application-match";
 import { latestApplicationVersion } from "./application/application-version";
 import { RequestedApplication } from "./application/requested-application";
 import { Environment } from "./environment";
@@ -29,7 +28,7 @@ export type AllocatableEnvironmentPredicate = {
     readonly platformNames: ReadonlyArray<PlatformName> | null;
     readonly platformVersionAsk: string | null;
     readonly deviceModel: string | null;
-    readonly applicationNames: ReadonlyArray<string>;
+    readonly applicationName: string;
     readonly applicationVersionAsk: string | null;
 };
 
@@ -39,7 +38,6 @@ export type SessionAllocationParams = {
     readonly execution: Execution;
     readonly platform: RequestedPlatform;
     readonly application: RequestedApplication;
-    readonly match: ApplicationMatch;
 };
 
 export type OfferedApplicationPredicate = {
@@ -48,7 +46,7 @@ export type OfferedApplicationPredicate = {
     readonly platformNames: ReadonlyArray<PlatformName> | null;
     readonly platformVersionAsk: string | null;
     readonly deviceModel: string | null;
-    readonly applicationNames: ReadonlyArray<string>;
+    readonly applicationName: string;
     readonly applicationVersionAsk: string | null;
 };
 
@@ -66,11 +64,11 @@ const statesEventuallyServing: ReadonlyArray<EnvironmentState> = [
 // on the requested execution substrate and platform stereotype (whichever parts were asked — a catalog
 // word like `chrome` lives on several platforms), and offering the requested application. What "free" and "fresh" mean is
 // a domain decision expressed here as a ready predicate; the data source only translates it into a
-// query. The request arrives expanded into an ApplicationMatch: candidate names (alias-aware) and a
-// version segment prefix, null meaning "latest" — match by name and let `rank` order by newest.
+// query. The application ask is one word (answered by an installed application's word or detected
+// identity) and a version ask, null meaning "latest" — match by word and let `rank` order by newest.
 export class SessionAllocationCriteria {
     static from(params: SessionAllocationParams): SessionAllocationCriteria {
-        return new SessionAllocationCriteria(params.application, params.match, params.platform, {
+        return new SessionAllocationCriteria(params.application, params.platform, {
             state: EnvironmentState.Executing,
             occupancy: EnvironmentOccupancy.Free,
             heartbeatCutoff: new Date(params.now.getTime() - params.freshnessMs),
@@ -78,14 +76,13 @@ export class SessionAllocationCriteria {
             platformNames: params.platform.names,
             platformVersionAsk: params.platform.versionAsk,
             deviceModel: params.platform.deviceModel,
-            applicationNames: params.match.names,
-            applicationVersionAsk: params.match.versionAsk,
+            applicationName: params.application.name,
+            applicationVersionAsk: params.application.version(),
         });
     }
 
     private constructor(
         private readonly application: RequestedApplication,
-        private readonly match: ApplicationMatch,
         private readonly platform: RequestedPlatform,
         private readonly predicate: AllocatableEnvironmentPredicate,
     ) {}
@@ -103,7 +100,7 @@ export class SessionAllocationCriteria {
             platformNames: this.predicate.platformNames,
             platformVersionAsk: this.predicate.platformVersionAsk,
             deviceModel: this.predicate.deviceModel,
-            applicationNames: this.predicate.applicationNames,
+            applicationName: this.predicate.applicationName,
             applicationVersionAsk: this.predicate.applicationVersionAsk,
         };
     }
@@ -163,7 +160,7 @@ export class SessionAllocationCriteria {
     private offersRequested(environment: Environment): boolean {
         return environment.execution === this.predicate.execution
             && this.platform.matches(environment.platform)
-            && environment.applicationMatching(this.match) !== null;
+            && environment.applicationMatching(this.application) !== null;
     }
 
     private isReady(environment: Environment): boolean {
@@ -178,8 +175,8 @@ export class SessionAllocationCriteria {
     // data source's (random) load spread (the sort is stable).
     rank(environments: Array<Environment>): Array<Environment> {
         return [...environments].sort((left, right) => {
-            const leftApplication = left.applicationMatching(this.match);
-            const rightApplication = right.applicationMatching(this.match);
+            const leftApplication = left.applicationMatching(this.application);
+            const rightApplication = right.applicationMatching(this.application);
 
             if (!leftApplication || !rightApplication) {
                 return 0;

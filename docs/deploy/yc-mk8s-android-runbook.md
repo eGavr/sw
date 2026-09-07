@@ -98,7 +98,8 @@ Use the existing one (`fd8opcrg042a3lu6u90e`) or rebake per §4.
 - **create-project body** is `{displayName, compute:[{provider, externalRef, platform, execution}]}` — `compute` is an
   ARRAY of provider bindings, each declaring the substrate it serves (`platform` name + `execution`); create-environment
   routes to the provider matching the environment's `(platform.name, execution)`. Android → `platform:"android"`.
-- **Application name** must match `^[a-z0-9][a-z0-9-]*$` — no dots (use `settings`, not `com.android.settings`).
+- **Application name** is ONE word per registered application (`settings`, `myapp`); dotted words are legal but
+  claim nothing — the package id is detected on the device.
 - **k8s 1.30 is deprecated** → use 1.32 (STABLE is 1.32/1.33/1.34).
 - **VPC network quota = 1** → reuse the existing network via `data` sources (don't create a new VPC).
 - **Network Load Balancer quota = 2** → that's exactly api-lb + wd-lb; the agent→control-plane callback must

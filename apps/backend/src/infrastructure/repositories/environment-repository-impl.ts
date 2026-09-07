@@ -102,7 +102,7 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
                 platformNames: predicate.platformNames,
                 platformVersionAsk: predicate.platformVersionAsk,
                 deviceModel: predicate.deviceModel,
-                applicationNames: predicate.applicationNames,
+                applicationName: predicate.applicationName,
                 applicationVersionAsk: predicate.applicationVersionAsk,
             },
             allocationCandidateLimit,
@@ -131,7 +131,7 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
             platformNames: predicate.platformNames,
             platformVersionAsk: predicate.platformVersionAsk,
             deviceModel: predicate.deviceModel,
-            applicationNames: predicate.applicationNames,
+            applicationName: predicate.applicationName,
             applicationVersionAsk: predicate.applicationVersionAsk,
         });
     }
