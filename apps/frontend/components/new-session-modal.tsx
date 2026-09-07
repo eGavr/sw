@@ -47,7 +47,8 @@ export function NewSessionModal({
 
       return createSession(project, {
         environmentId: environment.uid,
-        application,
+        // Pin to this environment and ask by its word; the measured version narrows it when known.
+        application: { name: application.name, version: application.measuredVersion },
         logging,
         video,
       });
@@ -83,7 +84,8 @@ export function NewSessionModal({
       <Stack>
         {environment && application && (
           <Text size="sm">
-            {application.name} {application.version} · {environment.platform.name} ·{" "}
+            {application.name}{application.measuredVersion ? ` ${application.measuredVersion}` : ""} ·{" "}
+            {environment.platform.name} ·{" "}
             {environment.execution}
           </Text>
         )}

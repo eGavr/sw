@@ -16,12 +16,14 @@ export interface Environment {
   stateReason?: string;
   platform: { name: string; version: string; deviceModel?: string };
   execution: string;
-  // An environment's applications are concrete (canonical name, full version); `source` says where the
-  // artifact comes from (the service's catalog or the user's bucket).
+  // Two layers: the declared word it was asked by (`name` + the picked `buildAlias`) and the measured
+  // truth from the device (`measuredName` + `measuredVersion`, absent until the agent delivers).
   applications: Array<{
     name: string;
-    version: string;
-    source?: { type: string; appKey?: string; webdriverKey?: string };
+    buildAlias?: string;
+    measuredName?: string;
+    measuredVersion?: string;
+    source?: { type: string; appRef?: string; webdriverRef?: string };
   }>;
   // Orthogonal to state: FREE | RESERVED (a session create is in flight) | BUSY (a session runs).
   occupancy: "FREE" | "RESERVED" | "BUSY";
@@ -196,7 +198,9 @@ export function deleteEnvironment(project: string, environment: string): Promise
 
 export interface CreateSessionInput {
   environmentId: string;
-  application: { name: string; version: string };
+  // The word to ask the app by, and optionally a version (the measured one, or a prefix); omitted =
+  // whatever the pinned environment offers.
+  application: { name: string; version?: string };
   logging: boolean;
   video: boolean;
 }
@@ -216,7 +220,7 @@ export async function createSession(project: string, input: CreateSessionInput):
       capabilities: {
         alwaysMatch: {
           browserName: input.application.name,
-          browserVersion: input.application.version,
+          ...(input.application.version ? { browserVersion: input.application.version } : {}),
           "sw:projectId": project,
           "sw:environmentId": input.environmentId,
           "sw:logging": input.logging,

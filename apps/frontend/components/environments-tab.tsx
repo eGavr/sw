@@ -333,7 +333,11 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   <Table.Td>
                     {e.platform.name} {e.platform.version}
                   </Table.Td>
-                  <Table.Td>{e.applications.map((a) => `${a.name} ${a.version}`).join(", ")}</Table.Td>
+                  <Table.Td>
+                    {e.applications
+                      .map((a) => (a.measuredVersion ? `${a.name} ${a.measuredVersion}` : a.name))
+                      .join(", ")}
+                  </Table.Td>
                   <Table.Td>{e.execution}</Table.Td>
                   <Table.Td>
                     {/* The destructive actions gather behind one kebab, sectioned by blast radius:

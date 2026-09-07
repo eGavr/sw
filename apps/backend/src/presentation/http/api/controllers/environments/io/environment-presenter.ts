@@ -23,15 +23,16 @@ export class EnvironmentPresenter implements Presenter {
             ...(reason ? { stateReason: reason } : {}),
             platform: this.environment.platform.toObject(),
             execution: this.environment.execution,
-            // `version` is the honest one — measured on the device; absent until the agent's report
-            // (`buildAlias` says which build was picked). A custom's refs are the project's own bucket
-            // keys and are echoed; a provided build's artifact locations are the install's internals
-            // and stay private.
+            // Two symmetric layers: the DECLARED one it was asked by (`name` word + picked
+            // `buildAlias`) and the MEASURED truth from the device (`measuredName` + `measuredVersion`,
+            // absent until the agent's report). A custom's refs are the project's own bucket keys and
+            // are echoed; a provided build's artifact locations are the install's internals and stay
+            // private.
             applications: this.environment.applications.toArray().map((application) => ({
                 name: application.name,
-                ...(application.measuredVersion ? { version: application.measuredVersion } : {}),
                 ...(application.buildAlias ? { buildAlias: application.buildAlias } : {}),
                 ...(application.measuredName ? { measuredName: application.measuredName } : {}),
+                ...(application.measuredVersion ? { measuredVersion: application.measuredVersion } : {}),
                 source: application.source?.type === "custom" ? application.source : { type: "provided" },
             })),
             // Occupancy is orthogonal to lifecycle (a session never changes `state`); the liveness rules
