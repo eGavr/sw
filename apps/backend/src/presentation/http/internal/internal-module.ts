@@ -3,11 +3,15 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { raw } from "express";
 
+import { RemoteArtifactGateway } from "../../../application/interfaces/gateways/remote-artifact-gateway";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import { PoolHostRepository } from "../../../application/interfaces/repositories/pool-host-repository";
 import {
     SessionOwnershipRepository,
 } from "../../../application/interfaces/repositories/session-ownership-repository";
+import {
+    GetApplicationArtifactUseCase,
+} from "../../../application/use-cases/environments/get-application-artifact-use-case";
 import {
     RecordEnvironmentHeartbeatUseCase,
 } from "../../../application/use-cases/environments/record-environment-heartbeat-use-case";
@@ -38,6 +42,9 @@ import { PostgresModule } from "../../../infrastructure/data-sources/database/po
 import {
     ObjectStorageGatewayProvider,
 } from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
+import {
+    HttpRemoteArtifactGateway,
+} from "../../../infrastructure/gateways/remote-artifact/http-remote-artifact-gateway";
 import {
     HostTokenServiceProvider,
 } from "../../../infrastructure/host-token/host-token-service-provider";
@@ -80,6 +87,8 @@ import { InternalHostTokenGuard } from "./guards/internal-host-token-guard";
         RecordEnvironmentHeartbeatUseCase,
         UploadSessionLogsUseCase,
         UploadSessionVideoUseCase,
+        GetApplicationArtifactUseCase,
+        { provide: RemoteArtifactGateway, useClass: HttpRemoteArtifactGateway },
         RecordHostHeartbeatUseCase,
 
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },

@@ -7,6 +7,9 @@ import { v4 as uuidv4 } from "uuid";
 
 import { ObjectStorageGateway } from "../../../../../../../src/application/interfaces/gateways/object-storage-gateway";
 import {
+    RemoteArtifactGateway,
+} from "../../../../../../../src/application/interfaces/gateways/remote-artifact-gateway";
+import {
     EnvironmentRepository,
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
@@ -16,6 +19,9 @@ import {
 import {
     StorageDestinationRepository,
 } from "../../../../../../../src/application/interfaces/repositories/storage-destination-repository";
+import {
+    GetApplicationArtifactUseCase,
+} from "../../../../../../../src/application/use-cases/environments/get-application-artifact-use-case";
 import {
     RecordEnvironmentHeartbeatUseCase,
 } from "../../../../../../../src/application/use-cases/environments/record-environment-heartbeat-use-case";
@@ -97,6 +103,8 @@ describe("/internal/environments/:id:heartbeat", () => {
                 RecordEnvironmentHeartbeatUseCase,
                 UploadSessionLogsUseCase,
                 UploadSessionVideoUseCase,
+                GetApplicationArtifactUseCase,
+                { provide: RemoteArtifactGateway, useValue: { fetch: async (): Promise<null> => null } },
                 ProjectDataSource,
                 EnvironmentDataSource,
                 SessionOwnershipDataSource,
@@ -133,7 +141,7 @@ describe("/internal/environments/:id:heartbeat", () => {
         await app.close();
     });
 
-    const defaultApplications = [{ name: "chrome" }];
+    const defaultApplications = [{ nameAlias: "chrome" }];
 
     const seedEnvironment = async (applications: Array<object> = defaultApplications): Promise<string> => {
         const externalId = UserFactory.createId();
@@ -214,45 +222,45 @@ describe("/internal/environments/:id:heartbeat", () => {
         expect(environment.occupancy).toBe(EnvironmentOccupancy.Free);
     });
 
-    test("registration lands the measured identities next to the declared words", async () => {
+    test("registration lands the detected identities next to the declared words", async () => {
         const id = await seedPreparingEnvironment([{
-            name: "myapp",
-            buildAlias: "7.1-rc2",
+            nameAlias: "myapp",
+            versionAlias: "7.1-rc2",
             source: { type: "custom", appRef: "builds/app.apk" },
         }]);
 
         await heartbeat(id, {
             endpoint,
             busy: false,
-            applications: [{ name: "myapp", measuredName: "com.mycorp.app", measuredVersion: "7.1.3" }],
+            applications: [{ nameAlias: "myapp", name: "com.mycorp.app", version: "7.1.3" }],
         }).expect(200);
 
         const environment = await reload(id);
         const [application] = environment.applications.toArray();
 
         expect(environment.state).toBe(EnvironmentState.Executing);
-        expect(application.measuredName).toBe("com.mycorp.app");
-        expect(application.measuredVersion).toBe("7.1.3");
+        expect(application.name).toBe("com.mycorp.app");
+        expect(application.version).toBe("7.1.3");
     });
 
-    test("a measured identity is stored, never judged — words are addresses, not claims", async () => {
+    test("a detected identity is stored, never judged — words are addresses, not claims", async () => {
         const id = await seedPreparingEnvironment([{
-            name: "com.android.chrome",
-            buildAlias: "152",
+            nameAlias: "com.android.chrome",
+            versionAlias: "152",
             source: { type: "provided", appRef: "ref://chrome-152.apk" },
         }]);
 
         await heartbeat(id, {
             endpoint,
             busy: false,
-            applications: [{ name: "com.android.chrome", measuredName: "org.other.browser" }],
+            applications: [{ nameAlias: "com.android.chrome", name: "org.other.browser" }],
         }).expect(200);
 
         const environment = await reload(id);
         const [application] = environment.applications.toArray();
 
         expect(environment.state).toBe(EnvironmentState.Executing);
-        expect(application.measuredName).toBe("org.other.browser");
+        expect(application.name).toBe("org.other.browser");
     });
 
     test("a later heartbeat updates occupancy and refreshes liveness", async () => {

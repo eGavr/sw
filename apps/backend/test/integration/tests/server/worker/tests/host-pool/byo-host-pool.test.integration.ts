@@ -184,7 +184,7 @@ describe("host-pool placement (local byo route)", () => {
             computeKind: "baremetal",
             platform: Platform.fromObject({ name: "android", version: "14" }),
             execution: Execution.Emulator,
-            applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
+            applications: ApplicationList.fromObject([{ nameAlias: "chrome" }]),
         });
 
         return environment.id;
@@ -211,6 +211,7 @@ describe("host-pool placement (local byo route)", () => {
         expect(host?.placementFor(first)?.launch).toEqual({
             avd: "sw-android-14",
             internalUrl: expect.stringContaining("http://"),
+            apps: [],
         });
 
         // The row carries its provider route from birth — return and sweep never need the binding.

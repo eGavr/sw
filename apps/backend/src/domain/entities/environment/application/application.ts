@@ -3,29 +3,31 @@ import { ApplicationSource, ApplicationSourceData } from "./application-source";
 import { ApplicationVersion } from "./application-version";
 
 export type ApplicationData = {
-    name: string;
-    buildAlias?: string | null;
-    measuredName?: string | null;
-    measuredVersion?: string | null;
+    nameAlias: string;
+    versionAlias?: string | null;
+    name?: string | null;
+    version?: string | null;
     source?: ApplicationSourceData;
 };
 
 export type ApplicationCreateParams = {
-    name: string;
-    buildAlias?: string;
+    nameAlias: string;
+    versionAlias?: string;
     source?: ApplicationSource;
 };
 
-// An application installed on an environment, in two layers. Declared (snapshotted at creation): the
-// WORD it was asked by and the picked build's alias — nothing more, declared identity can lie.
-// Measured (reported by the agent once the build lands on the device): the honest identity from the
-// artifact itself — an APK's package id and versionName. Measurement rides the registration
-// heartbeat, so by the time the environment is allocatable the measured layer is there.
+// An application installed on an environment, in two layers. The truth is what actually landed on the
+// device — `name` and `version` are the honest identity the agent read off the artifact (an APK's
+// package id and versionName), the real thing this environment runs. The aliases are how you address
+// it: `nameAlias` is the word it was asked by (a catalog word, a canonical id, or a custom's own
+// handle), `versionAlias` is the build label — either can stand in for name/version in a session
+// request. Detection rides the registration heartbeat, so name/version are absent until then (and a
+// linux app has no package id ever) — the aliases are always present, they are the operational keys.
 export class Application {
     static create(params: ApplicationCreateParams): Application {
         return new Application(
-            new ApplicationName(params.name),
-            params.buildAlias ?? null,
+            new ApplicationName(params.nameAlias),
+            params.versionAlias ?? null,
             null,
             null,
             params.source ?? ApplicationSource.provided(),
@@ -34,74 +36,79 @@ export class Application {
 
     static fromObject(data: ApplicationData): Application {
         return new Application(
-            new ApplicationName(data.name),
-            data.buildAlias ?? null,
-            data.measuredName ?? null,
-            data.measuredVersion ?? null,
+            new ApplicationName(data.nameAlias),
+            data.versionAlias ?? null,
+            data.name ?? null,
+            data.version ?? null,
             ApplicationSource.fromObject(data.source),
         );
     }
 
     private constructor(
-        private readonly _name: ApplicationName,
-        private readonly _buildAlias: string | null,
-        private _measuredName: string | null,
-        private _measuredVersion: string | null,
+        private readonly _nameAlias: ApplicationName,
+        private readonly _versionAlias: string | null,
+        private _name: string | null,
+        private _version: string | null,
         private readonly _source: ApplicationSource,
     ) {}
 
-    get name(): string {
-        return this._name.getValue();
+    // The word it was asked by — always present, the key sessions and allocation route on.
+    get nameAlias(): string {
+        return this._nameAlias.getValue();
     }
 
-    get buildAlias(): string | null {
-        return this._buildAlias;
+    // The picked build's label — a session may name a version by it.
+    get versionAlias(): string | null {
+        return this._versionAlias;
     }
 
-    get measuredName(): string | null {
-        return this._measuredName;
+    // The detected package id — the honest identity, absent until the agent reports it (and forever
+    // for a platform with no package concept, like linux).
+    get name(): string | null {
+        return this._name;
     }
 
-    get measuredVersion(): string | null {
-        return this._measuredVersion;
+    // The detected version — the only real version there is, absent until the agent reports it.
+    get version(): string | null {
+        return this._version;
     }
 
     get source(): ApplicationSource {
         return this._source;
     }
 
+    // Answers to either address: the word it was asked by or its detected identity.
     answersToWord(word: string): boolean {
-        return this.name === word || this._measuredName === word;
+        return this.nameAlias === word || this._name === word;
     }
 
-    // A version ask matches by the picked build's alias, or exactly/segment-prefix against the
-    // measured version.
+    // A version ask matches the build label, or the detected version exactly / by segment prefix.
     matchesVersionAsk(ask: string): boolean {
-        if (this._buildAlias === ask) {
+        if (this._versionAlias === ask) {
             return true;
         }
 
-        return this._measuredVersion !== null && new ApplicationVersion(this._measuredVersion).matchesPrefix(ask);
+        return this._version !== null && new ApplicationVersion(this._version).matchesPrefix(ask);
     }
 
-    // The agent's report from the device: the honest identity lands next to the word. Nothing is
-    // verified against it — the word is an ADDRESS, not a claim (everything declared is an alias);
-    // artifact integrity is the digest check at delivery, not a name comparison.
-    applyMeasurement(measuredName: string | null, measuredVersion: string | null): void {
-        this._measuredName = measuredName;
-        this._measuredVersion = measuredVersion;
+    // The agent's report from the device: the honest identity lands beside the aliases. Nothing is
+    // verified against them — an alias is an ADDRESS, not a claim; artifact integrity is the digest
+    // check at delivery, not a name comparison.
+    applyDetection(name: string | null, version: string | null): void {
+        this._name = name;
+        this._version = version;
     }
 
-    // Identity is the word plus the picked build; the source refs are provenance.
+    // Identity is how it was addressed (word + picked build); the source refs are provenance.
     equals(other: Application): boolean {
-        return this.name === other.name && this._buildAlias === other._buildAlias;
+        return this.nameAlias === other.nameAlias && this._versionAlias === other._versionAlias;
     }
 
-    // Orders by the measured version, newest greater; an application not yet measured ranks below any
-    // measured one, ties by nothing (stable sort keeps the load spread).
+    // Orders by the detected version, newest greater; an application not yet detected ranks below any
+    // detected one, ties by nothing (stable sort keeps the load spread).
     compareVersion(other: Application): number {
-        const mine = this._measuredVersion;
-        const theirs = other._measuredVersion;
+        const mine = this._version;
+        const theirs = other._version;
 
         if (mine === null || theirs === null) {
             return mine === theirs ? 0 : (mine === null ? -1 : 1);
@@ -112,10 +119,10 @@ export class Application {
 
     toObject(): ApplicationData {
         return {
-            name: this.name,
-            buildAlias: this._buildAlias,
-            measuredName: this._measuredName,
-            measuredVersion: this._measuredVersion,
+            nameAlias: this.nameAlias,
+            versionAlias: this._versionAlias,
+            name: this._name,
+            version: this._version,
             source: this._source.toObject(),
         };
     }

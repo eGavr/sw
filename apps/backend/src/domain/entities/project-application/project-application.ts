@@ -30,9 +30,9 @@ export type ProjectApplicationCreateParams = {
 // project these are the install's provided applications — a canonical id plus wire aliases (`chrome`),
 // declared by the install, the one trusted source. In a user project the `name` is just the user's
 // ONE addressing word (the docker rule: short catalog words belong to the install): it claims no
-// identity — an APK's honest package id and version are MEASURED at delivery and land next to the
+// identity — an APK's honest package id and version are DETECTED at delivery and land next to the
 // word. Versions are its builds, each pointing at its artifacts; a build's label is the user's picking
-// handle, the measured version is the truth.
+// handle, the detected version is the truth.
 export class ProjectApplication {
     static create(params: ProjectApplicationCreateParams): ProjectApplication {
         const aliases = params.aliases ?? [];

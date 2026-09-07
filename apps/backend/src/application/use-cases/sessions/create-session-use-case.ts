@@ -293,7 +293,7 @@ export class CreateSessionUseCase {
             const webDriverSessionId = await this.webDriverSessionGateway.create(
                 environment.endpoint,
                 application,
-                catalog.wireName(application.name),
+                catalog.wireName(application.nameAlias),
                 environment.platform.name,
                 options,
             );

@@ -1,18 +1,23 @@
 import {
     BadRequestException,
     Controller,
+    Get,
     HttpCode,
     HttpStatus,
     NotFoundException,
     Param,
     Post,
     Req,
+    Res,
     UseGuards,
 } from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 
+import {
+    GetApplicationArtifactUseCase,
+} from "../../../../../application/use-cases/environments/get-application-artifact-use-case";
 import {
     RecordEnvironmentHeartbeatUseCase,
 } from "../../../../../application/use-cases/environments/record-environment-heartbeat-use-case";
@@ -33,6 +38,8 @@ import { UploadSessionVideoPresenter } from "./io/upload-session-video-presenter
 const heartbeatVerb = "heartbeat";
 const uploadSessionLogsVerb = "uploadSessionLogs";
 const uploadSessionVideoVerb = "uploadSessionVideo";
+const downloadAppVerb = "downloadApp";
+const downloadWebdriverVerb = "downloadWebdriver";
 
 @Controller("internal/environments")
 @UseGuards(InternalAgentTokenGuard)
@@ -41,6 +48,7 @@ export class InternalEnvironmentsController {
         private readonly recordEnvironmentHeartbeatUseCase: RecordEnvironmentHeartbeatUseCase,
         private readonly uploadSessionLogsUseCase: UploadSessionLogsUseCase,
         private readonly uploadSessionVideoUseCase: UploadSessionVideoUseCase,
+        private readonly getApplicationArtifactUseCase: GetApplicationArtifactUseCase,
     ) {}
 
     // Custom methods (AIP-136): POST /internal/environments/{id}:{verb}. express matches "{id}:{verb}"
@@ -89,6 +97,34 @@ export class InternalEnvironmentsController {
             default:
                 throw new NotFoundException(`unknown custom method on session: ${verb || "(none)"}`);
         }
+    }
+
+    // GET /internal/environments/{env}/applications/{name}:{downloadApp|downloadWebdriver}. The slot
+    // pulls the delivered build's artifacts through the control plane — it holds no storage
+    // credentials; the CP resolves the environment's snapshotted refs (install store URL or the
+    // project's delegated bucket) and streams the bytes.
+    @Get(":environment/applications/:resource")
+    async applicationArtifact(
+        @Param("environment") environmentId: string,
+        @Param("resource") resource: string,
+        @Res() response: Response,
+    ): Promise<void> {
+        const separatorIndex = resource.lastIndexOf(":");
+        const applicationName = resource.slice(0, separatorIndex);
+        const verb = separatorIndex === -1 ? "" : resource.slice(separatorIndex + 1);
+
+        if (verb !== downloadAppVerb && verb !== downloadWebdriverVerb) {
+            throw new NotFoundException(`unknown custom method on application: ${verb || "(none)"}`);
+        }
+
+        const artifact = await this.getApplicationArtifactUseCase.execute({
+            environmentId,
+            applicationName,
+            kind: verb === downloadAppVerb ? "app" : "webdriver",
+        });
+
+        response.setHeader("content-type", artifact.contentType ?? "application/octet-stream");
+        artifact.body.pipe(response);
     }
 
     private async heartbeat(environmentId: string, request: Request): Promise<EnvironmentHeartbeatPresenter> {

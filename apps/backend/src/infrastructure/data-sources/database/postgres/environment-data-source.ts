@@ -97,14 +97,15 @@ export class EnvironmentDataSource {
                 updatedAt: next.updatedAt,
             });
 
-            // The measured identity layer lives on the child rows and is the only part of them a
-            // transition may touch (registration applies the agent's measurements).
+            // The detected identity layer lives on the child rows and is the only part of them a
+            // transition may touch (registration applies the agent's detections). Rows are keyed by
+            // the word (persisted as application_name).
             for (const application of next.applications) {
                 await manager.getRepository(EnvironmentApplication).update(
-                    { environmentId: id, applicationName: application.name },
+                    { environmentId: id, applicationName: application.nameAlias },
                     {
-                        measuredName: application.measuredName ?? null,
-                        measuredVersion: application.measuredVersion ?? null,
+                        detectedName: application.name ?? null,
+                        detectedVersion: application.version ?? null,
                     },
                 );
             }
@@ -150,7 +151,7 @@ export class EnvironmentDataSource {
         return environments.map((environment) => environment.toObject());
     }
 
-    // Hard-delete rows matching any of the (state, cutoff) predicates, each measured by its own
+    // Hard-delete rows matching any of the (state, cutoff) predicates, each detected by its own
     // timestamp column (optionally counting a NULL timestamp as past the cutoff). The states, clocks
     // and cutoffs are decided upstream (the domain criteria); this only translates them into a delete.
     // Child applications are removed by the ON DELETE CASCADE foreign key.
@@ -361,19 +362,19 @@ type OffersApplicationPredicate = {
 };
 
 // The domain's "offers the requested application" clause in SQL: a word matches the declared name OR
-// the measured identity; a version ask matches the picked build's alias, or the measured version
-// exactly or by segment prefix ("140" → "140.…", never "1400.…") — the measured layer is the only
+// the detected identity; a version ask matches the picked build's alias, or the detected version
+// exactly or by segment prefix ("140" → "140.…", never "1400.…") — the detected layer is the only
 // version there is. A null ask is "latest": words only.
 function offersApplicationSql(predicate: OffersApplicationPredicate): string {
     const versionClause = predicate.applicationVersionAsk === null
         ? ""
         : " AND (ea.build_alias = :versionAsk"
-            + " OR ea.measured_version = :versionAsk"
-            + " OR ea.measured_version LIKE :versionAskOpen ESCAPE '\\')";
+            + " OR ea.detected_version = :versionAsk"
+            + " OR ea.detected_version LIKE :versionAskOpen ESCAPE '\\')";
 
     return "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
         + " AND (ea.application_name IN (:...applicationNames)"
-        + ` OR ea.measured_name IN (:...applicationNames))${versionClause})`;
+        + ` OR ea.detected_name IN (:...applicationNames))${versionClause})`;
 }
 
 function offersApplicationParams(predicate: OffersApplicationPredicate): Record<string, unknown> {

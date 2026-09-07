@@ -17,6 +17,12 @@ type ArtifactRefs = {
 // image); `custom` — the user's registered build, refs are object keys in the project's delegated
 // bucket, with an optional paired webdriver.
 export class ApplicationSource {
+    // Where a ref points: an absolute URL (the install's own store — e.g. Chrome for Testing) or an
+    // object key in the project's delegated bucket. Pure classification — fetching is a gateway's job.
+    static refKind(ref: string): "url" | "key" {
+        return /^https?:\/\//.test(ref) ? "url" : "key";
+    }
+
     static provided(refs: ArtifactRefs = {}): ApplicationSource {
         return new ApplicationSource("provided", refs.appRef ?? null, refs.webdriverRef ?? null);
     }

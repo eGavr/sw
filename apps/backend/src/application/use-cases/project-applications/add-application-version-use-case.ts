@@ -35,7 +35,7 @@ export type AddedApplicationVersion = {
 };
 
 // Registers one build of an application under the owner's free-form ALIAS — nobody declares a
-// version, the true one is measured on the device at delivery. A custom build always brings its
+// version, the true one is detected on the device at delivery. A custom build always brings its
 // artifact (a key in the project's delegated bucket); only the install catalog may register a build
 // with nothing to deliver — a preinstalled system app.
 @Injectable()

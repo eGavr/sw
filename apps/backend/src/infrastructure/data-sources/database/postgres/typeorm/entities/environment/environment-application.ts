@@ -15,10 +15,12 @@ export class EnvironmentApplication {
 
         environmentApplication.id = Uuid.create().getValue();
         environmentApplication.environmentId = environmentId;
-        environmentApplication.applicationName = application.name;
-        environmentApplication.buildAlias = application.buildAlias ?? null;
-        environmentApplication.measuredName = application.measuredName ?? null;
-        environmentApplication.measuredVersion = application.measuredVersion ?? null;
+        // Column names keep the persistence vocabulary: application_name stores the word it was asked
+        // by, detected_* the honest identity; the domain calls them nameAlias and name/version.
+        environmentApplication.applicationName = application.nameAlias;
+        environmentApplication.buildAlias = application.versionAlias ?? null;
+        environmentApplication.detectedName = application.name ?? null;
+        environmentApplication.detectedVersion = application.version ?? null;
         environmentApplication.sourceType = source?.type ?? "provided";
         environmentApplication.appRef = source?.appRef ?? null;
         environmentApplication.webdriverRef = source?.webdriverRef ?? null;
@@ -41,12 +43,12 @@ export class EnvironmentApplication {
     @Column({ type: "varchar", nullable: true })
     buildAlias: string | null;
 
-    // The honest identity the agent measured on the device at delivery (APK manifest).
+    // The honest identity the agent detected on the device at delivery (APK manifest).
     @Column({ type: "varchar", nullable: true })
-    measuredName: string | null;
+    detectedName: string | null;
 
     @Column({ type: "varchar", nullable: true })
-    measuredVersion: string | null;
+    detectedVersion: string | null;
 
     // Where the application comes from and the snapshotted artifact refs of the exact build installed:
     // `provided` — the install catalog's build (refs into the install's store; none = preinstalled),

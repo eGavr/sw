@@ -78,7 +78,7 @@ describe("environment garbage collection", () => {
         return environmentRepository.create({
             projectId: ProjectId.fromString(project.id),
             platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
-            applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
+            applications: ApplicationList.fromObject([{ nameAlias: "chrome" }]),
         });
     };
 

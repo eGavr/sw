@@ -20,7 +20,7 @@ function makeEnvironment(): Environment {
     return Environment.create({
         projectId: ProjectId.create(),
         platform: Platform.fromObject({ name: "ubuntu", version: "6" }),
-        applications: ApplicationList.create({ applications: [Application.create({ name: "chrome", version: "100" })] }),
+        applications: ApplicationList.create({ applications: [Application.create({ nameAlias: "chrome", versionAlias: "100" })] }),
     });
 }
 
@@ -41,7 +41,7 @@ function makeStuck(state: EnvironmentState, attempts: number): Environment {
         projectId: ProjectId.create().getValue(),
         state,
         platform: { name: "ubuntu", version: "6", deviceModel: "desktop" },
-        applications: [{ name: "chrome", version: "100" }],
+        applications: [{ nameAlias: "chrome", versionAlias: "100" }],
         occupancy: EnvironmentOccupancy.Free,
         attempts,
         createdAt: new Date(0),
@@ -73,8 +73,8 @@ describe("Environment", () => {
         test("should support an application from its set", () => {
             const environment = makeEnvironment();
 
-            expect(environment.supports(Application.create({ name: "chrome", version: "100" }))).toBe(true);
-            expect(environment.supports(Application.create({ name: "firefox", version: "120" }))).toBe(false);
+            expect(environment.supports(Application.create({ nameAlias: "chrome", versionAlias: "100" }))).toBe(true);
+            expect(environment.supports(Application.create({ nameAlias: "firefox", versionAlias: "120" }))).toBe(false);
         });
     });
 

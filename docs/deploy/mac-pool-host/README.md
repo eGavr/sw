@@ -25,6 +25,10 @@
 - `appium` + драйвер: `npm i -g appium && appium driver install uiautomator2`. **Гоча свежего appium 3.7:**
   драйвер `uiautomator2` может упасть с `Cannot find module '@appium/logger'` (пакет не хойстится) —
   лечится `cd ~/.appium/node_modules/appium-uiautomator2-driver && npm i @appium/logger`.
+- SDK **build-tools** (`sdkmanager "build-tools;34.0.0"`) — слот измеряет доставленный APK через
+  `aapt2` из build-tools (честная идентичность: package id + versionName). Без build-tools доставка
+  всё равно работает, но приложение установится «неизмеренным» (в строке окружения не будет
+  measured-полей).
 - `node` и `curl`. **python3 НЕ нужен** — агент парсит JSON и спавнит слоты через `node` (единственный
   рантайм, который и так обязателен: wd-дверь и Appium — это node).
 - Запущенный локальный стек: api :4000, wd :3001, internal :3002, worker, Postgres.
@@ -36,8 +40,22 @@
    Через UI (Settings → Cloud → Add platform) или API `POST …/cloudAccounts/{id}/computeBindings`.
 
 2. **Окружение**: `POST /v1/projects/{p}/environments` с
-   `{"platform":{"name":"android","version":"34"},"execution":"emulator","applications":[{"name":"chrome","version":"latest"}]}` —
-   окружение повиснет в `PREPARING`, а пул «закажет машину».
+   `{"platform":{"name":"android","version":"14"},"execution":"emulator","applications":[{"name":"settings"}]}` —
+   окружение повиснет в `PREPARING`, а пул «закажет машину». `settings` — предустановленное системное
+   приложение (доставлять нечего). Чтобы доставить **свой APK**: положи его в бакет проекта (в dev с
+   `LOG_STORAGE=fs` это `apps/backend/.dev-storage/<bucket>/<key>`), настрой storageDestination
+   проекта, зарегистрируй приложение и билд, затем сошлись на него в окружении:
+
+   ```bash
+   curl -X POST …/projects/{p}/platforms/android/applications -d '{"name":"myapp"}'
+   curl -X POST …/platforms/android/applications/myapp/versions -d '{"alias":"v1","appRef":"builds/app.apk"}'
+   # applications:[{"name":"myapp"}] в create-environment
+   ```
+
+   Слот скачает APK через CP-ручку `…:downloadApp`, измерит его манифест (`aapt2`) и поставит
+   `adb install`; измеренные package id + версия появятся в строке окружения (`measuredName`,
+   `version`). Браузерный билд с парным webdriver (`webdriverRef`) слот отдаст Appium как
+   `appium:chromedriverExecutable`.
 
 3. **Смотри лог воркера** — byo-провайдер напечатал креды и готовую команду:
 
