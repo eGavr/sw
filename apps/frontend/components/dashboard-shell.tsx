@@ -4,7 +4,6 @@ import {
   ActionIcon,
   AppShell,
   Avatar,
-  Badge,
   Burger,
   Divider,
   Group,
@@ -126,7 +125,6 @@ export function DashboardShell({
                   href={`/projects/${projectHandle(catalog)}`}
                   label={catalog.displayName}
                   leftSection={<IconBooks size={16} />}
-                  rightSection={<Badge size="xs" variant="light">catalog</Badge>}
                   active={projectHandle(catalog) === selectedProjectId}
                 />
               </>
