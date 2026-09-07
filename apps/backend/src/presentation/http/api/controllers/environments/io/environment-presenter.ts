@@ -23,15 +23,13 @@ export class EnvironmentPresenter implements Presenter {
             ...(reason ? { stateReason: reason } : {}),
             platform: this.environment.platform.toObject(),
             execution: this.environment.execution,
-            // `version` is the honest one: measured on the device when known, else the catalog's
-            // declared claim, absent for a custom not yet measured (`buildAlias` says which build was
-            // picked). A custom's refs are the project's own bucket keys and are echoed; a provided
-            // build's artifact locations are the install's internals and stay private.
+            // `version` is the honest one — measured on the device; absent until the agent's report
+            // (`buildAlias` says which build was picked). A custom's refs are the project's own bucket
+            // keys and are echoed; a provided build's artifact locations are the install's internals
+            // and stay private.
             applications: this.environment.applications.toArray().map((application) => ({
                 name: application.name,
-                ...(application.measuredVersion ?? application.version
-                    ? { version: application.measuredVersion ?? application.version }
-                    : {}),
+                ...(application.measuredVersion ? { version: application.measuredVersion } : {}),
                 ...(application.buildAlias ? { buildAlias: application.buildAlias } : {}),
                 ...(application.measuredName ? { measuredName: application.measuredName } : {}),
                 source: application.source?.type === "custom" ? application.source : { type: "provided" },

@@ -33,7 +33,7 @@ export function resolveDockerProvisioning(
     application: ApplicationData,
     options: { image?: string; baseImage?: string },
 ): DockerProvisioning {
-    const version = application.version ?? "latest";
+    const version = application.buildAlias ?? "latest";
 
     if (options.baseImage) {
         return {
@@ -52,14 +52,14 @@ export function resolveDockerProvisioning(
 }
 
 // Transitional until the unified delivery path (base image + catalog artifacts) replaces prebuilt
-// selenium images: installed versions are honestly full ("152.0.7977.82") while selenium publishes
-// major-versioned browser tags ("152.0"); a custom with no declared version rides the latest tag.
-function seleniumTag(version: string): string {
-    if (version === "latest") {
-        return version;
+// selenium images: the build ALIAS is the only declared word ("152"), selenium publishes
+// major-versioned browser tags ("152.0"); no alias rides the latest tag.
+function seleniumTag(alias: string): string {
+    if (alias === "latest") {
+        return alias;
     }
 
-    const [major] = version.split(".");
+    const [major] = alias.split(".");
 
     return `${major}.0`;
 }

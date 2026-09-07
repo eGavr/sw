@@ -1,10 +1,9 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
 // Identity turns measured. A registered build's id becomes a free-form ALIAS (everything a human
-// declares is an alias); only the catalog also declares the exact full version — a custom's truth is
-// measured on the device. Environment applications gain the measured layer (package id + versionName
+// declares is an alias); environment applications gain the measured layer (package id + versionName
 // from the APK manifest, reported at registration) next to the declared words, and the declared
-// version becomes nullable: a custom has none until measured.
+// version becomes nullable. The follow-up migration removes declared versions entirely.
 export class MeasuredIdentity1788600000000 implements MigrationInterface {
     name = "MeasuredIdentity1788600000000"
 

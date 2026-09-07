@@ -6,12 +6,6 @@ export class AddApplicationVersionRequestModel {
     @IsNotEmpty()
     alias: string;
 
-    // The exact full version — catalog vocabulary only (the trusted source declares, the measurement
-    // cross-checks); a custom build's true version is measured at delivery.
-    @IsOptional()
-    @IsString()
-    version?: string;
-
     // The build's artifact: for a custom build, an object key in the project's delegated bucket
     // (required — enforced by the scenario); the catalog project may omit it (preinstalled).
     @IsOptional()

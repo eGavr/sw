@@ -17,7 +17,6 @@ export class ProjectApplicationVersion {
         version.id = Uuid.create().getValue();
         version.projectApplicationId = projectApplicationId;
         version.alias = data.alias;
-        version.version = data.version ?? null;
         version.appRef = data.appRef ?? null;
         version.webdriverRef = data.webdriverRef ?? null;
         version.createdAt = data.createdAt;
@@ -34,12 +33,9 @@ export class ProjectApplicationVersion {
     @Column()
     projectApplicationId: string;
 
-    // The owner's free-form label — the build's id; only a catalog build also declares `version`.
+    // The owner's free-form label — the build's id; nobody declares a version, it is measured.
     @Column()
     alias: string;
-
-    @Column({ type: "varchar", nullable: true })
-    version: string | null;
 
     @Column({ type: "varchar", nullable: true })
     appRef: string | null;
@@ -53,7 +49,6 @@ export class ProjectApplicationVersion {
     toObject(): ProjectApplicationVersionData {
         return {
             alias: this.alias,
-            version: this.version,
             appRef: this.appRef,
             webdriverRef: this.webdriverRef,
             createdAt: this.createdAt,

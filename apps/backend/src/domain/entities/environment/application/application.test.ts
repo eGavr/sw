@@ -1,5 +1,4 @@
 import { InvalidArgumentError } from "../../error/invalid-argument-error";
-import { NonConcreteApplicationVersionError } from "../error/non-concrete-application-version-error";
 
 import { Application } from "./application";
 import { ApplicationList } from "./application-list";
@@ -9,41 +8,31 @@ import { ApplicationSource } from "./application-source";
 describe("Application", () => {
     describe(".create", () => {
         test("should throw when name contains invalid symbols", () => {
-            const create = (): Application => Application.create({ name: "Chrome!", version: "100" });
-
-            expect(create).toThrow(InvalidArgumentError);
+            expect(() => Application.create({ name: "Chrome!" })).toThrow(InvalidArgumentError);
         });
 
-        test("should reject a non-concrete version (an installed application needs an exact version)", () => {
-            const create = (): Application => Application.create({ name: "chrome", version: "latest" });
-
-            expect(create).toThrow(NonConcreteApplicationVersionError);
-        });
-
-        test("should reject the non-concrete version regardless of case", () => {
-            const create = (): Application => Application.create({ name: "chrome", version: "LATEST" });
-
-            expect(create).toThrow(NonConcreteApplicationVersionError);
-        });
-
-        test("accepts a canonical reverse-DNS name", () => {
-            expect(() => Application.create({ name: "com.android.chrome", version: "140.0.7339.80" })).not.toThrow();
+        test("accepts a canonical reverse-DNS name and a bare word alike", () => {
+            expect(() => Application.create({ name: "com.android.chrome" })).not.toThrow();
+            expect(() => Application.create({ name: "chrome", buildAlias: "152" })).not.toThrow();
         });
 
         test("rejects a malformed reverse-DNS name (empty segment)", () => {
-            expect(() => Application.create({ name: "com..chrome", version: "1" })).toThrow(InvalidArgumentError);
+            expect(() => Application.create({ name: "com..chrome" })).toThrow(InvalidArgumentError);
         });
 
-        test("defaults the source to provided", () => {
-            expect(Application.create({ name: "chrome", version: "100" }).source.isCustom()).toBe(false);
+        test("defaults the source to provided and carries no version — versions are measured", () => {
+            const application = Application.create({ name: "chrome", buildAlias: "152" });
+
+            expect(application.source.isCustom()).toBe(false);
+            expect(application.measuredVersion).toBeNull();
         });
     });
 
     describe("custom source", () => {
         test("carries the build's artifact refs and survives a roundtrip", () => {
             const application = Application.create({
-                name: "com.mycorp.app",
-                version: "7.1.0",
+                name: "myapp",
+                buildAlias: "7.1-rc2",
                 source: ApplicationSource.custom({ appRef: "builds/app.apk", webdriverRef: "builds/driver" }),
             });
 
@@ -52,6 +41,7 @@ describe("Application", () => {
             expect(restored.source.isCustom()).toBe(true);
             expect(restored.source.appRef).toBe("builds/app.apk");
             expect(restored.source.webdriverRef).toBe("builds/driver");
+            expect(restored.buildAlias).toBe("7.1-rc2");
         });
 
         test("requires a non-empty appRef", () => {
@@ -67,34 +57,26 @@ describe("Application", () => {
     });
 
     describe("measured identity", () => {
-        test("measurement lands next to the word and becomes the effective version", () => {
+        test("measurement lands next to the word and becomes the only version there is", () => {
             const application = Application.create({ name: "myapp", buildAlias: "7.1-rc2" });
 
-            expect(application.effectiveVersion()).toBeNull();
             expect(application.applyMeasurement("com.mycorp.app", "7.1.3")).toBe(true);
-            expect(application.effectiveVersion()).toBe("7.1.3");
+            expect(application.measuredVersion).toBe("7.1.3");
             expect(application.answersToWord("com.mycorp.app")).toBe(true);
             expect(application.answersToWord("myapp")).toBe(true);
             expect(application.matchesVersionAsk("7.1")).toBe(true);
             expect(application.matchesVersionAsk("7.1-rc2")).toBe(true);
         });
 
-        test("a catalog build's declared version must survive measurement", () => {
-            const application = Application.create({ name: "chrome", version: "152.0.7977.82" });
-
-            expect(application.applyMeasurement(null, "152.0.7977.82")).toBe(true);
-            expect(application.applyMeasurement(null, "153.0.1")).toBe(false);
-        });
-
         test("a dotted name is a canonical claim and must match the measured package id", () => {
-            const application = Application.create({ name: "com.android.chrome", version: "152.0.7977.80" });
+            const application = Application.create({ name: "com.android.chrome", buildAlias: "152" });
 
             expect(application.applyMeasurement("com.android.chrome", "152.0.7977.80")).toBe(true);
             expect(application.applyMeasurement("org.other.browser", "152.0.7977.80")).toBe(false);
         });
 
         test("a bare word claims nothing — any measured identity is welcome", () => {
-            const application = Application.create({ name: "settings", version: "14" });
+            const application = Application.create({ name: "settings" });
 
             expect(application.applyMeasurement("com.android.settings", "14")).toBe(true);
         });
@@ -109,67 +91,50 @@ describe("Application", () => {
         });
     });
 
-    describe(".fromObject", () => {
-        test("should tolerate the reserved version (a request/stored value may carry it)", () => {
-            const reconstitute = (): Application => Application.fromObject({ name: "chrome", version: "latest" });
-
-            expect(reconstitute).not.toThrow();
-        });
-    });
-
     describe("#equals", () => {
-        test("should treat same name and version as equal", () => {
-            const chrome = Application.create({ name: "chrome", version: "100" });
-            const sameChrome = Application.create({ name: "chrome", version: "100" });
+        test("identity is the word plus the picked build", () => {
+            const first = Application.create({ name: "chrome", buildAlias: "152" });
+            const same = Application.create({ name: "chrome", buildAlias: "152" });
+            const other = Application.create({ name: "chrome", buildAlias: "151" });
 
-            expect(chrome.equals(sameChrome)).toBe(true);
+            expect(first.equals(same)).toBe(true);
+            expect(first.equals(other)).toBe(false);
         });
     });
 });
 
 describe("ApplicationList", () => {
     describe("#bestMatch", () => {
-        const list = ApplicationList.create({
-            applications: [
-                Application.create({ name: "com.android.chrome", version: "151.0.7890.10" }),
-                Application.create({ name: "com.android.chrome", version: "152.0.7977.82" }),
-                Application.create({ name: "org.mozilla.firefox", version: "144.0.1" }),
-            ],
+        const list = ApplicationList.fromObject([
+            { name: "chrome", buildAlias: "151", measuredVersion: "151.0.7890.10" },
+            { name: "chrome", buildAlias: "152", measuredVersion: "152.0.7977.82" },
+            { name: "org.mozilla.firefox", buildAlias: "144", measuredVersion: "144.0.1" },
+        ]);
+
+        test("picks the newest measured version among the candidate words", () => {
+            const match = ApplicationMatch.create({ names: ["chrome"], versionAsk: null });
+
+            expect(list.bestMatch(match)?.measuredVersion).toBe("152.0.7977.82");
         });
 
-        test("picks the newest application among the candidate names", () => {
-            const match = ApplicationMatch.create({ names: ["chrome", "com.android.chrome"], versionAsk: null });
-
-            expect(list.bestMatch(match)?.version).toBe("152.0.7977.82");
-        });
-
-        test("narrows by the version prefix", () => {
-            const match = ApplicationMatch.create({ names: ["com.android.chrome"], versionAsk: "151" });
-
-            expect(list.bestMatch(match)?.version).toBe("151.0.7890.10");
+        test("narrows by the version ask: alias or measured prefix", () => {
+            expect(list.bestMatch(ApplicationMatch.create({ names: ["chrome"], versionAsk: "151" }))
+                ?.measuredVersion).toBe("151.0.7890.10");
+            expect(list.bestMatch(ApplicationMatch.create({ names: ["chrome"], versionAsk: "151.0.7890" }))
+                ?.measuredVersion).toBe("151.0.7890.10");
         });
 
         test("returns null when nothing qualifies", () => {
-            const match = ApplicationMatch.create({ names: ["com.android.chrome"], versionAsk: "150" });
-
-            expect(list.bestMatch(match)).toBeNull();
+            expect(list.bestMatch(ApplicationMatch.create({ names: ["chrome"], versionAsk: "150" }))).toBeNull();
         });
     });
 
     describe("#has", () => {
-        const chrome100 = Application.create({ name: "chrome", version: "100" });
-        const list = ApplicationList.create({ applications: [chrome100] });
+        const list = ApplicationList.fromObject([{ name: "chrome", buildAlias: "152" }]);
 
-        test("should find an application available in the list", () => {
-            const requested = Application.create({ name: "chrome", version: "100" });
-
-            expect(list.has(requested)).toBe(true);
-        });
-
-        test("should not find a different version", () => {
-            const requested = Application.create({ name: "chrome", version: "101" });
-
-            expect(list.has(requested)).toBe(false);
+        test("should find an application by its identity (word + build)", () => {
+            expect(list.has(Application.create({ name: "chrome", buildAlias: "152" }))).toBe(true);
+            expect(list.has(Application.create({ name: "chrome", buildAlias: "151" }))).toBe(false);
         });
     });
 });

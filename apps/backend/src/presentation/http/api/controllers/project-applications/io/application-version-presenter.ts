@@ -6,8 +6,8 @@ import {
 } from "../../../../../../domain/entities/project-application/project-application-version";
 import { Presenter } from "../../../../presenters/presenter";
 
-// One registered build, addressed by its alias (the owner's label). A catalog build also shows the
-// full version its trusted source declared. The refs are echoed for a CUSTOM build — they are the
+// One registered build, addressed by its alias (the owner's label) — nobody declares a version, the
+// honest one is measured on environments. The refs are echoed for a CUSTOM build — they are the
 // owner's own bucket keys; the catalog project's artifact locations are the install's internals and
 // are not published.
 export class ApplicationVersionPresenter implements Presenter {
@@ -23,7 +23,6 @@ export class ApplicationVersionPresenter implements Presenter {
             name: `projects/${this.projectHandle}/platforms/${this.application.platformName}`
                 + `/applications/${this.application.name}/versions/${this.version.alias}`,
             alias: this.version.alias,
-            ...(this.version.version !== null ? { version: this.version.version } : {}),
             ...(this.exposeRefs && this.version.appRef !== null ? { appRef: this.version.appRef } : {}),
             ...(this.exposeRefs && this.version.webdriverRef !== null
                 ? { webdriverRef: this.version.webdriverRef }

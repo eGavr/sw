@@ -1,6 +1,5 @@
 import { ProjectId } from "../project/project-id";
 
-import { Application } from "./application/application";
 import { ApplicationList } from "./application/application-list";
 import { ApplicationMatch } from "./application/application-match";
 import { RequestedApplication, RequestedApplicationParams } from "./application/requested-application";
@@ -21,10 +20,12 @@ import { SessionAllocationCriteria } from "./session-allocation-criteria";
 describe("SessionAllocationCriteria", () => {
     const now = new Date(10_000);
 
-    const environmentWith = (version: string): Environment => Environment.create({
+    // Allocatable environments are always measured (measurement rides registration), so the fixture
+    // carries the measured layer.
+    const environmentWith = (measuredVersion: string): Environment => Environment.create({
         projectId: ProjectId.create(),
         platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
-        applications: ApplicationList.create({ applications: [Application.create({ name: "chrome", version })] }),
+        applications: ApplicationList.fromObject([{ name: "chrome", buildAlias: "b", measuredVersion }]),
     });
 
     // The catalog's expansion, reproduced bare: the requested name itself and the version as prefix.
@@ -94,7 +95,7 @@ describe("SessionAllocationCriteria", () => {
 
         const ranked = criteriaFor(RequestedApplication.create({ name: "chrome" })).rank([older, newer]);
 
-        expect(ranked.map((environment) => environment.applicationFor("chrome")?.version)).toEqual(["141", "139"]);
+        expect(ranked.map((environment) => environment.applicationFor("chrome")?.measuredVersion)).toEqual(["141", "139"]);
     });
 
     test("a version-prefix request admits any version it opens and ranks the newest first", () => {
@@ -104,7 +105,7 @@ describe("SessionAllocationCriteria", () => {
         const criteria = criteriaFor(RequestedApplication.create({ name: "chrome", version: "141" }));
 
         expect(() => criteria.rank([older, newer])).not.toThrow();
-        expect(criteria.rank([older, newer]).map((environment) => environment.applicationFor("chrome")?.version))
+        expect(criteria.rank([older, newer]).map((environment) => environment.applicationFor("chrome")?.measuredVersion))
             .toEqual(["141.0.7401.12", "141.0.7390.54"]);
     });
 
@@ -157,9 +158,9 @@ describe("SessionAllocationCriteria", () => {
             const canonical = Environment.create({
                 projectId: ProjectId.create(),
                 platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
-                applications: ApplicationList.create({
-                    applications: [Application.create({ name: "com.android.chrome", version: "152.0.7977.82" })],
-                }),
+                applications: ApplicationList.fromObject([
+                    { name: "com.android.chrome", measuredVersion: "152.0.7977.82" },
+                ]),
             });
 
             canonical.claim();

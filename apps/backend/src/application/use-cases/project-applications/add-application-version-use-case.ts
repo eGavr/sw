@@ -24,7 +24,6 @@ type AddApplicationVersionInput = {
         platform: string;
         application: string;
         alias: string;
-        version?: string;
         appRef?: string;
         webdriverRef?: string;
     },
@@ -35,11 +34,10 @@ export type AddedApplicationVersion = {
     version: ProjectApplicationVersion;
 };
 
-// Registers one build of an application under the owner's free-form ALIAS. Only the catalog also
-// declares the exact full version (its trusted source knows it, and delivery measures it as a
-// cross-check); a custom declares nothing beyond the label — its true version is measured on the
-// device. A custom build always brings its artifact (a key in the project's delegated bucket); only
-// the install catalog may register a build with nothing to deliver — a preinstalled system app.
+// Registers one build of an application under the owner's free-form ALIAS — nobody declares a
+// version, the true one is measured on the device at delivery. A custom build always brings its
+// artifact (a key in the project's delegated bucket); only the install catalog may register a build
+// with nothing to deliver — a preinstalled system app.
 @Injectable()
 export class AddApplicationVersionUseCase {
     private readonly permissionName = UserPermissionName.Application.Create;
@@ -66,30 +64,14 @@ export class AddApplicationVersionUseCase {
             throw new NotFoundResourceError(`${params.platform}/${params.application}`);
         }
 
-        if (!isCatalogProject(project)) {
-            if (params.appRef === undefined) {
-                throw new InvalidArgumentError(
-                    "a custom build requires an appRef — the artifact's object key in the project's bucket",
-                );
-            }
-
-            if (params.version !== undefined) {
-                throw new InvalidArgumentError(
-                    "declared versions are catalog vocabulary — a custom build's true version is "
-                    + "measured at delivery, give the build an alias instead",
-                );
-            }
-        }
-
-        if (isCatalogProject(project) && params.version === undefined) {
+        if (!isCatalogProject(project) && params.appRef === undefined) {
             throw new InvalidArgumentError(
-                "a catalog build declares its exact full version — the measurement cross-checks it",
+                "a custom build requires an appRef — the artifact's object key in the project's bucket",
             );
         }
 
         const version = application.addVersion({
             alias: params.alias,
-            version: params.version,
             appRef: params.appRef,
             webdriverRef: params.webdriverRef,
         });

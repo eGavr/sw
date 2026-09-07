@@ -361,15 +361,15 @@ type OffersApplicationPredicate = {
 };
 
 // The domain's "offers the requested application" clause in SQL: a word matches the declared name OR
-// the measured identity; a version ask matches the picked build's alias, or the effective
-// (measured-first) version exactly or by segment prefix ("140" → "140.…", never "1400.…"). A null ask
-// is "latest": words only.
+// the measured identity; a version ask matches the picked build's alias, or the measured version
+// exactly or by segment prefix ("140" → "140.…", never "1400.…") — the measured layer is the only
+// version there is. A null ask is "latest": words only.
 function offersApplicationSql(predicate: OffersApplicationPredicate): string {
     const versionClause = predicate.applicationVersionAsk === null
         ? ""
         : " AND (ea.build_alias = :versionAsk"
-            + " OR COALESCE(ea.measured_version, ea.application_version) = :versionAsk"
-            + " OR COALESCE(ea.measured_version, ea.application_version) LIKE :versionAskOpen ESCAPE '\\')";
+            + " OR ea.measured_version = :versionAsk"
+            + " OR ea.measured_version LIKE :versionAskOpen ESCAPE '\\')";
 
     return "EXISTS (SELECT 1 FROM environment_application ea WHERE ea.environment_id = environment.id"
         + " AND (ea.application_name IN (:...applicationNames)"

@@ -121,7 +121,6 @@ export class ProjectApplicationsController {
                 platform,
                 application: applicationName,
                 alias: body.alias,
-                version: body.version,
                 appRef: body.appRef,
                 webdriverRef: body.webdriverRef,
             },

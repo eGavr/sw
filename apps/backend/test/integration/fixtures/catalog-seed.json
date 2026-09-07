@@ -7,26 +7,22 @@
             {
                 "appRef": "https://catalog.test/chrome-126.zip",
                 "webdriverRef": "https://catalog.test/driver-126.zip",
-                "alias": "126",
-                "version": "126.0.6478.182"
+                "alias": "126"
             },
             {
                 "appRef": "https://catalog.test/chrome-128.zip",
                 "webdriverRef": "https://catalog.test/driver-128.zip",
-                "alias": "128",
-                "version": "128.0.6613.86"
+                "alias": "128"
             },
             {
                 "appRef": "https://catalog.test/chrome-140.zip",
                 "webdriverRef": "https://catalog.test/driver-140.zip",
-                "alias": "140",
-                "version": "140.0.7339.80"
+                "alias": "140"
             },
             {
                 "appRef": "https://catalog.test/chrome-141.zip",
                 "webdriverRef": "https://catalog.test/driver-141.zip",
-                "alias": "141",
-                "version": "141.0.7390.54"
+                "alias": "141"
             }
         ]
     },
@@ -38,12 +34,10 @@
         ],
         "versions": [
             {
-                "alias": "13",
-                "version": "13"
+                "alias": "13"
             },
             {
-                "alias": "14",
-                "version": "14"
+                "alias": "14"
             }
         ]
     }

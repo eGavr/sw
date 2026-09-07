@@ -7,7 +7,7 @@ import { Uuid } from "../../../../../../../domain/types/uuid/uuid";
 import { Environment } from "./environment";
 
 @Entity()
-@Unique(["environmentId", "applicationName", "applicationVersion"])
+@Unique(["environmentId", "applicationName", "buildAlias"])
 export class EnvironmentApplication {
     static from(environmentId: string, application: ApplicationData): EnvironmentApplication {
         const environmentApplication = new EnvironmentApplication();
@@ -16,7 +16,6 @@ export class EnvironmentApplication {
         environmentApplication.id = Uuid.create().getValue();
         environmentApplication.environmentId = environmentId;
         environmentApplication.applicationName = application.name;
-        environmentApplication.applicationVersion = application.version ?? null;
         environmentApplication.buildAlias = application.buildAlias ?? null;
         environmentApplication.measuredName = application.measuredName ?? null;
         environmentApplication.measuredVersion = application.measuredVersion ?? null;
@@ -38,10 +37,6 @@ export class EnvironmentApplication {
 
     @Column()
     applicationName: string;
-
-    // The declared exact version (a catalog build's claim); null for a custom until measured.
-    @Column({ type: "varchar", nullable: true })
-    applicationVersion: string | null;
 
     @Column({ type: "varchar", nullable: true })
     buildAlias: string | null;

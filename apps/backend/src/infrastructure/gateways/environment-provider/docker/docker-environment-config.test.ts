@@ -3,7 +3,7 @@ import { ApplicationData } from "../../../../domain/entities/environment/applica
 import { resolveDockerProvisioning } from "./docker-environment-config";
 
 describe("resolveDockerProvisioning", () => {
-    const chrome: ApplicationData = { name: "chrome", version: "124" };
+    const chrome: ApplicationData = { name: "chrome", buildAlias: "124" };
 
     describe("prebuilt strategy", () => {
         test("falls back to the selenium image keyed by version", () => {

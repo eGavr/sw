@@ -71,9 +71,9 @@ describe("/projects/:project/environments", () => {
                 execution: "container",
                 // The loose ask (alias + version prefix) came back concrete: the canonical name at
                 // the catalog's full version, with its provenance.
+                // No version yet: the honest one is measured on the device at delivery.
                 applications: [{
                     name: "chrome",
-                    version: "126.0.6478.182",
                     buildAlias: "126",
                     source: { type: "provided" },
                 }],
@@ -175,7 +175,7 @@ describe("/projects/:project/environments", () => {
                 .expect(HttpStatus.NOT_FOUND);
         });
 
-        test("a catalog application accepts latest and resolves it to the newest full version", async () => {
+        test("a catalog application accepts latest and resolves it to the last registered build", async () => {
             const { owner, projectId } = await createProject();
 
             const { body } = await request(app.getHttpServer())
@@ -186,7 +186,6 @@ describe("/projects/:project/environments", () => {
 
             expect(body.applications).toEqual([{
                 name: "chrome",
-                version: "141.0.7390.54",
                 buildAlias: "141",
                 source: { type: "provided" },
             }]);

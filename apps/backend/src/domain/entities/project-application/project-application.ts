@@ -53,13 +53,17 @@ export class ProjectApplication {
     }
 
     static fromObject(data: ProjectApplicationData): ProjectApplication {
+        // Registration order is the aggregate's ordering axis; rows arrive from storage unordered.
+        const versions = data.versions.map(ProjectApplicationVersion.fromObject)
+            .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+
         return new ProjectApplication(
             data.id,
             data.projectId,
             data.platformName,
             new ApplicationName(data.name),
             data.aliases,
-            data.versions.map(ProjectApplicationVersion.fromObject),
+            versions,
             data.createdAt,
         );
     }
@@ -95,16 +99,16 @@ export class ProjectApplication {
         return this.words().includes(word);
     }
 
-    // A new build's words (its alias, and for the catalog its declared full version) must not collide
-    // with any word an existing build answers to — a version ask has to resolve to exactly one build.
+    // Registration time is the ordering axis ("newest" = last registered), so it is kept strictly
+    // monotonic within the aggregate — batch registrations land in the same millisecond otherwise.
     addVersion(params: ProjectApplicationVersionCreateParams): ProjectApplicationVersion {
-        const version = ProjectApplicationVersion.create(params);
-        const taken = new Set(this._versions.flatMap((existing) => existing.words()));
-        const clash = version.words().find((word) => taken.has(word));
-
-        if (clash !== undefined) {
-            throw new ApplicationVersionConflictError(this.name, clash);
+        if (this._versions.some((existing) => existing.alias === params.alias)) {
+            throw new ApplicationVersionConflictError(this.name, params.alias);
         }
+
+        const last = this._versions[this._versions.length - 1];
+        const createdAt = new Date(Math.max(Date.now(), last ? last.createdAt.getTime() + 1 : 0));
+        const version = ProjectApplicationVersion.create({ ...params, createdAt });
 
         this._versions.push(version);
 
@@ -115,14 +119,11 @@ export class ProjectApplication {
         return [...this._versions].sort((left, right) => (left.isNewerThan(right) ? -1 : 1));
     }
 
-    // The build a word addresses: its alias (the resource id) or, for the catalog, its declared full
-    // version.
-    versionOf(word: string): ProjectApplicationVersion | null {
-        return this._versions.find((existing) => existing.words().includes(word)) ?? null;
+    versionOf(alias: string): ProjectApplicationVersion | null {
+        return this._versions.find((existing) => existing.alias === alias) ?? null;
     }
 
-    // The newest build satisfying a loose ask: an alias, a full version, a segment prefix of one, or
-    // null meaning "the newest there is".
+    // The newest build satisfying an ask: a build alias, or null meaning "the newest there is".
     newestMatching(ask: string | null): ProjectApplicationVersion | null {
         const matching = ask === null
             ? this._versions
@@ -132,7 +133,8 @@ export class ProjectApplication {
             return null;
         }
 
-        return matching.reduce((best, candidate) => (candidate.isNewerThan(best) ? candidate : best));
+        // Ties (same-millisecond batch registrations) go to the later entry — registration order.
+        return matching.reduce((best, candidate) => (best.isNewerThan(candidate) ? best : candidate));
     }
 
     toObject(): ProjectApplicationData {

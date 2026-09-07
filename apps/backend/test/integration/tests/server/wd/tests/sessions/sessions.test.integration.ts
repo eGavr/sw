@@ -102,7 +102,8 @@ describe("/sessions", () => {
             projectId: ProjectId.fromString(projectId),
             platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
             execution,
-            applications: ApplicationList.fromObject([{ name: "chrome", version }]),
+            // Registered environments are measured by construction (measurement rides registration).
+            applications: ApplicationList.fromObject([{ name: "chrome", buildAlias: version, measuredVersion: version }]),
         });
 
         const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());
@@ -320,7 +321,9 @@ describe("/sessions", () => {
             await environmentRepository.create({
                 projectId: ProjectId.fromString(projectId),
                 platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
-                applications: ApplicationList.fromObject([{ name: "chrome", version: chromeVersion }]),
+                applications: ApplicationList.fromObject([
+                    { name: "chrome", buildAlias: chromeVersion, measuredVersion: chromeVersion },
+                ]),
             });
 
             return createSession(projectId, owner).expect(HttpStatus.CONFLICT);
@@ -537,7 +540,9 @@ describe("/sessions", () => {
             const enqueued = await environmentRepository.create({
                 projectId: ProjectId.fromString(projectId),
                 platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
-                applications: ApplicationList.fromObject([{ name: "chrome", version: chromeVersion }]),
+                applications: ApplicationList.fromObject([
+                    { name: "chrome", buildAlias: chromeVersion, measuredVersion: chromeVersion },
+                ]),
             });
 
             return createSession(projectId, owner, chrome, { environmentId: enqueued.id })

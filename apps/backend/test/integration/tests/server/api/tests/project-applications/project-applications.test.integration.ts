@@ -56,8 +56,8 @@ describe("/projects/:project/platforms/:platform/applications", () => {
                 .set(stranger)
                 .expect(HttpStatus.OK);
 
-            expect(versions.versions.map((version: { version: string }) => version.version))
-                .toEqual(["141.0.7390.54", "140.0.7339.80", "128.0.6613.86", "126.0.6478.182"]);
+            expect(versions.versions.map((version: { alias: string }) => version.alias))
+                .toEqual(["141", "140", "128", "126"]);
             expect(JSON.stringify(versions)).not.toContain("catalog.test");
         });
 
@@ -79,7 +79,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             await request(app.getHttpServer())
                 .post("/projects/catalog/platforms/ubuntu/applications/firefox/versions")
                 .set(catalogAdmin)
-                .send({ alias: "144", version: "144.0.1", appRef: "https://catalog.test/firefox-144.zip" })
+                .send({ alias: "144", appRef: "https://catalog.test/firefox-144.zip" })
                 .expect(HttpStatus.CREATED);
         });
 
@@ -165,7 +165,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
                 .expect(HttpStatus.BAD_REQUEST);
         });
 
-        test("a custom build must bring its artifact and may not declare a version", async () => {
+        test("a custom build must bring its artifact, and declared versions do not exist", async () => {
             const { owner, projectId } = await createProject();
 
             await request(app.getHttpServer())
@@ -180,6 +180,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
                 .send({ alias: "7.1" })
                 .expect(HttpStatus.BAD_REQUEST);
 
+            // Declared versions died with the measured-identity model; the field is not even accepted.
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/android/applications/com.mycorp.app/versions`)
                 .set(owner)

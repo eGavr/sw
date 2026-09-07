@@ -133,7 +133,7 @@ describe("/internal/environments/:id:heartbeat", () => {
         await app.close();
     });
 
-    const defaultApplications = [{ name: "chrome", version: "latest" }];
+    const defaultApplications = [{ name: "chrome" }];
 
     const seedEnvironment = async (applications: Array<object> = defaultApplications): Promise<string> => {
         const externalId = UserFactory.createId();
@@ -235,18 +235,17 @@ describe("/internal/environments/:id:heartbeat", () => {
         expect(application.measuredVersion).toBe("7.1.3");
     });
 
-    test("a catalog build whose measurement contradicts the declared identity fails the environment", async () => {
+    test("a catalog build whose measured package id contradicts its canonical claim fails the environment", async () => {
         const id = await seedPreparingEnvironment([{
-            name: "chrome",
-            version: "152.0.7977.82",
+            name: "com.android.chrome",
             buildAlias: "152",
-            source: { type: "provided", appRef: "ref://chrome-152" },
+            source: { type: "provided", appRef: "ref://chrome-152.apk" },
         }]);
 
         await heartbeat(id, {
             endpoint,
             busy: false,
-            applications: [{ name: "chrome", measuredVersion: "149.0.1111.1" }],
+            applications: [{ name: "com.android.chrome", measuredName: "org.other.browser" }],
         }).expect(200);
 
         const environment = await reload(id);
