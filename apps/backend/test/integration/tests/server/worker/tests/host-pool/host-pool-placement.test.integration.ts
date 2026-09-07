@@ -259,6 +259,7 @@ describe("host-pool placement (baremetal route)", () => {
             avd: "sw-android-14",
             device: "pixel-7",
             internalUrl: "http://cp:3002",
+            sessionTimeoutSeconds: 300,
             apps: [{ name: "chrome", app: false, webdriver: false }],
         });
     });

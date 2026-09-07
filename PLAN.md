@@ -1135,10 +1135,14 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 - любые in-memory кэши/état в presentation (wd severFor — заявлено per-instance by design, ок).
 - per-env VM-пути (browser-vm/redroid/emulator-vm) без полного orphan-sweep: страховка = deprovision на fail-путях + идемпотентность по имени sw-env-<id>; у пула есть sweep по label. Выровнять (label + sweep) при ревизии робастности.
 
-## [BLOCKER ПРОДА] VNC для baremetal-слотов эмуляторов — сделать ДО раскатки в прод
+## VNC для baremetal-слотов эмуляторов — СДЕЛАНО (ветка `feat.android-slot-vnc`, был BLOCKER ПРОДА)
 
-Сейчас слот поднимает только emulator+appium+wd-дверь+env-агент; VNC-конвейера в слоте НЕТ, wd-дверь не роутит se/vnc → на прод-baremetal (headless linux) Live-VNC пустой (сессии/Appium при этом работают). Флаг окна (-no-window) годится только для дев-мака с дисплеем.
-Сделать пер-слотовый VNC переиспользованием проверенного redroid/android-node конвейера: scrcpy (зеркалит adb-девайс, включая эмулятор) → Xvfb → x11vnc → websockify на своём порту (SlotPorts.vnc = 5900+i, добавить в порт-контракт); wd-дверь роутит /session/*/se/vnc → этот websockify. Golden-образ несёт scrcpy/xvfb/x11vnc/websockify. **Прод baremetal НЕ раскатывать, пока этого нет** (иначе у юзера рабочая сессия, но чёрный VNC).
+Было: слот поднимал только emulator+appium+inline-дверь+env-агент, VNC-конвейера в слоте не было, дверь не роутила se/vnc → на headless-metal Live-VNC пустой. Сделано:
+- **Порт-контракт**: `SlotPorts.vnc = 5900+i` (RFB) в домене и в ответе `:heartbeat` (`ports.vnc`); websockify слота — производный `vnc+2000` на loopback, X-дисплей `:100+i` (хост-локальные детали, как adb = console+1).
+- **Дверь слота = общая `wd-door.js`** (скачивается `wdDoor:download`) в диалекте `appium` (passthrough — Appium сам W3C-эндпоинт, caps не переписываются): роут `/session/{id}/se/vnc` → websockify слота, обрыв труб на конце сессии, one-session rule, idle-таймаут (`launch.sessionTimeoutSeconds` из инсталляционного `SESSION_IDLE_TIMEOUT` — теперь у android-слота тот же «умный» idle, что у linux-ноды). Inline-дверь из агента удалена.
+- **Конвейер пер-слот** в `pool-host-agent.sh`: `scrcpy -s <serial> --fullscreen --max-size=1280 → Xvfb → openbox|fluxbox → x11vnc :vnc → websockify 127.0.0.1:vnc+2000`; геометрия дисплея = экран девайса (`wm size`), масштаб к 1280 по длинной стороне. Нативно, если на хосте есть все четыре инструмента; на хосте без X-стека, но с docker (дев-мак) — тот же конвейер **сайдкар-контейнером** `images/android-vnc-sidecar` (scrcpy 3.3.4 из исходников с pinned prebuilt-сервером — последняя линейка на SDL2, 4.x хочет SDL3, `adb connect host.docker.internal:<console+1>` своим adb-сервером — чужой клиент другой версии убил бы хостовый adb); без того и другого — слот честно без VNC.
+- **Env-агент**: `pkill -x x11vnc` на конце сессии → адресно по `SW_VNC_RFB_PORT` (иначе на хосте с N слотами рубил бы чужие вьюеры); без переменной — прежнее поведение контейнера.
+- **Golden-образ metal**: требования (`scrcpy ≥ 2.1`, `xvfb`, `x11vnc`, `websockify`, `openbox`, `libgl1-mesa-dri`) записаны в `docs/deploy/mac-pool-host/README.md` (раздел про linux-хост); live-verify на metal — вместе с S5 (billable).
 
 ## Follow-up: поиск в селектах приложений и версий (new-environment) — НЕ начато (юзер, 2026-09-07)
 

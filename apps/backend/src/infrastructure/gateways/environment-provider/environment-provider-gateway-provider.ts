@@ -93,7 +93,7 @@ export const EnvironmentProviderGatewayProvider = {
             placeWorkload,
             releaseWorkload,
             hostProvider,
-            hostPoolConfig(configService),
+            hostPoolConfig(configService, idleTimeoutSeconds),
             quotaPolicy,
         );
 
@@ -261,7 +261,10 @@ function screenGeometry(configService: ConfigService, prefix: string): ScreenGeo
 
 // Pool policy for the baremetal routes: how a machine is sliced. The machines themselves come from
 // each cloud's host provider (leased via COMPUTE_BAREMETAL_*, or the operator's own byo machine).
-function hostPoolConfig(configService: ConfigService): ReturnType<typeof buildHostPoolEnvironmentConfig> {
+function hostPoolConfig(
+    configService: ConfigService,
+    sessionTimeoutSeconds: number,
+): ReturnType<typeof buildHostPoolEnvironmentConfig> {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
     return buildHostPoolEnvironmentConfig({
@@ -270,6 +273,7 @@ function hostPoolConfig(configService: ConfigService): ReturnType<typeof buildHo
             configService.get<string>("COMPUTE_BAREMETAL_DEFAULT_VERSION") ?? defaultPoolAndroidVersion,
         internalUrl: configService.get<string>("COMPUTE_BAREMETAL_INTERNAL_URL")
             ?? `http://127.0.0.1:${internalPort}`,
+        sessionTimeoutSeconds,
     });
 }
 

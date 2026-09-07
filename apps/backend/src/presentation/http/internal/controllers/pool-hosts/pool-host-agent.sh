@@ -3,8 +3,8 @@
 # own Mac/lab box). One file, two modes:
 #   agent (default)  — check in with the control plane every few seconds and converge the machine's
 #                      slots to the desired set the check-in answers with (kubelet-style);
-#   slot             — supervise ONE seat: an Android emulator + Appium + the Grid-status shim on the
-#                      slot's wd port + the stock environment heartbeat agent.
+#   slot             — supervise ONE seat: an Android emulator + Appium + the slot's VNC pipeline + the
+#                      wd door on the slot's wd port + the stock environment heartbeat agent.
 #
 # The check-in is POST /internal/poolHosts/{id}:heartbeat (per-host bearer token): the body reports
 # where the machine is reachable, the response lists the desired seats — launch params, explicit ports
@@ -80,12 +80,104 @@ ensure_device_avd() {
     return 1
 }
 
+# Fetches one control-plane asset with the seat's environment token; retried, false when it never came.
+fetch_internal() {
+    local resource="$1" target="$2"
+    for _ in $(seq 1 5); do
+        curl -sf -H "Authorization: Bearer ${SW_ENV_AGENT_TOKEN}" \
+            "${SW_INTERNAL_URL}/internal/${resource}" -o "${target}" && return 0
+        sleep 2
+    done
+    return 1
+}
+
+# ---------------------------------------------------------------- VNC
+# The VNC picture's size: the device's screen scaled to fit the long side scrcpy renders at, so the X
+# display and the mirror agree and nothing is letterboxed. Falls back to a phone-shaped default.
+vnc_long_side=1280
+vnc_default_geometry="720x1280"
+# websockify's loopback port for a slot, derived from its RFB port the way adb derives from the console.
+vnc_ws_offset=2000
+# The X display of a slot's pipeline, derived from its RFB port: 5900 -> :100, 5901 -> :101, ...
+vnc_display_offset=5800
+
+vnc_geometry() {
+    local size width height
+    size="$(adb -s "$1" shell wm size 2>/dev/null | tr -d '\r' | sed -n 's/^Physical size: //p' | head -1)"
+    width="${size%x*}"
+    height="${size#*x}"
+    if ! [ "${width}" -gt 0 ] 2>/dev/null || ! [ "${height}" -gt 0 ] 2>/dev/null; then
+        echo "${vnc_default_geometry}"
+    elif [ "${height}" -ge "${width}" ]; then
+        echo "$((width * vnc_long_side / height))x${vnc_long_side}"
+    else
+        echo "${vnc_long_side}x$((height * vnc_long_side / width))"
+    fi
+}
+
+has_vnc_stack() {
+    command -v Xvfb >/dev/null && command -v x11vnc >/dev/null && command -v websockify >/dev/null \
+        && command -v scrcpy >/dev/null
+}
+
+# The slot's VNC pipeline — the interactive viewer's source, per slot so seats never share a display.
+# scrcpy mirrors the device onto a headless X display and injects the viewer's input back; x11vnc
+# exports that display on the slot's RFB port; websockify bridges it to the loopback WebSocket the door
+# routes /se/vnc to (the door is the one public surface). scrcpy and x11vnc run in restart loops:
+# scrcpy exits whenever the device blinks, and the environment agent kills x11vnc on every session end
+# (a viewer must not outlive its session). A host without the X stack but with docker (a dev Mac) runs
+# the same pipeline as a sidecar container over the emulator's adb port; without either the seat
+# honestly serves no VNC (sessions work, the viewer reports the route unavailable).
+start_vnc() {
+    local serial="$1" rfb_port="$2" ws_port="$3" geometry display wm
+    geometry="$(vnc_geometry "${serial}")"
+
+    if has_vnc_stack; then
+        display=":$((rfb_port - vnc_display_offset))"
+        echo "[slot ${SW_ENVIRONMENT_ID}] vnc: display ${display}, rfb :${rfb_port}, ws :${ws_port}, ${geometry}"
+        Xvfb "${display}" -screen 0 "${geometry}x24" -nolisten tcp -ac &
+        slot_pids="${slot_pids} $!"
+        for _ in $(seq 1 50); do [ -S "/tmp/.X11-unix/X${display#:}" ] && break; sleep 0.2; done
+        # A window manager keeps scrcpy's window focused, so keyboard input reaches the device.
+        wm="$(command -v openbox || command -v fluxbox || true)"
+        if [ -n "${wm}" ]; then
+            DISPLAY="${display}" "${wm}" &
+            slot_pids="${slot_pids} $!"
+        fi
+        DISPLAY="${display}" LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEODRIVER=x11 bash -c \
+            'while true; do scrcpy -s "$1" --fullscreen --stay-awake --no-audio --max-fps=15 --max-size="$2"; sleep 2; done' \
+            scrcpy-loop "${serial}" "${vnc_long_side}" &
+        slot_pids="${slot_pids} $!"
+        bash -c 'while true; do x11vnc -display "$1" -forever -shared -nopw -rfbport "$2" -quiet; sleep 1; done' \
+            x11vnc-loop "${display}" "${rfb_port}" &
+        slot_pids="${slot_pids} $!"
+        websockify "127.0.0.1:${ws_port}" "127.0.0.1:${rfb_port}" &
+        slot_pids="${slot_pids} $!"
+    elif command -v docker >/dev/null && docker image inspect "${SW_VNC_SIDECAR_IMAGE:-sw-android-vnc-sidecar}" >/dev/null 2>&1; then
+        echo "[slot ${SW_ENVIRONMENT_ID}] vnc: sidecar container (no X stack on this host), ws :${ws_port}, ${geometry}"
+        # Looped like the native pipeline; a stale container from a previous life is removed first.
+        SW_VNC_CONTAINER="sw-vnc-${SW_ENVIRONMENT_ID}" SW_VNC_WS_PORT="${ws_port}" SW_VNC_GEOMETRY="${geometry}" \
+        SW_ADB_TARGET="host.docker.internal:$((SW_CONSOLE_PORT + 1))" \
+        SW_VNC_SIDECAR_IMAGE="${SW_VNC_SIDECAR_IMAGE:-sw-android-vnc-sidecar}" bash -c '
+while true; do
+    docker rm -f "${SW_VNC_CONTAINER}" >/dev/null 2>&1 || true
+    docker run --rm --name "${SW_VNC_CONTAINER}" -p "127.0.0.1:${SW_VNC_WS_PORT}:7900" \
+        -e SW_ADB_TARGET -e SW_VNC_GEOMETRY "${SW_VNC_SIDECAR_IMAGE}"
+    sleep 3
+done' &
+        slot_pids="${slot_pids} $!"
+    else
+        echo "[slot ${SW_ENVIRONMENT_ID}] vnc: neither the X stack (Xvfb/x11vnc/websockify/scrcpy) nor the sidecar image on this host — no VNC for this seat"
+    fi
+}
+
 # ---------------------------------------------------------------- slot mode
 # Environment (set by the agent when spawning): SW_ENVIRONMENT_ID, SW_AVD (the baked base AVD of the
 # Android version), SW_DEVICE (the device kind to dress it as), SW_WD_PORT, SW_APPIUM_PORT,
-# SW_CONSOLE_PORT, SW_ENV_AGENT_TOKEN, SW_INTERNAL_URL, SW_HOST_IP, SW_SLOT_DIR.
+# SW_CONSOLE_PORT, SW_VNC_PORT, SW_ENV_AGENT_TOKEN, SW_INTERNAL_URL, SW_HOST_IP, SW_SLOT_DIR,
+# SW_SESSION_IDLE_TIMEOUT_SECONDS, SW_APPS.
 run_slot() {
-    : "${SW_ENVIRONMENT_ID:?}" "${SW_AVD:?}" "${SW_DEVICE:?}" "${SW_WD_PORT:?}" "${SW_APPIUM_PORT:?}"
+    : "${SW_ENVIRONMENT_ID:?}" "${SW_AVD:?}" "${SW_DEVICE:?}" "${SW_WD_PORT:?}" "${SW_APPIUM_PORT:?}" "${SW_VNC_PORT:?}"
     : "${SW_CONSOLE_PORT:?}" "${SW_ENV_AGENT_TOKEN:?}" "${SW_INTERNAL_URL:?}" "${SW_HOST_IP:?}" "${SW_SLOT_DIR:?}"
 
     mkdir -p "${SW_SLOT_DIR}"
@@ -119,8 +211,8 @@ run_slot() {
 
     # Headless by default (a metal host has no display); local dev sets SW_EMULATOR_WINDOW=1 to watch
     # the emulator in a native window — which only works when the agent runs in a desktop session (your
-    # Terminal), not when the control plane auto-started it as a daemon (no WindowServer). No per-slot
-    # VNC yet.
+    # Terminal), not when the control plane auto-started it as a daemon (no WindowServer). The viewer's
+    # picture is the slot's own VNC pipeline, independent of this window.
     window_flag="-no-window"
     [ "${SW_EMULATOR_WINDOW:-}" = "1" ] && window_flag=""
 
@@ -247,68 +339,35 @@ fs.writeFileSync(file, JSON.stringify(reports));
         sleep 1
     done
 
-    # The slot's single wd door: a Selenium-Grid-shaped /status (the heartbeat agent reads it for
-    # readiness and busy), everything else proxied to Appium. Busy is tracked by WATCHING the proxied
-    # traffic — a successful POST /session opens the one slot, a DELETE /session/{id} closes it — rather
-    # than polling Appium (Appium has no session-list endpoint; the old android-node shim's GET /sessions
-    # 404s here). One session per slot is the whole model, so a single current-session flag is enough.
-    cat >"${SW_SLOT_DIR}/wd-door.js" <<'DOOR'
-const http = require("http");
-const [wdPort, appiumPort] = process.argv.slice(2).map(Number);
-let current = null; // the id of the session running on this slot, or null
+    vnc_ws_port=$((SW_VNC_PORT + vnc_ws_offset))
+    start_vnc "${serial}" "${SW_VNC_PORT}" "${vnc_ws_port}"
 
-http.createServer((req, res) => {
-    const path = req.url.split("?")[0];
-
-    if (path === "/status") {
-        const slot = current ? { session: { sessionId: current, capabilities: {} } } : { session: null };
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ value: { ready: true, message: "pool slot", nodes: [{ slots: [slot] }] } }));
-        return;
-    }
-
-    const isCreate = req.method === "POST" && path === "/session";
-    const deleted = req.method === "DELETE" && /^\/session\/[^/]+$/.test(path) ? path.split("/")[2] : null;
-
-    const upstream = http.request(
-        { host: "127.0.0.1", port: appiumPort, path: req.url, method: req.method, headers: req.headers },
-        (up) => {
-            // Learn the session id from a successful create, and forget it on a successful delete —
-            // so /status reflects busy without ever asking Appium to list sessions.
-            if (isCreate && up.statusCode === 200) {
-                let body = "";
-                up.on("data", (c) => (body += c));
-                up.on("end", () => {
-                    try { current = JSON.parse(body).value.sessionId || current; } catch { /* leave as is */ }
-                });
-            }
-            if (deleted && up.statusCode === 200 && deleted === current) {
-                current = null;
-            }
-            res.writeHead(up.statusCode || 502, up.headers);
-            up.pipe(res);
-        },
-    );
-    upstream.on("error", () => { res.writeHead(502).end(); });
-    req.pipe(upstream);
-}).listen(wdPort, "0.0.0.0");
-DOOR
-    node "${SW_SLOT_DIR}/wd-door.js" "${SW_WD_PORT}" "${SW_APPIUM_PORT}" &
+    # The slot's wd door — the same door a linux node runs, fetched from the control plane, in its
+    # Appium dialect: the Grid-shaped /status the heartbeat agent reads for readiness and busy, the
+    # one-session rule, the idle timeout, and the /se/vnc route to this slot's bridge (cut on session
+    # end). Busy is tracked by watching the proxied traffic, never by asking Appium.
+    if ! fetch_internal "wdDoor:download" "${SW_SLOT_DIR}/wd-door.js"; then
+        echo "[slot ${SW_ENVIRONMENT_ID}] wd door download failed — stopping the slot"
+        kill 0
+    fi
+    SW_DOOR_PORT="${SW_WD_PORT}" SW_DOOR_UPSTREAM_PORT="${SW_APPIUM_PORT}" SW_DOOR_DRIVER=appium \
+    SW_DOOR_VNC_WS_PORT="${vnc_ws_port}" SW_DOOR_IDLE_TIMEOUT_SECONDS="${SW_SESSION_IDLE_TIMEOUT_SECONDS:-}" \
+        node "${SW_SLOT_DIR}/wd-door.js" &
     slot_pids="${slot_pids} $!"
 
     # The stock environment heartbeat agent, fetched from the control plane (never baked anywhere):
     # registers the environment at this slot's endpoint and keeps its liveness/busy word fresh.
-    for _ in $(seq 1 5); do
-        curl -sf -H "Authorization: Bearer ${SW_ENV_AGENT_TOKEN}" \
-            "${SW_INTERNAL_URL}/internal/agentScript:download" -o "${SW_SLOT_DIR}/heartbeat-agent.sh" && break
-        sleep 2
-    done
+    if ! fetch_internal "agentScript:download" "${SW_SLOT_DIR}/heartbeat-agent.sh"; then
+        echo "[slot ${SW_ENVIRONMENT_ID}] heartbeat agent download failed — stopping the slot"
+        kill 0
+    fi
 
     SW_INTERNAL_TOKEN="${SW_ENV_AGENT_TOKEN}" \
     SW_ENDPOINT="http://${SW_HOST_IP}:${SW_WD_PORT}" \
     SW_NODE_URL="http://127.0.0.1:${SW_WD_PORT}" \
     SW_SESSION_LOG_GLOB="${SW_SLOT_DIR}/session.log" \
     SW_DETECTED_APPS_FILE="${detected_file}" \
+    SW_VNC_RFB_PORT="${SW_VNC_PORT}" \
         bash "${SW_SLOT_DIR}/heartbeat-agent.sh" &
     slot_pids="${slot_pids} $!"
 
@@ -376,10 +435,11 @@ reconcile() {
     slots_dir="${state_dir}/slots"
     mkdir -p "${slots_dir}"
 
-    # One line per desired seat: envId wd appium console avd device internalUrl token apps. Parsed with node —
-    # already a hard dependency of every slot (the wd door and Appium are node), so the agent needs no
-    # second runtime (macOS no longer ships python3). apps encodes the launch's application list as
-    # name~appFlag~webdriverFlag entries (the separators are outside the application-name alphabet).
+    # One line per desired seat: envId wd appium console vnc avd device internalUrl token idleTimeout apps.
+    # Parsed with node — already a hard dependency of every slot (the wd door and Appium are node), so
+    # the agent needs no second runtime (macOS no longer ships python3). apps encodes the launch's
+    # application list as name~appFlag~webdriverFlag entries (the separators are outside the
+    # application-name alphabet). No field but the last may be empty: `read` folds adjacent tabs.
     desired_file="${state_dir}/desired.tsv"
     node -e '
 const doc = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -387,7 +447,8 @@ for (const s of doc.slots || []) {
     const l = s.launch || {}, p = s.ports || {};
     const apps = (l.apps || []).map((a) => `${a.name}~${a.app ? 1 : 0}~${a.webdriver ? 1 : 0}`).join(",");
     process.stdout.write([
-        s.environmentId, p.wd, p.appium, p.console, l.avd || "", l.device || "", l.internalUrl || "", s.agentToken, apps,
+        s.environmentId, p.wd, p.appium, p.console, p.vnc, l.avd || "", l.device || "", l.internalUrl || "",
+        s.agentToken, l.sessionTimeoutSeconds || 0, apps,
     ].join("\t") + "\n");
 }
 ' "$response_file" >"${desired_file}"
@@ -403,7 +464,7 @@ for (const s of doc.slots || []) {
     done
 
     # Start (or restart after a crash) every desired slot that is not running.
-    while IFS=$'\t' read -r env_id wd appium console avd device internal_url token apps; do
+    while IFS=$'\t' read -r env_id wd appium console vnc avd device internal_url token idle_timeout apps; do
         [ -n "${env_id}" ] || continue
         slot_dir="${slots_dir}/${env_id}"
 
@@ -421,8 +482,8 @@ for (const s of doc.slots || []) {
         # setsid nor a reliable python3); `detached` = a fresh session, `stdio: ignore` frees the
         # agent's fds (no pipe to hang on), and the printed leader pid IS the group id.
         SW_ENVIRONMENT_ID="${env_id}" SW_AVD="${avd}" SW_DEVICE="${device}" SW_WD_PORT="${wd}" SW_APPIUM_PORT="${appium}" \
-        SW_CONSOLE_PORT="${console}" SW_ENV_AGENT_TOKEN="${token}" SW_INTERNAL_URL="${internal_url}" \
-        SW_HOST_IP="${host_ip}" SW_SLOT_DIR="${slot_dir}" SW_APPS="${apps:-}" \
+        SW_CONSOLE_PORT="${console}" SW_VNC_PORT="${vnc}" SW_ENV_AGENT_TOKEN="${token}" SW_INTERNAL_URL="${internal_url}" \
+        SW_HOST_IP="${host_ip}" SW_SLOT_DIR="${slot_dir}" SW_SESSION_IDLE_TIMEOUT_SECONDS="${idle_timeout}" SW_APPS="${apps:-}" \
             node -e 'const c=require("child_process").spawn("bash",[process.argv[1],"slot"],{detached:true,stdio:"ignore"});console.log(c.pid);c.unref();' \
             "$0" >"${slot_dir}/pgid"
     done <"${desired_file}"

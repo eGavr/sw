@@ -3,6 +3,7 @@ import { InvalidArgumentError } from "../error/invalid-argument-error";
 const wdBase = 4600;
 const appiumBase = 4700;
 const consoleBase = 5554;
+const vncBase = 5900;
 
 // The port layout of one slot — a pure function of the slot index and a CONTRACT with the host
 // image's slot launcher: both sides derive the same numbers, nothing is negotiated at runtime.
@@ -10,6 +11,9 @@ const consoleBase = 5554;
 //   appium   4700+i   the Appium server behind it
 //   console  5554+2i  the emulator console; adb discovers only even ports in 5554..5584, which caps
 //                     a host at 16 slots regardless of cores (adb = console+1, derived on the host)
+//   vnc      5900+i   the slot's VNC (RFB) server mirroring the device — the interactive viewer's
+//                     source; the door reaches it through a host-local WebSocket bridge (derived on
+//                     the host, like adb)
 export class SlotPorts {
     static readonly maxSlots = 16;
 
@@ -18,12 +22,13 @@ export class SlotPorts {
             throw new InvalidArgumentError(`slot index out of range: ${index}`);
         }
 
-        return new SlotPorts(wdBase + index, appiumBase + index, consoleBase + 2 * index);
+        return new SlotPorts(wdBase + index, appiumBase + index, consoleBase + 2 * index, vncBase + index);
     }
 
     private constructor(
         readonly wd: number,
         readonly appium: number,
         readonly console: number,
+        readonly vnc: number,
     ) {}
 }

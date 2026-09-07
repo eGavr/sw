@@ -8,11 +8,13 @@ describe("SlotPorts", () => {
         expect(first.wd).toBe(4600);
         expect(first.appium).toBe(4700);
         expect(first.console).toBe(5554);
+        expect(first.vnc).toBe(5900);
 
         const fourth = SlotPorts.forIndex(3);
         expect(fourth.wd).toBe(4603);
         expect(fourth.appium).toBe(4703);
         expect(fourth.console).toBe(5560);
+        expect(fourth.vnc).toBe(5903);
     });
 
     test("keeps every console port even, as adb discovery requires", () => {

@@ -10,12 +10,16 @@ export type HostPoolEnvironmentConfig = {
     avdName: (platformVersion: string) => string;
     // Base URL the in-slot agent calls back on (its per-env token arrives with the desired slot).
     internalUrl: string;
+    // The smart idle timeout the slot's wd door applies to a session with no commands — the install's
+    // one session idle timeout, the same every node kind enforces.
+    sessionTimeoutSeconds: number;
 };
 
 export type BuildHostPoolEnvironmentConfigOptions = {
     slotsPerHost: number;
     defaultAndroidVersion: string;
     internalUrl: string;
+    sessionTimeoutSeconds: number;
 };
 
 export const defaultSlotsPerHost = 12;
@@ -35,5 +39,6 @@ export function buildHostPoolEnvironmentConfig(
         slotsPerHost: options.slotsPerHost,
         avdName: (platformVersion: string): string => toAvdName(platformVersion, options.defaultAndroidVersion),
         internalUrl: options.internalUrl,
+        sessionTimeoutSeconds: options.sessionTimeoutSeconds,
     };
 }
