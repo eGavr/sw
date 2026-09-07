@@ -55,6 +55,7 @@ export class HostPoolEnvironmentProviderGateway extends EnvironmentProviderGatew
                 // The device kind the slot dresses the AVD as (an emulator device definition by id).
                 device: environment.platform.deviceModel,
                 internalUrl: this.config.internalUrl,
+                sessionTimeoutSeconds: this.config.sessionTimeoutSeconds,
                 // What the slot handles per application: pull and install the build's artifact, and
                 // stage its paired webdriver for Appium — either may be absent (a preinstalled app has
                 // nothing to install, a native app nothing to drive); every application is listed so

@@ -221,7 +221,7 @@ describe("/internal/poolHosts/:id:heartbeat", () => {
         const [slot] = body.slots;
         expect(slot.environmentId).toBe(environmentId);
         expect(slot.slotIndex).toBe(0);
-        expect(slot.ports).toEqual({ wd: 4600, appium: 4700, console: 5554 });
+        expect(slot.ports).toEqual({ wd: 4600, appium: 4700, console: 5554, vnc: 5900 });
         expect(slot.launch).toEqual(launch);
 
         // The minted agent token really is the seat environment's identity.

@@ -212,6 +212,7 @@ describe("host-pool placement (local byo route)", () => {
             avd: "sw-android-14",
             device: "pixel-7",
             internalUrl: expect.stringContaining("http://"),
+            sessionTimeoutSeconds: 300,
             apps: [{ name: "chrome", app: false, webdriver: false }],
         });
 

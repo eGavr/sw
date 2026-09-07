@@ -101,6 +101,18 @@ node_session_id() {
                   | select(. != null and . != "reserved")] | first // empty' 2>/dev/null
 }
 
+# Cuts every VNC pipe on the session-end edge: x11vnc serves the DISPLAY, not the session, so a viewer
+# left attached would watch the environment's next session. On a shared host every slot runs its own
+# x11vnc on its own RFB port, so the cut is by port when one is given (SW_VNC_RFB_PORT); a container
+# has exactly one. The node's restart loop brings x11vnc back. Best effort.
+cut_vnc() {
+    if [ -n "${SW_VNC_RFB_PORT:-}" ]; then
+        pkill -f "x11vnc .*-rfbport ${SW_VNC_RFB_PORT}( |$)" 2>/dev/null || true
+    else
+        pkill -x x11vnc 2>/dev/null || true
+    fi
+}
+
 # Fetch the static ffmpeg binary once from the control plane, keyed by architecture. Best effort: on any
 # failure video is simply skipped. Runs in the background at startup so it never blocks heartbeats and is
 # ready before the first session; downloads to a .part file and moves it into place so a partial download
@@ -376,10 +388,8 @@ while true; do
     else
         if [ "${prev_busy}" = "true" ]; then
             # The session-end edge stays FAST — only a synchronous log snapshot and an instant recorder
-            # signal; the slow uploads are detached. First cut every VNC pipe: x11vnc serves the DISPLAY,
-            # not the session, so a surviving viewer would watch the environment's next session.
-            # supervisord brings x11vnc back. Best effort.
-            pkill -x x11vnc 2>/dev/null || true
+            # signal; the slow uploads are detached. First cut every VNC pipe.
+            cut_vnc
             if [ "${capture}" = "true" ] && [ -n "${session_id}" ]; then
                 snapshot_and_ship_logs "${log_offset}" "${session_id}"
             elif [ "${capture}" = "true" ]; then

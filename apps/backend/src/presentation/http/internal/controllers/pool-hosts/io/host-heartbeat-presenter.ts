@@ -29,7 +29,7 @@ export class HostHeartbeatPresenter implements Presenter {
                 return {
                     environmentId: placement.environmentId,
                     slotIndex: placement.slotIndex,
-                    ports: { wd: ports.wd, appium: ports.appium, console: ports.console },
+                    ports: { wd: ports.wd, appium: ports.appium, console: ports.console, vnc: ports.vnc },
                     launch: placement.launch,
                     agentToken,
                 };

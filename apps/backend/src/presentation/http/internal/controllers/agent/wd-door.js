@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// The wd door of a linux node: the single WebDriver surface the control plane talks to, in front of a
-// bare webdriver (chromedriver or geckodriver). It supplies what the control plane's contracts expect from a node and chromedriver
-// alone does not have:
+// The wd door of a node: the single WebDriver surface the control plane talks to, in front of a bare
+// webdriver (chromedriver or geckodriver on a linux node) or Appium (an android slot). It supplies what
+// the control plane's contracts expect from a node and the driver alone does not have:
 //   - a Selenium-Grid-shaped /status the heartbeat agent reads for readiness, busy and the session's
 //     capabilities (the sw:logging / sw:video opt-ins);
 //   - the one-session rule (a second New Session is refused) and the smart idle timeout (a session
@@ -23,10 +23,17 @@ const upstreamProbeIntervalMs = 2000;
 
 // Each driver knows its browser by one word and takes its launch options under its own key. A root-run
 // chrome refuses to start without --no-sandbox (the container has no user namespace to sandbox in);
-// firefox runs as root as it is.
+// firefox runs as root as it is. Appium is a complete W3C endpoint of its own — it pins the device and
+// any delivered chromedriver through its default capabilities — so a New Session passes through as is.
 const dialects = {
-    chromedriver: { browserName: "chrome", optionsKey: "goog:chromeOptions", requiredArgs: ["--no-sandbox"] },
-    geckodriver: { browserName: "firefox", optionsKey: "moz:firefoxOptions", requiredArgs: [] },
+    chromedriver: {
+        name: "chromedriver",
+        browserName: "chrome",
+        optionsKey: "goog:chromeOptions",
+        requiredArgs: ["--no-sandbox"],
+    },
+    geckodriver: { name: "geckodriver", browserName: "firefox", optionsKey: "moz:firefoxOptions", requiredArgs: [] },
+    appium: { name: "appium", passthrough: true },
 };
 const dialect = dialects[process.env.SW_DOOR_DRIVER] || dialects.chromedriver;
 
@@ -51,7 +58,7 @@ function gridStatus() {
         ? { session: { sessionId: current.id, capabilities: current.capabilities } }
         : { session: null };
 
-    return { value: { ready: upstreamReady, message: "sw linux node", nodes: [{ slots: [slot] }] } };
+    return { value: { ready: upstreamReady, message: `sw node (${dialect.name})`, nodes: [{ slots: [slot] }] } };
 }
 
 // The effective capabilities a New Session asked for: alwaysMatch with the first firstMatch entry on top
@@ -70,6 +77,10 @@ function requestedCapabilities(payload) {
 // the driver's key — wherever the caller put them (alwaysMatch or a firstMatch entry), so no key ends
 // up defined in both.
 function adaptNewSession(payload) {
+    if (dialect.passthrough) {
+        return payload;
+    }
+
     const capabilities = payload.capabilities || (payload.capabilities = {});
     const holders = [capabilities.alwaysMatch, ...(Array.isArray(capabilities.firstMatch) ? capabilities.firstMatch : [])]
         .filter((holder) => holder && typeof holder === "object");
@@ -354,4 +365,4 @@ setInterval(() => {
     });
 }, upstreamProbeIntervalMs).unref();
 
-server.listen(port, "0.0.0.0", () => log(`listening on :${port} -> ${dialect.browserName}'s driver :${upstreamPort}`));
+server.listen(port, "0.0.0.0", () => log(`listening on :${port} -> ${dialect.name} :${upstreamPort}`));
