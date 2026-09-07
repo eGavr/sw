@@ -55,12 +55,14 @@ export class HostPoolEnvironmentProviderGateway extends EnvironmentProviderGatew
                 // The device kind the slot dresses the AVD as (an emulator device definition by id).
                 device: environment.platform.deviceModel,
                 internalUrl: this.config.internalUrl,
-                // What the slot must deliver onto the device: every application with an artifact
-                // (preinstalled ones have nothing to pull), plus whether a paired webdriver comes along.
+                // What the slot handles per application: pull and install the build's artifact, and
+                // stage its paired webdriver for Appium — either may be absent (a preinstalled app has
+                // nothing to install, a native app nothing to drive); every application is listed so
+                // the slot detects what the image ships under a preinstalled word too.
                 apps: environment.applications.toArray()
-                    .filter((application) => application.source?.appRef)
                     .map((application) => ({
                         name: application.nameAlias,
+                        app: Boolean(application.source?.appRef),
                         webdriver: Boolean(application.source?.webdriverRef),
                     })),
             },

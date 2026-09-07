@@ -255,8 +255,12 @@ describe("host-pool placement (baremetal route)", () => {
         const host = await poolHostRepository.findByEnvironment(EnvironmentId.fromString(envId));
         expect(host?.state).toBe(PoolHostState.Ordering);
         expect(host?.placementFor(envId)?.slotIndex).toBe(0);
-        expect(host?.placementFor(envId)?.launch)
-            .toEqual({ avd: "sw-android-14", device: "pixel-7", internalUrl: "http://cp:3002", apps: [] });
+        expect(host?.placementFor(envId)?.launch).toEqual({
+            avd: "sw-android-14",
+            device: "pixel-7",
+            internalUrl: "http://cp:3002",
+            apps: [{ name: "chrome", app: false, webdriver: false }],
+        });
     });
 
     // The slot pulls every delivered application through the control plane by the WORD it was asked
@@ -272,6 +276,7 @@ describe("host-pool placement (baremetal route)", () => {
             execution: Execution.Emulator,
             applications: ApplicationList.fromObject([
                 { nameAlias: "settings", versionAlias: "14", source: { type: "provided" } },
+                { nameAlias: "chrome", versionAlias: "152", source: { type: "provided", webdriverRef: "https://store/driver.zip" } },
                 {
                     nameAlias: "myapp",
                     versionAlias: "e2e-1",
@@ -283,9 +288,13 @@ describe("host-pool placement (baremetal route)", () => {
         await prepareNext();
 
         const host = await poolHostRepository.findByEnvironment(EnvironmentId.fromString(environment.id));
-        expect(host?.placementFor(environment.id)?.launch).toMatchObject({
-            apps: [{ name: "myapp", webdriver: true }],
-        });
+        const launch = host?.placementFor(environment.id)?.launch as { apps: Array<{ name: string }> };
+        // Storage returns the applications in no particular order.
+        expect([...launch.apps].sort((left, right) => left.name.localeCompare(right.name))).toEqual([
+            { name: "chrome", app: false, webdriver: true },
+            { name: "myapp", app: true, webdriver: true },
+            { name: "settings", app: false, webdriver: false },
+        ]);
     });
 
     test("the second environment packs onto the same machine — no second order", async () => {

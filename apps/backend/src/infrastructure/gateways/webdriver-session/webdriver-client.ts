@@ -13,6 +13,8 @@ type SessionTarget = {
     name: string;
     version: string | null;
     platformName: string;
+    // Whether the application came with a paired webdriver — what makes it a browser to Appium.
+    driven: boolean;
 };
 
 const androidPlatformName = "android";
@@ -115,13 +117,16 @@ export class WebDriverClient {
     }
 
     // Capability dialect by platform: an Android environment is driven by Appium (platformName +
-    // appium:*), a browser by its browserName. The vendor sw:* opt-ins are added on top for both.
+    // appium:*) — a browser build (one with a paired webdriver) as a Chrome session on the device's
+    // chromedriver, a native one as a bare device session the caller activates the app on; a linux
+    // browser by its browserName. The vendor sw:* opt-ins are added on top for both.
     private alwaysMatch(target: SessionTarget): Record<string, unknown> {
         if (target.platformName === androidPlatformName) {
             return {
                 platformName: "Android",
                 "appium:automationName": "UiAutomator2",
                 "appium:newCommandTimeout": androidNewCommandTimeoutSeconds,
+                ...(target.driven ? { browserName: "Chrome" } : {}),
             };
         }
 

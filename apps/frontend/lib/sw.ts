@@ -490,14 +490,54 @@ export function listProjectApplications(
   ).then((d) => d.applications ?? []);
 }
 
+export function listApplicationBuilds(
+  project: string,
+  platform: string,
+  application: string,
+): Promise<Array<ApplicationVersion>> {
+  return swRequest<{ versions?: Array<ApplicationVersion> }>(
+    `v1/projects/${project}/platforms/${platform}/applications/${application}/versions`,
+  ).then((d) => d.versions ?? []);
+}
+
 export function listApplicationVersions(
   project: string,
   platform: string,
   application: string,
 ): Promise<Array<string>> {
-  return swRequest<{ versions?: Array<ApplicationVersion> }>(
+  return listApplicationBuilds(project, platform, application).then((builds) => builds.map((v) => v.versionAlias));
+}
+
+// Registers an application of the project under one word (the docker rule keeps catalog words off
+// limits); builds are added underneath, each with its artifacts.
+export function createProjectApplication(
+  project: string,
+  platform: string,
+  nameAlias: string,
+): Promise<ProjectApplication> {
+  return swRequest<ProjectApplication>(`v1/projects/${project}/platforms/${platform}/applications`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ nameAlias }),
+  });
+}
+
+export function addApplicationBuild(
+  project: string,
+  platform: string,
+  application: string,
+  input: { versionAlias: string; appRef?: string; webdriverRef?: string },
+): Promise<ApplicationVersion> {
+  return swRequest<ApplicationVersion>(
     `v1/projects/${project}/platforms/${platform}/applications/${application}/versions`,
-  ).then((d) => (d.versions ?? []).map((v) => v.versionAlias));
+    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) },
+  );
+}
+
+export function deleteProjectApplication(project: string, platform: string, application: string): Promise<void> {
+  return swRequest<void>(`v1/projects/${project}/platforms/${platform}/applications/${application}`, {
+    method: "DELETE",
+  });
 }
 
 export function listCloudAccounts(project: string): Promise<Array<CloudAccount>> {

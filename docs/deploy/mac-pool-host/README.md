@@ -60,10 +60,21 @@
    # applications:[{"name":"myapp"}] в create-environment
    ```
 
-   Слот скачает APK через CP-ручку `…:downloadApp`, измерит его манифест (`aapt2`) и поставит
-   `adb install`; измеренные package id + версия появятся в строке окружения (`measuredName`,
-   `version`). Браузерный билд с парным webdriver (`webdriverRef`) слот отдаст Appium как
-   `appium:chromedriverExecutable`.
+   Слот скачает APK через CP-ручку `…:downloadApp`, прочитает его манифест (`aapt2`) и поставит
+   `adb install`; detected package id + версия появятся в строке окружения (`name`, `version` рядом с
+   `nameAlias`/`versionAlias`). Предустановленное приложение (билд без артефакта) слот находит на
+   девайсе по слову — пакет, чей последний сегмент равно слову (`chrome` → `com.android.chrome`) — и
+   репортит его версию из `dumpsys package`. Браузерный билд с парным webdriver (`webdriverRef`, zip
+   или голый бинарь) слот распакует и отдаст Appium как `appium:chromedriverExecutable`.
+
+   **Каталожный Chrome на android** — это Chrome, предустановленный в образе `google_apis` (публичного
+   Chrome-APK у Google нет): билд каталога = ярлык-мажор + chromedriver того же мажора **под хост**
+   (на маке — `chromedriver_mac_arm64`, на metal — linux64; сид per-install). Узнать мажор образа:
+   зарегистрировать билд без рефов, поднять окружение с `chrome` — слот отрапортует
+   `com.android.chrome 113.0.5672.136`; мажоры ≤114 берутся из legacy-стора
+   (`https://chromedriver.storage.googleapis.com/LATEST_RELEASE_113`), ≥115 — из Chrome for Testing.
+   Сессия: `sw:appName: chrome` (+ `sw:platformName: android`) — CP даёт Appium `browserName: Chrome`
+   для любого билда с парным webdriver.
 
 3. **Смотри лог воркера** — byo-провайдер напечатал креды и готовую команду:
 

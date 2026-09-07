@@ -57,3 +57,20 @@ curl -X POST $API/v1/projects/$PROJECT/platforms/ubuntu/applications/chromium/ve
 
 The wd door names the browser `chrome` towards chromedriver whatever word the environment used, so a
 custom Chromium works exactly like the catalog's chrome.
+
+## Firefox (and any geckodriver-driven build)
+
+A build whose webdriver is geckodriver is served in geckodriver's dialect (`browserName: firefox`,
+`moz:firefoxOptions.binary`, no sandbox flag); the image carries Firefox's runtime libraries. Verified
+end to end on the arm64 dev stand with Mozilla's `linux-aarch64` tarball and geckodriver `linux-aarch64`:
+
+```bash
+curl -X POST $API/v1/projects/$PROJECT/platforms/ubuntu/applications -H "$AUTH" \
+  -H 'content-type: application/json' -d '{"nameAlias":"firefox"}'
+curl -X POST $API/v1/projects/$PROJECT/platforms/ubuntu/applications/firefox/versions -H "$AUTH" \
+  -H 'content-type: application/json' -d '{
+    "versionAlias": "155",
+    "appRef": "https://ftp.mozilla.org/pub/firefox/releases/155.0.1/linux-aarch64/en-US/firefox-155.0.1.tar.xz",
+    "webdriverRef": "https://github.com/mozilla/geckodriver/releases/download/v0.37.1/geckodriver-v0.37.1-linux-aarch64.tar.gz"
+  }'
+```

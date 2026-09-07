@@ -4,6 +4,7 @@ import { Loader, Stack, Tabs, Title } from "@mantine/core";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+import { ApplicationsTab } from "@/components/applications-tab";
 import { EnvironmentsTab } from "@/components/environments-tab";
 import { SessionsTab } from "@/components/sessions-tab";
 import { SettingsTab } from "@/components/settings-tab";
@@ -32,6 +33,7 @@ function ProjectContent() {
         <Tabs.List>
           <Tabs.Tab value="environments">Environments</Tabs.Tab>
           <Tabs.Tab value="sessions">Sessions</Tabs.Tab>
+          <Tabs.Tab value="applications">Applications</Tabs.Tab>
           <Tabs.Tab value="settings">Settings</Tabs.Tab>
         </Tabs.List>
 
@@ -48,6 +50,10 @@ function ProjectContent() {
             initialSessionId={session}
             environmentUid={environmentUid}
           />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="applications" pt="md">
+          <ApplicationsTab project={projectId} />
         </Tabs.Panel>
 
         <Tabs.Panel value="settings" pt="md">

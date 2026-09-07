@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The wd door of a linux node: the single WebDriver surface the control plane talks to, in front of a
-// bare chromedriver. It supplies what the control plane's contracts expect from a node and chromedriver
+// bare webdriver (chromedriver or geckodriver). It supplies what the control plane's contracts expect from a node and chromedriver
 // alone does not have:
 //   - a Selenium-Grid-shaped /status the heartbeat agent reads for readiness, busy and the session's
 //     capabilities (the sw:logging / sw:video opt-ins);
@@ -8,8 +8,8 @@
 //     with no commands for the configured time is deleted);
 //   - the websocket routes the control plane proxies by session id: /se/vnc to the VNC bridge, /se/bidi
 //     to chromedriver's BiDi endpoint, /se/cdp to the browser's DevTools socket;
-//   - the container's own launch needs, injected into every New Session: the delivered browser binary
-//     and the flags a root-run chrome requires.
+//   - the container's own launch needs, injected into every New Session in the driver's own dialect:
+//     the delivered browser binary and the flags a root-run browser requires.
 // Busy is tracked by watching the proxied traffic (a successful New Session opens the slot, a DELETE or
 // the idle timer closes it), never by asking chromedriver.
 const http = require("http");
@@ -20,9 +20,15 @@ const vncWsPort = Number(process.env.SW_DOOR_VNC_WS_PORT || 7900);
 const browserBinary = process.env.SW_DOOR_BROWSER_BINARY || "";
 const idleTimeoutMs = Number(process.env.SW_DOOR_IDLE_TIMEOUT_SECONDS || 300) * 1000;
 const upstreamProbeIntervalMs = 2000;
-// A root-run chrome refuses to start without --no-sandbox; the container has no user namespace to
-// sandbox in anyway.
-const requiredChromeArgs = ["--no-sandbox"];
+
+// Each driver knows its browser by one word and takes its launch options under its own key. A root-run
+// chrome refuses to start without --no-sandbox (the container has no user namespace to sandbox in);
+// firefox runs as root as it is.
+const dialects = {
+    chromedriver: { browserName: "chrome", optionsKey: "goog:chromeOptions", requiredArgs: ["--no-sandbox"] },
+    geckodriver: { browserName: "firefox", optionsKey: "moz:firefoxOptions", requiredArgs: [] },
+};
+const dialect = dialects[process.env.SW_DOOR_DRIVER] || dialects.chromedriver;
 
 let upstreamReady = false;
 let current = null; // { id, capabilities, lastCommandAt, bidiUrl, debuggerAddress }
@@ -57,12 +63,12 @@ function requestedCapabilities(payload) {
     return { ...(capabilities.alwaysMatch || {}), ...(first || {}) };
 }
 
-// What chromedriver needs to hear, whatever the environment addresses its browser by: the control
-// plane already matched the environment to the ask, so the browser words are not re-matched here —
-// chromedriver knows every browser it drives as `chrome`, and the version it would compare is the
-// one it is about to launch. The delivered binary and the required flags go into the session's
-// chromeOptions — wherever the caller put them (alwaysMatch or a firstMatch entry), so no key ends up
-// defined in both.
+// What the driver needs to hear, whatever the environment addresses its browser by: the control plane
+// already matched the environment to the ask, so the browser words are not re-matched here — the
+// driver knows the browser it drives by its one word, and the version it would compare is the one it
+// is about to launch. The delivered binary and the required flags go into the session's options under
+// the driver's key — wherever the caller put them (alwaysMatch or a firstMatch entry), so no key ends
+// up defined in both.
 function adaptNewSession(payload) {
     const capabilities = payload.capabilities || (payload.capabilities = {});
     const holders = [capabilities.alwaysMatch, ...(Array.isArray(capabilities.firstMatch) ? capabilities.firstMatch : [])]
@@ -71,17 +77,17 @@ function adaptNewSession(payload) {
     for (const holder of holders) {
         delete holder.browserVersion;
         if (holder.browserName !== undefined) {
-            holder.browserName = "chrome";
+            holder.browserName = dialect.browserName;
         }
     }
 
-    const holder = holders.find((candidate) => candidate["goog:chromeOptions"])
+    const holder = holders.find((candidate) => candidate[dialect.optionsKey])
         || capabilities.alwaysMatch
         || (capabilities.alwaysMatch = {});
-    const options = holder["goog:chromeOptions"] || (holder["goog:chromeOptions"] = {});
+    const options = holder[dialect.optionsKey] || (holder[dialect.optionsKey] = {});
     const args = Array.isArray(options.args) ? options.args : [];
 
-    options.args = [...args, ...requiredChromeArgs.filter((flag) => !args.includes(flag))];
+    options.args = [...args, ...dialect.requiredArgs.filter((flag) => !args.includes(flag))];
 
     if (browserBinary && !options.binary) {
         options.binary = browserBinary;
@@ -204,7 +210,7 @@ async function handle(request, response) {
 
     forward(request, body, (error, upstreamResponse, upstreamBody) => {
         if (error) {
-            sendJson(response, 502, { value: { error: "unknown error", message: `chromedriver unreachable: ${error.message}` } });
+            sendJson(response, 502, { value: { error: "unknown error", message: `webdriver unreachable: ${error.message}` } });
 
             return;
         }
@@ -348,4 +354,4 @@ setInterval(() => {
     });
 }, upstreamProbeIntervalMs).unref();
 
-server.listen(port, "0.0.0.0", () => log(`listening on :${port} -> chromedriver :${upstreamPort}`));
+server.listen(port, "0.0.0.0", () => log(`listening on :${port} -> ${dialect.browserName}'s driver :${upstreamPort}`));
