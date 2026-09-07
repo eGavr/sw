@@ -33,10 +33,15 @@ export class SessionsController {
         @BearerToken() token: string,
         @Req() request: Request,
     ): Promise<SessionPresenter> {
-        const params = resolveSessionRequest(body.capabilities);
+        const { applicationCapability, ...params } = resolveSessionRequest(body.capabilities);
         const session = await this.createSessionUseCase.execute({ creds: { token }, params });
 
-        return new SessionPresenter(session, this.webSocketBaseUrl(request), this.httpBaseUrl(request));
+        return new SessionPresenter(
+            session,
+            applicationCapability,
+            this.webSocketBaseUrl(request),
+            this.httpBaseUrl(request),
+        );
     }
 
     // The wd host the client reached us on, as a ws(s) origin — the proxy the advertised URLs point at.

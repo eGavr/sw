@@ -9,13 +9,20 @@ export type CapabilitiesEnvelope = {
     firstMatch?: unknown;
 };
 
+// The two vocabularies an application is named in: the W3C browser pair for browsers, our vendor pair
+// for any application (a browser included). The reply names the application back the same way.
+export type ApplicationCapability = "browserName" | "sw:appName";
+
 export type SessionRequestParams = {
     projectId: string;
     execution: string;
+    // The W3C platform word, lower-cased; omitted means any platform.
+    platform?: string;
     application: {
         name: string;
         version?: string;
     };
+    applicationCapability: ApplicationCapability;
     // Target a specific environment instead of pool allocation (the environment's id or resource id).
     environmentId?: string;
     logging?: boolean;
@@ -23,6 +30,11 @@ export type SessionRequestParams = {
     netBridge?: boolean;
 };
 
+const browserNameCapability: ApplicationCapability = "browserName";
+const browserVersionCapability = "browserVersion";
+const appNameCapability: ApplicationCapability = "sw:appName";
+const appVersionCapability = "sw:appVersion";
+const platformNameCapability = "platformName";
 const projectIdCapability = "sw:projectId";
 const executionCapability = "sw:execution";
 const environmentIdCapability = "sw:environmentId";
@@ -32,23 +44,55 @@ const netBridgeCapability = "sw:netbridge";
 
 // Resolves a W3C "New Session" capabilities envelope into the fields our session allocation needs. This
 // is the transport→domain boundary for the wd data-plane: the standard `browserName`/`browserVersion`
-// name the requested application, and our per-session opt-ins ride as vendor-prefixed `sw:*` capabilities
-// (the way Appium uses `appium:*`). Kept pure so it can be unit-tested; a malformed envelope is a
-// transport error (invalid argument).
+// or our `sw:appName`/`sw:appVersion` name the requested application, the standard `platformName` the
+// platform, and our per-session opt-ins ride as vendor-prefixed `sw:*` capabilities (the way Appium
+// uses `appium:*`). Kept pure so it can be unit-tested; a malformed envelope is a transport error
+// (invalid argument).
 export function resolveSessionRequest(envelope: CapabilitiesEnvelope): SessionRequestParams {
     const capabilities = matchedCapabilities(envelope);
+    const { applicationCapability, ...application } = requestedApplication(capabilities);
 
     return {
         projectId: requireString(capabilities, projectIdCapability),
         execution: optionalExecution(capabilities),
-        application: {
-            name: requireString(capabilities, "browserName"),
-            version: optionalString(capabilities, "browserVersion"),
-        },
+        platform: optionalPlatform(capabilities),
+        application,
+        applicationCapability,
         environmentId: optionalString(capabilities, environmentIdCapability),
         logging: optionalBoolean(capabilities, loggingCapability),
         video: optionalBoolean(capabilities, videoCapability),
         netBridge: optionalBoolean(capabilities, netBridgeCapability),
+    };
+}
+
+// The application is named exactly once, in one vocabulary: `browserName` (+ `browserVersion`) or
+// `sw:appName` (+ `sw:appVersion`). A version only makes sense beside its own name capability.
+function requestedApplication(
+    capabilities: Capabilities,
+): { name: string; version?: string; applicationCapability: ApplicationCapability } {
+    const namedAsBrowser = capabilities[browserNameCapability] !== undefined;
+    const namedAsApp = capabilities[appNameCapability] !== undefined;
+
+    if (namedAsBrowser && namedAsApp) {
+        throw invalid(`name the application once: either "${browserNameCapability}" or "${appNameCapability}"`);
+    }
+
+    if (!namedAsBrowser && !namedAsApp) {
+        throw invalid(`capability "${browserNameCapability}" or "${appNameCapability}" is required`);
+    }
+
+    const [nameCapability, versionCapability, strayVersionCapability] = namedAsBrowser
+        ? [browserNameCapability, browserVersionCapability, appVersionCapability]
+        : [appNameCapability, appVersionCapability, browserVersionCapability];
+
+    if (capabilities[strayVersionCapability] !== undefined) {
+        throw invalid(`capability "${strayVersionCapability}" belongs with its own name capability, not "${nameCapability}"`);
+    }
+
+    return {
+        name: requireString(capabilities, nameCapability),
+        version: optionalString(capabilities, versionCapability),
+        applicationCapability: nameCapability,
     };
 }
 
@@ -66,6 +110,12 @@ function optionalExecution(capabilities: Capabilities): string {
     }
 
     return value;
+}
+
+// W3C platform names are lower-case words (`linux`, `android`); Appium clients habitually send
+// `Android`/`iOS`, so the case is normalised here. Which words are platforms is the domain's call.
+function optionalPlatform(capabilities: Capabilities): string | undefined {
+    return optionalString(capabilities, platformNameCapability)?.toLowerCase();
 }
 
 // W3C capability processing, reduced to a single effective set: `alwaysMatch` applies to every session,
@@ -112,8 +162,8 @@ function requireString(capabilities: Capabilities, name: string): string {
     return value;
 }
 
-// A browser capability that may be omitted (e.g. browserVersion, whose absence means "latest"); when
-// present it must still be a non-empty string.
+// A capability that may be omitted (e.g. browserVersion, whose absence means "latest"); when present
+// it must still be a non-empty string.
 function optionalString(capabilities: Capabilities, name: string): string | undefined {
     const value = capabilities[name];
 

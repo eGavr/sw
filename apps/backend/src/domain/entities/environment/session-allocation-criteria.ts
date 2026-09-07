@@ -17,12 +17,16 @@ import {
     TargetEnvironmentNotReadyError,
 } from "./error/target-environment-not-ready-error";
 import { Execution } from "./execution";
+import { PlatformName } from "./platform/platform-name";
+import { RequestedPlatform } from "./platform/requested-platform";
 
 export type AllocatableEnvironmentPredicate = {
     readonly state: EnvironmentState;
     readonly occupancy: EnvironmentOccupancy;
     readonly heartbeatCutoff: Date;
     readonly execution: Execution;
+    // The concrete platforms the request admits; null when the platform was not asked (any platform).
+    readonly platformNames: ReadonlyArray<PlatformName> | null;
     readonly applicationNames: ReadonlyArray<string>;
     readonly applicationVersionAsk: string | null;
 };
@@ -31,6 +35,7 @@ export type SessionAllocationParams = {
     readonly now: Date;
     readonly freshnessMs: number;
     readonly execution: Execution;
+    readonly platform: RequestedPlatform | null;
     readonly application: RequestedApplication;
     readonly match: ApplicationMatch;
 };
@@ -38,6 +43,7 @@ export type SessionAllocationParams = {
 export type OfferedApplicationPredicate = {
     readonly states: ReadonlyArray<EnvironmentState>;
     readonly execution: Execution;
+    readonly platformNames: ReadonlyArray<PlatformName> | null;
     readonly applicationNames: ReadonlyArray<string>;
     readonly applicationVersionAsk: string | null;
 };
@@ -53,17 +59,19 @@ const statesEventuallyServing: ReadonlyArray<EnvironmentState> = [
 ];
 
 // Which environments a session may be allocated onto: `executing`, free, with a fresh agent heartbeat,
-// on the requested execution substrate, and offering the requested application. What "free" and "fresh"
-// mean is a domain decision expressed here as a ready predicate; the data source only translates it into
-// a query. The request arrives expanded into an ApplicationMatch: candidate names (alias-aware) and a
+// on the requested execution substrate and platform (when one was asked — a catalog word like `chrome`
+// lives on several platforms), and offering the requested application. What "free" and "fresh" mean is
+// a domain decision expressed here as a ready predicate; the data source only translates it into a
+// query. The request arrives expanded into an ApplicationMatch: candidate names (alias-aware) and a
 // version segment prefix, null meaning "latest" — match by name and let `rank` order by newest.
 export class SessionAllocationCriteria {
     static from(params: SessionAllocationParams): SessionAllocationCriteria {
-        return new SessionAllocationCriteria(params.application, params.match, {
+        return new SessionAllocationCriteria(params.application, params.match, params.platform, {
             state: EnvironmentState.Executing,
             occupancy: EnvironmentOccupancy.Free,
             heartbeatCutoff: new Date(params.now.getTime() - params.freshnessMs),
             execution: params.execution,
+            platformNames: params.platform?.names ?? null,
             applicationNames: params.match.names,
             applicationVersionAsk: params.match.versionAsk,
         });
@@ -72,6 +80,7 @@ export class SessionAllocationCriteria {
     private constructor(
         private readonly application: RequestedApplication,
         private readonly match: ApplicationMatch,
+        private readonly platform: RequestedPlatform | null,
         private readonly predicate: AllocatableEnvironmentPredicate,
     ) {}
 
@@ -79,12 +88,13 @@ export class SessionAllocationCriteria {
         return this.predicate;
     }
 
-    // The relaxed "could this pool ever serve the request" predicate: same application and substrate,
-    // but any state that still leads to executing and no free/fresh demand.
+    // The relaxed "could this pool ever serve the request" predicate: same application, platform and
+    // substrate, but any state that still leads to executing and no free/fresh demand.
     toOfferPredicate(): OfferedApplicationPredicate {
         return {
             states: statesEventuallyServing,
             execution: this.predicate.execution,
+            platformNames: this.predicate.platformNames,
             applicationNames: this.predicate.applicationNames,
             applicationVersionAsk: this.predicate.applicationVersionAsk,
         };
@@ -101,7 +111,7 @@ export class SessionAllocationCriteria {
         throw new NoEnvironmentOffersApplicationError(
             this.application.name,
             this.requestedVersion(),
-            this.predicate.execution,
+            this.requestedStereotype(),
         );
     }
 
@@ -112,11 +122,17 @@ export class SessionAllocationCriteria {
     }
 
     // The same rule as the pool predicate, enforced against one targeted environment. Refusal splits
-    // honestly: a target that can never serve the request (wrong application/version/substrate) is an
-    // invalid request; one that merely cannot right now (provisioning/busy/stale) is a transient conflict.
+    // honestly: a target that can never serve the request (wrong application/version/platform/substrate)
+    // is an invalid request; one that merely cannot right now (provisioning/busy/stale) is a transient
+    // conflict.
     admit(environment: Environment): void {
         if (!this.offersRequested(environment)) {
-            throw new IncompatibleSessionTargetError(environment.id, this.application.name, this.requestedVersion());
+            throw new IncompatibleSessionTargetError(
+                environment.id,
+                this.application.name,
+                this.requestedVersion(),
+                this.requestedStereotype(),
+            );
         }
 
         if (!this.isReady(environment)) {
@@ -128,8 +144,17 @@ export class SessionAllocationCriteria {
         return this.application.version() ?? latestApplicationVersion;
     }
 
+    // Where the session was asked to run, as the caller phrased it: the platform word when one was
+    // asked, and the execution substrate.
+    private requestedStereotype(): string {
+        return this.platform
+            ? `${this.platform.word} ${this.predicate.execution}`
+            : this.predicate.execution;
+    }
+
     private offersRequested(environment: Environment): boolean {
         return environment.execution === this.predicate.execution
+            && (this.platform === null || this.platform.matches(environment.platform))
             && environment.applicationMatching(this.match) !== null;
     }
 

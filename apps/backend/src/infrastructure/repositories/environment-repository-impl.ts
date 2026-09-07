@@ -99,6 +99,7 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
                 occupancy: predicate.occupancy,
                 heartbeatCutoff: predicate.heartbeatCutoff,
                 execution: predicate.execution,
+                platformNames: predicate.platformNames,
                 applicationNames: predicate.applicationNames,
                 applicationVersionAsk: predicate.applicationVersionAsk,
             },
@@ -125,6 +126,7 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
         return this.environmentDataSource.existsOffering(projectId.getValue(), {
             states: [...predicate.states],
             execution: predicate.execution,
+            platformNames: predicate.platformNames,
             applicationNames: predicate.applicationNames,
             applicationVersionAsk: predicate.applicationVersionAsk,
         });

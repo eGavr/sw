@@ -1,11 +1,11 @@
 import { FailedPreconditionError } from "../../error/failed-precondition-error";
 
-// Nothing in the project offers the requested application on the requested substrate — not even a
-// provisioning environment — so a retry cannot help until one is created.
+// Nothing in the project offers the requested application where it was asked to run (platform and
+// substrate) — not even a provisioning environment — so a retry cannot help until one is created.
 export class NoEnvironmentOffersApplicationError extends FailedPreconditionError {
-    constructor(applicationName: string, applicationVersion: string, execution: string) {
+    constructor(applicationName: string, applicationVersion: string, stereotype: string) {
         super(
-            `session: no environment offers ${applicationName} ${applicationVersion} on ${execution} — create one first`,
+            `session: no environment offers ${applicationName} ${applicationVersion} on ${stereotype} — create one first`,
         );
     }
 }

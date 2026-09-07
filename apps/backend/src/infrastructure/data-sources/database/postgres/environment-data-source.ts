@@ -239,11 +239,11 @@ export class EnvironmentDataSource {
     }
 
     // Free environments an project may allocate a session onto, in random order. The state/busy rule,
-    // freshness cutoff and the requested application (expanded into candidate names and a version
-    // segment prefix) arrive ready from the domain criteria; this only translates them into SQL. A null
-    // prefix means "latest" — match by name only and skip the row limit, since the newest is chosen
-    // upstream and must not be capped away (the set is bounded by free inventory). The row limit is a
-    // query bound for prefixed requests, not a business threshold.
+    // freshness cutoff, the admitted platforms (null = any) and the requested application (expanded into
+    // candidate names and a version segment prefix) arrive ready from the domain criteria; this only
+    // translates them into SQL. A null prefix means "latest" — match by name only and skip the row limit,
+    // since the newest is chosen upstream and must not be capped away (the set is bounded by free
+    // inventory). The row limit is a query bound for prefixed requests, not a business threshold.
     async findAllocatable(
         projectId: string,
         predicate: {
@@ -251,6 +251,7 @@ export class EnvironmentDataSource {
             occupancy: string;
             heartbeatCutoff: Date;
             execution: string;
+            platformNames: ReadonlyArray<string> | null;
             applicationNames: ReadonlyArray<string>;
             applicationVersionAsk: string | null;
         },
@@ -265,6 +266,10 @@ export class EnvironmentDataSource {
             .andWhere("environment.execution = :execution", { execution: predicate.execution })
             .andWhere("environment.lastHeartbeatAt > :cutoff", { cutoff: predicate.heartbeatCutoff })
             .andWhere(offersApplicationSql(predicate), offersApplicationParams(predicate));
+
+        if (predicate.platformNames !== null) {
+            idQuery.andWhere("environment.platformName IN (:...platformNames)", { platformNames: [...predicate.platformNames] });
+        }
 
         if (predicate.applicationVersionAsk !== null) {
             idQuery.limit(limit);
@@ -301,13 +306,14 @@ export class EnvironmentDataSource {
         return environments.map((environment) => environment.toObject());
     }
 
-    // A narrow existence probe (the states/substrate/application predicate arrives ready from the
-    // domain): does anything in the project match at all, regardless of being free or fresh.
+    // A narrow existence probe (the states/platform/substrate/application predicate arrives ready from
+    // the domain): does anything in the project match at all, regardless of being free or fresh.
     async existsOffering(
         projectId: string,
         predicate: {
             states: Array<string>;
             execution: string;
+            platformNames: ReadonlyArray<string> | null;
             applicationNames: ReadonlyArray<string>;
             applicationVersionAsk: string | null;
         },
@@ -320,6 +326,10 @@ export class EnvironmentDataSource {
             .andWhere("environment.execution = :execution", { execution: predicate.execution })
             .andWhere(offersApplicationSql(predicate), offersApplicationParams(predicate))
             .limit(1);
+
+        if (predicate.platformNames !== null) {
+            query.andWhere("environment.platformName IN (:...platformNames)", { platformNames: [...predicate.platformNames] });
+        }
 
         return (await query.getRawOne()) !== undefined;
     }

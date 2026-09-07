@@ -11,11 +11,59 @@ describe("resolveSessionRequest", () => {
         expect(resolveSessionRequest({ alwaysMatch })).toEqual({
             projectId: "acc-1",
             execution: "container",
+            platform: undefined,
             application: { name: "chrome", version: "120" },
+            applicationCapability: "browserName",
             logging: undefined,
             video: undefined,
             netBridge: undefined,
         });
+    });
+
+    test("names any application through sw:appName / sw:appVersion", () => {
+        const params = resolveSessionRequest({
+            alwaysMatch: { "sw:appName": "settings", "sw:appVersion": "14", "sw:projectId": "acc-1" },
+        });
+
+        expect(params.application).toEqual({ name: "settings", version: "14" });
+        expect(params.applicationCapability).toBe("sw:appName");
+    });
+
+    test("an omitted sw:appVersion means latest", () => {
+        const params = resolveSessionRequest({ alwaysMatch: { "sw:appName": "settings", "sw:projectId": "acc-1" } });
+
+        expect(params.application).toEqual({ name: "settings", version: undefined });
+    });
+
+    test("rejects naming the application in both vocabularies", () => {
+        expect(() => resolveSessionRequest({
+            alwaysMatch: { ...alwaysMatch, "sw:appName": "chrome" },
+        })).toThrow(/name the application once/);
+    });
+
+    test("rejects a version capability that strays from its own name capability", () => {
+        expect(() => resolveSessionRequest({
+            alwaysMatch: { ...alwaysMatch, "sw:appVersion": "120" },
+        })).toThrow(/sw:appVersion/);
+        expect(() => resolveSessionRequest({
+            alwaysMatch: { "sw:appName": "settings", browserVersion: "14", "sw:projectId": "acc-1" },
+        })).toThrow(/browserVersion/);
+    });
+
+    test("reads the W3C platformName, normalising the case Appium clients send", () => {
+        expect(resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, platformName: "Android" } }).platform)
+            .toBe("android");
+        expect(resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, platformName: "linux" } }).platform)
+            .toBe("linux");
+    });
+
+    test("leaves the platform unset when platformName is omitted (any platform)", () => {
+        expect(resolveSessionRequest({ alwaysMatch }).platform).toBeUndefined();
+    });
+
+    test("rejects an empty platformName", () => {
+        expect(() => resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, platformName: "" } }))
+            .toThrow(/platformName/);
     });
 
     test("defaults the execution substrate to container when sw:execution is omitted", () => {
@@ -82,10 +130,10 @@ describe("resolveSessionRequest", () => {
         })).toThrow(/sw:projectId/);
     });
 
-    test("requires browserName", () => {
+    test("requires the application to be named (browserName or sw:appName)", () => {
         expect(() => resolveSessionRequest({
             alwaysMatch: { browserVersion: "120", "sw:projectId": "acc-1" },
-        })).toThrow(/browserName/);
+        })).toThrow(/"browserName" or "sw:appName" is required/);
     });
 
     test("resolves an omitted browserVersion to no version (meaning latest)", () => {

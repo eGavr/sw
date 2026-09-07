@@ -85,7 +85,7 @@ Use the existing one (`fd8opcrg042a3lu6u90e`) or rebake per §4.
       -d '{"platform":{"name":"android","version":"13"},"execution":"container","applications":[{"name":"settings","version":"13"}]}' | jq -r .uid)
     # poll GET .../environments/$ENV until state=ACTIVE (~3-4 min: VM boot + Android boot + Appium)
     SID=$(curl -s -X POST $WD/sessions -H "$AUTH" -H 'content-type: application/json' \
-      -d "{\"capabilities\":{\"alwaysMatch\":{\"browserName\":\"settings\",\"browserVersion\":\"13\",\"sw:projectId\":\"$PROJECT\",\"sw:execution\":\"container\"}}}" | jq -r .value.sessionId)
+      -d "{\"capabilities\":{\"alwaysMatch\":{\"sw:appName\":\"settings\",\"sw:appVersion\":\"13\",\"platformName\":\"android\",\"sw:projectId\":\"$PROJECT\",\"sw:execution\":\"container\"}}}" | jq -r .value.sessionId)
     curl -s $WD/sessions/$SID/appium/device/current_package -H "$AUTH"     # -> com.android.launcher3
 
 ---
