@@ -356,7 +356,9 @@ fs.writeFileSync(file, JSON.stringify(reports));
     slot_pids="${slot_pids} $!"
 
     # The stock environment heartbeat agent, fetched from the control plane (never baked anywhere):
-    # registers the environment at this slot's endpoint and keeps its liveness/busy word fresh.
+    # registers the environment at this slot's endpoint and keeps its liveness/busy word fresh. Session
+    # video is the device's own stream, recorded by scrcpy off this slot's adb serial — no display
+    # involved, so it works wherever scrcpy does (a linux host, a dev Mac, a real device).
     if ! fetch_internal "agentScript:download" "${SW_SLOT_DIR}/heartbeat-agent.sh"; then
         echo "[slot ${SW_ENVIRONMENT_ID}] heartbeat agent download failed — stopping the slot"
         kill 0
@@ -368,6 +370,8 @@ fs.writeFileSync(file, JSON.stringify(reports));
     SW_SESSION_LOG_GLOB="${SW_SLOT_DIR}/session.log" \
     SW_DETECTED_APPS_FILE="${detected_file}" \
     SW_VNC_RFB_PORT="${SW_VNC_PORT}" \
+    SW_VIDEO_RECORDER=scrcpy \
+    SW_ADB_SERIAL="${serial}" \
         bash "${SW_SLOT_DIR}/heartbeat-agent.sh" &
     slot_pids="${slot_pids} $!"
 
