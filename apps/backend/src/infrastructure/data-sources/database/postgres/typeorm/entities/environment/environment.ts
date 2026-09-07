@@ -24,7 +24,7 @@ export class Environment {
         environment.stateReason = data.stateReason ?? null;
         environment.platformName = data.platform.name;
         environment.platformVersion = data.platform.version;
-        environment.deviceName = data.platform.deviceModel;
+        environment.deviceModel = data.platform.deviceModel;
         environment.execution = data.execution ?? defaultExecution;
         environment.endpoint = data.endpoint ?? null;
         environment.occupancy = data.occupancy;
@@ -75,7 +75,7 @@ export class Environment {
     platformVersion: string;
 
     @Column()
-    deviceName: string;
+    deviceModel: string;
 
     @Column({ default: "container" })
     execution: string;
@@ -122,7 +122,7 @@ export class Environment {
             platform: {
                 name: this.platformName,
                 version: this.platformVersion,
-                deviceModel: this.deviceName,
+                deviceModel: this.deviceModel,
             },
             execution: this.execution,
             applications: (this.applications ?? []).map((application) => ({

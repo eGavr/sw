@@ -11,7 +11,7 @@ describe("resolveSessionRequest", () => {
         expect(resolveSessionRequest({ alwaysMatch })).toEqual({
             projectId: "acc-1",
             execution: "container",
-            platform: undefined,
+            platform: { name: undefined, version: undefined, deviceModel: undefined },
             application: { name: "chrome", version: "120" },
             applicationCapability: "browserName",
             logging: undefined,
@@ -50,20 +50,52 @@ describe("resolveSessionRequest", () => {
         })).toThrow(/browserVersion/);
     });
 
-    test("reads the W3C platformName, normalising the case Appium clients send", () => {
-        expect(resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, platformName: "Android" } }).platform)
+    test("reads the platform stereotype parts from their sw: capabilities", () => {
+        const { platform } = resolveSessionRequest({
+            alwaysMatch: {
+                ...alwaysMatch, "sw:platformName": "android", "sw:platformVersion": "14", "sw:deviceModel": "Pixel 7",
+            },
+        });
+
+        expect(platform).toEqual({ name: "android", version: "14", deviceModel: "Pixel 7" });
+    });
+
+    test("accepts the W3C and Appium spellings of the platform parts as aliases", () => {
+        const { platform } = resolveSessionRequest({
+            alwaysMatch: {
+                ...alwaysMatch, platformName: "Android", "appium:platformVersion": "14", "appium:deviceName": "Pixel 7",
+            },
+        });
+
+        expect(platform).toEqual({ name: "android", version: "14", deviceModel: "Pixel 7" });
+    });
+
+    test("normalises the platform name case Appium clients send, keeping family words", () => {
+        expect(resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, "sw:platformName": "Android" } }).platform.name)
             .toBe("android");
-        expect(resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, platformName: "linux" } }).platform)
+        expect(resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, platformName: "linux" } }).platform.name)
             .toBe("linux");
     });
 
-    test("leaves the platform unset when platformName is omitted (any platform)", () => {
-        expect(resolveSessionRequest({ alwaysMatch }).platform).toBeUndefined();
+    test("leaves every platform part unset when none is asked (any platform)", () => {
+        expect(resolveSessionRequest({ alwaysMatch }).platform)
+            .toEqual({ name: undefined, version: undefined, deviceModel: undefined });
     });
 
-    test("rejects an empty platformName", () => {
+    test("rejects a platform part spelled both ways", () => {
+        expect(() => resolveSessionRequest({
+            alwaysMatch: { ...alwaysMatch, "sw:platformName": "android", platformName: "android" },
+        })).toThrow(/"sw:platformName" is also set as "platformName"/);
+        expect(() => resolveSessionRequest({
+            alwaysMatch: { ...alwaysMatch, "sw:deviceModel": "pixel-7", "appium:deviceName": "Pixel 7" },
+        })).toThrow(/sw:deviceModel/);
+    });
+
+    test("rejects an empty platform part", () => {
         expect(() => resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, platformName: "" } }))
             .toThrow(/platformName/);
+        expect(() => resolveSessionRequest({ alwaysMatch: { ...alwaysMatch, "sw:platformVersion": "" } }))
+            .toThrow(/sw:platformVersion/);
     });
 
     test("defaults the execution substrate to container when sw:execution is omitted", () => {

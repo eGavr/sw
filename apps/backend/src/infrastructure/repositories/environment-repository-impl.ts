@@ -100,6 +100,8 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
                 heartbeatCutoff: predicate.heartbeatCutoff,
                 execution: predicate.execution,
                 platformNames: predicate.platformNames,
+                platformVersionAsk: predicate.platformVersionAsk,
+                deviceModel: predicate.deviceModel,
                 applicationNames: predicate.applicationNames,
                 applicationVersionAsk: predicate.applicationVersionAsk,
             },
@@ -127,6 +129,8 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
             states: [...predicate.states],
             execution: predicate.execution,
             platformNames: predicate.platformNames,
+            platformVersionAsk: predicate.platformVersionAsk,
+            deviceModel: predicate.deviceModel,
             applicationNames: predicate.applicationNames,
             applicationVersionAsk: predicate.applicationVersionAsk,
         });

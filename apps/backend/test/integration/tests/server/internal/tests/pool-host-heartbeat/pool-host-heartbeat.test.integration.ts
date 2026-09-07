@@ -158,7 +158,7 @@ describe("/internal/poolHosts/:id:heartbeat", () => {
     const seedEnvironmentId = async (projectId: string): Promise<string> => {
         const environment = await environmentRepository.create({
             projectId: ProjectId.fromString(projectId),
-            platform: Platform.fromObject({ name: "android", version: "14" }),
+            platform: Platform.fromObject({ name: "android", version: "14", deviceModel: "pixel-7" }),
             applications: ApplicationList.fromObject([{ nameAlias: "chrome" }]),
         });
 

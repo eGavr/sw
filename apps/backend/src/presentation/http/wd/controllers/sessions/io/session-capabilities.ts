@@ -16,8 +16,12 @@ export type ApplicationCapability = "browserName" | "sw:appName";
 export type SessionRequestParams = {
     projectId: string;
     execution: string;
-    // The W3C platform word, lower-cased; omitted means any platform.
-    platform?: string;
+    // The platform stereotype parts asked for; each omitted part means any.
+    platform: {
+        name?: string;
+        version?: string;
+        deviceModel?: string;
+    };
     application: {
         name: string;
         version?: string;
@@ -34,7 +38,16 @@ const browserNameCapability: ApplicationCapability = "browserName";
 const browserVersionCapability = "browserVersion";
 const appNameCapability: ApplicationCapability = "sw:appName";
 const appVersionCapability = "sw:appVersion";
-const platformNameCapability = "platformName";
+const platformNameCapability = "sw:platformName";
+const platformVersionCapability = "sw:platformVersion";
+const deviceModelCapability = "sw:deviceModel";
+// The standard words for the same asks: W3C `platformName`, Appium's version and device caps (which
+// device clouds read as the device KIND — so do we). Accepted as aliases, never beside their sw: twin.
+const platformCapabilityAliases: Record<string, string> = {
+    platformName: platformNameCapability,
+    "appium:platformVersion": platformVersionCapability,
+    "appium:deviceName": deviceModelCapability,
+};
 const projectIdCapability = "sw:projectId";
 const executionCapability = "sw:execution";
 const environmentIdCapability = "sw:environmentId";
@@ -44,10 +57,11 @@ const netBridgeCapability = "sw:netbridge";
 
 // Resolves a W3C "New Session" capabilities envelope into the fields our session allocation needs. This
 // is the transport→domain boundary for the wd data-plane: the standard `browserName`/`browserVersion`
-// or our `sw:appName`/`sw:appVersion` name the requested application, the standard `platformName` the
-// platform, and our per-session opt-ins ride as vendor-prefixed `sw:*` capabilities (the way Appium
-// uses `appium:*`). Kept pure so it can be unit-tested; a malformed envelope is a transport error
-// (invalid argument).
+// or our `sw:appName`/`sw:appVersion` name the requested application, `sw:platformName` /
+// `sw:platformVersion` / `sw:deviceModel` (or their W3C/Appium spellings) the platform stereotype,
+// and our per-session opt-ins ride as vendor-prefixed `sw:*` capabilities (the way Appium uses
+// `appium:*`). Kept pure so it can be unit-tested; a malformed envelope is a transport error (invalid
+// argument).
 export function resolveSessionRequest(envelope: CapabilitiesEnvelope): SessionRequestParams {
     const capabilities = matchedCapabilities(envelope);
     const { applicationCapability, ...application } = requestedApplication(capabilities);
@@ -55,7 +69,7 @@ export function resolveSessionRequest(envelope: CapabilitiesEnvelope): SessionRe
     return {
         projectId: requireString(capabilities, projectIdCapability),
         execution: optionalExecution(capabilities),
-        platform: optionalPlatform(capabilities),
+        platform: requestedPlatform(capabilities),
         application,
         applicationCapability,
         environmentId: optionalString(capabilities, environmentIdCapability),
@@ -112,10 +126,25 @@ function optionalExecution(capabilities: Capabilities): string {
     return value;
 }
 
+// Each platform part is read from its sw: capability or its standard alias — one spelling per part.
 // W3C platform names are lower-case words (`linux`, `android`); Appium clients habitually send
 // `Android`/`iOS`, so the case is normalised here. Which words are platforms is the domain's call.
-function optionalPlatform(capabilities: Capabilities): string | undefined {
-    return optionalString(capabilities, platformNameCapability)?.toLowerCase();
+function requestedPlatform(capabilities: Capabilities): SessionRequestParams["platform"] {
+    return {
+        name: aliasedString(capabilities, platformNameCapability)?.toLowerCase(),
+        version: aliasedString(capabilities, platformVersionCapability),
+        deviceModel: aliasedString(capabilities, deviceModelCapability),
+    };
+}
+
+function aliasedString(capabilities: Capabilities, name: string): string | undefined {
+    const alias = Object.keys(platformCapabilityAliases).find((candidate) => platformCapabilityAliases[candidate] === name);
+
+    if (alias !== undefined && capabilities[name] !== undefined && capabilities[alias] !== undefined) {
+        throw invalid(`capability "${name}" is also set as "${alias}": set one`);
+    }
+
+    return optionalString(capabilities, name) ?? (alias === undefined ? undefined : optionalString(capabilities, alias));
 }
 
 // W3C capability processing, reduced to a single effective set: `alwaysMatch` applies to every session,

@@ -80,7 +80,13 @@ export class CreateEnvironmentUseCase {
 
         const { cloudAccount, binding } = resolved;
 
-        const platform = Platform.fromObject(params.platform);
+        // The device kind is the line's business: the word typed folds to a catalog id, an untyped one
+        // is implied when the line offers a single kind.
+        const platform = Platform.fromObject({
+            name: params.platform.name,
+            version: params.platform.version,
+            deviceModel: this.platformCatalog.resolveDeviceModel(params.platform.name, params.platform.deviceModel).getValue(),
+        });
 
         this.platformCatalog.ensurePlatformSupported(platform);
 

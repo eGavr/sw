@@ -58,6 +58,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
 
   const [platformName, setPlatformName] = useState("ubuntu");
   const [platformVersion, setPlatformVersion] = useState("24.04");
+  const [deviceModel, setDeviceModel] = useState("desktop");
   const [appName, setAppName] = useState("chrome");
   const [appVersion, setAppVersion] = useState("latest");
   const [execution, setExecution] = useState("container");
@@ -112,7 +113,9 @@ export function EnvironmentsTab({ project }: { project: string }) {
   );
   const platformLines = (platformsQuery.data ?? [])
     .filter((line) => boundPlatforms.size === 0 || boundPlatforms.has(line.platform));
-  const platformVersions = platformLines.find((line) => line.platform === platformName)?.versions ?? [];
+  const platformLine = platformLines.find((line) => line.platform === platformName);
+  const platformVersions = platformLine?.versions ?? [];
+  const platformDevices = platformLine?.devices ?? [];
   const offerings = applicationsQuery.data ?? [];
   const applicationOptions = offerings.map((offering) => ({
     value: offering.application,
@@ -140,6 +143,12 @@ export function EnvironmentsTab({ project }: { project: string }) {
       setPlatformVersion(platformVersions[0]);
     }
   }, [platformVersions, platformVersion]);
+
+  useEffect(() => {
+    if (platformDevices.length > 0 && !platformDevices.some((device) => device.id === deviceModel)) {
+      setDeviceModel(platformDevices[0].id);
+    }
+  }, [platformDevices, deviceModel]);
 
   useEffect(() => {
     if (!applicationsQuery.data || offerings.length === 0) {
@@ -186,7 +195,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const create = useMutation({
     mutationFn: () =>
       createEnvironment(project, {
-        platform: { name: platformName, version: platformVersion },
+        platform: { name: platformName, version: platformVersion, deviceModel },
         applications: [{ name: appName, ...(appVersion !== "latest" ? { version: appVersion } : {}) }],
         execution,
       }),
@@ -331,7 +340,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                     )}
                   </Table.Td>
                   <Table.Td>
-                    {e.platform.name} {e.platform.version}
+                    {e.platform.name} {e.platform.version} · {e.platform.deviceModel}
                   </Table.Td>
                   <Table.Td>
                     {e.applications
@@ -474,6 +483,15 @@ export function EnvironmentsTab({ project }: { project: string }) {
               onChange={(v) => v && setPlatformVersion(v)}
             />
           </Group>
+          {/* The device kind an environment is: a line with one kind (desktop) needs no choice. */}
+          {platformDevices.length > 1 && (
+            <Select
+              label="Device"
+              data={platformDevices.map((device) => ({ value: device.id, label: device.displayName }))}
+              value={deviceModel}
+              onChange={(v) => v && setDeviceModel(v)}
+            />
+          )}
           <Select
             label="Application"
             data={applicationOptions}

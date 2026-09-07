@@ -21,11 +21,53 @@ set -u
 
 MODE="${1:-agent}"
 
+# Creates `<name>` as a copy of the base AVD's system image under the emulator's `<definition>` device
+# profile (screen, density, RAM, sensors, keys) when it does not exist yet. The system image package is
+# read off the base AVD (`image.sysdir.1`), so the version -> API-level mapping stays where the base was
+# baked. Serialised with an atomic mkdir lock — several seats may ask for the same kind at once, and
+# macOS ships no flock. avdmanager needs a JDK (JAVA_HOME on a dev Mac).
+ensure_device_avd() {
+    local base="$1" device="$2" name="$3"
+    local avd_home="${ANDROID_AVD_HOME:-${ANDROID_SDK_HOME:-$HOME}/.android/avd}"
+    local lock="${avd_home}/.sw-${name}.lock"
+
+    [ -f "${avd_home}/${name}.ini" ] && return 0
+
+    local base_ini="${avd_home}/${base}.avd/config.ini"
+    if [ ! -f "${base_ini}" ]; then
+        echo "[slot] base AVD ${base} not found (${base_ini}) — bake it per the runbook"
+        return 1
+    fi
+    local sysdir package definition
+    sysdir="$(sed -n 's/^image\.sysdir\.1 *= *//p' "${base_ini}" | tr -d '\r')"
+    package="$(printf '%s' "${sysdir%/}" | tr '/' ';')"
+    definition="$(printf '%s' "${device}" | tr '-' '_')"
+
+    local avdmanager="${ANDROID_HOME}/cmdline-tools/latest/bin/avdmanager"
+    [ -x "${avdmanager}" ] || avdmanager="avdmanager"
+
+    for _ in $(seq 1 60); do
+        if mkdir "${lock}" 2>/dev/null; then
+            if [ ! -f "${avd_home}/${name}.ini" ]; then
+                echo "[slot] creating AVD ${name}: ${package} as ${definition}"
+                echo no | "${avdmanager}" create avd -n "${name}" -k "${package}" --device "${definition}" \
+                    || { rmdir "${lock}"; return 1; }
+            fi
+            rmdir "${lock}"
+            return 0
+        fi
+        sleep 2
+    done
+    echo "[slot] timed out waiting for the AVD lock ${lock}"
+    return 1
+}
+
 # ---------------------------------------------------------------- slot mode
-# Environment (set by the agent when spawning): SW_ENVIRONMENT_ID, SW_AVD, SW_WD_PORT, SW_APPIUM_PORT,
+# Environment (set by the agent when spawning): SW_ENVIRONMENT_ID, SW_AVD (the baked base AVD of the
+# Android version), SW_DEVICE (the device kind to dress it as), SW_WD_PORT, SW_APPIUM_PORT,
 # SW_CONSOLE_PORT, SW_ENV_AGENT_TOKEN, SW_INTERNAL_URL, SW_HOST_IP, SW_SLOT_DIR.
 run_slot() {
-    : "${SW_ENVIRONMENT_ID:?}" "${SW_AVD:?}" "${SW_WD_PORT:?}" "${SW_APPIUM_PORT:?}"
+    : "${SW_ENVIRONMENT_ID:?}" "${SW_AVD:?}" "${SW_DEVICE:?}" "${SW_WD_PORT:?}" "${SW_APPIUM_PORT:?}"
     : "${SW_CONSOLE_PORT:?}" "${SW_ENV_AGENT_TOKEN:?}" "${SW_INTERNAL_URL:?}" "${SW_HOST_IP:?}" "${SW_SLOT_DIR:?}"
 
     mkdir -p "${SW_SLOT_DIR}"
@@ -44,6 +86,12 @@ run_slot() {
     emulator_bin="${ANDROID_HOME}/emulator/emulator"
     serial="emulator-${SW_CONSOLE_PORT}"
 
+    # The AVD this seat boots: the base AVD of the version, dressed as the requested device kind. One
+    # AVD per (version, kind) — derived on first use from the base's system image and the emulator's
+    # own device definition (`pixel-7` -> `pixel_7`), so the golden image bakes one AVD per version only.
+    avd_name="${SW_AVD}-${SW_DEVICE}"
+    ensure_device_avd "${SW_AVD}" "${SW_DEVICE}" "${avd_name}" || exit 1
+
     slot_pids=""
 
     # Software rendering (SwiftShader): a metal host is headless and the agent may be a daemon with no
@@ -58,9 +106,9 @@ run_slot() {
     window_flag="-no-window"
     [ "${SW_EMULATOR_WINDOW:-}" = "1" ] && window_flag=""
 
-    echo "[slot ${SW_ENVIRONMENT_ID}] starting emulator ${SW_AVD} on console ${SW_CONSOLE_PORT} (gpu ${gpu_mode})"
+    echo "[slot ${SW_ENVIRONMENT_ID}] starting emulator ${avd_name} on console ${SW_CONSOLE_PORT} (gpu ${gpu_mode})"
     # -read-only lets N instances share one AVD; the console port pins the adb serial to this slot.
-    "${emulator_bin}" -avd "${SW_AVD}" -port "${SW_CONSOLE_PORT}" -read-only \
+    "${emulator_bin}" -avd "${avd_name}" -port "${SW_CONSOLE_PORT}" -read-only \
         -gpu "${gpu_mode}" -no-audio -no-boot-anim -no-snapshot ${window_flag} &
     slot_pids="${slot_pids} $!"
 
@@ -286,7 +334,7 @@ reconcile() {
     slots_dir="${state_dir}/slots"
     mkdir -p "${slots_dir}"
 
-    # One line per desired seat: envId wd appium console avd internalUrl token apps. Parsed with node —
+    # One line per desired seat: envId wd appium console avd device internalUrl token apps. Parsed with node —
     # already a hard dependency of every slot (the wd door and Appium are node), so the agent needs no
     # second runtime (macOS no longer ships python3). apps encodes the launch's delivery list as
     # name~webdriverFlag pairs (both characters are outside the application-name alphabet).
@@ -297,7 +345,7 @@ for (const s of doc.slots || []) {
     const l = s.launch || {}, p = s.ports || {};
     const apps = (l.apps || []).map((a) => `${a.name}~${a.webdriver ? 1 : 0}`).join(",");
     process.stdout.write([
-        s.environmentId, p.wd, p.appium, p.console, l.avd || "", l.internalUrl || "", s.agentToken, apps,
+        s.environmentId, p.wd, p.appium, p.console, l.avd || "", l.device || "", l.internalUrl || "", s.agentToken, apps,
     ].join("\t") + "\n");
 }
 ' "$response_file" >"${desired_file}"
@@ -313,7 +361,7 @@ for (const s of doc.slots || []) {
     done
 
     # Start (or restart after a crash) every desired slot that is not running.
-    while IFS=$'\t' read -r env_id wd appium console avd internal_url token apps; do
+    while IFS=$'\t' read -r env_id wd appium console avd device internal_url token apps; do
         [ -n "${env_id}" ] || continue
         slot_dir="${slots_dir}/${env_id}"
 
@@ -324,13 +372,13 @@ for (const s of doc.slots || []) {
             continue
         fi
 
-        echo "[pool-host] starting slot for ${env_id} (wd :${wd}, avd ${avd})"
+        echo "[pool-host] starting slot for ${env_id} (wd :${wd}, avd ${avd} as ${device})"
         mkdir -p "${slot_dir}"
         # Spawn the slot in its own session (its own process group), so the whole slot dies as one and
         # nothing it starts is orphaned onto the agent. node stands in for setsid (macOS ships neither
         # setsid nor a reliable python3); `detached` = a fresh session, `stdio: ignore` frees the
         # agent's fds (no pipe to hang on), and the printed leader pid IS the group id.
-        SW_ENVIRONMENT_ID="${env_id}" SW_AVD="${avd}" SW_WD_PORT="${wd}" SW_APPIUM_PORT="${appium}" \
+        SW_ENVIRONMENT_ID="${env_id}" SW_AVD="${avd}" SW_DEVICE="${device}" SW_WD_PORT="${wd}" SW_APPIUM_PORT="${appium}" \
         SW_CONSOLE_PORT="${console}" SW_ENV_AGENT_TOKEN="${token}" SW_INTERNAL_URL="${internal_url}" \
         SW_HOST_IP="${host_ip}" SW_SLOT_DIR="${slot_dir}" SW_APPS="${apps:-}" \
             node -e 'const c=require("child_process").spawn("bash",[process.argv[1],"slot"],{detached:true,stdio:"ignore"});console.log(c.pid);c.unref();' \

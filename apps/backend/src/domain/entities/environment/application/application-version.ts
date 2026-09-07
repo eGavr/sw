@@ -1,6 +1,7 @@
 import { Matches } from "class-validator";
 
 import { Value } from "../../../types/value/value";
+import { matchesSegmentPrefix } from "../version-segment-prefix";
 
 // The reserved version a session may request to mean "the newest running environment"; an environment's
 // installed application must always name an exact version, never this.
@@ -13,9 +14,7 @@ export class ApplicationVersion extends Value<string> {
     // A request names leading segments and matches any version they open ("140" matches "140.0.7339.80"
     // and "140" itself, never "1400.1") — installed versions are honestly full, nobody types them whole.
     matchesPrefix(prefix: string): boolean {
-        const value = this.getValue();
-
-        return value === prefix || value.startsWith(`${prefix}.`);
+        return matchesSegmentPrefix(this.getValue(), prefix);
     }
 
     // Orders two versions by dotted segments, newest greater: numeric segments compare as numbers

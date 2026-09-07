@@ -9,8 +9,8 @@
 
 - Android SDK с эмулятором (`emulator`, `adb`); слот сам экспортит `ANDROID_HOME`
   (дефолт `~/Library/Android/sdk`, переопределяется env) и кладёт `platform-tools`/`emulator` в PATH.
-- AVD c именем по контракту **`sw-android-<версия>`**, где версия — ПОЛЬЗОВАТЕЛЬСКАЯ версия Android
-  (`platform.version` окружения: `14`, не API level 34 — маппинг на API-образ живёт здесь, при
+- **Базовый** AVD c именем по контракту **`sw-android-<версия>`**, где версия — ПОЛЬЗОВАТЕЛЬСКАЯ версия
+  Android (`platform.version` окружения: `14`, не API level 34 — маппинг на API-образ живёт здесь, при
   создании AVD). На маке `avdmanager` требует JDK 17+ — задать `JAVA_HOME`:
 
   ```bash
@@ -21,6 +21,14 @@
 
   Существующий `sw-android-34` переименовать: `avdmanager rename avd -n sw-android-34 --new-name sw-android-14`
   (или пересоздать).
+
+- **Модель устройства** окружения (`platform.deviceModel`: `pixel-7`, `pixel-3a` — линейка в
+  `PlatformCatalogProvider`) — это hardware-профиль эмулятора: слот при первом запросе сам создаёт AVD
+  **`sw-android-<версия>-<модель>`** из базового (системный образ читается из его `config.ini`) с
+  `--device pixel_7` — экран, плотность, RAM, сенсоры, кнопки Pixel 7. Прошивка при этом остаётся
+  SDK-образом (`ro.product.model=sdk_gphone…`) — «похожий на Pixel», не Pixel. Для `avdmanager` из
+  слота агенту нужен `JAVA_HOME` (экспортировать перед запуском агента). Базовый AVD на устройство не
+  влияет — его `--device` лишь дефолт для ручных запусков.
 
 - `appium` + драйвер: `npm i -g appium && appium driver install uiautomator2`. **Гоча свежего appium 3.7:**
   драйвер `uiautomator2` может упасть с `Cannot find module '@appium/logger'` (пакет не хойстится) —
@@ -81,9 +89,12 @@
    `ACTIVE` c endpoint `http://127.0.0.1:46xx`.
 
 5. **Сессия**: обычный create-session через wd. Приложение называется `browserName`/`browserVersion`
-   или (любое, не только браузер) `sw:appName`/`sw:appVersion`; `platformName: android` — опциональный
-   W3C-матч платформы (обязателен по смыслу, когда одно слово, напр. `chrome`, стоит и на ubuntu, и на
-   android). Второе окружение сядет **вторым слотом на ту же машину** — это и есть нарезка.
+   или (любое, не только браузер) `sw:appName`/`sw:appVersion`; стереотип — `sw:platformName` /
+   `sw:platformVersion` (префикс) / `sw:deviceModel` (`Pixel 7` в любом написании), принимаются и
+   стандартные `platformName` / `appium:platformVersion` / `appium:deviceName`. Все опциональны:
+   не указано — любое; указано — матч на окружение (обязательно по смыслу, когда одно слово, напр.
+   `chrome`, стоит и на ubuntu, и на android). Второе окружение сядет **вторым слотом на ту же
+   машину** — это и есть нарезка.
 
 6. **Уборка**: `DELETE` окружения → слот гаснет на следующем чекине; пустая машина живёт
    `POOL_HOST_IDLE_TTL_MS` (для дев-цикла удобно поднять) и затем забывается — агент получает 404 и

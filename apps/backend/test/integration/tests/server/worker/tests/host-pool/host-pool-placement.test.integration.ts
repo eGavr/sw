@@ -216,7 +216,7 @@ describe("host-pool placement (baremetal route)", () => {
             cloudAccountId: CloudAccountId.fromString(seeded.cloudAccountId),
             cloudType: "yandex-cloud",
             computeKind: "baremetal",
-            platform: Platform.fromObject({ name: "android", version: "14" }),
+            platform: Platform.fromObject({ name: "android", version: "14", deviceModel: "pixel-7" }),
             execution: Execution.Emulator,
             applications: ApplicationList.fromObject([{ nameAlias: "chrome" }]),
         });
@@ -255,7 +255,8 @@ describe("host-pool placement (baremetal route)", () => {
         const host = await poolHostRepository.findByEnvironment(EnvironmentId.fromString(envId));
         expect(host?.state).toBe(PoolHostState.Ordering);
         expect(host?.placementFor(envId)?.slotIndex).toBe(0);
-        expect(host?.placementFor(envId)?.launch).toEqual({ avd: "sw-android-14", internalUrl: "http://cp:3002", apps: [] });
+        expect(host?.placementFor(envId)?.launch)
+            .toEqual({ avd: "sw-android-14", device: "pixel-7", internalUrl: "http://cp:3002", apps: [] });
     });
 
     test("the second environment packs onto the same machine — no second order", async () => {

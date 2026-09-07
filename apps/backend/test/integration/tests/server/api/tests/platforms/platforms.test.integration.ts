@@ -29,8 +29,18 @@ describe("/platforms", () => {
 
         expect(body).toEqual({
             platforms: expect.arrayContaining([
-                { name: "platforms/ubuntu", platform: "ubuntu", versions: ["24.04"] },
-                { name: "platforms/android", platform: "android", versions: ["13", "14"] },
+                {
+                    name: "platforms/ubuntu",
+                    platform: "ubuntu",
+                    versions: ["24.04"],
+                    devices: [{ id: "desktop", displayName: "Desktop" }],
+                },
+                {
+                    name: "platforms/android",
+                    platform: "android",
+                    versions: ["13", "14"],
+                    devices: [{ id: "pixel-7", displayName: "Pixel 7" }, { id: "pixel-3a", displayName: "Pixel 3a" }],
+                },
             ]),
         });
     });
@@ -41,7 +51,12 @@ describe("/platforms", () => {
             .set(owner())
             .expect(HttpStatus.OK);
 
-        expect(body).toEqual({ name: "platforms/ubuntu", platform: "ubuntu", versions: ["24.04"] });
+        expect(body).toEqual({
+            name: "platforms/ubuntu",
+            platform: "ubuntu",
+            versions: ["24.04"],
+            devices: [{ id: "desktop", displayName: "Desktop" }],
+        });
     });
 
     test("responds NOT_FOUND for a platform outside the catalog", async () => {
