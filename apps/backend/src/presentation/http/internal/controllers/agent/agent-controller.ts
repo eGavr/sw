@@ -8,11 +8,14 @@ import type { Response } from "express";
 import { InternalAgentTokenGuard } from "../../guards/internal-agent-token-guard";
 
 const agentScriptResource = "agentScript";
+const linuxNodeResource = "linuxNode";
+const wdDoorResource = "wdDoor";
 const ffmpegResource = "ffmpeg";
 const netbridgeResource = "netbridge";
 const downloadVerb = "download";
 
 const scriptContentType = "text/x-shellscript";
+const javascriptContentType = "text/javascript";
 const binaryContentType = "application/octet-stream";
 
 // The agent maps `uname -m` to one of these before requesting an architecture-specific binary.
@@ -20,16 +23,19 @@ const supportedArchitectures = ["amd64", "arm64"];
 const defaultFfmpegDir = "bin/ffmpeg";
 const defaultNetbridgeDir = "bin/netbridge";
 
-// Serves the assets the in-container agent fetches at startup so they are not baked into the image (no
-// rebuild per browser/version): the bootstrap script (always), a static ffmpeg binary (when a session
+// Serves the assets a node fetches at startup so they are not baked into any image (no rebuild per
+// browser/version): the heartbeat agent (always), the linux node script and the wd door (the linux base
+// image's bootstrap turns itself into a browser node with them), a static ffmpeg binary (when a session
 // opts into video), and the NetBridge forwarder binary (when the environment offers local-network
-// tunnelling) — both fetched by architecture. Guarded by the module's InternalAgentTokenGuard like every
+// tunnelling) — the binaries fetched by architecture. Guarded by the module's InternalAgentTokenGuard like every
 // internal route — the agent sends the same per-environment bearer token it uses for heartbeats. Binary
 // downloads are written straight to the response, bypassing the JSON presenter.
 @Controller("internal")
 @UseGuards(InternalAgentTokenGuard)
 export class InternalAgentController {
     private readonly script = readFileSync(join(__dirname, "heartbeat-agent.sh"), "utf8");
+    private readonly linuxNodeScript = readFileSync(join(__dirname, "linux-node.sh"), "utf8");
+    private readonly wdDoor = readFileSync(join(__dirname, "wd-door.js"), "utf8");
 
     constructor(private readonly configService: ConfigService) {}
 
@@ -46,6 +52,14 @@ export class InternalAgentController {
         switch (name) {
             case agentScriptResource:
                 response.type(scriptContentType).send(this.script);
+
+                return;
+            case linuxNodeResource:
+                response.type(scriptContentType).send(this.linuxNodeScript);
+
+                return;
+            case wdDoorResource:
+                response.type(javascriptContentType).send(this.wdDoor);
 
                 return;
             case ffmpegResource:

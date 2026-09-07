@@ -2,7 +2,6 @@ import { ComputeBindingConfig } from "../../../../domain/entities/cloud-account/
 import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
 
 export type DockerProvisioningOverrides = {
-    image?: string;
     baseImage?: string;
     platform?: string;
     internalPort?: number;
@@ -17,7 +16,6 @@ export function dockerProvisioningOverrides(config: ComputeBindingConfig | undef
     }
 
     return {
-        image: optionalString(config, "image"),
         baseImage: optionalString(config, "baseImage"),
         platform: optionalString(config, "platform"),
         internalPort: optionalPort(config, "port"),

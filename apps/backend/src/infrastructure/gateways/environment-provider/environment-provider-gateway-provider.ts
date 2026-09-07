@@ -9,7 +9,7 @@ import { EnvironmentQuotaPolicy } from "../../../domain/entities/environment/env
 import { Execution } from "../../../domain/entities/environment/execution";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 
-import { defaultAgentEntrypoint } from "./agent-bootstrap";
+import { defaultAgentEntrypoint, linuxNodeEntrypoint } from "./agent-bootstrap";
 import {
     AndroidEmulatorEnvironmentConfig,
     buildAndroidEmulatorEnvironmentConfig,
@@ -44,6 +44,7 @@ import {
 import { DockerClient } from "./docker/docker-client";
 import {
     defaultInternalPort,
+    defaultScreen,
     DockerEnvironmentConfig,
 } from "./docker/docker-environment-config";
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
@@ -158,14 +159,17 @@ function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: numbe
     const wdPort = configService.get<string>("WD_PORT") ?? defaultWdPort;
 
     // Install defaults for the docker provisioning shape; a project's substrate binding config overrides
-    // image/baseImage/platform/port at provision. The install-level fields below stay global.
+    // baseImage/platform/port at provision. The install-level fields below stay global.
     return {
-        image: configService.get<string>("COMPUTE_DOCKER_IMAGE"),
         baseImage: configService.get<string>("COMPUTE_DOCKER_BASE_IMAGE"),
         platform: configService.get<string>("COMPUTE_DOCKER_PLATFORM"),
         internalPort: Number(configService.get<string>("COMPUTE_DOCKER_PORT") ?? String(defaultInternalPort)),
         sessionTimeoutSeconds,
-        entrypoint: configService.get<string>("COMPUTE_DOCKER_ENTRYPOINT") ?? defaultAgentEntrypoint,
+        screen: {
+            width: Number(configService.get<string>("COMPUTE_DOCKER_SCREEN_WIDTH") ?? String(defaultScreen.width)),
+            height: Number(configService.get<string>("COMPUTE_DOCKER_SCREEN_HEIGHT") ?? String(defaultScreen.height)),
+        },
+        entrypoint: configService.get<string>("COMPUTE_DOCKER_ENTRYPOINT") ?? linuxNodeEntrypoint,
         // The host address the browser node is reachable at; on the dev Mac that is the loopback the
         // wd proxy uses to reach the published container port.
         advertiseHost: configService.get<string>("COMPUTE_DOCKER_ADVERTISE_HOST") ?? "127.0.0.1",

@@ -40,10 +40,10 @@ session_log_glob="${SW_SESSION_LOG_GLOB:-/tmp/sw-session.log}"
 max_log_bytes="${SW_MAX_LOG_BYTES:-10485760}"
 
 # Video is recorded by a static ffmpeg (fetched once from the control plane) grabbing the X display the
-# browser renders on. The record size matches the node's screen (SE_SCREEN_*), so ffmpeg and Xvfb agree.
+# browser renders on. The record size matches the node's screen (SW_SCREEN_*), so ffmpeg and Xvfb agree.
 ffmpeg_bin="/tmp/sw-ffmpeg"
 video_display=":99"
-video_size="${SE_SCREEN_WIDTH:-1360}x${SE_SCREEN_HEIGHT:-1020}"
+video_size="${SW_SCREEN_WIDTH:-1360}x${SW_SCREEN_HEIGHT:-1020}"
 video_fps="${SW_VIDEO_FPS:-15}"
 max_video_seconds="${SW_MAX_VIDEO_SECONDS:-600}"
 
