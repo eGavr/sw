@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Query } from "@nestjs/common";
 
+import { clampPageSize, PageCursor, PageRequest } from "../../../../../application/pagination";
 import {
     AddApplicationVersionUseCase,
 } from "../../../../../application/use-cases/project-applications/add-application-version-use-case";
@@ -13,10 +14,15 @@ import {
     GetProjectApplicationUseCase,
 } from "../../../../../application/use-cases/project-applications/get-project-application-use-case";
 import {
+    ListApplicationVersionsUseCase,
+} from "../../../../../application/use-cases/project-applications/list-application-versions-use-case";
+import {
     ListProjectApplicationsUseCase,
 } from "../../../../../application/use-cases/project-applications/list-project-applications-use-case";
 import { catalogProjectHandle } from "../../../../../domain/entities/project-application/catalog-project";
 import { BearerToken } from "../../../decorators/param/bearer-token";
+import { decodePageToken, encodePageToken } from "../../../pagination/page";
+import { PageRequestModel } from "../../../pagination/page-request-model";
 
 import {
     AddApplicationVersionRequestModel,
@@ -46,6 +52,7 @@ export class ProjectApplicationsController {
         private readonly listProjectApplicationsUseCase: ListProjectApplicationsUseCase,
         private readonly getProjectApplicationUseCase: GetProjectApplicationUseCase,
         private readonly deleteProjectApplicationUseCase: DeleteProjectApplicationUseCase,
+        private readonly listApplicationVersionsUseCase: ListApplicationVersionsUseCase,
     ) {}
 
     @Post()
@@ -57,7 +64,7 @@ export class ProjectApplicationsController {
     ): Promise<ProjectApplicationPresenter> {
         const application = await this.createProjectApplicationUseCase.execute({
             creds: { token },
-            params: { projectId: project, platform, name: body.name },
+            params: { projectId: project, platform, nameAlias: body.nameAlias },
         });
 
         return new ProjectApplicationPresenter(project, application);
@@ -68,13 +75,14 @@ export class ProjectApplicationsController {
         @BearerToken() token: string,
         @Param("project") project: string,
         @Param("platform") platform: string,
+        @Query() query: PageRequestModel,
     ): Promise<ListProjectApplicationsPresenter> {
-        const applications = await this.listProjectApplicationsUseCase.execute({
+        const page = await this.listProjectApplicationsUseCase.execute({
             creds: { token },
-            params: { projectId: project, platform },
+            params: { projectId: project, platform, page: this.pageRequest(query) },
         });
 
-        return new ListProjectApplicationsPresenter(project, applications);
+        return new ListProjectApplicationsPresenter(project, page.items, this.nextPageToken(page.nextCursor));
     }
 
     @Get(":application")
@@ -120,7 +128,7 @@ export class ProjectApplicationsController {
                 projectId: project,
                 platform,
                 application: applicationName,
-                alias: body.alias,
+                versionAlias: body.versionAlias,
                 appRef: body.appRef,
                 webdriverRef: body.webdriverRef,
             },
@@ -135,13 +143,32 @@ export class ProjectApplicationsController {
         @Param("project") project: string,
         @Param("platform") platform: string,
         @Param("application") application: string,
+        @Query() query: PageRequestModel,
     ): Promise<ListApplicationVersionsPresenter> {
         const found = await this.getProjectApplicationUseCase.execute({
             creds: { token },
             params: { projectId: project, platform, application },
         });
+        const page = await this.listApplicationVersionsUseCase.execute({
+            creds: { token },
+            params: { projectId: project, platform, application, page: this.pageRequest(query) },
+        });
 
-        return new ListApplicationVersionsPresenter(project, found, this.exposesRefs(project));
+        return new ListApplicationVersionsPresenter(
+            project,
+            found,
+            page.items,
+            this.exposesRefs(project),
+            this.nextPageToken(page.nextCursor),
+        );
+    }
+
+    private pageRequest(query: PageRequestModel): PageRequest {
+        return { limit: clampPageSize(query.pageSize), after: decodePageToken(query.pageToken) };
+    }
+
+    private nextPageToken(cursor: PageCursor | undefined): string | undefined {
+        return cursor ? encodePageToken(cursor) : undefined;
     }
 
     // Refs are the owner's data for a custom project; the catalog project's are the install's

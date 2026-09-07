@@ -12,7 +12,7 @@ export type ProjectApplicationData = {
     id: string;
     projectId: string;
     platformName: string;
-    name: string;
+    nameAlias: string;
     versions: Array<ProjectApplicationVersionData>;
     createdAt: Date;
 };
@@ -20,22 +20,23 @@ export type ProjectApplicationData = {
 export type ProjectApplicationCreateParams = {
     projectId: string;
     platformName: string;
-    name: string;
+    nameAlias: string;
 };
 
 // An application registered in a project: the unit both catalogs are made of, the same shape whoever
-// owns it. Its `name` is ONE addressing word — `chrome`, `settings`, `myapp` — claiming no identity:
-// an APK's honest package id and version are DETECTED at delivery and land next to the word on the
-// environment. The reserved catalog project's words are reserved install-wide (the docker rule), a
-// user project's words are its own. Versions are its builds, each pointing at its artifacts; a build's
-// label is the picking handle, the detected version is the truth.
+// owns it. The resource is its server-minted id; its NAME ALIAS is the one addressing word — `chrome`,
+// `settings`, `myapp` — unique per project and platform, claiming no identity: an APK's honest package
+// id and version are DETECTED at delivery and land next to the word on the environment. The reserved
+// catalog project's words are reserved install-wide (the docker rule), a user project's words are its
+// own. Versions are its builds, each pointing at its artifacts; a build's label is the picking handle,
+// the detected version is the truth.
 export class ProjectApplication {
     static create(params: ProjectApplicationCreateParams): ProjectApplication {
         return new ProjectApplication(
             Uuid.create().getValue(),
             params.projectId,
             params.platformName,
-            new ApplicationName(params.name),
+            new ApplicationName(params.nameAlias),
             [],
             new Date(),
         );
@@ -50,7 +51,7 @@ export class ProjectApplication {
             data.id,
             data.projectId,
             data.platformName,
-            new ApplicationName(data.name),
+            new ApplicationName(data.nameAlias),
             versions,
             data.createdAt,
         );
@@ -60,20 +61,20 @@ export class ProjectApplication {
         readonly id: string,
         readonly projectId: string,
         readonly platformName: string,
-        private readonly _name: ApplicationName,
+        private readonly _nameAlias: ApplicationName,
         private readonly _versions: Array<ProjectApplicationVersion>,
         readonly createdAt: Date,
     ) {}
 
-    get name(): string {
-        return this._name.getValue();
+    get nameAlias(): string {
+        return this._nameAlias.getValue();
     }
 
     // Registration time is the ordering axis ("newest" = last registered), so it is kept strictly
     // monotonic within the aggregate — batch registrations land in the same millisecond otherwise.
     addVersion(params: ProjectApplicationVersionCreateParams): ProjectApplicationVersion {
-        if (this._versions.some((existing) => existing.alias === params.alias)) {
-            throw new ApplicationVersionConflictError(this.name, params.alias);
+        if (this._versions.some((existing) => existing.versionAlias === params.versionAlias)) {
+            throw new ApplicationVersionConflictError(this.nameAlias, params.versionAlias);
         }
 
         const last = this._versions[this._versions.length - 1];
@@ -89,8 +90,8 @@ export class ProjectApplication {
         return [...this._versions].sort((left, right) => (left.isNewerThan(right) ? -1 : 1));
     }
 
-    versionOf(alias: string): ProjectApplicationVersion | null {
-        return this._versions.find((existing) => existing.alias === alias) ?? null;
+    versionOf(versionAlias: string): ProjectApplicationVersion | null {
+        return this._versions.find((existing) => existing.versionAlias === versionAlias) ?? null;
     }
 
     // The newest build satisfying an ask: a build alias, or null meaning "the newest there is".
@@ -112,7 +113,7 @@ export class ProjectApplication {
             id: this.id,
             projectId: this.projectId,
             platformName: this.platformName,
-            name: this.name,
+            nameAlias: this.nameAlias,
             versions: this._versions.map((version) => version.toObject()),
             createdAt: this.createdAt,
         };

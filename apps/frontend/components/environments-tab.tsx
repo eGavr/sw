@@ -118,10 +118,10 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const platformDevices = platformLine?.devices ?? [];
   const offerings = applicationsQuery.data ?? [];
   const applicationOptions = offerings.map((offering) => ({
-    value: offering.application,
-    label: offering.application + (offering.owner === catalogProject ? "" : " — custom"),
+    value: offering.nameAlias,
+    label: offering.nameAlias + (offering.owner === catalogProject ? "" : " — custom"),
   }));
-  const selectedOffering = offerings.find((offering) => offering.application === appName);
+  const selectedOffering = offerings.find((offering) => offering.nameAlias === appName);
   const versionsQuery = useQuery({
     queryKey: ["applicationVersions", selectedOffering?.owner, platformName, appName],
     queryFn: () => listApplicationVersions(selectedOffering?.owner ?? catalogProject, platformName, appName),
@@ -154,8 +154,8 @@ export function EnvironmentsTab({ project }: { project: string }) {
       return;
     }
 
-    if (!offerings.some((offering) => offering.application === appName)) {
-      setAppName(offerings[0].application);
+    if (!offerings.some((offering) => offering.nameAlias === appName)) {
+      setAppName(offerings[0].nameAlias);
     }
   }, [offerings, appName, applicationsQuery.data]);
 
@@ -195,7 +195,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
     mutationFn: () =>
       createEnvironment(project, {
         platform: { name: platformName, version: platformVersion, deviceModel },
-        applications: [{ name: appName, ...(appVersion !== "latest" ? { version: appVersion } : {}) }],
+        applications: [{ nameAlias: appName, ...(appVersion !== "latest" ? { versionAlias: appVersion } : {}) }],
         execution,
       }),
     onSuccess: async () => {

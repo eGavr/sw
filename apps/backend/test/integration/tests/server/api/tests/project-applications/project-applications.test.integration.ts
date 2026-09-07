@@ -10,11 +10,13 @@ import { CreateProjectBody } from "../../utils/request/body/create-project-body"
 // The delivery catalog as project resources (the GCE vendor-project model): the reserved `catalog`
 // project holds the install's provided set (seeded from CATALOG_SEED_FILE, admins from
 // CATALOG_ADMIN_EXTERNAL_IDS = catalog-admin here); a user project registers its customs under the
-// docker rule — catalog words are reserved install-wide, a custom lives under its canonical name.
+// docker rule — catalog words are reserved install-wide. Every application is ONE word (its name
+// alias) and a resource by its server id; its builds are version aliases with their artifacts.
 describe("/projects/:project/platforms/:platform/applications", () => {
     let app: TestingApp;
 
     const catalogAdmin = Authorization.forUser("catalog-admin");
+    const uuidPattern = /^[0-9a-f-]{36}$/;
 
     beforeEach(async () => {
         app = await TestingApp.create(ApiModule);
@@ -35,6 +37,20 @@ describe("/projects/:project/platforms/:platform/applications", () => {
         return { owner, projectId: body.uid };
     };
 
+    const registerCustom = async (
+        owner: { authorization: string },
+        projectId: string,
+        nameAlias: string,
+    ): Promise<{ uid: string }> => {
+        const { body } = await request(app.getHttpServer())
+            .post(`/projects/${projectId}/platforms/android/applications`)
+            .set(owner)
+            .send({ nameAlias })
+            .expect(HttpStatus.CREATED);
+
+        return { uid: body.uid };
+    };
+
     describe("the reserved catalog project", () => {
         test("its applications are readable by any authenticated caller, refs staying private", async () => {
             const stranger = Authorization.forUser(UserFactory.createId());
@@ -44,20 +60,51 @@ describe("/projects/:project/platforms/:platform/applications", () => {
                 .set(stranger)
                 .expect(HttpStatus.OK);
 
-            expect(body.applications).toEqual([{
-                name: "projects/catalog/platforms/ubuntu/applications/chrome",
-                application: "chrome",
-                createTime: expect.any(String),
-            }]);
+            expect(body).toEqual({
+                applications: [{
+                    name: expect.stringMatching(/^projects\/catalog\/platforms\/ubuntu\/applications\/[0-9a-f-]{36}$/),
+                    uid: expect.stringMatching(uuidPattern),
+                    nameAlias: "chrome",
+                    createTime: expect.any(String),
+                }],
+            });
 
+            // The word is a handle too — the URL takes either the id or the alias.
             const { body: versions } = await request(app.getHttpServer())
                 .get("/projects/catalog/platforms/ubuntu/applications/chrome/versions")
                 .set(stranger)
                 .expect(HttpStatus.OK);
 
-            expect(versions.versions.map((version: { alias: string }) => version.alias))
-                .toEqual(["141", "140", "128", "126"]);
+            expect(versions.versions.map((version: { versionAlias: string }) => version.versionAlias))
+                .toEqual(["126", "128", "140", "141"]);
+            expect(versions.versions[0]).toEqual({
+                name: expect.stringMatching(/\/applications\/[0-9a-f-]{36}\/versions\/[0-9a-f-]{36}$/),
+                uid: expect.stringMatching(uuidPattern),
+                versionAlias: "126",
+                createTime: expect.any(String),
+            });
             expect(JSON.stringify(versions)).not.toContain("catalog.test");
+        });
+
+        test("lists are paged the AIP way: pageSize bounds a page, pageToken continues it", async () => {
+            const stranger = Authorization.forUser(UserFactory.createId());
+
+            const { body: first } = await request(app.getHttpServer())
+                .get("/projects/catalog/platforms/ubuntu/applications/chrome/versions?pageSize=3")
+                .set(stranger)
+                .expect(HttpStatus.OK);
+
+            expect(first.versions.map((version: { versionAlias: string }) => version.versionAlias))
+                .toEqual(["126", "128", "140"]);
+            expect(first.nextPageToken).toEqual(expect.any(String));
+
+            const { body: second } = await request(app.getHttpServer())
+                .get(`/projects/catalog/platforms/ubuntu/applications/chrome/versions?pageSize=3&pageToken=${first.nextPageToken}`)
+                .set(stranger)
+                .expect(HttpStatus.OK);
+
+            expect(second.versions.map((version: { versionAlias: string }) => version.versionAlias)).toEqual(["141"]);
+            expect(second.nextPageToken).toBeUndefined();
         });
 
         test("only its members may grow the provided set — and the admin from the env can", async () => {
@@ -66,19 +113,19 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             await request(app.getHttpServer())
                 .post("/projects/catalog/platforms/ubuntu/applications")
                 .set(stranger)
-                .send({ name: "firefox" })
+                .send({ nameAlias: "firefox" })
                 .expect(HttpStatus.FORBIDDEN);
 
-            await request(app.getHttpServer())
+            const { body } = await request(app.getHttpServer())
                 .post("/projects/catalog/platforms/ubuntu/applications")
                 .set(catalogAdmin)
-                .send({ name: "firefox" })
+                .send({ nameAlias: "firefox" })
                 .expect(HttpStatus.CREATED);
 
             await request(app.getHttpServer())
-                .post("/projects/catalog/platforms/ubuntu/applications/firefox/versions")
+                .post(`/projects/catalog/platforms/ubuntu/applications/${body.uid}/versions`)
                 .set(catalogAdmin)
-                .send({ alias: "144", appRef: "https://catalog.test/firefox-144.zip" })
+                .send({ versionAlias: "144", appRef: "https://catalog.test/firefox-144.zip" })
                 .expect(HttpStatus.CREATED);
         });
 
@@ -86,7 +133,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             return request(app.getHttpServer())
                 .post("/projects/catalog/platforms/ubuntu/applications")
                 .set(catalogAdmin)
-                .send({ name: "chrome" })
+                .send({ nameAlias: "chrome" })
                 .expect(HttpStatus.CONFLICT);
         });
 
@@ -117,34 +164,55 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             const { body: application } = await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/android/applications`)
                 .set(owner)
-                .send({ name: "com.mycorp.app" })
+                .send({ nameAlias: "myapp" })
                 .expect(HttpStatus.CREATED);
 
             expect(application).toEqual({
-                name: `projects/${projectId}/platforms/android/applications/com.mycorp.app`,
-                application: "com.mycorp.app",
+                name: `projects/${projectId}/platforms/android/applications/${application.uid}`,
+                uid: expect.stringMatching(uuidPattern),
+                nameAlias: "myapp",
                 createTime: expect.any(String),
             });
 
-            await request(app.getHttpServer())
-                .post(`/projects/${projectId}/platforms/android/applications/com.mycorp.app/versions`)
+            const { body: version } = await request(app.getHttpServer())
+                .post(`/projects/${projectId}/platforms/android/applications/${application.uid}/versions`)
                 .set(owner)
-                .send({ alias: "7.1-rc2", appRef: "builds/app-7.1.apk", webdriverRef: "builds/driver-7.1" })
+                .send({ versionAlias: "7.1-rc2", appRef: "builds/app-7.1.apk", webdriverRef: "builds/driver-7.1" })
                 .expect(HttpStatus.CREATED);
-
-            const { body: versions } = await request(app.getHttpServer())
-                .get(`/projects/${projectId}/platforms/android/applications/com.mycorp.app/versions`)
-                .set(owner)
-                .expect(HttpStatus.OK);
 
             // No declared version: a custom build is its label plus its artifacts — the true version
             // is detected at delivery, on the environment.
-            expect(versions.versions).toEqual([{
-                name: `projects/${projectId}/platforms/android/applications/com.mycorp.app/versions/7.1-rc2`,
-                alias: "7.1-rc2",
+            expect(version).toEqual({
+                name: `projects/${projectId}/platforms/android/applications/${application.uid}/versions/${version.uid}`,
+                uid: expect.stringMatching(uuidPattern),
+                versionAlias: "7.1-rc2",
                 appRef: "builds/app-7.1.apk",
                 webdriverRef: "builds/driver-7.1",
-            }]);
+                createTime: expect.any(String),
+            });
+
+            const { body: versions } = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/platforms/android/applications/myapp/versions`)
+                .set(owner)
+                .expect(HttpStatus.OK);
+
+            expect(versions).toEqual({ versions: [version] });
+        });
+
+        test("an application is addressed by its id or its word alike", async () => {
+            const { owner, projectId } = await createProject();
+            const { uid } = await registerCustom(owner, projectId, "myapp");
+
+            const byId = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/platforms/android/applications/${uid}`)
+                .set(owner)
+                .expect(HttpStatus.OK);
+            const byWord = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/platforms/android/applications/myapp`)
+                .set(owner)
+                .expect(HttpStatus.OK);
+
+            expect(byWord.body).toEqual(byId.body);
         });
 
         test("a custom may not take a catalog word, and the request knows no aliases", async () => {
@@ -153,36 +221,31 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/ubuntu/applications`)
                 .set(owner)
-                .send({ name: "chrome" })
+                .send({ nameAlias: "chrome" })
                 .expect(HttpStatus.BAD_REQUEST);
 
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/android/applications`)
                 .set(owner)
-                .send({ name: "com.mycorp.app", aliases: ["myapp"] })
+                .send({ nameAlias: "myapp", aliases: ["other"] })
                 .expect(HttpStatus.BAD_REQUEST);
         });
 
         test("a custom build must bring its artifact, and declared versions do not exist", async () => {
             const { owner, projectId } = await createProject();
+            const { uid } = await registerCustom(owner, projectId, "myapp");
 
             await request(app.getHttpServer())
-                .post(`/projects/${projectId}/platforms/android/applications`)
+                .post(`/projects/${projectId}/platforms/android/applications/${uid}/versions`)
                 .set(owner)
-                .send({ name: "com.mycorp.app" })
-                .expect(HttpStatus.CREATED);
-
-            await request(app.getHttpServer())
-                .post(`/projects/${projectId}/platforms/android/applications/com.mycorp.app/versions`)
-                .set(owner)
-                .send({ alias: "7.1" })
+                .send({ versionAlias: "7.1" })
                 .expect(HttpStatus.BAD_REQUEST);
 
             // Declared versions died with the detected-identity model; the field is not even accepted.
             await request(app.getHttpServer())
-                .post(`/projects/${projectId}/platforms/android/applications/com.mycorp.app/versions`)
+                .post(`/projects/${projectId}/platforms/android/applications/${uid}/versions`)
                 .set(owner)
-                .send({ alias: "7.1", version: "7.1.0", appRef: "builds/app.apk" })
+                .send({ versionAlias: "7.1", version: "7.1.0", appRef: "builds/app.apk" })
                 .expect(HttpStatus.BAD_REQUEST);
         });
 
@@ -190,11 +253,7 @@ describe("/projects/:project/platforms/:platform/applications", () => {
             const { owner, projectId } = await createProject();
             const stranger = Authorization.forUser(UserFactory.createId());
 
-            await request(app.getHttpServer())
-                .post(`/projects/${projectId}/platforms/android/applications`)
-                .set(owner)
-                .send({ name: "com.mycorp.app" })
-                .expect(HttpStatus.CREATED);
+            await registerCustom(owner, projectId, "myapp");
 
             await request(app.getHttpServer())
                 .get(`/projects/${projectId}/platforms/android/applications`)
@@ -204,20 +263,15 @@ describe("/projects/:project/platforms/:platform/applications", () => {
 
         test("delete unregisters the application with its builds", async () => {
             const { owner, projectId } = await createProject();
+            const { uid } = await registerCustom(owner, projectId, "myapp");
 
             await request(app.getHttpServer())
-                .post(`/projects/${projectId}/platforms/android/applications`)
-                .set(owner)
-                .send({ name: "com.mycorp.app" })
-                .expect(HttpStatus.CREATED);
-
-            await request(app.getHttpServer())
-                .delete(`/projects/${projectId}/platforms/android/applications/com.mycorp.app`)
+                .delete(`/projects/${projectId}/platforms/android/applications/${uid}`)
                 .set(owner)
                 .expect(HttpStatus.NO_CONTENT);
 
             await request(app.getHttpServer())
-                .get(`/projects/${projectId}/platforms/android/applications/com.mycorp.app`)
+                .get(`/projects/${projectId}/platforms/android/applications/myapp`)
                 .set(owner)
                 .expect(HttpStatus.NOT_FOUND);
         });

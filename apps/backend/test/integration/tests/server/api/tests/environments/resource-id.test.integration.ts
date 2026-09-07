@@ -13,7 +13,7 @@ type AuthHeader = { authorization: string };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const environmentBody = {
     platform: { name: "ubuntu", version: "24.04" },
-    applications: [{ name: "chrome", version: "126" }],
+    applications: [{ nameAlias: "chrome", versionAlias: "126" }],
 };
 
 // UserFactory ids are `user-<hex>`: lowercase, letter-led — a valid, unique human resource id.

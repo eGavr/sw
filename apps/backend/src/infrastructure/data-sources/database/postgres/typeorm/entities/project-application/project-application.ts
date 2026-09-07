@@ -10,7 +10,7 @@ import { Project } from "../project/project";
 import { ProjectApplicationVersion } from "./project-application-version";
 
 @Entity()
-@Unique(["projectId", "platformName", "name"])
+@Unique(["projectId", "platformName", "nameAlias"])
 export class ProjectApplication {
     static from(entity: ProjectApplicationEntity): ProjectApplication {
         const data = entity.toObject();
@@ -19,7 +19,7 @@ export class ProjectApplication {
         application.id = data.id;
         application.projectId = data.projectId;
         application.platformName = data.platformName;
-        application.name = data.name;
+        application.nameAlias = data.nameAlias;
         application.createdAt = data.createdAt;
         application.versions = data.versions.map((version) => ProjectApplicationVersion.from(data.id, version));
 
@@ -39,7 +39,7 @@ export class ProjectApplication {
     platformName: string;
 
     @Column()
-    name: string;
+    nameAlias: string;
 
     @DateColumn()
     createdAt: Date;
@@ -52,7 +52,7 @@ export class ProjectApplication {
             id: this.id,
             projectId: this.projectId,
             platformName: this.platformName,
-            name: this.name,
+            nameAlias: this.nameAlias,
             versions: (this.versions ?? []).map((version) => version.toObject()),
             createdAt: this.createdAt,
         };

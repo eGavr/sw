@@ -82,7 +82,7 @@ Use the existing one (`fd8opcrg042a3lu6u90e`) or rebake per §4.
     PROJECT=$(curl -s -X POST $API/v1/projects -H "$AUTH" -H 'content-type: application/json' \
       -d '{"displayName":"android","compute":[{"provider":"android-redroid","externalRef":"yc","platform":"android","execution":"container"}]}' | jq -r .uid)
     ENV=$(curl -s -X POST $API/v1/projects/$PROJECT/environments -H "$AUTH" -H 'content-type: application/json' \
-      -d '{"platform":{"name":"android","version":"13"},"execution":"container","applications":[{"name":"settings","version":"13"}]}' | jq -r .uid)
+      -d '{"platform":{"name":"android","version":"13","deviceModel":"pixel-7"},"execution":"container","applications":[{"nameAlias":"settings","versionAlias":"13"}]}' | jq -r .uid)
     # poll GET .../environments/$ENV until state=ACTIVE (~3-4 min: VM boot + Android boot + Appium)
     SID=$(curl -s -X POST $WD/sessions -H "$AUTH" -H 'content-type: application/json' \
       -d "{\"capabilities\":{\"alwaysMatch\":{\"sw:appName\":\"settings\",\"sw:appVersion\":\"13\",\"platformName\":\"android\",\"sw:projectId\":\"$PROJECT\",\"sw:execution\":\"container\"}}}" | jq -r .value.sessionId)

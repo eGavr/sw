@@ -1,40 +1,40 @@
 [
     {
         "platformName": "ubuntu",
-        "name": "chrome",
         "versions": [
             {
+                "versionAlias": "126",
                 "appRef": "https://catalog.test/chrome-126.zip",
-                "webdriverRef": "https://catalog.test/driver-126.zip",
-                "alias": "126"
+                "webdriverRef": "https://catalog.test/driver-126.zip"
             },
             {
+                "versionAlias": "128",
                 "appRef": "https://catalog.test/chrome-128.zip",
-                "webdriverRef": "https://catalog.test/driver-128.zip",
-                "alias": "128"
+                "webdriverRef": "https://catalog.test/driver-128.zip"
             },
             {
+                "versionAlias": "140",
                 "appRef": "https://catalog.test/chrome-140.zip",
-                "webdriverRef": "https://catalog.test/driver-140.zip",
-                "alias": "140"
+                "webdriverRef": "https://catalog.test/driver-140.zip"
             },
             {
+                "versionAlias": "141",
                 "appRef": "https://catalog.test/chrome-141.zip",
-                "webdriverRef": "https://catalog.test/driver-141.zip",
-                "alias": "141"
+                "webdriverRef": "https://catalog.test/driver-141.zip"
             }
-        ]
+        ],
+        "nameAlias": "chrome"
     },
     {
         "platformName": "android",
-        "name": "settings",
         "versions": [
             {
-                "alias": "13"
+                "versionAlias": "13"
             },
             {
-                "alias": "14"
+                "versionAlias": "14"
             }
-        ]
+        ],
+        "nameAlias": "settings"
     }
 ]

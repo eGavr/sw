@@ -169,7 +169,7 @@ describe("/projects/:project/cloudAccounts", () => {
             .set(owner)
             .send({
                 platform: { name: "ubuntu", version: "24.04" },
-                applications: [{ name: "chrome", version: "128" }],
+                applications: [{ nameAlias: "chrome", versionAlias: "128" }],
             })
             .expect(HttpStatus.CREATED);
 

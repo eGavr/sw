@@ -45,8 +45,8 @@ export class ApplicationCatalog {
         }
 
         return Application.create({
-            nameAlias: application.name,
-            versionAlias: build.alias,
+            nameAlias: application.nameAlias,
+            versionAlias: build.versionAlias,
             source: this.sourceFor(application, build),
         });
     }
@@ -55,16 +55,17 @@ export class ApplicationCatalog {
     // the project's own set. Registration uses both: a custom may not take a catalog word, and no two
     // applications of one project may share a word.
     catalogReserves(platformName: string, word: string): boolean {
-        return this.catalog.some((application) => application.platformName === platformName && application.name === word);
+        return this.catalog.some((application) =>
+            application.platformName === platformName && application.nameAlias === word);
     }
 
     ownAnswers(platformName: string, word: string): boolean {
-        return this.own.some((application) => application.platformName === platformName && application.name === word);
+        return this.own.some((application) => application.platformName === platformName && application.nameAlias === word);
     }
 
     private applicationNamed(platformName: string, word: string): ProjectApplication | null {
         const named = (application: ProjectApplication): boolean =>
-            application.platformName === platformName && application.name === word;
+            application.platformName === platformName && application.nameAlias === word;
 
         return this.catalog.find(named) ?? this.own.find(named) ?? null;
     }

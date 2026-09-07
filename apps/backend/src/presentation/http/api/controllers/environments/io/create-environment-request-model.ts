@@ -16,15 +16,15 @@ class PlatformModel {
 }
 
 class ApplicationModel {
-    // A word of the project's vocabulary: an install-catalog alias (`chrome`), a canonical id, or the
-    // canonical name of an application registered in the project.
+    // The word a registered application is addressed by — a catalog word (`chrome`) or one of the
+    // project's own; the same field the environment then carries beside the detected `name`.
     @IsString()
-    name: string;
+    nameAlias: string;
 
-    // Optional: omitted or a prefix resolves to the newest registered full version.
+    // A registered build's alias; omitted resolves to the last registered build.
     @IsOptional()
     @IsString()
-    version?: string;
+    versionAlias?: string;
 }
 
 export class CreateEnvironmentRequestModel {

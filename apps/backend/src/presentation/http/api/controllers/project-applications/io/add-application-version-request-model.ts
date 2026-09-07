@@ -4,7 +4,7 @@ export class AddApplicationVersionRequestModel {
     // The owner's free-form label — the build's id ("152", "7.1-rc2").
     @IsString()
     @IsNotEmpty()
-    alias: string;
+    versionAlias: string;
 
     // The build's artifact: for a custom build, an object key in the project's delegated bucket
     // (required — enforced by the scenario); the catalog project may omit it (preinstalled).
