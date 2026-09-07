@@ -159,7 +159,7 @@ describe("/internal/poolHosts/:id:heartbeat", () => {
         const environment = await environmentRepository.create({
             projectId: ProjectId.fromString(projectId),
             platform: Platform.fromObject({ name: "android", version: "14" }),
-            applications: ApplicationList.fromObject([{ name: "chrome" }]),
+            applications: ApplicationList.fromObject([{ nameAlias: "chrome" }]),
         });
 
         return environment.id;

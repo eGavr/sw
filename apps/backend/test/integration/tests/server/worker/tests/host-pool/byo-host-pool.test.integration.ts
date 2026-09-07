@@ -184,7 +184,7 @@ describe("host-pool placement (local byo route)", () => {
             computeKind: "baremetal",
             platform: Platform.fromObject({ name: "android", version: "14" }),
             execution: Execution.Emulator,
-            applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
+            applications: ApplicationList.fromObject([{ nameAlias: "chrome" }]),
         });
 
         return environment.id;

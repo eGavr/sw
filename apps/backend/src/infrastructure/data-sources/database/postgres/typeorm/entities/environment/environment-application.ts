@@ -15,10 +15,12 @@ export class EnvironmentApplication {
 
         environmentApplication.id = Uuid.create().getValue();
         environmentApplication.environmentId = environmentId;
-        environmentApplication.applicationName = application.name;
-        environmentApplication.buildAlias = application.buildAlias ?? null;
-        environmentApplication.detectedName = application.detectedName ?? null;
-        environmentApplication.detectedVersion = application.detectedVersion ?? null;
+        // Column names keep the persistence vocabulary: application_name stores the word it was asked
+        // by, detected_* the honest identity; the domain calls them nameAlias and name/version.
+        environmentApplication.applicationName = application.nameAlias;
+        environmentApplication.buildAlias = application.versionAlias ?? null;
+        environmentApplication.detectedName = application.name ?? null;
+        environmentApplication.detectedVersion = application.version ?? null;
         environmentApplication.sourceType = source?.type ?? "provided";
         environmentApplication.appRef = source?.appRef ?? null;
         environmentApplication.webdriverRef = source?.webdriverRef ?? null;

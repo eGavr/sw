@@ -73,8 +73,8 @@ describe("/projects/:project/environments", () => {
                 // the catalog's full version, with its provenance.
                 // No version yet: the honest one is detected on the device at delivery.
                 applications: [{
-                    name: "chrome",
-                    buildAlias: "126",
+                    nameAlias: "chrome",
+                    versionAlias: "126",
                     source: { type: "provided" },
                 }],
                 occupancy: "FREE",
@@ -185,8 +185,8 @@ describe("/projects/:project/environments", () => {
                 .expect(HttpStatus.CREATED);
 
             expect(body.applications).toEqual([{
-                name: "chrome",
-                buildAlias: "141",
+                nameAlias: "chrome",
+                versionAlias: "141",
                 source: { type: "provided" },
             }]);
         });
@@ -234,8 +234,8 @@ describe("/projects/:project/environments", () => {
             // A custom declares no version: until the agent detects the delivered build, the
             // environment shows only the word and the picked build's alias.
             expect(body.applications).toEqual([{
-                name: "com.mycorp.browser",
-                buildAlias: "7.1-rc2",
+                nameAlias: "com.mycorp.browser",
+                versionAlias: "7.1-rc2",
                 source: { type: "custom", appRef: "builds/app-7.1.zip", webdriverRef: "builds/driver-7.1" },
             }]);
         });

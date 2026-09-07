@@ -16,8 +16,8 @@ export class ApplicationList {
         return this.applications.some((candidate) => candidate.equals(application));
     }
 
-    find(name: string): Application | null {
-        return this.applications.find((application) => application.name === name) ?? null;
+    find(word: string): Application | null {
+        return this.applications.find((application) => application.nameAlias === word) ?? null;
     }
 
     // The newest installed application satisfying the match — the one a session on this environment

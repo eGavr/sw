@@ -16,13 +16,13 @@ export interface Environment {
   stateReason?: string;
   platform: { name: string; version: string; deviceModel?: string };
   execution: string;
-  // Two layers: the declared word it was asked by (`name` + the picked `buildAlias`) and the detected
-  // truth from the device (`detectedName` + `detectedVersion`, absent until the agent delivers).
+  // name/version are the detected truth from the device (absent until the agent delivers); the aliases
+  // are how it was addressed — nameAlias is the word it was asked by, versionAlias the build label.
   applications: Array<{
-    name: string;
-    buildAlias?: string;
-    detectedName?: string;
-    detectedVersion?: string;
+    name?: string;
+    version?: string;
+    nameAlias: string;
+    versionAlias?: string;
     source?: { type: string; appRef?: string; webdriverRef?: string };
   }>;
   // Orthogonal to state: FREE | RESERVED (a session create is in flight) | BUSY (a session runs).

@@ -240,10 +240,9 @@ export class Environment {
         return this.applications.has(application);
     }
 
-    // The installed application offering the given name, if any — the concrete version a session opened
-    // here will run, and what "latest" ranks environments by.
-    applicationFor(name: string): Application | null {
-        return this.applications.find(name);
+    // The installed application asked by the given word, if any.
+    applicationFor(word: string): Application | null {
+        return this.applications.find(word);
     }
 
     // The installed application a session request expands to on this environment (alias-aware names,
@@ -252,12 +251,12 @@ export class Environment {
         return this.applications.bestMatch(match);
     }
 
-    // The agent's per-application report from the device (detected at delivery): the honest identities
-    // land next to the declared words, keyed by the word each application was asked by.
+    // The agent's per-application report from the device (detected at delivery): the honest identity
+    // lands beside the aliases, keyed by the word each application was asked by.
     applyDetections(reports: ReadonlyArray<ApplicationDetection>): void {
         for (const report of reports) {
-            this.applications.find(report.name)
-                ?.applyDetection(report.detectedName ?? null, report.detectedVersion ?? null);
+            this.applications.find(report.nameAlias)
+                ?.applyDetection(report.name ?? null, report.version ?? null);
         }
     }
 

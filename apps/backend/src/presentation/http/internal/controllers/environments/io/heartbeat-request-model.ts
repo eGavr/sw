@@ -1,21 +1,21 @@
 import { Type } from "class-transformer";
 import { IsBoolean, IsNotEmpty, IsOptional, IsString, ValidateNested } from "class-validator";
 
-// What the agent detected about one delivered application on the device, keyed by the declared word
-// it was asked to install (APK manifest: package id + versionName; a platform with nothing detectable
-// reports what it can).
+// What the agent detected about one delivered application on the device, keyed by the word
+// (`nameAlias`) it was asked to install (APK manifest: `name` = package id, `version` = versionName; a
+// platform with nothing detectable reports what it can).
 class ApplicationDetectionModel {
     @IsString()
     @IsNotEmpty()
-    name: string;
+    nameAlias: string;
 
     @IsOptional()
     @IsString()
-    detectedName?: string;
+    name?: string;
 
     @IsOptional()
     @IsString()
-    detectedVersion?: string;
+    version?: string;
 }
 
 export class HeartbeatRequestModel {

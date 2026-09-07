@@ -141,7 +141,7 @@ describe("/internal/environments/:id:heartbeat", () => {
         await app.close();
     });
 
-    const defaultApplications = [{ name: "chrome" }];
+    const defaultApplications = [{ nameAlias: "chrome" }];
 
     const seedEnvironment = async (applications: Array<object> = defaultApplications): Promise<string> => {
         const externalId = UserFactory.createId();
@@ -224,43 +224,43 @@ describe("/internal/environments/:id:heartbeat", () => {
 
     test("registration lands the detected identities next to the declared words", async () => {
         const id = await seedPreparingEnvironment([{
-            name: "myapp",
-            buildAlias: "7.1-rc2",
+            nameAlias: "myapp",
+            versionAlias: "7.1-rc2",
             source: { type: "custom", appRef: "builds/app.apk" },
         }]);
 
         await heartbeat(id, {
             endpoint,
             busy: false,
-            applications: [{ name: "myapp", detectedName: "com.mycorp.app", detectedVersion: "7.1.3" }],
+            applications: [{ nameAlias: "myapp", name: "com.mycorp.app", version: "7.1.3" }],
         }).expect(200);
 
         const environment = await reload(id);
         const [application] = environment.applications.toArray();
 
         expect(environment.state).toBe(EnvironmentState.Executing);
-        expect(application.detectedName).toBe("com.mycorp.app");
-        expect(application.detectedVersion).toBe("7.1.3");
+        expect(application.name).toBe("com.mycorp.app");
+        expect(application.version).toBe("7.1.3");
     });
 
     test("a detected identity is stored, never judged — words are addresses, not claims", async () => {
         const id = await seedPreparingEnvironment([{
-            name: "com.android.chrome",
-            buildAlias: "152",
+            nameAlias: "com.android.chrome",
+            versionAlias: "152",
             source: { type: "provided", appRef: "ref://chrome-152.apk" },
         }]);
 
         await heartbeat(id, {
             endpoint,
             busy: false,
-            applications: [{ name: "com.android.chrome", detectedName: "org.other.browser" }],
+            applications: [{ nameAlias: "com.android.chrome", name: "org.other.browser" }],
         }).expect(200);
 
         const environment = await reload(id);
         const [application] = environment.applications.toArray();
 
         expect(environment.state).toBe(EnvironmentState.Executing);
-        expect(application.detectedName).toBe("org.other.browser");
+        expect(application.name).toBe("org.other.browser");
     });
 
     test("a later heartbeat updates occupancy and refreshes liveness", async () => {

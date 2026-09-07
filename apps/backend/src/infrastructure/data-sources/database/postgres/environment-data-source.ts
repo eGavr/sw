@@ -98,13 +98,14 @@ export class EnvironmentDataSource {
             });
 
             // The detected identity layer lives on the child rows and is the only part of them a
-            // transition may touch (registration applies the agent's detections).
+            // transition may touch (registration applies the agent's detections). Rows are keyed by
+            // the word (persisted as application_name).
             for (const application of next.applications) {
                 await manager.getRepository(EnvironmentApplication).update(
-                    { environmentId: id, applicationName: application.name },
+                    { environmentId: id, applicationName: application.nameAlias },
                     {
-                        detectedName: application.detectedName ?? null,
-                        detectedVersion: application.detectedVersion ?? null,
+                        detectedName: application.name ?? null,
+                        detectedVersion: application.version ?? null,
                     },
                 );
             }

@@ -61,7 +61,7 @@ describe("GET /projects/:project/environments/:environment/session", () => {
         await environmentRepository.create({
             projectId: ProjectId.fromString(project.uid),
             platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
-            applications: ApplicationList.fromObject([{ name: "chrome", buildAlias: "141", detectedVersion: "141.0.7390.54" }]),
+            applications: ApplicationList.fromObject([{ nameAlias: "chrome", versionAlias: "141", version: "141.0.7390.54" }]),
         });
 
         const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());

@@ -115,12 +115,12 @@ run_slot() {
 
         node -e '
 const fs = require("fs");
-const [file, name, detectedName, detectedVersion] = process.argv.slice(1);
+const [file, nameAlias, name, version] = process.argv.slice(1);
 const reports = JSON.parse(fs.readFileSync(file, "utf8"));
 reports.push({
-    name,
-    ...(detectedName ? { detectedName } : {}),
-    ...(detectedVersion ? { detectedVersion } : {}),
+    nameAlias,
+    ...(name ? { name } : {}),
+    ...(version ? { version } : {}),
 });
 fs.writeFileSync(file, JSON.stringify(reports));
 ' "${detected_file}" "${app_name}" "${detected_name}" "${detected_version}"

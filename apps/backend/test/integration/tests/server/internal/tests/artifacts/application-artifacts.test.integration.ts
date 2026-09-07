@@ -175,8 +175,8 @@ describe("/internal/environments/:id/applications/:name:downloadApp|:downloadWeb
 
     test("streams a custom build from the project's delegated bucket", async () => {
         const { id, projectId } = await seedEnvironment([{
-            name: "myapp",
-            buildAlias: "7.1",
+            nameAlias: "myapp",
+            versionAlias: "7.1",
             source: { type: "custom", appRef: "builds/app.apk", webdriverRef: "builds/driver" },
         }]);
 
@@ -198,8 +198,8 @@ describe("/internal/environments/:id/applications/:name:downloadApp|:downloadWeb
         remoteArtifacts.artifacts.set("https://store.test/chrome-152.zip", Buffer.from("chrome-bytes"));
 
         const { id } = await seedEnvironment([{
-            name: "chrome",
-            buildAlias: "152",
+            nameAlias: "chrome",
+            versionAlias: "152",
             source: { type: "provided", appRef: "https://store.test/chrome-152.zip" },
         }]);
 
@@ -209,7 +209,7 @@ describe("/internal/environments/:id/applications/:name:downloadApp|:downloadWeb
     });
 
     test("responds NOT_FOUND when the build carries no such artifact (preinstalled / no webdriver)", async () => {
-        const { id } = await seedEnvironment([{ name: "settings", buildAlias: "14", source: { type: "provided" } }]);
+        const { id } = await seedEnvironment([{ nameAlias: "settings", versionAlias: "14", source: { type: "provided" } }]);
 
         await download(id, "settings:downloadApp").expect(404);
         await download(id, "settings:downloadWebdriver").expect(404);
@@ -217,7 +217,7 @@ describe("/internal/environments/:id/applications/:name:downloadApp|:downloadWeb
 
     test("responds INVALID_ARGUMENT for a custom build when the project has no storage destination", async () => {
         const { id } = await seedEnvironment([{
-            name: "myapp",
+            nameAlias: "myapp",
             source: { type: "custom", appRef: "builds/app.apk" },
         }]);
 
@@ -226,11 +226,11 @@ describe("/internal/environments/:id/applications/:name:downloadApp|:downloadWeb
 
     test("responds UNAUTHENTICATED with a token for a different environment", async () => {
         const { id } = await seedEnvironment([{
-            name: "myapp",
+            nameAlias: "myapp",
             source: { type: "custom", appRef: "builds/app.apk" },
         }]);
         const { id: other } = await seedEnvironment([{
-            name: "myapp",
+            nameAlias: "myapp",
             source: { type: "custom", appRef: "builds/app.apk" },
         }]);
 

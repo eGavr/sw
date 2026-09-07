@@ -103,7 +103,7 @@ describe("/sessions", () => {
             platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
             execution,
             // Registered environments are detected by construction (detection rides registration).
-            applications: ApplicationList.fromObject([{ name: "chrome", buildAlias: version, detectedVersion: version }]),
+            applications: ApplicationList.fromObject([{ nameAlias: "chrome", versionAlias: version, version: version }]),
         });
 
         const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());
@@ -322,7 +322,7 @@ describe("/sessions", () => {
                 projectId: ProjectId.fromString(projectId),
                 platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
                 applications: ApplicationList.fromObject([
-                    { name: "chrome", buildAlias: chromeVersion, detectedVersion: chromeVersion },
+                    { nameAlias: "chrome", versionAlias: chromeVersion, version: chromeVersion },
                 ]),
             });
 
@@ -432,10 +432,10 @@ describe("/sessions", () => {
                 platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
                 execution: Execution.Container,
                 applications: ApplicationList.fromObject([{
-                    name: "myapp",
-                    buildAlias: "7.1-rc2",
-                    detectedName: "com.mycorp.app",
-                    detectedVersion: "7.1.3",
+                    nameAlias: "myapp",
+                    versionAlias: "7.1-rc2",
+                    name: "com.mycorp.app",
+                    version: "7.1.3",
                     source: { type: "custom", appRef: "builds/app.zip" },
                 }]),
             });
@@ -541,7 +541,7 @@ describe("/sessions", () => {
                 projectId: ProjectId.fromString(projectId),
                 platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
                 applications: ApplicationList.fromObject([
-                    { name: "chrome", buildAlias: chromeVersion, detectedVersion: chromeVersion },
+                    { nameAlias: "chrome", versionAlias: chromeVersion, version: chromeVersion },
                 ]),
             });
 

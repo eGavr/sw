@@ -33,12 +33,12 @@ export function resolveDockerProvisioning(
     application: ApplicationData,
     options: { image?: string; baseImage?: string },
 ): DockerProvisioning {
-    const version = application.buildAlias ?? "latest";
+    const version = application.versionAlias ?? "latest";
 
     if (options.baseImage) {
         return {
             image: options.baseImage,
-            env: { SW_BROWSER_NAME: application.name, SW_BROWSER_VERSION: version },
+            env: { SW_BROWSER_NAME: application.nameAlias, SW_BROWSER_VERSION: version },
         };
     }
 

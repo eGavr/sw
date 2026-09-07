@@ -46,8 +46,8 @@ export class ApplicationCatalog {
         }
 
         return Application.create({
-            name: application.name,
-            buildAlias: build.alias,
+            nameAlias: application.name,
+            versionAlias: build.alias,
             source: this.sourceFor(application, build),
         });
     }
