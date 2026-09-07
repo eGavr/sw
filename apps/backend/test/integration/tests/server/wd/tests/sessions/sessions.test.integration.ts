@@ -89,21 +89,28 @@ describe("/sessions", () => {
         return { owner: Authorization.forUser(externalId), projectId: project.id };
     };
 
-    // Bring one chrome environment to executing (endpoint + fresh heartbeat) in the given project, so it
-    // is allocatable: enqueued -> starting -> preparing -> executing. Returns its id.
+    const platformsByName: Record<string, Platform> = {
+        ubuntu: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
+        android: Platform.fromObject({ name: "android", version: "14" }),
+    };
+
+    // Bring one environment to executing (endpoint + fresh heartbeat) in the given project, so it is
+    // allocatable: enqueued -> starting -> preparing -> executing. Returns its id.
     const registerExecutingEnvironment = async (
         projectId: string,
         version: string,
         execution: Execution = Execution.Container,
+        platformName: string = "ubuntu",
+        word: string = "chrome",
     ): Promise<string> => {
         const environmentRepository = app.get(EnvironmentRepository);
 
         await environmentRepository.create({
             projectId: ProjectId.fromString(projectId),
-            platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
+            platform: platformsByName[platformName],
             execution,
             // Registered environments are detected by construction (detection rides registration).
-            applications: ApplicationList.fromObject([{ nameAlias: "chrome", versionAlias: version, version: version }]),
+            applications: ApplicationList.fromObject([{ nameAlias: word, versionAlias: version, version: version }]),
         });
 
         const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());
@@ -145,18 +152,21 @@ describe("/sessions", () => {
         video?: boolean,
         netBridge?: boolean,
         execution?: Execution,
+        platform?: string,
         environmentId?: string,
     };
     type ApplicationCaps = { name: string, version: string };
 
     // W3C "New Session" request: the requested application is the standard browserName/browserVersion,
-    // our per-session opt-ins ride as vendor sw:* capabilities, and the project is sw:projectId.
+    // the platform the standard platformName, our per-session opt-ins ride as vendor sw:* capabilities,
+    // and the project is sw:projectId.
     const capabilities = (projectId: string, application: ApplicationCaps, opts: SessionOpts = {}): object => ({
         capabilities: {
             alwaysMatch: {
                 browserName: application.name,
                 browserVersion: application.version,
                 "sw:projectId": projectId,
+                ...(opts.platform === undefined ? {} : { platformName: opts.platform }),
                 ...(opts.execution === undefined ? {} : { "sw:execution": opts.execution }),
                 ...(opts.environmentId === undefined ? {} : { "sw:environmentId": opts.environmentId }),
                 ...(opts.logging === undefined ? {} : { "sw:logging": opts.logging }),
@@ -185,6 +195,7 @@ describe("/sessions", () => {
             expect(caps["sw:environmentId"]).toBe(environmentId);
             expect(caps.browserName).toBe("chrome");
             expect(caps.browserVersion).toBe(chromeVersion);
+            expect(caps.platformName).toBe("ubuntu");
             expect(SessionRoute.decode(body.value.sessionId))
                 .toEqual({ endpoint: nodeEndpoint, webDriverSessionId: wdSessionId });
 
@@ -386,6 +397,81 @@ describe("/sessions", () => {
             return createSession(projectId, owner).expect(HttpStatus.BAD_REQUEST);
         });
 
+        // One word (`chrome`) lives on several platforms; the W3C platformName tells them apart, the
+        // family word `linux` opening onto the linux platform the install runs.
+        test("allocates on the platform named by platformName when the word is offered on several", async () => {
+            const { owner, projectId } = await seedProject();
+            const ubuntuId = await registerExecutingEnvironment(projectId, chromeVersion, Execution.Container, "ubuntu");
+            const androidId = await registerExecutingEnvironment(projectId, chromeVersion, Execution.Container, "android");
+
+            const onAndroid = await createSession(projectId, owner, chrome, { platform: "android" }).expect(HttpStatus.OK);
+            expect(onAndroid.body.value.capabilities["sw:environmentId"]).toBe(androidId);
+            expect(onAndroid.body.value.capabilities.platformName).toBe("android");
+
+            const onLinux = await createSession(projectId, owner, chrome, { platform: "linux" }).expect(HttpStatus.OK);
+            expect(onLinux.body.value.capabilities["sw:environmentId"]).toBe(ubuntuId);
+            expect(onLinux.body.value.capabilities.platformName).toBe("ubuntu");
+        });
+
+        test("responds FAILED_PRECONDITION when nothing offers the application on the requested platform", async () => {
+            const { owner, projectId } = await seedExecutingEnvironment();
+
+            return createSession(projectId, owner, chrome, { platform: "android" })
+                .expect(HttpStatus.BAD_REQUEST)
+                .expect((response) => expect(JSON.stringify(response.body)).toMatch(/on android container/));
+        });
+
+        test("responds BAD_REQUEST for a platformName that is neither a platform nor a family", async () => {
+            const { owner, projectId } = await seedExecutingEnvironment();
+
+            return createSession(projectId, owner, chrome, { platform: "windows" }).expect(HttpStatus.BAD_REQUEST);
+        });
+
+        // Any application — a native one here — is asked through sw:appName/sw:appVersion, and the reply
+        // names it back in the same vocabulary rather than as a "browser".
+        test("allocates an application named through sw:appName and answers in that vocabulary", async () => {
+            const { owner, projectId } = await seedProject();
+            const environmentId = await registerExecutingEnvironment(
+                projectId, "14", Execution.Container, "android", "settings",
+            );
+
+            const { body } = await request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send({
+                    capabilities: {
+                        alwaysMatch: {
+                            "sw:appName": "settings", "sw:appVersion": "14", platformName: "Android", "sw:projectId": projectId,
+                        },
+                    },
+                })
+                .expect(HttpStatus.OK);
+
+            expect(body.value.capabilities).toMatchObject({
+                "sw:appName": "settings",
+                "sw:appVersion": "14",
+                platformName: "android",
+                "sw:environmentId": environmentId,
+            });
+            expect(body.value.capabilities.browserName).toBeUndefined();
+        });
+
+        test("responds BAD_REQUEST when the application is named in both vocabularies", async () => {
+            const { owner, projectId } = await seedExecutingEnvironment();
+
+            return request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send({
+                    capabilities: {
+                        alwaysMatch: {
+                            browserName: "chrome", "sw:appName": "chrome", "sw:projectId": projectId,
+                        },
+                    },
+                })
+                .expect(HttpStatus.BAD_REQUEST);
+        });
+
         // The node's failure surfaces as W3C "session not created" with the real cause — not as a
         // swallowed "no environments available" — and the reservation returns to the pool right away.
         test("surfaces the node's rejection as session-not-created and releases the reservation", async () => {
@@ -531,6 +617,13 @@ describe("/sessions", () => {
             const { owner, projectId, environmentId } = await seedExecutingEnvironment();
 
             return createSession(projectId, owner, { name: "chrome", version: "999" }, { environmentId })
+                .expect(HttpStatus.BAD_REQUEST);
+        });
+
+        test("responds BAD_REQUEST when the target runs on another platform", async () => {
+            const { owner, projectId, environmentId } = await seedExecutingEnvironment();
+
+            return createSession(projectId, owner, chrome, { environmentId, platform: "android" })
                 .expect(HttpStatus.BAD_REQUEST);
         });
 

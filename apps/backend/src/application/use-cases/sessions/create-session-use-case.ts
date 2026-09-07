@@ -13,6 +13,7 @@ import {
 } from "../../../domain/entities/environment/error/target-environment-not-ready-error";
 import { toExecution } from "../../../domain/entities/environment/execution";
 import { defaultHeartbeatFreshnessMs } from "../../../domain/entities/environment/heartbeat-freshness";
+import { RequestedPlatform } from "../../../domain/entities/environment/platform/requested-platform";
 import { SessionAllocationCriteria } from "../../../domain/entities/environment/session-allocation-criteria";
 import { ConflictError } from "../../../domain/entities/error/conflict-error";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
@@ -47,6 +48,8 @@ type CreateSessionInput = {
     params: {
         projectId: string;
         execution: string;
+        // The W3C platform word (`android`, `linux`); omitted means any platform.
+        platform?: string;
         application: {
             name: string;
             version?: string;
@@ -61,6 +64,14 @@ type CreateSessionInput = {
 // How often the reserving wd re-confirms its hold while the node is creating the session — the
 // worker's sweep frees a reservation whose confirmation went silent (its wd died mid-create).
 const reservationConfirmIntervalMs = 3_000;
+
+// The request as the domain matches it: the application ask, its catalog expansion, and the platform
+// (null = any) — fixed once per request, while the criteria's freshness cutoff moves per attempt.
+type SessionAsk = {
+    readonly application: RequestedApplication;
+    readonly match: ApplicationMatch;
+    readonly platform: RequestedPlatform | null;
+};
 
 // Pessimistic allocation. The caller asks for an application (or targets one environment with
 // sw:environmentId) and the scenario reserves a matching free environment under the storage lock, so
@@ -107,12 +118,16 @@ export class CreateSessionUseCase {
         // project's vocabulary expands it once into the canonical names and prefix everything
         // downstream matches against.
         const catalog = await this.applicationCatalogLoader.loadFor(projectId);
-        const requested = RequestedApplication.create(params.application);
-        const match = catalog.expand(requested);
+        const application = RequestedApplication.create(params.application);
+        const ask: SessionAsk = {
+            application,
+            match: catalog.expand(application),
+            platform: params.platform === undefined ? null : RequestedPlatform.create(params.platform),
+        };
 
-        const reserved = await this.reserveWithinBudget(projectId, params, requested, match);
+        const reserved = await this.reserveWithinBudget(projectId, params, ask);
 
-        const session = await this.openReservedSession(reserved, catalog, match, {
+        const session = await this.openReservedSession(reserved, catalog, ask.match, {
             logging: params.logging ?? false,
             video: params.video ?? false,
             netBridge: params.netBridge ?? false,
@@ -154,14 +169,13 @@ export class CreateSessionUseCase {
     private async reserveWithinBudget(
         projectId: ProjectId,
         params: CreateSessionInput["params"],
-        requested: RequestedApplication,
-        match: ApplicationMatch,
+        ask: SessionAsk,
     ): Promise<Environment> {
         const deadline = Date.now() + this.retry.budgetMs;
 
         for (;;) {
             try {
-                return await this.reserveOnce(projectId, params, requested, match);
+                return await this.reserveOnce(projectId, params, ask);
             } catch (error) {
                 if (!(error instanceof ConflictError) || Date.now() >= deadline) {
                     throw error;
@@ -175,8 +189,7 @@ export class CreateSessionUseCase {
     private async reserveOnce(
         projectId: ProjectId,
         params: CreateSessionInput["params"],
-        requested: RequestedApplication,
-        match: ApplicationMatch,
+        ask: SessionAsk,
     ): Promise<Environment> {
         // Rebuilt each attempt so the freshness cutoff moves forward and a newly-arrived heartbeat is
         // seen. Explicitly typed so `refuseTransientShortage(): never` narrows the reserved candidate.
@@ -184,8 +197,9 @@ export class CreateSessionUseCase {
             now: new Date(),
             freshnessMs: defaultHeartbeatFreshnessMs,
             execution: toExecution(params.execution),
-            application: requested,
-            match,
+            platform: ask.platform,
+            application: ask.application,
+            match: ask.match,
         });
         const candidates = params.environmentId
             ? await this.targetedCandidate(projectId, params.environmentId, criteria)
@@ -302,6 +316,7 @@ export class CreateSessionUseCase {
 
             return Session.create({
                 environmentId,
+                platform: environment.platform,
                 application,
                 endpoint: environment.endpoint,
                 webDriverSessionId,

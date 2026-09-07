@@ -2,14 +2,19 @@ import { Session } from "../../../../../../domain/entities/session/session";
 import { Presenter } from "../../../../presenters/presenter";
 import { SessionRoute } from "../../../../session-route";
 
-// W3C WebDriver "New Session"-shaped response: { value: { sessionId, capabilities } }. The stateless
-// WebSocket protocols (BiDi / DevTools / VNC) are advertised as vendor extension capabilities in our
-// `sw:` namespace — the way Selenium Grid exposes `se:vnc` / `se:cdp` — rather than as ad-hoc top-level
-// fields. `sw:vnc` is the raw RFB-over-WS URL a VNC client connects to; `sw:interactive` is the ready-to-open
-// hosted viewer page — an https URL a human clicks to watch and drive the session — which connects to it.
+import { ApplicationCapability } from "./session-capabilities";
+
+// W3C WebDriver "New Session"-shaped response: { value: { sessionId, capabilities } }. The application
+// is named back in the vocabulary the request used (browserName/browserVersion or sw:appName/sw:appVersion),
+// with the honest platform it landed on. The stateless WebSocket protocols (BiDi / DevTools / VNC) are
+// advertised as vendor extension capabilities in our `sw:` namespace — the way Selenium Grid exposes
+// `se:vnc` / `se:cdp` — rather than as ad-hoc top-level fields. `sw:vnc` is the raw RFB-over-WS URL a
+// VNC client connects to; `sw:interactive` is the ready-to-open hosted viewer page — an https URL a
+// human clicks to watch and drive the session — which connects to it.
 export class SessionPresenter implements Presenter {
     constructor(
         private readonly session: Session,
+        private readonly applicationCapability: ApplicationCapability,
         private readonly webSocketBaseUrl: string,
         private readonly httpBaseUrl: string,
     ) {}
@@ -22,8 +27,8 @@ export class SessionPresenter implements Presenter {
             value: {
                 sessionId,
                 capabilities: {
-                    browserName: this.session.application.nameAlias,
-                    browserVersion: this.session.application.version,
+                    ...this.applicationCapabilities(),
+                    platformName: this.session.platform.name,
                     "sw:environmentId": this.session.environmentId.getValue(),
                     "sw:bidi": `${proxy}/bidi`,
                     "sw:cdp": `${proxy}/cdp`,
@@ -32,5 +37,13 @@ export class SessionPresenter implements Presenter {
                 },
             },
         };
+    }
+
+    private applicationCapabilities(): object {
+        const { nameAlias, version } = this.session.application;
+
+        return this.applicationCapability === "browserName"
+            ? { browserName: nameAlias, browserVersion: version }
+            : { "sw:appName": nameAlias, "sw:appVersion": version };
     }
 }

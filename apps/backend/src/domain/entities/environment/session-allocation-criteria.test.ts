@@ -15,6 +15,7 @@ import {
 import { TargetEnvironmentNotReadyError } from "./error/target-environment-not-ready-error";
 import { Execution } from "./execution";
 import { Platform } from "./platform/platform";
+import { RequestedPlatform } from "./platform/requested-platform";
 import { SessionAllocationCriteria } from "./session-allocation-criteria";
 
 describe("SessionAllocationCriteria", () => {
@@ -22,9 +23,9 @@ describe("SessionAllocationCriteria", () => {
 
     // Allocatable environments are always detected (detection rides registration), so the fixture
     // carries the detected layer.
-    const environmentWith = (version: string): Environment => Environment.create({
+    const environmentWith = (version: string, platformName: string = "ubuntu"): Environment => Environment.create({
         projectId: ProjectId.create(),
-        platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
+        platform: Platform.fromObject({ name: platformName, version: platformName === "android" ? "14" : "24.04" }),
         applications: ApplicationList.fromObject([{ nameAlias: "chrome", versionAlias: "b", version }]),
     });
 
@@ -32,9 +33,12 @@ describe("SessionAllocationCriteria", () => {
     const matchFor = (application: RequestedApplication): ApplicationMatch =>
         ApplicationMatch.create({ names: [application.name], versionAsk: application.version() });
 
-    const criteriaFor = (application: RequestedApplication): SessionAllocationCriteria =>
+    const criteriaFor = (
+        application: RequestedApplication,
+        platform: RequestedPlatform | null = null,
+    ): SessionAllocationCriteria =>
         SessionAllocationCriteria.from({
-            now, freshnessMs: 6_000, execution: Execution.Container, application, match: matchFor(application),
+            now, freshnessMs: 6_000, execution: Execution.Container, platform, application, match: matchFor(application),
         });
 
     test("forms a free-and-fresh predicate for the requested application and execution substrate", () => {
@@ -45,6 +49,7 @@ describe("SessionAllocationCriteria", () => {
             occupancy: EnvironmentOccupancy.Free,
             heartbeatCutoff: new Date(4_000),
             execution: Execution.Container,
+            platformNames: null,
             applicationNames: ["chrome"],
             applicationVersionAsk: "100",
         });
@@ -54,6 +59,14 @@ describe("SessionAllocationCriteria", () => {
         const predicate = criteriaFor(RequestedApplication.create({ name: "chrome" })).toPredicate();
 
         expect(predicate.applicationVersionAsk).toBeNull();
+    });
+
+    test("an asked platform narrows the predicate to the concrete platforms it opens onto", () => {
+        const chrome = RequestedApplication.create({ name: "chrome" });
+
+        expect(criteriaFor(chrome, RequestedPlatform.create("linux")).toPredicate().platformNames).toEqual(["ubuntu"]);
+        expect(criteriaFor(chrome, RequestedPlatform.create("android")).toOfferPredicate().platformNames)
+            .toEqual(["android"]);
     });
 
     test("the offer predicate relaxes to every still-viable state, keeping the request shape", () => {
@@ -67,6 +80,7 @@ describe("SessionAllocationCriteria", () => {
                 EnvironmentState.Executing,
             ],
             execution: Execution.Container,
+            platformNames: null,
             applicationNames: ["chrome"],
             applicationVersionAsk: "100",
         });
@@ -81,7 +95,16 @@ describe("SessionAllocationCriteria", () => {
 
         test("nothing offering the request is a failed precondition — retrying is pointless", () => {
             expect(() => criteria.refuseAllocation(false)).toThrow(NoEnvironmentOffersApplicationError);
-            expect(() => criteria.refuseAllocation(false)).toThrow(/create one first/);
+            expect(() => criteria.refuseAllocation(false)).toThrow(/chrome 141 on container — create one first/);
+        });
+
+        test("names the asked platform in the refusal", () => {
+            const onAndroid = criteriaFor(
+                RequestedApplication.create({ name: "chrome", version: "141" }),
+                RequestedPlatform.create("android"),
+            );
+
+            expect(() => onAndroid.refuseAllocation(false)).toThrow(/chrome 141 on android container/);
         });
 
         test("a pool taken in the race is refused as the same transient shortage", () => {
@@ -119,8 +142,12 @@ describe("SessionAllocationCriteria", () => {
     });
 
     describe("admit (targeted allocation)", () => {
-        const executingEnvironmentWith = (version: string, heartbeatAt: Date = now): Environment => {
-            const environment = environmentWith(version);
+        const executingEnvironmentWith = (
+            version: string,
+            heartbeatAt: Date = now,
+            platformName: string = "ubuntu",
+        ): Environment => {
+            const environment = environmentWith(version, platformName);
 
             environment.claim();
             environment.markDispatched();
@@ -152,6 +179,7 @@ describe("SessionAllocationCriteria", () => {
                 now,
                 freshnessMs: 6_000,
                 execution: Execution.Container,
+                platform: null,
                 application: requested,
                 match: ApplicationMatch.create({ names: ["chrome", "com.android.chrome"], versionAsk: null }),
             });
@@ -186,11 +214,30 @@ describe("SessionAllocationCriteria", () => {
                 now,
                 freshnessMs: 6_000,
                 execution: Execution.Emulator,
+                platform: null,
                 application: requested,
                 match: matchFor(requested),
             });
 
             expect(() => emulator.admit(executingEnvironmentWith("141"))).toThrow(IncompatibleSessionTargetError);
+        });
+
+        test("admits the platform the request asks for, a family word opening onto its platforms", () => {
+            const chrome = RequestedApplication.create({ name: "chrome", version: "141" });
+
+            expect(() => criteriaFor(chrome, RequestedPlatform.create("linux")).admit(executingEnvironmentWith("141")))
+                .not.toThrow();
+            expect(() => criteriaFor(chrome, RequestedPlatform.create("android"))
+                .admit(executingEnvironmentWith("141", now, "android"))).not.toThrow();
+        });
+
+        test("rejects as incompatible on another platform", () => {
+            const chrome = RequestedApplication.create({ name: "chrome", version: "141" });
+
+            expect(() => criteriaFor(chrome, RequestedPlatform.create("android")).admit(executingEnvironmentWith("141")))
+                .toThrow(IncompatibleSessionTargetError);
+            expect(() => criteriaFor(chrome, RequestedPlatform.create("android")).admit(executingEnvironmentWith("141")))
+                .toThrow(/on android container/);
         });
 
         test("rejects as not ready while the environment is still provisioning", () => {

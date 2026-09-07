@@ -58,7 +58,7 @@ const config = {
 const environment = Environment.create({
     projectId: ProjectId.create(),
     platform: Platform.fromObject({ name: "ubuntu", version: "1" }),
-    applications: ApplicationList.fromObject([{ name: "chrome", version: "128" }]),
+    applications: ApplicationList.fromObject([{ nameAlias: "chrome", versionAlias: "128" }]),
     cloudType: "yandex-cloud",
 });
 
