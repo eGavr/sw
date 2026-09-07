@@ -1,14 +1,8 @@
-import { IsArray, IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { IsNotEmpty, IsString } from "class-validator";
 
 export class CreateProjectApplicationRequestModel {
+    // The ONE word the application is addressed by (`chrome`, `myapp`); format is the domain's call.
     @IsString()
     @IsNotEmpty()
     name: string;
-
-    // Wire vocabulary (`chrome`) — accepted only in the reserved catalog project; a custom application
-    // is addressed by its canonical name (enforced by the scenario).
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    aliases?: Array<string>;
 }

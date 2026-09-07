@@ -464,7 +464,6 @@ export interface PlatformLine {
 export interface ProjectApplication {
   name: string;
   application: string;
-  aliases: Array<string>;
   createTime: string;
 }
 

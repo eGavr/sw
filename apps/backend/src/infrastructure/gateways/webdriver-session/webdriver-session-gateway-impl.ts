@@ -20,14 +20,13 @@ export class WebDriverSessionGatewayImpl extends WebDriverSessionGateway {
     async create(
         endpoint: string,
         application: Application,
-        wireName: string,
         platformName: string,
         options?: WebDriverSessionOptions,
     ): Promise<string> {
         try {
             return await this.webDriverClient.createSession(
                 endpoint,
-                { name: wireName, version: application.version, platformName },
+                { name: application.nameAlias, version: application.version, platformName },
                 options,
             );
         } catch (error) {

@@ -259,6 +259,35 @@ describe("host-pool placement (baremetal route)", () => {
             .toEqual({ avd: "sw-android-14", device: "pixel-7", internalUrl: "http://cp:3002", apps: [] });
     });
 
+    // The slot pulls every delivered application through the control plane by the WORD it was asked
+    // by (the detected identity does not exist yet at provision time), preinstalled ones stay out.
+    test("the launch names delivered applications by their word, flagging a paired webdriver", async () => {
+        const seeded = await seedProjectWithBaremetalBinding();
+        const environment = await environmentRepository.create({
+            projectId: ProjectId.fromString(seeded.projectId),
+            cloudAccountId: CloudAccountId.fromString(seeded.cloudAccountId),
+            cloudType: "yandex-cloud",
+            computeKind: "baremetal",
+            platform: Platform.fromObject({ name: "android", version: "14", deviceModel: "pixel-7" }),
+            execution: Execution.Emulator,
+            applications: ApplicationList.fromObject([
+                { nameAlias: "settings", versionAlias: "14", source: { type: "provided" } },
+                {
+                    nameAlias: "myapp",
+                    versionAlias: "e2e-1",
+                    source: { type: "custom", appRef: "builds/myapp.apk", webdriverRef: "builds/driver" },
+                },
+            ]),
+        });
+
+        await prepareNext();
+
+        const host = await poolHostRepository.findByEnvironment(EnvironmentId.fromString(environment.id));
+        expect(host?.placementFor(environment.id)?.launch).toMatchObject({
+            apps: [{ name: "myapp", webdriver: true }],
+        });
+    });
+
     test("the second environment packs onto the same machine — no second order", async () => {
         const seeded = await seedProjectWithBaremetalBinding();
         const first = await createEnvironment(seeded);

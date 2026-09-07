@@ -6,7 +6,7 @@ import { ProjectId } from "../project/project-id";
 import { Application, ApplicationData } from "./application/application";
 import { ApplicationDetection } from "./application/application-detection";
 import { ApplicationList } from "./application/application-list";
-import { ApplicationMatch } from "./application/application-match";
+import { RequestedApplication } from "./application/requested-application";
 import { EnvironmentEndpoint } from "./environment-endpoint";
 import { EnvironmentId } from "./environment-id";
 import { EnvironmentOccupancy, toEnvironmentOccupancy } from "./environment-occupancy";
@@ -245,10 +245,10 @@ export class Environment {
         return this.applications.find(word);
     }
 
-    // The installed application a session request expands to on this environment (alias-aware names,
-    // version-prefix loose), newest first when several qualify.
-    applicationMatching(match: ApplicationMatch): Application | null {
-        return this.applications.bestMatch(match);
+    // The installed application a session ask lands on in this environment (by word or detected
+    // identity, version-prefix loose), newest first when several qualify.
+    applicationMatching(requested: RequestedApplication): Application | null {
+        return this.applications.bestMatch(requested);
     }
 
     // The agent's per-application report from the device (detected at delivery): the honest identity

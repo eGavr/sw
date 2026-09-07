@@ -2,8 +2,8 @@ import { InvalidArgumentError } from "../../error/invalid-argument-error";
 
 import { Application } from "./application";
 import { ApplicationList } from "./application-list";
-import { ApplicationMatch } from "./application-match";
 import { ApplicationSource } from "./application-source";
+import { RequestedApplication } from "./requested-application";
 
 describe("Application", () => {
     describe(".create", () => {
@@ -101,20 +101,20 @@ describe("ApplicationList", () => {
         ]);
 
         test("picks the newest detected version among the candidate words", () => {
-            const match = ApplicationMatch.create({ names: ["chrome"], versionAsk: null });
+            const match = RequestedApplication.create({ name: "chrome" });
 
             expect(list.bestMatch(match)?.version).toBe("152.0.7977.82");
         });
 
         test("narrows by the version ask: alias or detected prefix", () => {
-            expect(list.bestMatch(ApplicationMatch.create({ names: ["chrome"], versionAsk: "151" }))
+            expect(list.bestMatch(RequestedApplication.create({ name: "chrome", version: "151" }))
                 ?.version).toBe("151.0.7890.10");
-            expect(list.bestMatch(ApplicationMatch.create({ names: ["chrome"], versionAsk: "151.0.7890" }))
+            expect(list.bestMatch(RequestedApplication.create({ name: "chrome", version: "151.0.7890" }))
                 ?.version).toBe("151.0.7890.10");
         });
 
         test("returns null when nothing qualifies", () => {
-            expect(list.bestMatch(ApplicationMatch.create({ names: ["chrome"], versionAsk: "150" }))).toBeNull();
+            expect(list.bestMatch(RequestedApplication.create({ name: "chrome", version: "150" }))).toBeNull();
         });
     });
 

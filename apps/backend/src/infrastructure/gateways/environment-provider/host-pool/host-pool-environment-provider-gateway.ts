@@ -60,7 +60,7 @@ export class HostPoolEnvironmentProviderGateway extends EnvironmentProviderGatew
                 apps: environment.applications.toArray()
                     .filter((application) => application.source?.appRef)
                     .map((application) => ({
-                        name: application.name,
+                        name: application.nameAlias,
                         webdriver: Boolean(application.source?.webdriverRef),
                     })),
             },

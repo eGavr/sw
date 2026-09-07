@@ -2,7 +2,6 @@
     {
         "platformName": "ubuntu",
         "name": "chrome",
-        "aliases": [],
         "versions": [
             {
                 "appRef": "https://catalog.test/chrome-126.zip",
@@ -28,10 +27,7 @@
     },
     {
         "platformName": "android",
-        "name": "com.android.settings",
-        "aliases": [
-            "settings"
-        ],
+        "name": "settings",
         "versions": [
             {
                 "alias": "13"

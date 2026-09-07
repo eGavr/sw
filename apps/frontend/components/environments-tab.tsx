@@ -119,8 +119,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const offerings = applicationsQuery.data ?? [];
   const applicationOptions = offerings.map((offering) => ({
     value: offering.application,
-    label: (offering.aliases[0] ? `${offering.aliases[0]} (${offering.application})` : offering.application)
-      + (offering.owner === catalogProject ? "" : " — custom"),
+    label: offering.application + (offering.owner === catalogProject ? "" : " — custom"),
   }));
   const selectedOffering = offerings.find((offering) => offering.application === appName);
   const versionsQuery = useQuery({

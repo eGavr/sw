@@ -17,7 +17,6 @@ import { ProjectRepository } from "../../interfaces/repositories/project-reposit
 export type CatalogSeedApplication = {
     readonly platformName: string;
     readonly name: string;
-    readonly aliases: ReadonlyArray<string>;
     readonly versions: ReadonlyArray<{
         readonly alias: string;
         readonly appRef?: string;
@@ -104,7 +103,6 @@ export class EnsureCatalogProjectUseCase {
                 projectId: project.id,
                 platformName: entry.platformName,
                 name: entry.name,
-                aliases: [...entry.aliases],
             });
 
             for (const version of entry.versions) {
