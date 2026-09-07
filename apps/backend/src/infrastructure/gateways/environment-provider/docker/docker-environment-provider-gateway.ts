@@ -6,11 +6,12 @@ import {
 } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
 import { Environment } from "../../../../domain/entities/environment/environment";
-import { agentBootstrap, sessionLogFile } from "../agent-bootstrap";
+import { agentBootstrap, linuxNodeEntrypoint, sessionLogFile } from "../agent-bootstrap";
+import { linuxNodeProvisioning } from "../linux-node";
 import { netBridgeProxyPort } from "../net-bridge-forwarder";
 
 import { DockerClient } from "./docker-client";
-import { DockerEnvironmentConfig, resolveDockerProvisioning } from "./docker-environment-config";
+import { DockerEnvironmentConfig } from "./docker-environment-config";
 import { dockerProvisioningOverrides } from "./docker-provider-config";
 import { reserveFreePort } from "./free-port";
 import { dockerLabels, dockerProviderValue } from "./labels";
@@ -40,11 +41,13 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
         const overrides = dockerProvisioningOverrides(
             cloudAccount?.computeBindingFor(environment.platform.name, environment.execution)?.config,
         );
-        const provisioning = resolveDockerProvisioning(
-            environment.platform.toObject(),
-            environment.applications.toArray(),
-            { baseImage: overrides.baseImage ?? this.config.baseImage },
-        );
+        const provisioning = linuxNodeProvisioning({
+            platform: environment.platform.toObject(),
+            applications: environment.applications.toArray(),
+            baseImage: overrides.baseImage ?? this.config.baseImage,
+            sessionTimeoutSeconds: this.config.sessionTimeoutSeconds,
+            screen: this.config.screen,
+        });
         const platform = overrides.platform ?? this.config.platform;
         const internalPort = overrides.internalPort ?? this.config.internalPort;
 
@@ -57,7 +60,7 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
             publish: { host: hostPort, container: internalPort },
             shmSize: "2g",
             entrypoint: "bash",
-            command: ["-c", agentBootstrap(this.config.entrypoint)],
+            command: ["-c", agentBootstrap(linuxNodeEntrypoint)],
             env: {
                 SW_ENVIRONMENT_ID: environment.id,
                 SW_ENDPOINT: endpoint,
@@ -68,11 +71,6 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
                 // When set, the agent launches the NetBridge forwarder: a loopback SOCKS proxy the browser
                 // uses, tunnelling out to the rendezvous. Reuses the per-env agent token as its bearer.
                 ...this.netBridgeEnv(),
-                // The smart idle timeout is enforced by the node's wd door (with the one-session rule).
-                SW_SESSION_IDLE_TIMEOUT_SECONDS: String(this.config.sessionTimeoutSeconds),
-                // The headless display geometry — the node's Xvfb and the agent's video recorder agree on it.
-                SW_SCREEN_WIDTH: String(this.config.screen.width),
-                SW_SCREEN_HEIGHT: String(this.config.screen.height),
                 ...provisioning.env,
             },
             labels: {

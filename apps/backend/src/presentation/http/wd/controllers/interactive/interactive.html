@@ -39,8 +39,8 @@
       rfb.resizeSession = false;
       rfb.background = '#1b1b1b';
 
-      // The selenium node's VNC uses the image's well-known default password unless it is disabled; send it
-      // if the server asks. Access is already gated by possession of the unguessable session id in the path.
+      // Our nodes' x11vnc runs without a password — access is gated by possession of the unguessable
+      // session id in the path; a node that still asks gets the legacy default.
       rfb.addEventListener('credentialsrequired', () => rfb.sendCredentials({ password: 'secret' }));
       rfb.addEventListener('connect', () => {
         status.textContent = 'connected · you have control';

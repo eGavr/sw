@@ -1,5 +1,5 @@
 [Unit]
-Description=sw browser environment boot (selenium node + heartbeat agent)
+Description=sw browser environment boot (linux base node + heartbeat agent)
 After=docker.service network-online.target
 Requires=docker.service
 Wants=network-online.target
