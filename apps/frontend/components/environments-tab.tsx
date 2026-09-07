@@ -36,6 +36,7 @@ import {
   listCloudAccounts,
   listEnvironmentsPage,
   listPlatforms,
+  platformLabel,
   listProjectApplications,
 } from "@/lib/sw";
 import { addFreeing, loadFreeing, removeFreeing } from "@/lib/freeing-store";
@@ -343,7 +344,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
                     )}
                   </Table.Td>
                   <Table.Td>
-                    {e.platform.name} {e.platform.version} · {e.platform.deviceModel}
+                    {platformLabel(e.platform.name)} {e.platform.version} · {e.platform.deviceModel}
                   </Table.Td>
                   <Table.Td>
                     {e.applications
@@ -475,7 +476,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
           <Group grow>
             <Select
               label="Platform"
-              data={platformLines.map((line) => line.platform)}
+              data={platformLines.map((line) => ({ value: line.platform, label: platformLabel(line.platform) }))}
               value={platformName}
               onChange={(v) => v && setPlatformName(v)}
             />

@@ -40,6 +40,7 @@ import {
   disconnectCloud,
   listCloudAccounts,
   listCloudTypes,
+  platformLabel,
   SubstrateOffer,
   testComputeBinding,
   updateComputeBinding,
@@ -259,7 +260,7 @@ function CloudAccountCard({
           ) : (
             <Group key={binding.uid} gap="sm" pl="xs" style={{ borderLeft: "2px solid var(--mantine-color-gray-2)" }}>
               <Text size="sm" fw={600}>
-                {binding.platform} · {binding.execution}
+                {platformLabel(binding.platform)} · {binding.execution}
               </Text>
               <Badge variant="light" color="green">{binding.kind}</Badge>
               {Object.entries(binding.config).map(([key, value]) => (
@@ -427,7 +428,7 @@ function BindingForm({
         <Select
           label="Platform"
           size="xs"
-          data={platforms}
+          data={platforms.map((p) => ({ value: p, label: platformLabel(p) }))}
           value={platform}
           disabled={!pending}
           onChange={(value) => { setPlatform(value); setExecution(null); setKind(null); setConfig({}); }}

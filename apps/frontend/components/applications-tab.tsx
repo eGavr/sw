@@ -31,6 +31,7 @@ import {
   listApplicationBuilds,
   listPlatforms,
   listProjectApplications,
+  platformLabel,
   ProjectApplication,
 } from "@/lib/sw";
 
@@ -59,7 +60,7 @@ export function ApplicationsTab({ project }: { project: string }) {
       <Group align="flex-end">
         <Select
           label="Platform"
-          data={lines.map((line) => line.platform)}
+          data={lines.map((line) => ({ value: line.platform, label: platformLabel(line.platform) }))}
           value={platform}
           onChange={(value) => value && setPlatform(value)}
           w={200}

@@ -108,6 +108,16 @@ export interface CloudAccount {
 }
 
 // The URL handle a resource is addressed by (nested resources live under it).
+// Platforms are honest OS names (`ubuntu 24.04`, never "linux"); the family word people say goes in
+// front of the concrete one wherever a platform is shown: "linux (ubuntu)".
+const platformFamilies: Record<string, string> = { ubuntu: "linux" };
+
+export function platformLabel(name: string): string {
+  const family = platformFamilies[name];
+
+  return family ? `${family} (${name})` : name;
+}
+
 export function projectHandle(project: Project): string {
   return project.name.replace(/^projects\//, "");
 }
