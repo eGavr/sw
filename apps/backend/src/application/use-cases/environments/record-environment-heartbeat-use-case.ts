@@ -1,10 +1,14 @@
 import { Injectable } from "@nestjs/common";
 
+import {
+    ApplicationMeasurement,
+} from "../../../domain/entities/environment/application/application-measurement";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentEndpoint } from "../../../domain/entities/environment/environment-endpoint";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { EnvironmentOccupancy } from "../../../domain/entities/environment/environment-occupancy";
 import { EnvironmentState } from "../../../domain/entities/environment/environment-state";
+import { EnvironmentStateReason } from "../../../domain/entities/environment/environment-state-reason";
 import { EnvironmentNotFoundError } from "../../../domain/entities/environment/error/environment-not-found-error";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
@@ -14,6 +18,8 @@ export type RecordEnvironmentHeartbeatParams = {
     readonly environmentId: string;
     readonly endpoint?: string;
     readonly busy: boolean;
+    // Registration only: what the agent measured about each delivered application on the device.
+    readonly applications?: ReadonlyArray<ApplicationMeasurement>;
 };
 
 // Internal scenario: the agent inside the container heartbeats. The FIRST heartbeat is registration —
@@ -38,6 +44,14 @@ export class RecordEnvironmentHeartbeatUseCase {
             if (current.state === EnvironmentState.Preparing) {
                 if (!params.endpoint) {
                     throw new InvalidArgumentError("environment heartbeat: registration requires an endpoint");
+                }
+
+                // The measured identities land BEFORE the environment goes executing; a catalog build
+                // whose measurement contradicts its declared identity must not register as truth.
+                if (params.applications && !current.applyMeasurements(params.applications)) {
+                    current.failProvisioning(EnvironmentStateReason.MeasurementMismatch);
+
+                    return;
                 }
 
                 current.register(new EnvironmentEndpoint(params.endpoint), now);

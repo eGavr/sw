@@ -33,10 +33,12 @@ export function resolveDockerProvisioning(
     application: ApplicationData,
     options: { image?: string; baseImage?: string },
 ): DockerProvisioning {
+    const version = application.version ?? "latest";
+
     if (options.baseImage) {
         return {
             image: options.baseImage,
-            env: { SW_BROWSER_NAME: application.name, SW_BROWSER_VERSION: application.version },
+            env: { SW_BROWSER_NAME: application.name, SW_BROWSER_VERSION: version },
         };
     }
 
@@ -44,15 +46,19 @@ export function resolveDockerProvisioning(
 
     return {
         image: image
-            ? (image.includes("{version}") ? image.replace("{version}", application.version) : image)
-            : `selenium/standalone-chrome:${seleniumTag(application.version)}`,
+            ? (image.includes("{version}") ? image.replace("{version}", version) : image)
+            : `selenium/standalone-chrome:${seleniumTag(version)}`,
     };
 }
 
 // Transitional until the unified delivery path (base image + catalog artifacts) replaces prebuilt
 // selenium images: installed versions are honestly full ("152.0.7977.82") while selenium publishes
-// major-versioned browser tags ("152.0").
+// major-versioned browser tags ("152.0"); a custom with no declared version rides the latest tag.
 function seleniumTag(version: string): string {
+    if (version === "latest") {
+        return version;
+    }
+
     const [major] = version.split(".");
 
     return `${major}.0`;

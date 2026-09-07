@@ -29,7 +29,7 @@ describe("SessionAllocationCriteria", () => {
 
     // The catalog's expansion, reproduced bare: the requested name itself and the version as prefix.
     const matchFor = (application: RequestedApplication): ApplicationMatch =>
-        ApplicationMatch.create({ names: [application.name], versionPrefix: application.version() });
+        ApplicationMatch.create({ names: [application.name], versionAsk: application.version() });
 
     const criteriaFor = (application: RequestedApplication): SessionAllocationCriteria =>
         SessionAllocationCriteria.from({
@@ -45,14 +45,14 @@ describe("SessionAllocationCriteria", () => {
             heartbeatCutoff: new Date(4_000),
             execution: Execution.Container,
             applicationNames: ["chrome"],
-            applicationVersionPrefix: "100",
+            applicationVersionAsk: "100",
         });
     });
 
-    test("a latest request forms a predicate with a null version prefix (match by name only)", () => {
+    test("a latest request forms a predicate with a null version ask (match by name only)", () => {
         const predicate = criteriaFor(RequestedApplication.create({ name: "chrome" })).toPredicate();
 
-        expect(predicate.applicationVersionPrefix).toBeNull();
+        expect(predicate.applicationVersionAsk).toBeNull();
     });
 
     test("the offer predicate relaxes to every still-viable state, keeping the request shape", () => {
@@ -67,7 +67,7 @@ describe("SessionAllocationCriteria", () => {
             ],
             execution: Execution.Container,
             applicationNames: ["chrome"],
-            applicationVersionPrefix: "100",
+            applicationVersionAsk: "100",
         });
     });
 
@@ -152,7 +152,7 @@ describe("SessionAllocationCriteria", () => {
                 freshnessMs: 6_000,
                 execution: Execution.Container,
                 application: requested,
-                match: ApplicationMatch.create({ names: ["chrome", "com.android.chrome"], versionPrefix: null }),
+                match: ApplicationMatch.create({ names: ["chrome", "com.android.chrome"], versionAsk: null }),
             });
             const canonical = Environment.create({
                 projectId: ProjectId.create(),

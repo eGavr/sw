@@ -66,6 +66,49 @@ describe("Application", () => {
         });
     });
 
+    describe("measured identity", () => {
+        test("measurement lands next to the word and becomes the effective version", () => {
+            const application = Application.create({ name: "myapp", buildAlias: "7.1-rc2" });
+
+            expect(application.effectiveVersion()).toBeNull();
+            expect(application.applyMeasurement("com.mycorp.app", "7.1.3")).toBe(true);
+            expect(application.effectiveVersion()).toBe("7.1.3");
+            expect(application.answersToWord("com.mycorp.app")).toBe(true);
+            expect(application.answersToWord("myapp")).toBe(true);
+            expect(application.matchesVersionAsk("7.1")).toBe(true);
+            expect(application.matchesVersionAsk("7.1-rc2")).toBe(true);
+        });
+
+        test("a catalog build's declared version must survive measurement", () => {
+            const application = Application.create({ name: "chrome", version: "152.0.7977.82" });
+
+            expect(application.applyMeasurement(null, "152.0.7977.82")).toBe(true);
+            expect(application.applyMeasurement(null, "153.0.1")).toBe(false);
+        });
+
+        test("a dotted name is a canonical claim and must match the measured package id", () => {
+            const application = Application.create({ name: "com.android.chrome", version: "152.0.7977.80" });
+
+            expect(application.applyMeasurement("com.android.chrome", "152.0.7977.80")).toBe(true);
+            expect(application.applyMeasurement("org.other.browser", "152.0.7977.80")).toBe(false);
+        });
+
+        test("a bare word claims nothing — any measured identity is welcome", () => {
+            const application = Application.create({ name: "settings", version: "14" });
+
+            expect(application.applyMeasurement("com.android.settings", "14")).toBe(true);
+        });
+
+        test("a custom never mismatches — it declared nothing to contradict", () => {
+            const application = Application.create({
+                name: "myapp",
+                source: ApplicationSource.custom({ appRef: "builds/app.apk" }),
+            });
+
+            expect(application.applyMeasurement("whatever.it.really.is", "9.9")).toBe(true);
+        });
+    });
+
     describe(".fromObject", () => {
         test("should tolerate the reserved version (a request/stored value may carry it)", () => {
             const reconstitute = (): Application => Application.fromObject({ name: "chrome", version: "latest" });
@@ -95,19 +138,19 @@ describe("ApplicationList", () => {
         });
 
         test("picks the newest application among the candidate names", () => {
-            const match = ApplicationMatch.create({ names: ["chrome", "com.android.chrome"], versionPrefix: null });
+            const match = ApplicationMatch.create({ names: ["chrome", "com.android.chrome"], versionAsk: null });
 
             expect(list.bestMatch(match)?.version).toBe("152.0.7977.82");
         });
 
         test("narrows by the version prefix", () => {
-            const match = ApplicationMatch.create({ names: ["com.android.chrome"], versionPrefix: "151" });
+            const match = ApplicationMatch.create({ names: ["com.android.chrome"], versionAsk: "151" });
 
             expect(list.bestMatch(match)?.version).toBe("151.0.7890.10");
         });
 
         test("returns null when nothing qualifies", () => {
-            const match = ApplicationMatch.create({ names: ["com.android.chrome"], versionPrefix: "150" });
+            const match = ApplicationMatch.create({ names: ["com.android.chrome"], versionAsk: "150" });
 
             expect(list.bestMatch(match)).toBeNull();
         });

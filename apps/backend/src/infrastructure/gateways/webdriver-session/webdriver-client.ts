@@ -11,7 +11,7 @@ type NewSessionResponse = {
 
 type SessionTarget = {
     name: string;
-    version: string;
+    version: string | null;
     platformName: string;
 };
 

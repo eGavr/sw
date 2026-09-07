@@ -24,7 +24,7 @@ export type AllocatableEnvironmentPredicate = {
     readonly heartbeatCutoff: Date;
     readonly execution: Execution;
     readonly applicationNames: ReadonlyArray<string>;
-    readonly applicationVersionPrefix: string | null;
+    readonly applicationVersionAsk: string | null;
 };
 
 export type SessionAllocationParams = {
@@ -39,7 +39,7 @@ export type OfferedApplicationPredicate = {
     readonly states: ReadonlyArray<EnvironmentState>;
     readonly execution: Execution;
     readonly applicationNames: ReadonlyArray<string>;
-    readonly applicationVersionPrefix: string | null;
+    readonly applicationVersionAsk: string | null;
 };
 
 // The lifecycle states in which an environment will (eventually) serve sessions: anything alive on its
@@ -65,7 +65,7 @@ export class SessionAllocationCriteria {
             heartbeatCutoff: new Date(params.now.getTime() - params.freshnessMs),
             execution: params.execution,
             applicationNames: params.match.names,
-            applicationVersionPrefix: params.match.versionPrefix,
+            applicationVersionAsk: params.match.versionAsk,
         });
     }
 
@@ -86,7 +86,7 @@ export class SessionAllocationCriteria {
             states: statesEventuallyServing,
             execution: this.predicate.execution,
             applicationNames: this.predicate.applicationNames,
-            applicationVersionPrefix: this.predicate.applicationVersionPrefix,
+            applicationVersionAsk: this.predicate.applicationVersionAsk,
         };
     }
 

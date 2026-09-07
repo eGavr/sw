@@ -120,6 +120,7 @@ export class ProjectApplicationsController {
                 projectId: project,
                 platform,
                 application: applicationName,
+                alias: body.alias,
                 version: body.version,
                 appRef: body.appRef,
                 webdriverRef: body.webdriverRef,

@@ -6,6 +6,7 @@ import { ProjectId } from "../project/project-id";
 import { Application, ApplicationData } from "./application/application";
 import { ApplicationList } from "./application/application-list";
 import { ApplicationMatch } from "./application/application-match";
+import { ApplicationMeasurement } from "./application/application-measurement";
 import { EnvironmentEndpoint } from "./environment-endpoint";
 import { EnvironmentId } from "./environment-id";
 import { EnvironmentOccupancy, toEnvironmentOccupancy } from "./environment-occupancy";
@@ -249,6 +250,26 @@ export class Environment {
     // version-prefix loose), newest first when several qualify.
     applicationMatching(match: ApplicationMatch): Application | null {
         return this.applications.bestMatch(match);
+    }
+
+    // The agent's per-application report from the device (measured at delivery): the honest identities
+    // land next to the declared words. Returns false when a catalog build's declared claims did not
+    // survive measurement — the caller fails the environment instead of registering a lie.
+    applyMeasurements(reports: ReadonlyArray<ApplicationMeasurement>): boolean {
+        let truthful = true;
+
+        for (const report of reports) {
+            const application = this.applications.find(report.name);
+
+            if (!application) {
+                continue;
+            }
+
+            truthful = application.applyMeasurement(report.measuredName ?? null, report.measuredVersion ?? null)
+                && truthful;
+        }
+
+        return truthful;
     }
 
     // Whether the compute backend should be running a container for this environment right now.

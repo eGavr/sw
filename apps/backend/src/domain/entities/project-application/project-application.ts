@@ -95,12 +95,16 @@ export class ProjectApplication {
         return this.words().includes(word);
     }
 
+    // A new build's words (its alias, and for the catalog its declared full version) must not collide
+    // with any word an existing build answers to — a version ask has to resolve to exactly one build.
     addVersion(params: ProjectApplicationVersionCreateParams): ProjectApplicationVersion {
-        if (this._versions.some((existing) => existing.version === params.version)) {
-            throw new ApplicationVersionConflictError(this.name, params.version);
-        }
-
         const version = ProjectApplicationVersion.create(params);
+        const taken = new Set(this._versions.flatMap((existing) => existing.words()));
+        const clash = version.words().find((word) => taken.has(word));
+
+        if (clash !== undefined) {
+            throw new ApplicationVersionConflictError(this.name, clash);
+        }
 
         this._versions.push(version);
 
@@ -111,15 +115,18 @@ export class ProjectApplication {
         return [...this._versions].sort((left, right) => (left.isNewerThan(right) ? -1 : 1));
     }
 
-    versionOf(version: string): ProjectApplicationVersion | null {
-        return this._versions.find((existing) => existing.version === version) ?? null;
+    // The build a word addresses: its alias (the resource id) or, for the catalog, its declared full
+    // version.
+    versionOf(word: string): ProjectApplicationVersion | null {
+        return this._versions.find((existing) => existing.words().includes(word)) ?? null;
     }
 
-    // The newest build satisfying a loose ask: a segment prefix, or null meaning "the newest there is".
-    newestMatching(versionPrefix: string | null): ProjectApplicationVersion | null {
-        const matching = versionPrefix === null
+    // The newest build satisfying a loose ask: an alias, a full version, a segment prefix of one, or
+    // null meaning "the newest there is".
+    newestMatching(ask: string | null): ProjectApplicationVersion | null {
+        const matching = ask === null
             ? this._versions
-            : this._versions.filter((candidate) => candidate.matchesPrefix(versionPrefix));
+            : this._versions.filter((candidate) => candidate.matchesAsk(ask));
 
         if (matching.length === 0) {
             return null;

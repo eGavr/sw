@@ -133,7 +133,9 @@ describe("/internal/environments/:id:heartbeat", () => {
         await app.close();
     });
 
-    const seedEnvironment = async (): Promise<string> => {
+    const defaultApplications = [{ name: "chrome", version: "latest" }];
+
+    const seedEnvironment = async (applications: Array<object> = defaultApplications): Promise<string> => {
         const externalId = UserFactory.createId();
         const project = await projectRepository.create({
             name: `team-${externalId}`,
@@ -144,15 +146,15 @@ describe("/internal/environments/:id:heartbeat", () => {
         const environment = await environmentRepository.create({
             projectId: ProjectId.fromString(project.id),
             platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
-            applications: ApplicationList.fromObject([{ name: "chrome", version: "latest" }]),
+            applications: ApplicationList.fromObject(applications as never),
         });
 
         return environment.id;
     };
 
     // enqueued -> starting -> preparing (what the worker leaves before the agent registers).
-    const seedPreparingEnvironment = async (): Promise<string> => {
-        await seedEnvironment();
+    const seedPreparingEnvironment = async (applications: Array<object> = defaultApplications): Promise<string> => {
+        await seedEnvironment(applications);
 
         const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());
 
@@ -210,6 +212,47 @@ describe("/internal/environments/:id:heartbeat", () => {
         expect(environment.state).toBe(EnvironmentState.Executing);
         expect(environment.endpoint).toBe(endpoint);
         expect(environment.occupancy).toBe(EnvironmentOccupancy.Free);
+    });
+
+    test("registration lands the measured identities next to the declared words", async () => {
+        const id = await seedPreparingEnvironment([{
+            name: "myapp",
+            buildAlias: "7.1-rc2",
+            source: { type: "custom", appRef: "builds/app.apk" },
+        }]);
+
+        await heartbeat(id, {
+            endpoint,
+            busy: false,
+            applications: [{ name: "myapp", measuredName: "com.mycorp.app", measuredVersion: "7.1.3" }],
+        }).expect(200);
+
+        const environment = await reload(id);
+        const [application] = environment.applications.toArray();
+
+        expect(environment.state).toBe(EnvironmentState.Executing);
+        expect(application.measuredName).toBe("com.mycorp.app");
+        expect(application.measuredVersion).toBe("7.1.3");
+    });
+
+    test("a catalog build whose measurement contradicts the declared identity fails the environment", async () => {
+        const id = await seedPreparingEnvironment([{
+            name: "chrome",
+            version: "152.0.7977.82",
+            buildAlias: "152",
+            source: { type: "provided", appRef: "ref://chrome-152" },
+        }]);
+
+        await heartbeat(id, {
+            endpoint,
+            busy: false,
+            applications: [{ name: "chrome", measuredVersion: "149.0.1111.1" }],
+        }).expect(200);
+
+        const environment = await reload(id);
+
+        expect(environment.state).toBe(EnvironmentState.Failed);
+        expect(environment.stateReason).toBe("MEASUREMENT_MISMATCH");
     });
 
     test("a later heartbeat updates occupancy and refreshes liveness", async () => {

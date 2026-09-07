@@ -419,6 +419,62 @@ describe("/sessions", () => {
                 .expect(HttpStatus.BAD_REQUEST);
         });
 
+        // A custom whose delivered build the agent already measured on the device: the word and the
+        // alias are declared, the package id and version are the truth — every layer is askable.
+        const registerMeasuredCustomEnvironment = async (projectId: string): Promise<void> => {
+            const environmentRepository = app.get(EnvironmentRepository);
+
+            await environmentRepository.create({
+                projectId: ProjectId.fromString(projectId),
+                platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
+                execution: Execution.Container,
+                applications: ApplicationList.fromObject([{
+                    name: "myapp",
+                    buildAlias: "7.1-rc2",
+                    measuredName: "com.mycorp.app",
+                    measuredVersion: "7.1.3",
+                    source: { type: "custom", appRef: "builds/app.zip" },
+                }]),
+            });
+            const claimed = await environmentRepository.withNextEnqueued((environment) => environment.claim());
+
+            if (!claimed) {
+                throw new Error("expected an enqueued environment to claim");
+            }
+
+            claimed.markDispatched();
+            claimed.register(new EnvironmentEndpoint(nodeEndpoint), new Date());
+            await environmentRepository.save(claimed);
+        };
+
+        test("allocates by the measured package id and a prefix of the measured version", async () => {
+            const { owner, projectId } = await seedProject();
+
+            await registerMeasuredCustomEnvironment(projectId);
+
+            const { body } = await request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send(capabilities(projectId, { name: "com.mycorp.app", version: "7.1" }))
+                .expect(HttpStatus.OK);
+
+            expect(body.value.sessionId).toBeDefined();
+        });
+
+        test("allocates by the declared word and the picked build's alias", async () => {
+            const { owner, projectId } = await seedProject();
+
+            await registerMeasuredCustomEnvironment(projectId);
+
+            const { body } = await request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send(capabilities(projectId, { name: "myapp", version: "7.1-rc2" }))
+                .expect(HttpStatus.OK);
+
+            expect(body.value.sessionId).toBeDefined();
+        });
+
         test("responds BAD_REQUEST when a required capability is missing (no sw:projectId)", async () => {
             const { owner } = await seedExecutingEnvironment();
 

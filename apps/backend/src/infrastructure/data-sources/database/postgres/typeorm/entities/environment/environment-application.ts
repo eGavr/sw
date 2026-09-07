@@ -16,7 +16,10 @@ export class EnvironmentApplication {
         environmentApplication.id = Uuid.create().getValue();
         environmentApplication.environmentId = environmentId;
         environmentApplication.applicationName = application.name;
-        environmentApplication.applicationVersion = application.version;
+        environmentApplication.applicationVersion = application.version ?? null;
+        environmentApplication.buildAlias = application.buildAlias ?? null;
+        environmentApplication.measuredName = application.measuredName ?? null;
+        environmentApplication.measuredVersion = application.measuredVersion ?? null;
         environmentApplication.sourceType = source?.type ?? "provided";
         environmentApplication.appRef = source?.appRef ?? null;
         environmentApplication.webdriverRef = source?.webdriverRef ?? null;
@@ -36,8 +39,19 @@ export class EnvironmentApplication {
     @Column()
     applicationName: string;
 
-    @Column()
-    applicationVersion: string;
+    // The declared exact version (a catalog build's claim); null for a custom until measured.
+    @Column({ type: "varchar", nullable: true })
+    applicationVersion: string | null;
+
+    @Column({ type: "varchar", nullable: true })
+    buildAlias: string | null;
+
+    // The honest identity the agent measured on the device at delivery (APK manifest).
+    @Column({ type: "varchar", nullable: true })
+    measuredName: string | null;
+
+    @Column({ type: "varchar", nullable: true })
+    measuredVersion: string | null;
 
     // Where the application comes from and the snapshotted artifact refs of the exact build installed:
     // `provided` — the install catalog's build (refs into the install's store; none = preinstalled),
