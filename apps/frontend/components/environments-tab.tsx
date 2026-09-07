@@ -58,7 +58,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
 
   const [platformName, setPlatformName] = useState("ubuntu");
   const [platformVersion, setPlatformVersion] = useState("24.04");
-  const [appName, setAppName] = useState("com.google.chrome");
+  const [appName, setAppName] = useState("chrome");
   const [appVersion, setAppVersion] = useState("latest");
   const [execution, setExecution] = useState("container");
   const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);

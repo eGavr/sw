@@ -7,25 +7,25 @@ import { ProjectApplication } from "./project-application";
 describe("ProjectApplication", () => {
     const chrome = (): ProjectApplication => ProjectApplication.create({
         projectId: "project-id",
-        platformName: "ubuntu",
-        name: "com.google.chrome",
+        platformName: "android",
+        name: "com.android.chrome",
         aliases: ["chrome"],
     });
 
     test("answers to its canonical name and every alias", () => {
         const application = chrome();
 
-        expect(application.answersTo("com.google.chrome")).toBe(true);
+        expect(application.answersTo("com.android.chrome")).toBe(true);
         expect(application.answersTo("chrome")).toBe(true);
         expect(application.answersTo("firefox")).toBe(false);
     });
 
     test("rejects a malformed alias and duplicate words", () => {
         expect(() => ProjectApplication.create({
-            projectId: "p", platformName: "ubuntu", name: "com.google.chrome", aliases: ["Chrome!"],
+            projectId: "p", platformName: "android", name: "com.android.chrome", aliases: ["Chrome!"],
         })).toThrow(InvalidArgumentError);
         expect(() => ProjectApplication.create({
-            projectId: "p", platformName: "ubuntu", name: "chrome", aliases: ["chrome"],
+            projectId: "p", platformName: "android", name: "chrome", aliases: ["chrome"],
         })).toThrow(InvalidArgumentError);
     });
 
@@ -78,7 +78,7 @@ describe("ProjectApplication", () => {
 
         const restored = ProjectApplication.fromObject(application.toObject());
 
-        expect(restored.name).toBe("com.google.chrome");
+        expect(restored.name).toBe("com.android.chrome");
         expect(restored.aliases).toEqual(["chrome"]);
         expect(restored.versionOf("152.0.7977.82")?.webdriverRef).toBe("ref://driver");
     });

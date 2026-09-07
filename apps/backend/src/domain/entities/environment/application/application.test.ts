@@ -88,26 +88,26 @@ describe("ApplicationList", () => {
     describe("#bestMatch", () => {
         const list = ApplicationList.create({
             applications: [
-                Application.create({ name: "com.google.chrome", version: "151.0.7890.10" }),
-                Application.create({ name: "com.google.chrome", version: "152.0.7977.82" }),
+                Application.create({ name: "com.android.chrome", version: "151.0.7890.10" }),
+                Application.create({ name: "com.android.chrome", version: "152.0.7977.82" }),
                 Application.create({ name: "org.mozilla.firefox", version: "144.0.1" }),
             ],
         });
 
         test("picks the newest application among the candidate names", () => {
-            const match = ApplicationMatch.create({ names: ["chrome", "com.google.chrome"], versionPrefix: null });
+            const match = ApplicationMatch.create({ names: ["chrome", "com.android.chrome"], versionPrefix: null });
 
             expect(list.bestMatch(match)?.version).toBe("152.0.7977.82");
         });
 
         test("narrows by the version prefix", () => {
-            const match = ApplicationMatch.create({ names: ["com.google.chrome"], versionPrefix: "151" });
+            const match = ApplicationMatch.create({ names: ["com.android.chrome"], versionPrefix: "151" });
 
             expect(list.bestMatch(match)?.version).toBe("151.0.7890.10");
         });
 
         test("returns null when nothing qualifies", () => {
-            const match = ApplicationMatch.create({ names: ["com.google.chrome"], versionPrefix: "150" });
+            const match = ApplicationMatch.create({ names: ["com.android.chrome"], versionPrefix: "150" });
 
             expect(list.bestMatch(match)).toBeNull();
         });

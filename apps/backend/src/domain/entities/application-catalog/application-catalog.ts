@@ -66,7 +66,7 @@ export class ApplicationCatalog {
         });
     }
 
-    // The wire vocabulary word for a canonical name (`com.google.chrome` → `chrome`) — what a browser
+    // The wire vocabulary word for a canonical name (`com.android.chrome` → `chrome`) — what a browser
     // node actually understands as browserName. Customs pass through: they are addressed as-is.
     wireName(canonicalName: string): string {
         const known = this.catalog.find((application) => application.name === canonicalName);
