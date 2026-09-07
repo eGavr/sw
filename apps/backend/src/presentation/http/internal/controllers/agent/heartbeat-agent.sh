@@ -7,8 +7,9 @@
 # On session end the agent also ships that session's logs and, if it recorded one, its video to the
 # control-plane, which uploads them to the user's storage (the agent holds no cloud credentials). Both are
 # opt-in per session via the sw:logging / sw:video capabilities; the uploads are best effort and never
-# bring the environment down. Video is recorded in-container by a static ffmpeg (fetched from the control
-# plane at startup, no image rebuild) grabbing the X display the browser renders on.
+# bring the environment down. Video is recorded by one of two recorders (SW_VIDEO_RECORDER): a static
+# ffmpeg (fetched from the control plane at startup, no image rebuild) grabbing the X display a browser
+# renders on, or scrcpy taking an Android device's own video stream.
 #
 # Reuse safety: an environment is reused for the next session within seconds (allocation retries a
 # transient shortage, so immediate reuse is the norm). Artifact shipping must therefore never block the
@@ -39,13 +40,21 @@ ffmpeg_download_url="${SW_INTERNAL_URL}/internal/ffmpeg:download"
 session_log_glob="${SW_SESSION_LOG_GLOB:-/tmp/sw-session.log}"
 max_log_bytes="${SW_MAX_LOG_BYTES:-10485760}"
 
-# Video is recorded by a static ffmpeg (fetched once from the control plane) grabbing the X display the
-# browser renders on. The record size matches the node's screen (SW_SCREEN_*), so ffmpeg and Xvfb agree.
+# Video recorders, chosen by SW_VIDEO_RECORDER:
+#   x11grab (default) — a static ffmpeg (fetched once from the control plane) grabbing the X display the
+#                       browser renders on; the record size matches the node's screen (SW_SCREEN_*), so
+#                       ffmpeg and Xvfb agree;
+#   scrcpy            — the Android device SW_ADB_SERIAL's own H.264 stream, muxed as is by scrcpy: no
+#                       display needed, one encoding, the same on an emulator and a real device.
+video_recorder="${SW_VIDEO_RECORDER:-x11grab}"
 ffmpeg_bin="/tmp/sw-ffmpeg"
 video_display=":99"
 video_size="${SW_SCREEN_WIDTH:-1360}x${SW_SCREEN_HEIGHT:-1020}"
 video_fps="${SW_VIDEO_FPS:-15}"
 max_video_seconds="${SW_MAX_VIDEO_SECONDS:-600}"
+adb_serial="${SW_ADB_SERIAL:-}"
+# The long side scrcpy records at (the device stream is scaled down on the device itself).
+video_max_size="${SW_VIDEO_MAX_SIZE:-1280}"
 
 # NetBridge forwarder (fetched once from the control plane): a loopback SOCKS5 proxy the browser is pointed
 # at, tunnelling to the user's network over the control plane. Only launched when SW_NETBRIDGE_URL is set.
@@ -181,43 +190,80 @@ upload_video() {
 # signal (a stop file carrying the session id — reliably known only at the edge) arrives, then finalizes
 # the mp4 and uploads it. Running detached is what keeps the heartbeat loop free: the slow finalize +
 # upload never block it, and the token-keyed fifo/file never collide with the next session's recording.
-# ffmpeg is stopped by writing "q" to its stdin over a fifo held open on fd 9 (a backgrounded process in
-# a non-interactive shell inherits SIGINT/SIGQUIT as ignored, so signals cannot stop it gracefully, and a
-# hard kill would leave the mp4 unfinalized — no moov atom, unplayable).
+# Both recorders finalize the mp4 only on a graceful stop (a hard kill leaves no moov atom — unplayable),
+# and a backgrounded process in a non-interactive shell inherits SIGINT/SIGQUIT as ignored, so each is
+# stopped its own way. ffmpeg: "q" written to its stdin over a fifo held open on fd 9. scrcpy: a
+# terminal Ctrl+C, reproduced exactly — SIGINT to scrcpy's whole process GROUP, which also hits its
+# `adb shell` child; that child's death takes the server on the device down, the stream ends and scrcpy
+# writes the trailer. SIGINT to scrcpy alone is not acted on (verified: it records on until the time
+# limit). So scrcpy is launched through perl, which puts it in a group of its own and restores the
+# default SIGINT disposition before exec.
+launch_recorder() {
+    local file="$1" errlog="$2" fifo="$3"
+
+    if [ "${video_recorder}" = "scrcpy" ]; then
+        perl -e 'setpgrp; $SIG{INT} = "DEFAULT"; exec @ARGV or die' \
+            scrcpy -s "${adb_serial}" --no-playback --no-audio --record="${file}" \
+            --time-limit="${max_video_seconds}" --max-size="${video_max_size}" >"${errlog}" 2>&1 &
+        recorder_pid=$!
+        return 0
+    fi
+
+    rm -f "${fifo}"
+    mkfifo "${fifo}" || return 1
+    exec 9<>"${fifo}"
+    "${ffmpeg_bin}" -hide_banner -loglevel warning \
+        -f x11grab -video_size "${video_size}" -r "${video_fps}" -i "${video_display}" \
+        -c:v libx264 -preset superfast -pix_fmt yuv420p -movflags +faststart \
+        -t "${max_video_seconds}" "${file}" -y <"${fifo}" >"${errlog}" 2>&1 &
+    recorder_pid=$!
+}
+
+# /bin/kill for the process-group form: the bash 3.2 builtin (macOS) mishandles a negative pid.
+signal_recorder() {
+    if [ "${video_recorder}" = "scrcpy" ]; then
+        /bin/kill -INT "-$1" 2>/dev/null
+    else
+        printf q >&9 2>/dev/null
+    fi
+}
+
+hard_kill_recorder() {
+    if [ "${video_recorder}" = "scrcpy" ]; then
+        /bin/kill -9 "-$1" 2>/dev/null
+    else
+        kill -9 "$1" 2>/dev/null
+    fi
+}
+
 record_session() {
     local token="$1"
     local fifo="/tmp/sw-rec-${token}.fifo"
     local file="/tmp/sw-rec-${token}.mp4"
     local stop="/tmp/sw-rec-${token}.stop"
     local errlog="/tmp/sw-rec-${token}.err"
+    local pid
 
-    rm -f "${fifo}"
-    mkfifo "${fifo}" || return 0
-    exec 9<>"${fifo}"
+    launch_recorder "${file}" "${errlog}" "${fifo}" || return 0
+    pid="${recorder_pid}"
 
-    "${ffmpeg_bin}" -hide_banner -loglevel warning \
-        -f x11grab -video_size "${video_size}" -r "${video_fps}" -i "${video_display}" \
-        -c:v libx264 -preset superfast -pix_fmt yuv420p -movflags +faststart \
-        -t "${max_video_seconds}" "${file}" -y <"${fifo}" >"${errlog}" 2>&1 &
-    local pid=$!
-
-    # Wait for the session-end signal; ffmpeg may self-exit first (hit the duration cap), the file is
-    # complete either way and we still wait for the signal to learn the session id to upload under.
+    # Wait for the session-end signal; the recorder may self-exit first (hit the duration cap), the file
+    # is complete either way and we still wait for the signal to learn the session id to upload under.
     while [ ! -e "${stop}" ]; do sleep 1; done
     local session_id
     session_id=$(cat "${stop}" 2>/dev/null)
 
     if kill -0 "${pid}" 2>/dev/null; then
-        printf q >&9 2>/dev/null
+        signal_recorder "${pid}"
         local waited=0
         while kill -0 "${pid}" 2>/dev/null && [ "${waited}" -lt 30 ]; do
             sleep 1
             waited=$((waited + 1))
         done
-        kill -0 "${pid}" 2>/dev/null && kill -9 "${pid}" 2>/dev/null
+        kill -0 "${pid}" 2>/dev/null && hard_kill_recorder "${pid}"
     fi
 
-    exec 9>&-
+    [ "${video_recorder}" = "scrcpy" ] || exec 9>&-
     rm -f "${fifo}" "${stop}" "${errlog}"
 
     if [ -s "${file}" ] && [ -n "${session_id}" ]; then
@@ -226,10 +272,20 @@ record_session() {
     rm -f "${file}"
 }
 
-# Launch a detached recorder for the current session. Returns non-zero (no recording) if ffmpeg is not
-# available yet — it is retried on the next busy tick while the session lasts.
+# Whether the chosen recorder can run here: scrcpy needs the tool and the device to point it at; ffmpeg
+# may still be downloading (retried on the next busy tick while the session lasts).
+recorder_ready() {
+    if [ "${video_recorder}" = "scrcpy" ]; then
+        [ -n "${adb_serial}" ] && command -v scrcpy >/dev/null 2>&1
+    else
+        [ -x "${ffmpeg_bin}" ]
+    fi
+}
+
+# Launch a detached recorder for the current session. Returns non-zero (no recording) when the recorder
+# is not ready.
 start_recording() {
-    if [ ! -x "${ffmpeg_bin}" ]; then
+    if ! recorder_ready; then
         return 1
     fi
 
@@ -346,7 +402,9 @@ log "registered"
 
 # Pre-fetch ffmpeg in the background so it is ready before the first session that opts into video, without
 # ever blocking the heartbeat loop.
-download_ffmpeg &
+if [ "${video_recorder}" = "x11grab" ]; then
+    download_ffmpeg &
+fi
 
 # Bring up the NetBridge forwarder (no-op unless SW_NETBRIDGE_URL is set) so its loopback SOCKS proxy is
 # listening before the first session that opts in; backgrounded so the download never blocks heartbeats.
