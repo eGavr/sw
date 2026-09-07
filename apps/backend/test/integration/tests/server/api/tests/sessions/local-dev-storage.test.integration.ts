@@ -10,6 +10,9 @@ import { raw } from "express";
 import request from "supertest";
 
 import {
+    RemoteArtifactGateway,
+} from "../../../../../../../src/application/interfaces/gateways/remote-artifact-gateway";
+import {
     EnvironmentRepository,
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
@@ -19,6 +22,9 @@ import {
 import {
     StorageDestinationRepository,
 } from "../../../../../../../src/application/interfaces/repositories/storage-destination-repository";
+import {
+    GetApplicationArtifactUseCase,
+} from "../../../../../../../src/application/use-cases/environments/get-application-artifact-use-case";
 import {
     RecordEnvironmentHeartbeatUseCase,
 } from "../../../../../../../src/application/use-cases/environments/record-environment-heartbeat-use-case";
@@ -122,6 +128,8 @@ describe("local dev storage (LOG_STORAGE=fs)", () => {
                 RecordEnvironmentHeartbeatUseCase,
                 UploadSessionLogsUseCase,
                 UploadSessionVideoUseCase,
+                GetApplicationArtifactUseCase,
+                { provide: RemoteArtifactGateway, useValue: { fetch: async (): Promise<null> => null } },
                 ProjectDataSource,
                 EnvironmentDataSource,
                 SessionOwnershipDataSource,

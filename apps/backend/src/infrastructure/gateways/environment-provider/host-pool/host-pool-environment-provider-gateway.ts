@@ -53,6 +53,14 @@ export class HostPoolEnvironmentProviderGateway extends EnvironmentProviderGatew
             launch: {
                 avd: this.config.avdName(environment.platform.version),
                 internalUrl: this.config.internalUrl,
+                // What the slot must deliver onto the device: every application with an artifact
+                // (preinstalled ones have nothing to pull), plus whether a paired webdriver comes along.
+                apps: environment.applications.toArray()
+                    .filter((application) => application.source?.appRef)
+                    .map((application) => ({
+                        name: application.name,
+                        webdriver: Boolean(application.source?.webdriverRef),
+                    })),
             },
         });
     }

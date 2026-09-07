@@ -7,6 +7,9 @@ import { v4 as uuidv4 } from "uuid";
 
 import { ObjectStorageGateway } from "../../../../../../../src/application/interfaces/gateways/object-storage-gateway";
 import {
+    RemoteArtifactGateway,
+} from "../../../../../../../src/application/interfaces/gateways/remote-artifact-gateway";
+import {
     EnvironmentRepository,
 } from "../../../../../../../src/application/interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../../../../../../src/application/interfaces/repositories/project-repository";
@@ -16,6 +19,9 @@ import {
 import {
     StorageDestinationRepository,
 } from "../../../../../../../src/application/interfaces/repositories/storage-destination-repository";
+import {
+    GetApplicationArtifactUseCase,
+} from "../../../../../../../src/application/use-cases/environments/get-application-artifact-use-case";
 import {
     RecordEnvironmentHeartbeatUseCase,
 } from "../../../../../../../src/application/use-cases/environments/record-environment-heartbeat-use-case";
@@ -97,6 +103,8 @@ describe("/internal/environments/:id:heartbeat", () => {
                 RecordEnvironmentHeartbeatUseCase,
                 UploadSessionLogsUseCase,
                 UploadSessionVideoUseCase,
+                GetApplicationArtifactUseCase,
+                { provide: RemoteArtifactGateway, useValue: { fetch: async (): Promise<null> => null } },
                 ProjectDataSource,
                 EnvironmentDataSource,
                 SessionOwnershipDataSource,

@@ -74,10 +74,87 @@ run_slot() {
         sleep 3
     done
 
+    # Deliver the seat's applications: pull each build's artifact through the control plane (the slot
+    # holds no storage credentials), measure the APK's honest identity from its manifest BEFORE the
+    # install (aapt2 ships with the SDK build-tools), install it, and stage a paired webdriver for
+    # Appium when the build brings one. The measured identities ride the environment agent's
+    # registration heartbeat.
+    measured_file="${SW_SLOT_DIR}/measured.json"
+    echo "[]" >"${measured_file}"
+    chromedriver_path=""
+    aapt2_bin="$(ls "${ANDROID_HOME}"/build-tools/*/aapt2 2>/dev/null | sort | tail -1)"
+
+    for app_entry in $(echo "${SW_APPS:-}" | tr ',' ' '); do
+        app_name="${app_entry%%~*}"
+        wants_webdriver="${app_entry##*~}"
+        apk_file="${SW_SLOT_DIR}/${app_name}.apk"
+
+        echo "[slot ${SW_ENVIRONMENT_ID}] delivering ${app_name}"
+        for _ in $(seq 1 3); do
+            curl -sf -H "Authorization: Bearer ${SW_ENV_AGENT_TOKEN}" \
+                "${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/applications/${app_name}:downloadApp" \
+                -o "${apk_file}" && break
+            sleep 2
+        done
+
+        if [ ! -s "${apk_file}" ]; then
+            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: artifact download failed — stopping the slot"
+            kill 0
+        fi
+
+        measured_name=""
+        measured_version=""
+        if [ -n "${aapt2_bin}" ]; then
+            badging="$("${aapt2_bin}" dump badging "${apk_file}" 2>/dev/null | head -1)"
+            measured_name="$(echo "${badging}" | sed -n "s/.*package: name='\([^']*\)'.*/\1/p")"
+            measured_version="$(echo "${badging}" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
+            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: measured ${measured_name:-?} ${measured_version:-?}"
+        else
+            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: no aapt2 in build-tools — installing unmeasured"
+        fi
+
+        node -e '
+const fs = require("fs");
+const [file, name, measuredName, measuredVersion] = process.argv.slice(1);
+const reports = JSON.parse(fs.readFileSync(file, "utf8"));
+reports.push({
+    name,
+    ...(measuredName ? { measuredName } : {}),
+    ...(measuredVersion ? { measuredVersion } : {}),
+});
+fs.writeFileSync(file, JSON.stringify(reports));
+' "${measured_file}" "${app_name}" "${measured_name}" "${measured_version}"
+
+        if ! adb -s "${serial}" install -r "${apk_file}"; then
+            echo "[slot ${SW_ENVIRONMENT_ID}] ${app_name}: adb install failed — stopping the slot"
+            kill 0
+        fi
+
+        if [ "${wants_webdriver}" = "1" ]; then
+            driver_file="${SW_SLOT_DIR}/webdriver-${app_name}"
+            for _ in $(seq 1 3); do
+                curl -sf -H "Authorization: Bearer ${SW_ENV_AGENT_TOKEN}" \
+                    "${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}/applications/${app_name}:downloadWebdriver" \
+                    -o "${driver_file}" && break
+                sleep 2
+            done
+            chmod +x "${driver_file}" 2>/dev/null || true
+            # One webdriver per slot: Appium runs one chromedriver binary; the first browser-like app wins.
+            [ -z "${chromedriver_path}" ] && chromedriver_path="${driver_file}"
+        fi
+    done
+
     # Appium is pinned to this slot's emulator via default capabilities — several emulators share one
-    # adb server, so the udid is not optional here (unlike the single-device redroid node).
+    # adb server, so the udid is not optional here (unlike the single-device redroid node). A delivered
+    # webdriver (a browser-like build's paired chromedriver) is handed over the same way.
+    default_caps="{\"appium:udid\":\"${serial}\",\"platformName\":\"Android\",\"appium:automationName\":\"UiAutomator2\""
+    if [ -n "${chromedriver_path}" ]; then
+        default_caps="${default_caps},\"appium:chromedriverExecutable\":\"${chromedriver_path}\""
+    fi
+    default_caps="${default_caps}}"
+
     appium --address 127.0.0.1 --port "${SW_APPIUM_PORT}" --base-path / --relaxed-security \
-        --default-capabilities "{\"appium:udid\":\"${serial}\",\"platformName\":\"Android\",\"appium:automationName\":\"UiAutomator2\"}" &
+        --default-capabilities "${default_caps}" &
     slot_pids="${slot_pids} $!"
 
     # The slot's single wd door: a Selenium-Grid-shaped /status (the heartbeat agent reads it for
@@ -141,6 +218,7 @@ DOOR
     SW_ENDPOINT="http://${SW_HOST_IP}:${SW_WD_PORT}" \
     SW_NODE_URL="http://127.0.0.1:${SW_WD_PORT}" \
     SW_SESSION_LOG_GLOB="${SW_SLOT_DIR}/session.log" \
+    SW_MEASURED_APPS_FILE="${measured_file}" \
         bash "${SW_SLOT_DIR}/heartbeat-agent.sh" &
     slot_pids="${slot_pids} $!"
 
@@ -208,16 +286,18 @@ reconcile() {
     slots_dir="${state_dir}/slots"
     mkdir -p "${slots_dir}"
 
-    # One line per desired seat: envId wd appium console avd internalUrl token. Parsed with node —
+    # One line per desired seat: envId wd appium console avd internalUrl token apps. Parsed with node —
     # already a hard dependency of every slot (the wd door and Appium are node), so the agent needs no
-    # second runtime (macOS no longer ships python3).
+    # second runtime (macOS no longer ships python3). apps encodes the launch's delivery list as
+    # name~webdriverFlag pairs (both characters are outside the application-name alphabet).
     desired_file="${state_dir}/desired.tsv"
     node -e '
 const doc = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 for (const s of doc.slots || []) {
     const l = s.launch || {}, p = s.ports || {};
+    const apps = (l.apps || []).map((a) => `${a.name}~${a.webdriver ? 1 : 0}`).join(",");
     process.stdout.write([
-        s.environmentId, p.wd, p.appium, p.console, l.avd || "", l.internalUrl || "", s.agentToken,
+        s.environmentId, p.wd, p.appium, p.console, l.avd || "", l.internalUrl || "", s.agentToken, apps,
     ].join("\t") + "\n");
 }
 ' "$response_file" >"${desired_file}"
@@ -233,7 +313,7 @@ for (const s of doc.slots || []) {
     done
 
     # Start (or restart after a crash) every desired slot that is not running.
-    while IFS=$'\t' read -r env_id wd appium console avd internal_url token; do
+    while IFS=$'\t' read -r env_id wd appium console avd internal_url token apps; do
         [ -n "${env_id}" ] || continue
         slot_dir="${slots_dir}/${env_id}"
 
@@ -252,7 +332,7 @@ for (const s of doc.slots || []) {
         # agent's fds (no pipe to hang on), and the printed leader pid IS the group id.
         SW_ENVIRONMENT_ID="${env_id}" SW_AVD="${avd}" SW_WD_PORT="${wd}" SW_APPIUM_PORT="${appium}" \
         SW_CONSOLE_PORT="${console}" SW_ENV_AGENT_TOKEN="${token}" SW_INTERNAL_URL="${internal_url}" \
-        SW_HOST_IP="${host_ip}" SW_SLOT_DIR="${slot_dir}" \
+        SW_HOST_IP="${host_ip}" SW_SLOT_DIR="${slot_dir}" SW_APPS="${apps:-}" \
             node -e 'const c=require("child_process").spawn("bash",[process.argv[1],"slot"],{detached:true,stdio:"ignore"});console.log(c.pid);c.unref();' \
             "$0" >"${slot_dir}/pgid"
     done <"${desired_file}"

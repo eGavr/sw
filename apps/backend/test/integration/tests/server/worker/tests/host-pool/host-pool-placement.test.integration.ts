@@ -255,7 +255,7 @@ describe("host-pool placement (baremetal route)", () => {
         const host = await poolHostRepository.findByEnvironment(EnvironmentId.fromString(envId));
         expect(host?.state).toBe(PoolHostState.Ordering);
         expect(host?.placementFor(envId)?.slotIndex).toBe(0);
-        expect(host?.placementFor(envId)?.launch).toEqual({ avd: "sw-android-14", internalUrl: "http://cp:3002" });
+        expect(host?.placementFor(envId)?.launch).toEqual({ avd: "sw-android-14", internalUrl: "http://cp:3002", apps: [] });
     });
 
     test("the second environment packs onto the same machine — no second order", async () => {

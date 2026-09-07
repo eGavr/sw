@@ -1,10 +1,10 @@
+import { Readable } from "stream";
+
 import { BadRequestException, INestApplication, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
-import { raw } from "express";
 import request from "supertest";
-import { v4 as uuidv4 } from "uuid";
 
 import { ObjectStorageGateway } from "../../../../../../../src/application/interfaces/gateways/object-storage-gateway";
 import {
@@ -35,7 +35,6 @@ import {
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { ProjectId } from "../../../../../../../src/domain/entities/project/project-id";
-import { SessionLogKey } from "../../../../../../../src/domain/entities/storage/session-log-key";
 import { StorageDestination } from "../../../../../../../src/domain/entities/storage/storage-destination";
 import { User } from "../../../../../../../src/domain/entities/user/user";
 import { ClassValidatorError } from "../../../../../../../src/domain/utils/class-validator/class-validator-error";
@@ -45,14 +44,18 @@ import {
 import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
-import { ProjectDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
+import {
+    ProjectDataSource,
+} from "../../../../../../../src/infrastructure/data-sources/database/postgres/project-data-source";
 import {
     SessionOwnershipDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/session-ownership-data-source";
 import {
     StorageDestinationDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/storage-destination-data-source";
-import { PostgresModule } from "../../../../../../../src/infrastructure/data-sources/database/postgres/typeorm/postgres-module";
+import {
+    PostgresModule,
+} from "../../../../../../../src/infrastructure/data-sources/database/postgres/typeorm/postgres-module";
 import {
     InMemoryObjectStorageGateway,
 } from "../../../../../../../src/infrastructure/gateways/object-storage/in-memory-object-storage-gateway";
@@ -60,7 +63,9 @@ import { LoggerModule } from "../../../../../../../src/infrastructure/logging/lo
 import {
     EnvironmentRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/environment-repository-impl";
-import { ProjectRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
+import {
+    ProjectRepositoryImpl,
+} from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
 import {
     SessionOwnershipRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/session-ownership-repository-impl";
@@ -68,7 +73,9 @@ import {
     StorageDestinationRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/storage-destination-repository-impl";
 import { AipExceptionFilter } from "../../../../../../../src/presentation/http/filters/aip-exception-filter";
-import { ResponseInterceptor } from "../../../../../../../src/presentation/http/interceptors/response-interceptor";
+import {
+    ResponseInterceptor,
+} from "../../../../../../../src/presentation/http/interceptors/response-interceptor";
 import {
     InternalEnvironmentsController,
 } from "../../../../../../../src/presentation/http/internal/controllers/environments/environments-controller";
@@ -77,22 +84,25 @@ import {
 } from "../../../../../../../src/presentation/http/internal/guards/internal-agent-token-guard";
 import { UserFactory } from "../../../utils/entities/user/user-factory";
 import { internalAgentToken } from "../../../utils/request/internal-agent-token";
-const destination = StorageDestination.create({ bucket: "test-logs", prefix: "logs" });
-const sessionId = "wd-session-abc";
-const logKey = destination.keyFor(SessionLogKey.forSession(sessionId));
 
-describe("/internal/environments/:env/sessions/:session:uploadSessionLogs", () => {
+// The one remote-host fake: the wrapper client over an EXTERNAL artifact host (the only thing the
+// tests may mock). Keyed by URL.
+class FakeRemoteArtifactGateway extends RemoteArtifactGateway {
+    readonly artifacts = new Map<string, Buffer>();
+
+    async fetch(url: string): Promise<{ body: Readable; contentType?: string } | null> {
+        const found = this.artifacts.get(url);
+
+        return found ? { body: Readable.from(found), contentType: "application/octet-stream" } : null;
+    }
+}
+
+describe("/internal/environments/:id/applications/:name:downloadApp|:downloadWebdriver", () => {
     let app: INestApplication;
-    let objectStorage: InMemoryObjectStorageGateway;
-
-    let projectRepository: ProjectRepository;
-    let environmentRepository: EnvironmentRepository;
-    let storageDestinationRepository: StorageDestinationRepository;
+    let remoteArtifacts: FakeRemoteArtifactGateway;
 
     beforeEach(async () => {
-        // Stateful in-memory storage shared between the use-case (which writes) and the test (which reads
-        // back). Bound by value so there is exactly one instance.
-        objectStorage = new InMemoryObjectStorageGateway();
+        remoteArtifacts = new FakeRemoteArtifactGateway();
 
         const moduleRef = await Test.createTestingModule({
             imports: [
@@ -106,7 +116,6 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionLogs", () =
                 UploadSessionLogsUseCase,
                 UploadSessionVideoUseCase,
                 GetApplicationArtifactUseCase,
-                { provide: RemoteArtifactGateway, useValue: { fetch: async (): Promise<null> => null } },
                 ProjectDataSource,
                 EnvironmentDataSource,
                 SessionOwnershipDataSource,
@@ -115,7 +124,8 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionLogs", () =
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
                 { provide: StorageDestinationRepository, useClass: StorageDestinationRepositoryImpl },
-                { provide: ObjectStorageGateway, useValue: objectStorage },
+                { provide: ObjectStorageGateway, useClass: InMemoryObjectStorageGateway },
+                { provide: RemoteArtifactGateway, useValue: remoteArtifacts },
                 AgentTokenServiceProvider,
                 { provide: APP_GUARD, useClass: InternalAgentTokenGuard },
                 { provide: APP_FILTER, useClass: AipExceptionFilter },
@@ -133,91 +143,100 @@ describe("/internal/environments/:env/sessions/:session:uploadSessionLogs", () =
         }).compile();
 
         app = moduleRef.createNestApplication();
-        app.use(raw({ type: ["application/octet-stream", "text/plain"], limit: "16mb" }));
         await app.init();
-
-        projectRepository = app.get(ProjectRepository);
-        environmentRepository = app.get(EnvironmentRepository);
-        storageDestinationRepository = app.get(StorageDestinationRepository);
     });
 
     afterEach(async () => {
         await app.close();
     });
 
-    const seedEnvironment = async (withDestination: boolean): Promise<string> => {
+    const seedEnvironment = async (applications: Array<object>): Promise<{ id: string, projectId: string }> => {
         const externalId = UserFactory.createId();
+        const projectRepository = app.get(ProjectRepository);
         const project = await projectRepository.create({
             name: `team-${externalId}`,
             createdBy: User.create({ externalId, providerType: "local" }),
         });
         await projectRepository.save(project);
 
-        const environment = await environmentRepository.create({
+        const environment = await app.get(EnvironmentRepository).create({
             projectId: ProjectId.fromString(project.id),
-            platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
-            applications: ApplicationList.fromObject([{ name: "chrome" }]),
+            platform: Platform.fromObject({ name: "android", version: "14" }),
+            applications: ApplicationList.fromObject(applications as never),
         });
 
-        if (withDestination) {
-            await storageDestinationRepository.save(ProjectId.fromString(project.id), destination);
-        }
-
-        return environment.id;
+        return { id: environment.id, projectId: project.id };
     };
 
-    const upload = (id: string, body: string): request.Test =>
+    const download = (environmentId: string, resource: string): request.Test =>
         request(app.getHttpServer())
-            .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionLogs`)
-            .set("authorization", `Bearer ${internalAgentToken(id)}`)
-            .set("content-type", "text/plain")
-            .send(body);
+            .get(`/internal/environments/${environmentId}/applications/${resource}`)
+            .set("authorization", `Bearer ${internalAgentToken(environmentId)}`);
 
-    test("stores the logs keyed by the session, under the project's destination", async () => {
-        const id = await seedEnvironment(true);
-        const logs = "session started\nGET /url 200\nsession ended\n";
+    test("streams a custom build from the project's delegated bucket", async () => {
+        const { id, projectId } = await seedEnvironment([{
+            name: "myapp",
+            buildAlias: "7.1",
+            source: { type: "custom", appRef: "builds/app.apk", webdriverRef: "builds/driver" },
+        }]);
 
-        const { body } = await upload(id, logs).expect(200);
+        const destination = StorageDestination.create({ bucket: "team-bucket" });
+        await app.get(StorageDestinationRepository).save(ProjectId.fromString(projectId), destination);
+        await app.get<ObjectStorageGateway>(ObjectStorageGateway)
+            .put(destination, destination.keyFor("builds/app.apk"), { body: Buffer.from("apk-bytes") });
+        await app.get<ObjectStorageGateway>(ObjectStorageGateway)
+            .put(destination, destination.keyFor("builds/driver"), { body: Buffer.from("driver-bytes") });
 
-        expect(body).toEqual({ uid: id, stored: true });
+        const apk = await download(id, "myapp:downloadApp").expect(200);
+        expect(apk.body.toString()).toBe("apk-bytes");
 
-        const stored = await objectStorage.get(destination, logKey);
-        expect(stored?.body.toString("utf8")).toBe(logs);
+        const driver = await download(id, "myapp:downloadWebdriver").expect(200);
+        expect(driver.body.toString()).toBe("driver-bytes");
     });
 
-    test("no-ops when the project has no destination configured", async () => {
-        const id = await seedEnvironment(false);
+    test("streams a provided build from the install's remote store", async () => {
+        remoteArtifacts.artifacts.set("https://store.test/chrome-152.zip", Buffer.from("chrome-bytes"));
 
-        const { body } = await upload(id, "some logs").expect(200);
+        const { id } = await seedEnvironment([{
+            name: "chrome",
+            buildAlias: "152",
+            source: { type: "provided", appRef: "https://store.test/chrome-152.zip" },
+        }]);
 
-        expect(body).toEqual({ uid: id, stored: false });
-        expect(await objectStorage.get(destination, logKey)).toBeNull();
+        const { body } = await download(id, "chrome:downloadApp").expect(200);
+
+        expect(body.toString()).toBe("chrome-bytes");
     });
 
-    test("responds UNAUTHENTICATED without a token", async () => {
-        const id = await seedEnvironment(true);
+    test("responds NOT_FOUND when the build carries no such artifact (preinstalled / no webdriver)", async () => {
+        const { id } = await seedEnvironment([{ name: "settings", buildAlias: "14", source: { type: "provided" } }]);
 
-        return request(app.getHttpServer())
-            .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionLogs`)
-            .set("content-type", "text/plain")
-            .send("logs")
-            .expect(401);
+        await download(id, "settings:downloadApp").expect(404);
+        await download(id, "settings:downloadWebdriver").expect(404);
+    });
+
+    test("responds INVALID_ARGUMENT for a custom build when the project has no storage destination", async () => {
+        const { id } = await seedEnvironment([{
+            name: "myapp",
+            source: { type: "custom", appRef: "builds/app.apk" },
+        }]);
+
+        return download(id, "myapp:downloadApp").expect(400);
     });
 
     test("responds UNAUTHENTICATED with a token for a different environment", async () => {
-        const id = await seedEnvironment(true);
+        const { id } = await seedEnvironment([{
+            name: "myapp",
+            source: { type: "custom", appRef: "builds/app.apk" },
+        }]);
+        const { id: other } = await seedEnvironment([{
+            name: "myapp",
+            source: { type: "custom", appRef: "builds/app.apk" },
+        }]);
 
         return request(app.getHttpServer())
-            .post(`/internal/environments/${id}/sessions/${sessionId}:uploadSessionLogs`)
-            .set("authorization", `Bearer ${internalAgentToken(uuidv4())}`)
-            .set("content-type", "text/plain")
-            .send("logs")
+            .get(`/internal/environments/${id}/applications/myapp:downloadApp`)
+            .set("authorization", `Bearer ${internalAgentToken(other)}`)
             .expect(401);
-    });
-
-    test("responds NOT_FOUND for an unknown environment", () => {
-        return upload(uuidv4(), "logs")
-            .expect(404)
-            .expect((response) => expect(response.body.error.status).toBe("NOT_FOUND"));
     });
 });
