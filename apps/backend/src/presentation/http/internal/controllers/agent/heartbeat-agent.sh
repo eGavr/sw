@@ -33,8 +33,8 @@ INTERVAL="${SW_HEARTBEAT_INTERVAL_SECONDS:-3}"
 heartbeat_url="${SW_INTERNAL_URL}/internal/environments/${SW_ENVIRONMENT_ID}:heartbeat"
 ffmpeg_download_url="${SW_INTERNAL_URL}/internal/ffmpeg:download"
 
-# The startup bootstrap redirects the container's whole stdout/stderr into one file (stock selenium logs
-# to stdout, not a per-session file), so a session's logs are the slice appended between its start and
+# The startup bootstrap redirects the container's whole stdout/stderr into one file (the node logs to
+# stdout, not a per-session file), so a session's logs are the slice appended between its start and
 # end. Capped to the last max_log_bytes (session end + errors) if larger.
 session_log_glob="${SW_SESSION_LOG_GLOB:-/tmp/sw-session.log}"
 max_log_bytes="${SW_MAX_LOG_BYTES:-10485760}"

@@ -1,3 +1,5 @@
+import { defaultLinuxBaseImage, ScreenGeometry } from "../linux-node";
+
 // How the control plane reaches the environment pods and the cluster API.
 //   pod-ip   — the pod's own VPC IP is the endpoint and the master's internal endpoint is used; works
 //              when the control plane sits in the SAME VPC network as the cluster.
@@ -8,19 +10,20 @@
 export type KubernetesNetworking = "pod-ip" | "nodeport";
 
 export type KubernetesEnvironmentConfig = {
-    // The selenium node image pods run (a CR ref — docker hub is not reachable from the RU nodes).
-    nodeImage: string;
+    // The linux base image template pods run, `{version}` standing for the platform version (a CR ref —
+    // docker hub is not reachable from the RU nodes).
+    baseImage: string;
     // Namespace the environment pods live in (must exist in the user's cluster).
     namespace: string;
-    // The image's normal entrypoint, exec'd by the agent bootstrap.
-    entrypoint: string;
     // Requests drive packing (environments per node); limits cap a noisy session.
     cpuRequest: string;
     memoryRequest: string;
     cpuLimit: string;
     memoryLimit: string;
-    // Delegated to the node as SE_NODE_SESSION_TIMEOUT (the one domain idle-timeout policy).
+    // The session idle timeout the node's wd door enforces (the one domain idle-timeout policy).
     sessionTimeoutSeconds: number;
+    // The headless display the browser renders on (also the video record size).
+    screen: ScreenGeometry;
     // Base URL the in-pod agent calls back on (its per-env token is minted separately). For nodeport this
     // must be the control plane's PUBLIC address — the pod reaches it over the internet.
     internalUrl: string;
@@ -29,7 +32,7 @@ export type KubernetesEnvironmentConfig = {
     // NodePort mode only: the host-port range NodePort Services are published on (the cluster's configured
     // service-node-port-range). A query bound, not a business threshold.
     nodePortRange: { min: number; max: number };
-    // The port the selenium node listens on inside the pod.
+    // The port the node's wd door listens on inside the pod.
     containerPort: number;
     // NodePort mode only: the public host a NodePort is reached on. A NodePort routes to the pod from ANY
     // node, so one stable node address is enough. Set explicitly so the delegated identity needs only the
@@ -50,14 +53,14 @@ export const defaultKubernetesContainerPort = 4444;
 // mode, node-port range, container port) so that backend-specific shaping stays in the backend's folder,
 // not in the shared provider — mirroring build*EnvironmentConfig for the android backends.
 export type BuildKubernetesEnvironmentConfigOptions = {
-    nodeImage: string;
+    baseImage?: string;
     namespace?: string;
-    entrypoint: string;
     cpuRequest?: string;
     memoryRequest?: string;
     cpuLimit?: string;
     memoryLimit?: string;
     sessionTimeoutSeconds: number;
+    screen: ScreenGeometry;
     internalUrl: string;
     networking?: string;
     nodePortMin?: string;
@@ -70,14 +73,14 @@ export function buildKubernetesEnvironmentConfig(
     options: BuildKubernetesEnvironmentConfigOptions,
 ): KubernetesEnvironmentConfig {
     return {
-        nodeImage: options.nodeImage,
+        baseImage: options.baseImage || defaultLinuxBaseImage,
         namespace: options.namespace || defaultKubernetesNamespace,
-        entrypoint: options.entrypoint,
         cpuRequest: options.cpuRequest || defaultCpuRequest,
         memoryRequest: options.memoryRequest || defaultMemoryRequest,
         cpuLimit: options.cpuLimit || defaultCpuLimit,
         memoryLimit: options.memoryLimit || defaultMemoryLimit,
         sessionTimeoutSeconds: options.sessionTimeoutSeconds,
+        screen: options.screen,
         internalUrl: options.internalUrl,
         networking: options.networking === "nodeport" ? "nodeport" : defaultKubernetesNetworking,
         nodePortRange: {

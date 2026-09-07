@@ -151,7 +151,7 @@ Reaper: `state IN ('starting','preparing') AND updated_at < now() - <свой п
 
 ## Аллокация сессии (create-session)
 - `POST /sessions {accountId, application}` — **без явного environmentId** (пул-аллокация).
-- **Арбитр занятости 1:1 — сам endpoint/нода** (`SE_NODE_MAX_SESSIONS=1`). БД-`busy` — **подсказка**,
+- **Арбитр занятости 1:1 — сам endpoint/нода** (одна сессия на дверь ноды). БД-`busy` — **подсказка**,
   не гарантия (поэтому НЕ нужен ни `allocation_id`, ни `UNIQUE(active session)`).
 - **На create-пути в БД НЕ пишем** (занятость отрапортует следующий хартбит):
   ```

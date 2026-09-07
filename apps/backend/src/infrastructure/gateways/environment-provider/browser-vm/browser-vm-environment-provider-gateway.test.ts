@@ -50,15 +50,20 @@ const config = {
     cores: 2,
     memoryGb: 4,
     diskSizeGb: 30,
-    nodeImage: "cr.yandex/reg/selenium-standalone-chrome:latest",
+    baseImage: "cr.yandex/reg/sw-linux-base:{version}",
     sessionTimeoutSeconds: 300,
+    screen: { width: 1360, height: 1020 },
     internalUrl: "http://10.0.0.1:3002",
 };
 
 const environment = Environment.create({
     projectId: ProjectId.create(),
-    platform: Platform.fromObject({ name: "ubuntu", version: "1", deviceModel: "desktop" }),
-    applications: ApplicationList.fromObject([{ nameAlias: "chrome", versionAlias: "128" }]),
+    platform: Platform.fromObject({ name: "ubuntu", version: "24.04", deviceModel: "desktop" }),
+    applications: ApplicationList.fromObject([{
+        nameAlias: "chrome",
+        versionAlias: "152",
+        source: { type: "provided", appRef: "https://store/chrome.zip", webdriverRef: "https://store/driver.zip" },
+    }]),
     cloudType: "yandex-cloud",
 });
 
@@ -86,8 +91,12 @@ describe("BrowserVmEnvironmentProviderGateway", () => {
         expect(created.imageId).toBe("fd8golden");
         expect(created.metadata).toEqual({
             "sw-environment-id": environment.id,
-            "sw-node-image": config.nodeImage,
-            "sw-session-timeout": "300",
+            "sw-base-image": "cr.yandex/reg/sw-linux-base:24.04",
+            "sw-apps": "chrome~1",
+            "sw-detected-apps-file": "/tmp/sw-detected.json",
+            "sw-idle-timeout": "300",
+            "sw-screen-width": "1360",
+            "sw-screen-height": "1020",
             "sw-internal-url": config.internalUrl,
             "sw-internal-token": `token-${environment.id}`,
         });

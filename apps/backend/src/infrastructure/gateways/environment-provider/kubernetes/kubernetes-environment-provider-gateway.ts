@@ -9,7 +9,8 @@ import { ComputeBinding } from "../../../../domain/entities/cloud-account/comput
 import { Environment } from "../../../../domain/entities/environment/environment";
 import { InternalError } from "../../../../domain/entities/error/internal-error";
 import { OwnershipMarker } from "../../../../domain/entities/verification/ownership-marker";
-import { agentBootstrap, sessionLogFile } from "../agent-bootstrap";
+import { agentBootstrap, linuxNodeEntrypoint, sessionLogFile } from "../agent-bootstrap";
+import { linuxNodeProvisioning } from "../linux-node";
 
 import { KubernetesClient } from "./kubernetes-client";
 import { KubernetesEnvironmentConfig } from "./kubernetes-environment-config";
@@ -28,8 +29,8 @@ type Endpoint =
     | { networking: "nodeport"; url: string; service: { nodePort: number } };
 
 // Kubernetes adapter (the fast-start compute kind): an environment is a Pod in the USER'S managed cluster
-// — the binding's clusterId points at it, our identity was granted cluster access. The pod runs the stock
-// selenium node with the heartbeat agent injected (agentBootstrap), byte-for-byte the docker/VM scheme.
+// — the binding's clusterId points at it, our identity was granted cluster access. The pod runs the linux
+// base image with the heartbeat agent injected (agentBootstrap), byte-for-byte the docker/VM scheme.
 // Two networking modes (see KubernetesNetworking): pod-ip advertises the pod's own VPC IP (control plane
 // in the same network); nodeport publishes a NodePort on a public node and advertises node-ip:nodePort
 // (delegated BYOC — the cluster is in the user's own folder, reachable only over public addresses). The
@@ -158,6 +159,13 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
             [labels.environmentId]: environment.id,
             [labels.projectId]: environment.projectId.getValue(),
         };
+        const node = linuxNodeProvisioning({
+            platform: environment.platform.toObject(),
+            applications: environment.applications.toArray(),
+            baseImage: this.config.baseImage,
+            sessionTimeoutSeconds: this.config.sessionTimeoutSeconds,
+            screen: this.config.screen,
+        });
         const pod = {
             apiVersion: "v1",
             kind: "Pod",
@@ -166,12 +174,16 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
                 restartPolicy: "Never",
                 containers: [{
                     name: "node",
-                    image: this.config.nodeImage,
+                    image: node.image,
                     imagePullPolicy: "IfNotPresent",
-                    // Stock selenium image: fetch the agent at startup, then exec the node (PID 1).
-                    command: ["bash", "-c", agentBootstrap(this.config.entrypoint)],
+                    // Fetch the agent at startup, then exec the image's bootstrap (PID 1) — it turns the
+                    // base image into this environment's browser node.
+                    command: ["bash", "-c", agentBootstrap(linuxNodeEntrypoint)],
                     ports: [{ containerPort: this.config.containerPort }],
-                    env: this.env(environment, endpoint.url, agentToken),
+                    env: [
+                        ...this.env(environment, endpoint.url, agentToken),
+                        ...Object.entries(node.env).map(([key, value]) => ({ name: key, value })),
+                    ],
                     resources: {
                         requests: { cpu: this.config.cpuRequest, memory: this.config.memoryRequest },
                         limits: { cpu: this.config.cpuLimit, memory: this.config.memoryLimit },
@@ -216,10 +228,6 @@ export class KubernetesEnvironmentProviderGateway extends EnvironmentProviderGat
             { name: "SW_INTERNAL_TOKEN", value: agentToken },
             // The bootstrap redirects the container's stdout here; the agent slices session logs from it.
             { name: "SW_SESSION_LOG_GLOB", value: sessionLogFile },
-            // Delegate the smart idle timeout and the "one active session" invariant to the node.
-            { name: "SE_NODE_SESSION_TIMEOUT", value: String(this.config.sessionTimeoutSeconds) },
-            { name: "SE_NODE_MAX_SESSIONS", value: "1" },
-            { name: "SE_NODE_OVERRIDE_MAX_SESSIONS", value: "true" },
         ];
     }
 }

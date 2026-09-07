@@ -9,7 +9,6 @@ import { EnvironmentQuotaPolicy } from "../../../domain/entities/environment/env
 import { Execution } from "../../../domain/entities/environment/execution";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 
-import { defaultAgentEntrypoint, linuxNodeEntrypoint } from "./agent-bootstrap";
 import {
     AndroidEmulatorEnvironmentConfig,
     buildAndroidEmulatorEnvironmentConfig,
@@ -44,7 +43,6 @@ import {
 import { DockerClient } from "./docker/docker-client";
 import {
     defaultInternalPort,
-    defaultScreen,
     DockerEnvironmentConfig,
 } from "./docker/docker-environment-config";
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
@@ -64,6 +62,7 @@ import {
 import {
     KubernetesEnvironmentProviderGateway,
 } from "./kubernetes/kubernetes-environment-provider-gateway";
+import { defaultLinuxBaseImage, defaultScreen, ScreenGeometry } from "./linux-node";
 import { RoutingEnvironmentProviderGateway, routingKey } from "./routing-environment-provider-gateway";
 import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 
@@ -86,8 +85,8 @@ export const EnvironmentProviderGatewayProvider = {
         hostProvider: HostProviderGateway,
         quotaPolicy: EnvironmentQuotaPolicy,
     ): EnvironmentProviderGateway => {
-        // One backend-agnostic idle timeout (domain policy), translated by each gateway into the node's
-        // SE_NODE_SESSION_TIMEOUT — no per-backend copy of the default.
+        // One backend-agnostic idle timeout (domain policy), handed by each gateway to the node's wd
+        // door — no per-backend copy of the default.
         const idleTimeoutSeconds = resolveSessionIdleTimeout(configService).toSeconds();
 
         const hostPoolGateway = new HostPoolEnvironmentProviderGateway(
@@ -161,15 +160,11 @@ function dockerConfig(configService: ConfigService, sessionTimeoutSeconds: numbe
     // Install defaults for the docker provisioning shape; a project's substrate binding config overrides
     // baseImage/platform/port at provision. The install-level fields below stay global.
     return {
-        baseImage: configService.get<string>("COMPUTE_DOCKER_BASE_IMAGE"),
+        baseImage: configService.get<string>("COMPUTE_DOCKER_BASE_IMAGE") ?? defaultLinuxBaseImage,
         platform: configService.get<string>("COMPUTE_DOCKER_PLATFORM"),
         internalPort: Number(configService.get<string>("COMPUTE_DOCKER_PORT") ?? String(defaultInternalPort)),
         sessionTimeoutSeconds,
-        screen: {
-            width: Number(configService.get<string>("COMPUTE_DOCKER_SCREEN_WIDTH") ?? String(defaultScreen.width)),
-            height: Number(configService.get<string>("COMPUTE_DOCKER_SCREEN_HEIGHT") ?? String(defaultScreen.height)),
-        },
-        entrypoint: configService.get<string>("COMPUTE_DOCKER_ENTRYPOINT") ?? linuxNodeEntrypoint,
+        screen: screenGeometry(configService, "COMPUTE_DOCKER"),
         // The host address the browser node is reachable at; on the dev Mac that is the loopback the
         // wd proxy uses to reach the published container port.
         advertiseHost: configService.get<string>("COMPUTE_DOCKER_ADVERTISE_HOST") ?? "127.0.0.1",
@@ -194,15 +189,15 @@ function kubernetesGateway(
 ): KubernetesEnvironmentProviderGateway {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
     const config: KubernetesEnvironmentConfig = buildKubernetesEnvironmentConfig({
-        nodeImage: configService.get<string>("COMPUTE_K8S_NODE_IMAGE")
-            ?? configService.get<string>("COMPUTE_BROWSER_NODE_IMAGE") ?? "",
+        baseImage: configService.get<string>("COMPUTE_K8S_BASE_IMAGE")
+            ?? configService.get<string>("COMPUTE_BROWSER_BASE_IMAGE"),
         namespace: configService.get<string>("COMPUTE_K8S_NAMESPACE"),
-        entrypoint: configService.get<string>("COMPUTE_K8S_ENTRYPOINT") ?? defaultAgentEntrypoint,
         cpuRequest: configService.get<string>("COMPUTE_K8S_CPU_REQUEST"),
         memoryRequest: configService.get<string>("COMPUTE_K8S_MEMORY_REQUEST"),
         cpuLimit: configService.get<string>("COMPUTE_K8S_CPU_LIMIT"),
         memoryLimit: configService.get<string>("COMPUTE_K8S_MEMORY_LIMIT"),
         sessionTimeoutSeconds,
+        screen: screenGeometry(configService, "COMPUTE_K8S"),
         internalUrl: configService.get<string>("COMPUTE_K8S_INTERNAL_URL")
             ?? configService.get<string>("COMPUTE_BROWSER_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
         networking: configService.get<string>("COMPUTE_K8S_NETWORKING"),
@@ -248,9 +243,19 @@ function browserVmConfig(configService: ConfigService, sessionTimeoutSeconds: nu
         cores: Number(configService.get<string>("COMPUTE_BROWSER_CORES") ?? String(defaultBrowserCores)),
         memoryGb: Number(configService.get<string>("COMPUTE_BROWSER_MEMORY_GB") ?? String(defaultBrowserMemoryGb)),
         diskSizeGb: Number(configService.get<string>("COMPUTE_BROWSER_DISK_GB") ?? String(defaultBrowserDiskGb)),
-        nodeImage: configService.get<string>("COMPUTE_BROWSER_NODE_IMAGE") ?? "",
+        baseImage: configService.get<string>("COMPUTE_BROWSER_BASE_IMAGE") ?? defaultLinuxBaseImage,
         sessionTimeoutSeconds,
+        screen: screenGeometry(configService, "COMPUTE_BROWSER"),
         internalUrl: configService.get<string>("COMPUTE_BROWSER_INTERNAL_URL") ?? `http://127.0.0.1:${internalPort}`,
+    };
+}
+
+// The headless display geometry of a linux node, per adapter (`<PREFIX>_SCREEN_WIDTH/HEIGHT`), the
+// install default otherwise.
+function screenGeometry(configService: ConfigService, prefix: string): ScreenGeometry {
+    return {
+        width: Number(configService.get<string>(`${prefix}_SCREEN_WIDTH`) ?? String(defaultScreen.width)),
+        height: Number(configService.get<string>(`${prefix}_SCREEN_HEIGHT`) ?? String(defaultScreen.height)),
     };
 }
 
