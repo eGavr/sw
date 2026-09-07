@@ -508,8 +508,8 @@ export function listApplicationVersions(
   return listApplicationBuilds(project, platform, application).then((builds) => builds.map((v) => v.versionAlias));
 }
 
-// Registers an application of the project under one word (the docker rule keeps catalog words off
-// limits); builds are added underneath, each with its artifacts.
+// Registers an application of the project under one word — a catalog word too, overriding the
+// catalog's for this project; builds are added underneath, each with its artifacts.
 export function createProjectApplication(
   project: string,
   platform: string,

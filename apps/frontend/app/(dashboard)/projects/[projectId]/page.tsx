@@ -8,6 +8,7 @@ import { ApplicationsTab } from "@/components/applications-tab";
 import { EnvironmentsTab } from "@/components/environments-tab";
 import { SessionsTab } from "@/components/sessions-tab";
 import { SettingsTab } from "@/components/settings-tab";
+import { catalogProject } from "@/lib/sw";
 
 // Tabs live in the URL (?tab=…&session=…) so environment rows and modals can deep-link into the
 // Sessions viewer with the id prefilled.
@@ -24,6 +25,17 @@ function ProjectContent() {
   const switchTab = (next: string | null): void => {
     router.replace(next && next !== "environments" ? `${pathname}?tab=${next}` : pathname);
   };
+
+  // The install catalog is a project by shape only: it hosts the provided applications and nothing
+  // else, so its page is that one surface.
+  if (projectId === catalogProject) {
+    return (
+      <Stack>
+        <Title order={2}>Install catalog</Title>
+        <ApplicationsTab project={projectId} />
+      </Stack>
+    );
+  }
 
   return (
     <Stack>

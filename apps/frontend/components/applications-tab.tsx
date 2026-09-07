@@ -36,9 +36,10 @@ import {
 
 // The applications an environment of this project can install, per platform: the install's catalog
 // (the reserved `catalog` project — every project reads it, its members grow it) and the project's own
-// registrations. An application is one word; its builds carry the artifacts — a bucket key of the
-// project's storage or a URL, plus the paired webdriver a browser needs. The honest identity (package
-// id, version) is detected on the environment at delivery, never typed here.
+// registrations, which override the catalog word for word. An application is one word; its builds
+// carry the artifacts — a bucket key of the project's storage or a URL, plus the paired webdriver a
+// browser needs. The honest identity (package id, version) is detected on the environment at
+// delivery, never typed here.
 export function ApplicationsTab({ project }: { project: string }) {
   const platforms = useQuery({ queryKey: ["platforms"], queryFn: listPlatforms, staleTime: Infinity });
   const [platform, setPlatform] = useState("");
@@ -72,7 +73,7 @@ export function ApplicationsTab({ project }: { project: string }) {
           {!ownsCatalog && (
             <ApplicationSection
               title="Catalog"
-              description="Provided by the install; addressable from every project, managed by the catalog's members."
+              description="Provided by the install — every project's defaults; register the same word below to override one."
               owner={catalogProject}
               platform={platform}
               editable={false}
@@ -83,7 +84,7 @@ export function ApplicationsTab({ project }: { project: string }) {
             description={
               ownsCatalog
                 ? "The install's provided set: every project reads it, only its members change it."
-                : "Your own builds — an APK or a browser archive in the project's storage (a key) or at a URL, with its webdriver."
+                : "Your own builds — an APK or a browser archive in the project's storage (a key) or at a URL, with its webdriver. A catalog word registered here overrides the catalog's."
             }
             owner={project}
             platform={platform}
@@ -169,7 +170,7 @@ function ApplicationSection({
         <Group align="flex-end">
           <TextInput
             label="Register an application"
-            description="One word to address it by — chrome, myapp; catalog words are reserved."
+            description="One word to address it by — myapp, or chrome to override the catalog's chrome."
             placeholder="myapp"
             value={word}
             onChange={(event) => setWord(event.currentTarget.value)}

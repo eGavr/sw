@@ -4,7 +4,9 @@ import {
   ActionIcon,
   AppShell,
   Avatar,
+  Badge,
   Burger,
+  Divider,
   Group,
   Loader,
   Menu,
@@ -13,14 +15,14 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconLogout, IconPlus } from "@tabler/icons-react";
+import { IconBooks, IconLogout, IconPlus } from "@tabler/icons-react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { signOutAction } from "@/app/actions/auth";
 import { NewProjectModal } from "@/components/new-project-modal";
-import { listProjectsPage, projectHandle } from "@/lib/sw";
+import { catalogProject, listProjectsPage, projectHandle } from "@/lib/sw";
 
 export function DashboardShell({
   children,
@@ -42,6 +44,8 @@ export function DashboardShell({
     getNextPageParam: (lastPage) => lastPage.nextPageToken,
   });
   const projects = data?.pages.flatMap((page) => page.items);
+  const catalog = projects?.find((p) => projectHandle(p) === catalogProject);
+  const ownProjects = (projects ?? []).filter((p) => p !== catalog);
 
   return (
     <AppShell
@@ -91,7 +95,7 @@ export function DashboardShell({
           </Group>
         ) : projects && projects.length > 0 ? (
           <>
-            {projects.map((p) => {
+            {ownProjects.map((p) => {
               const handle = projectHandle(p);
 
               return (
@@ -111,6 +115,21 @@ export function DashboardShell({
                 rightSection={isFetchingNextPage ? <Loader size="xs" /> : undefined}
                 onClick={() => void fetchNextPage()}
               />
+            )}
+            {/* The install catalog is a project by shape, not by role: it holds the provided
+                applications every project reads, so it sits apart from the projects you work in. */}
+            {catalog && (
+              <>
+                <Divider my="xs" />
+                <NavLink
+                  component={Link}
+                  href={`/projects/${projectHandle(catalog)}`}
+                  label={catalog.displayName}
+                  leftSection={<IconBooks size={16} />}
+                  rightSection={<Badge size="xs" variant="light">catalog</Badge>}
+                  active={projectHandle(catalog) === selectedProjectId}
+                />
+              </>
             )}
           </>
         ) : (

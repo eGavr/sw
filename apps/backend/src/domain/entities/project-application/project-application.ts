@@ -27,9 +27,9 @@ export type ProjectApplicationCreateParams = {
 // owns it. The resource is its server-minted id; its NAME ALIAS is the one addressing word — `chrome`,
 // `settings`, `myapp` — unique per project and platform, claiming no identity: an APK's honest package
 // id and version are DETECTED at delivery and land next to the word on the environment. The reserved
-// catalog project's words are reserved install-wide (the docker rule), a user project's words are its
-// own. Versions are its builds, each pointing at its artifacts; a build's label is the picking handle,
-// the detected version is the truth.
+// catalog project's applications are every project's defaults; a project's own word overrides the
+// catalog's. Versions are its builds, each pointing at its artifacts; a build's label is the picking
+// handle, the detected version is the truth.
 export class ProjectApplication {
     static create(params: ProjectApplicationCreateParams): ProjectApplication {
         return new ProjectApplication(

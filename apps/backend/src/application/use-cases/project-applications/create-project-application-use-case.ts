@@ -6,9 +6,6 @@ import { ProjectId } from "../../../domain/entities/project/project-id";
 import {
     ApplicationConflictError,
 } from "../../../domain/entities/project-application/error/application-conflict-error";
-import {
-    ReservedApplicationWordError,
-} from "../../../domain/entities/project-application/error/reserved-application-word-error";
 import { ProjectApplication } from "../../../domain/entities/project-application/project-application";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
 import {
@@ -16,7 +13,6 @@ import {
 } from "../../interfaces/repositories/project-application-repository";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
 import { AccessControl } from "../../services/access-control";
-import { ApplicationCatalogLoader } from "../../services/application-catalog-loader";
 
 type CreateProjectApplicationInput = {
     creds: {
@@ -31,9 +27,9 @@ type CreateProjectApplicationInput = {
 
 // Registers an application in a project under ONE word — the same shape whoever the project is. In
 // the reserved catalog project this is how install admins grow the provided set; in a user project it
-// registers a custom. The word is an addressing handle, not an identity claim: the honest identity
-// (an APK's package id and version) is DETECTED at delivery, not declared. Never a word the install
-// catalog holds (the docker rule: catalog words mean the same thing in every project).
+// registers a custom, which may take a catalog word too: the catalog is the default, the project's own
+// word overrides it. The word is an addressing handle, not an identity claim: the honest identity (an
+// APK's package id and version) is DETECTED at delivery, not declared.
 @Injectable()
 export class CreateProjectApplicationUseCase {
     private readonly permissionName = UserPermissionName.Application.Create;
@@ -42,7 +38,6 @@ export class CreateProjectApplicationUseCase {
         private readonly accessControl: AccessControl,
         private readonly projectRepository: ProjectRepository,
         private readonly projectApplicationRepository: ProjectApplicationRepository,
-        private readonly applicationCatalogLoader: ApplicationCatalogLoader,
         private readonly platformCatalog: PlatformCatalog,
     ) {}
 
@@ -65,12 +60,6 @@ export class CreateProjectApplicationUseCase {
 
         if (await this.projectApplicationRepository.findByHandle(projectId, params.platform, application.nameAlias)) {
             throw new ApplicationConflictError(params.platform, application.nameAlias);
-        }
-
-        const catalog = await this.applicationCatalogLoader.loadFor(projectId);
-
-        if (catalog.catalogReserves(params.platform, application.nameAlias)) {
-            throw new ReservedApplicationWordError(params.platform, application.nameAlias);
         }
 
         await this.projectApplicationRepository.save(application);

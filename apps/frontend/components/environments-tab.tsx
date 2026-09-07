@@ -88,22 +88,25 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const noClouds = !clouds.isLoading
     && !(clouds.data ?? []).some((cloud) => cloud.computeBindings.length > 0);
 
-  // The delivery vocabulary: platform lines, then the applications of the reserved catalog project
-  // (the install's provided set) merged with the project's own registered customs — the whole form is
-  // picks, platforms narrowed to what the project actually bound. Registering customs lives in the
-  // project's Applications surface, not here.
+  // The delivery vocabulary: platform lines, then what the project can install — its own registrations
+  // first, the reserved catalog project's provided set behind them, a word the project registered
+  // itself overriding the catalog's. The whole form is picks, platforms narrowed to what the project
+  // actually bound. Registering lives in the project's Applications surface, not here.
   const platformsQuery = useQuery({ queryKey: ["platforms"], queryFn: listPlatforms });
   const applicationsQuery = useQuery({
-    queryKey: ["projectApplications", project, platformName],
+    queryKey: ["applicationOfferings", project, platformName],
     queryFn: async () => {
       const [provided, own] = await Promise.all([
         listProjectApplications(catalogProject, platformName),
         listProjectApplications(project, platformName),
       ]);
+      const overridden = new Set(own.map((offering) => offering.nameAlias));
 
       return [
-        ...provided.map((offering) => ({ ...offering, owner: catalogProject })),
         ...own.map((offering) => ({ ...offering, owner: project })),
+        ...provided
+          .filter((offering) => !overridden.has(offering.nameAlias))
+          .map((offering) => ({ ...offering, owner: catalogProject })),
       ];
     },
     enabled: platformName !== "",
@@ -117,10 +120,11 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const platformVersions = platformLine?.versions ?? [];
   const platformDevices = platformLine?.devices ?? [];
   const offerings = applicationsQuery.data ?? [];
-  const applicationOptions = offerings.map((offering) => ({
-    value: offering.nameAlias,
-    label: offering.nameAlias + (offering.owner === catalogProject ? "" : " — custom"),
-  }));
+  // Sectioned the way the row's kebab menu is: the project's own first, the catalog's behind.
+  const applicationOptions = [
+    { group: "This project", items: offerings.filter((offering) => offering.owner === project).map((o) => o.nameAlias) },
+    { group: "Catalog", items: offerings.filter((offering) => offering.owner === catalogProject).map((o) => o.nameAlias) },
+  ].filter((section) => section.items.length > 0);
   const selectedOffering = offerings.find((offering) => offering.nameAlias === appName);
   const versionsQuery = useQuery({
     queryKey: ["applicationVersions", selectedOffering?.owner, platformName, appName],
