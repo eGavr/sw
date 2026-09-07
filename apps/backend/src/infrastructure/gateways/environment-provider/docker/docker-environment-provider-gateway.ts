@@ -6,7 +6,6 @@ import {
 } from "../../../../application/interfaces/gateways/environment-provider-gateway";
 import { CloudAccount } from "../../../../domain/entities/cloud-account/cloud-account";
 import { Environment } from "../../../../domain/entities/environment/environment";
-import { InvalidArgumentError } from "../../../../domain/entities/error/invalid-argument-error";
 import { agentBootstrap, sessionLogFile } from "../agent-bootstrap";
 import { netBridgeProxyPort } from "../net-bridge-forwarder";
 
@@ -16,12 +15,14 @@ import { dockerProvisioningOverrides } from "./docker-provider-config";
 import { reserveFreePort } from "./free-port";
 import { dockerLabels, dockerProviderValue } from "./labels";
 
-// Docker adapter: an environment is a stock selenium container exposing a WebDriver endpoint. provision
-// is idempotent (any stale container for the env id is removed before a fresh run), so a reclaim retry
-// never leaks a second container. The endpoint is NOT written here — the in-container agent reports it on
-// registration. Because a container cannot know its own published host port, the adapter reserves a free
-// host port, publishes the node on it, and injects the endpoint plus the callback URL/secret. The agent
-// itself is fetched from the control plane at startup (bootstrap command), not baked into the image.
+// Docker adapter: an environment is a linux base container (one image per ubuntu version) that turns
+// itself into a browser node at start — the node script and the wd door come from the control plane,
+// the browser and its webdriver are catalog artifacts pulled through it. provision is idempotent (any
+// stale container for the env id is removed before a fresh run), so a reclaim retry never leaks a second
+// container. The endpoint is NOT written here — the in-container agent reports it on registration.
+// Because a container cannot know its own published host port, the adapter reserves a free host port,
+// publishes the node on it, and injects the endpoint plus the callback URL/secret. The agent itself is
+// fetched from the control plane at startup (bootstrap command), not baked into the image.
 export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway {
     constructor(
         private readonly docker: DockerClient,
@@ -34,21 +35,16 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
     async provision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
         await this.removeByEnvironmentId(environment.id);
 
-        const [application] = environment.applications.toArray();
-
-        if (!application) {
-            throw new InvalidArgumentError("environment: at least one application is required");
-        }
-
         // The provisioning shape comes from the environment's substrate binding when set, falling back to
         // the install default; the install-level fields (callback URL/secret, advertise host) stay global.
         const overrides = dockerProvisioningOverrides(
             cloudAccount?.computeBindingFor(environment.platform.name, environment.execution)?.config,
         );
-        const provisioning = resolveDockerProvisioning(application, {
-            image: overrides.image ?? this.config.image,
-            baseImage: overrides.baseImage ?? this.config.baseImage,
-        });
+        const provisioning = resolveDockerProvisioning(
+            environment.platform.toObject(),
+            environment.applications.toArray(),
+            { baseImage: overrides.baseImage ?? this.config.baseImage },
+        );
         const platform = overrides.platform ?? this.config.platform;
         const internalPort = overrides.internalPort ?? this.config.internalPort;
 
@@ -72,10 +68,11 @@ export class DockerEnvironmentProviderGateway extends EnvironmentProviderGateway
                 // When set, the agent launches the NetBridge forwarder: a loopback SOCKS proxy the browser
                 // uses, tunnelling out to the rendezvous. Reuses the per-env agent token as its bearer.
                 ...this.netBridgeEnv(),
-                // Delegate the smart idle timeout and the "one active session" invariant to the node.
-                SE_NODE_SESSION_TIMEOUT: String(this.config.sessionTimeoutSeconds),
-                SE_NODE_MAX_SESSIONS: "1",
-                SE_NODE_OVERRIDE_MAX_SESSIONS: "true",
+                // The smart idle timeout is enforced by the node's wd door (with the one-session rule).
+                SW_SESSION_IDLE_TIMEOUT_SECONDS: String(this.config.sessionTimeoutSeconds),
+                // The headless display geometry — the node's Xvfb and the agent's video recorder agree on it.
+                SW_SCREEN_WIDTH: String(this.config.screen.width),
+                SW_SCREEN_HEIGHT: String(this.config.screen.height),
                 ...provisioning.env,
             },
             labels: {

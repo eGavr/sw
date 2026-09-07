@@ -10,13 +10,11 @@ describe("dockerProvisioningOverrides", () => {
 
     test("reads the provisioning keys it understands", () => {
         expect(dockerProvisioningOverrides({
-            image: "registry/chrome:{version}",
-            baseImage: "sw/base:1",
+            baseImage: "registry/linux:{version}",
             platform: "linux/amd64",
             port: 4444,
         })).toEqual({
-            image: "registry/chrome:{version}",
-            baseImage: "sw/base:1",
+            baseImage: "registry/linux:{version}",
             platform: "linux/amd64",
             internalPort: 4444,
         });
@@ -27,7 +25,7 @@ describe("dockerProvisioningOverrides", () => {
     });
 
     test("rejects a wrong-typed key", () => {
-        expect(() => dockerProvisioningOverrides({ image: 123 })).toThrow(InvalidArgumentError);
+        expect(() => dockerProvisioningOverrides({ baseImage: 123 })).toThrow(InvalidArgumentError);
         expect(() => dockerProvisioningOverrides({ port: "4444" })).toThrow(InvalidArgumentError);
         expect(() => dockerProvisioningOverrides({ port: 0 })).toThrow(InvalidArgumentError);
     });

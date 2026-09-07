@@ -1,4 +1,7 @@
+// The stock selenium image's entrypoint — what the k8s and VM browser adapters still run.
 export const defaultAgentEntrypoint = "/opt/bin/entry_point.sh";
+// The linux base image's bootstrap: fetches the node script from the control plane and hands over.
+export const linuxNodeEntrypoint = "/opt/sw/bootstrap.sh";
 
 // Where the container's combined stdout/stderr is redirected so the agent can slice a session's logs out
 // of it. Stock selenium images write node/session logs to stdout (not a file), so the entrypoint's output

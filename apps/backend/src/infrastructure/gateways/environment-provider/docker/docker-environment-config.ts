@@ -1,17 +1,23 @@
 import { ApplicationData } from "../../../../domain/entities/environment/application/application";
+import { PlatformData } from "../../../../domain/entities/environment/platform/platform";
 
 export type DockerProvisioning = {
     image: string;
-    env?: Record<string, string>;
+    env: Record<string, string>;
+};
+
+export type ScreenGeometry = {
+    width: number;
+    height: number;
 };
 
 export type DockerEnvironmentConfig = {
-    // Provisioning shape — the install default, overridable per project from the substrate binding config.
-    image?: string;
+    // The base image template, `{version}` standing for the environment's platform version — one image
+    // per ubuntu release, never per browser (the install default, overridable per binding).
     baseImage?: string;
     platform?: string;
     internalPort: number;
-    // Install-level: the node's image entrypoint the bootstrap execs after starting the agent.
+    // Install-level: the image's bootstrap the agent bootstrap execs after starting the agent.
     entrypoint: string;
     // Install-level: host address the node is reachable at (used to build SW_ENDPOINT for the agent).
     advertiseHost: string;
@@ -20,46 +26,36 @@ export type DockerEnvironmentConfig = {
     // Install-level: ws base of the control-plane NetBridge rendezvous the forwarder dials out to. Unset
     // disables local-network tunnelling for this substrate (the forwarder is not launched).
     netBridgeUrl?: string;
-    // Session idle timeout (domain policy), translated into the node's SE_NODE_SESSION_TIMEOUT.
+    // Session idle timeout (domain policy), enforced by the node's wd door.
     sessionTimeoutSeconds: number;
+    // The headless display the browser renders on (also the video record size).
+    screen: ScreenGeometry;
 };
 
 export const defaultInternalPort = 4444;
+export const defaultBaseImage = "sw-linux-base:{version}";
+export const defaultScreen: ScreenGeometry = { width: 1360, height: 1020 };
+// Where the node script leaves what it detected about each delivered build, for the agent's registration.
+export const detectedApplicationsFile = "/tmp/sw-detected.json";
 
-// Resolves the container image for an application. Prebuilt: the browser is baked into the tag (`image`
-// is a fixed tag or a `{version}` template; without it, the amd64 selenium images keyed by version).
-// Install: a custom `baseImage` installs the requested browser at startup, reading name/version from env.
+// Resolves what to run for an environment: the base image of its platform version, and the delivery
+// list the node script pulls through the control plane — every application with an artifact, encoded
+// as `word~webdriverFlag` pairs (both characters are outside the application-name alphabet), preinstalled
+// ones having nothing to pull.
 export function resolveDockerProvisioning(
-    application: ApplicationData,
-    options: { image?: string; baseImage?: string },
+    platform: PlatformData,
+    applications: ReadonlyArray<ApplicationData>,
+    options: { baseImage?: string },
 ): DockerProvisioning {
-    const version = application.versionAlias ?? "latest";
-
-    if (options.baseImage) {
-        return {
-            image: options.baseImage,
-            env: { SW_BROWSER_NAME: application.nameAlias, SW_BROWSER_VERSION: version },
-        };
-    }
-
-    const image = options.image;
+    const delivered = applications
+        .filter((application) => application.source?.appRef)
+        .map((application) => `${application.nameAlias}~${application.source?.webdriverRef ? 1 : 0}`);
 
     return {
-        image: image
-            ? (image.includes("{version}") ? image.replace("{version}", version) : image)
-            : `selenium/standalone-chrome:${seleniumTag(version)}`,
+        image: (options.baseImage ?? defaultBaseImage).replace("{version}", platform.version),
+        env: {
+            SW_APPS: delivered.join(","),
+            SW_DETECTED_APPS_FILE: detectedApplicationsFile,
+        },
     };
-}
-
-// Transitional until the unified delivery path (base image + catalog artifacts) replaces prebuilt
-// selenium images: the build ALIAS is the only declared word ("152"), selenium publishes
-// major-versioned browser tags ("152.0"); no alias rides the latest tag.
-function seleniumTag(alias: string): string {
-    if (alias === "latest") {
-        return alias;
-    }
-
-    const [major] = alias.split(".");
-
-    return `${major}.0`;
 }

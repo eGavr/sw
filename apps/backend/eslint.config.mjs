@@ -7,7 +7,7 @@ import tseslint from "typescript-eslint";
 export default defineConfig(
     {
         files: ["**/*.{ts,mjs,js}"],
-        ignores: ["build/**"],
+        ignores: ["build/**", "src/presentation/http/internal/controllers/agent/*.js"],
         extends: [
             eslint.configs.recommended,
             tseslint.configs.recommended,
