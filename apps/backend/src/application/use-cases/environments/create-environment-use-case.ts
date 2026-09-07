@@ -34,8 +34,8 @@ type CreateEnvironmentInput = {
         };
         execution?: string;
         applications: Array<{
-            name: string;
-            version?: string;
+            nameAlias: string;
+            versionAlias?: string;
         }>;
     },
 }
@@ -96,8 +96,10 @@ export class CreateEnvironmentUseCase {
         // self-contained whatever happens to the registry later.
         const catalog = await this.applicationCatalogLoader.loadFor(projectId);
         const applications = ApplicationList.create({
-            applications: params.applications.map((requested) =>
-                catalog.resolve(platform.name, RequestedApplication.create(requested))),
+            applications: params.applications.map((requested) => catalog.resolve(
+                platform.name,
+                RequestedApplication.create({ name: requested.nameAlias, version: requested.versionAlias }),
+            )),
         });
 
         // The binding's quota is enforced right here, synchronously: a request past the limit gets an

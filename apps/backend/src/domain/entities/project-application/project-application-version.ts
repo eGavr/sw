@@ -1,31 +1,33 @@
+import { Uuid } from "../../types/uuid/uuid";
 import { latestApplicationVersion } from "../environment/application/application-version";
 import { InvalidArgumentError } from "../error/invalid-argument-error";
 
 export type ProjectApplicationVersionData = {
-    alias: string;
+    id: string;
+    versionAlias: string;
     appRef?: string | null;
     webdriverRef?: string | null;
     createdAt: Date;
 };
 
 export type ProjectApplicationVersionCreateParams = {
-    alias: string;
+    versionAlias: string;
     appRef?: string;
     webdriverRef?: string;
     createdAt?: Date;
 };
 
-// One registered build of a project application. Everything a human declares is an alias, so the
-// build IS its free-form LABEL ("152", "7.1-rc2") plus its artifacts — nobody declares a version, not
-// even the catalog: the honest version exists only as detected on the device, and it is always there
-// by the time anything is allocatable (detection rides the registration heartbeat). The refs say
-// where the artifacts live: the install's own store for the catalog, the project's delegated bucket
-// for a custom; no refs = preinstalled on the platform image. A webdriver ref without an app ref is
+// One registered build of a project application: a resource with its own id, addressed by the
+// owner's free-form version ALIAS ("152", "7.1-rc2") — nobody declares a version, not even the
+// catalog: the honest version exists only as detected on the device, and it is always there by the
+// time anything is allocatable (detection rides the registration heartbeat). The refs say where the
+// artifacts live: the install's own store for the catalog, the project's delegated bucket for a
+// custom; no refs = preinstalled on the platform image. A webdriver ref without an app ref is
 // meaningless — the webdriver is PAIRED to a build.
 export class ProjectApplicationVersion {
     static create(params: ProjectApplicationVersionCreateParams): ProjectApplicationVersion {
-        if (params.alias.trim() === "" || params.alias.toLowerCase() === latestApplicationVersion) {
-            throw new InvalidArgumentError(`build alias: "${params.alias}" is reserved`);
+        if (params.versionAlias.trim() === "" || params.versionAlias.toLowerCase() === latestApplicationVersion) {
+            throw new InvalidArgumentError(`version alias: "${params.versionAlias}" is reserved`);
         }
 
         if (params.webdriverRef !== undefined && params.appRef === undefined) {
@@ -33,7 +35,8 @@ export class ProjectApplicationVersion {
         }
 
         return new ProjectApplicationVersion(
-            params.alias,
+            Uuid.create().getValue(),
+            params.versionAlias,
             params.appRef ?? null,
             params.webdriverRef ?? null,
             params.createdAt ?? new Date(),
@@ -42,7 +45,8 @@ export class ProjectApplicationVersion {
 
     static fromObject(data: ProjectApplicationVersionData): ProjectApplicationVersion {
         return new ProjectApplicationVersion(
-            data.alias,
+            data.id,
+            data.versionAlias,
             data.appRef ?? null,
             data.webdriverRef ?? null,
             data.createdAt,
@@ -50,14 +54,15 @@ export class ProjectApplicationVersion {
     }
 
     private constructor(
-        private readonly _alias: string,
+        readonly id: string,
+        private readonly _versionAlias: string,
         private readonly _appRef: string | null,
         private readonly _webdriverRef: string | null,
         readonly createdAt: Date,
     ) {}
 
-    get alias(): string {
-        return this._alias;
+    get versionAlias(): string {
+        return this._versionAlias;
     }
 
     get appRef(): string | null {
@@ -69,7 +74,7 @@ export class ProjectApplicationVersion {
     }
 
     matchesAsk(ask: string): boolean {
-        return this._alias === ask;
+        return this._versionAlias === ask;
     }
 
     // Newest first = registration order: the owner (a user or the baking pipeline) registers builds as
@@ -81,7 +86,8 @@ export class ProjectApplicationVersion {
 
     toObject(): ProjectApplicationVersionData {
         return {
-            alias: this._alias,
+            id: this.id,
+            versionAlias: this._versionAlias,
             appRef: this._appRef,
             webdriverRef: this._webdriverRef,
             createdAt: this.createdAt,

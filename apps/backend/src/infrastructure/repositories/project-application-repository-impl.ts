@@ -3,8 +3,12 @@ import { Injectable } from "@nestjs/common";
 import {
     ProjectApplicationRepository,
 } from "../../application/interfaces/repositories/project-application-repository";
+import { Page, PageRequest } from "../../application/pagination";
 import { ProjectId } from "../../domain/entities/project/project-id";
 import { ProjectApplication } from "../../domain/entities/project-application/project-application";
+import {
+    ProjectApplicationVersion,
+} from "../../domain/entities/project-application/project-application-version";
 import {
     ProjectApplicationDataSource,
 } from "../data-sources/database/postgres/project-application-data-source";
@@ -15,16 +19,27 @@ export class ProjectApplicationRepositoryImpl extends ProjectApplicationReposito
         super();
     }
 
-    async find(projectId: ProjectId, platformName: string, name: string): Promise<ProjectApplication | null> {
-        const data = await this.projectApplicationDataSource.findOne(projectId.getValue(), platformName, name);
+    async findByHandle(projectId: ProjectId, platformName: string, handle: string): Promise<ProjectApplication | null> {
+        const data = await this.projectApplicationDataSource.findByHandle(projectId.getValue(), platformName, handle);
 
         return data ? ProjectApplication.fromObject(data) : null;
     }
 
-    async list(projectId: ProjectId, platformName?: string): Promise<Array<ProjectApplication>> {
-        const data = await this.projectApplicationDataSource.listByProject(projectId.getValue(), platformName);
+    async listByPlatform(
+        projectId: ProjectId,
+        platformName: string,
+        page: PageRequest,
+    ): Promise<Page<ProjectApplication>> {
+        const { items, nextCursor } = await this.projectApplicationDataSource
+            .pageByProject(projectId.getValue(), platformName, page);
 
-        return data.map(ProjectApplication.fromObject);
+        return { items: items.map(ProjectApplication.fromObject), nextCursor };
+    }
+
+    async listVersions(application: ProjectApplication, page: PageRequest): Promise<Page<ProjectApplicationVersion>> {
+        const { items, nextCursor } = await this.projectApplicationDataSource.pageVersions(application.id, page);
+
+        return { items: items.map(ProjectApplicationVersion.fromObject), nextCursor };
     }
 
     async listMany(projectIds: ReadonlyArray<ProjectId>): Promise<Array<ProjectApplication>> {

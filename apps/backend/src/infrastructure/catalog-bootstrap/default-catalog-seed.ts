@@ -20,9 +20,9 @@ const chromeForTestingBase = `https://storage.googleapis.com/chrome-for-testing-
 export const defaultCatalogSeed: ReadonlyArray<CatalogSeedApplication> = [
     {
         platformName: "ubuntu",
-        name: "chrome",
+        nameAlias: "chrome",
         versions: [{
-            alias: "152",
+            versionAlias: "152",
             appRef: `${chromeForTestingBase}/linux64/chrome-linux64.zip`,
             webdriverRef: `${chromeForTestingBase}/linux64/chromedriver-linux64.zip`,
         }],
@@ -31,7 +31,7 @@ export const defaultCatalogSeed: ReadonlyArray<CatalogSeedApplication> = [
     // application so a session can target it; one build label per android line.
     {
         platformName: "android",
-        name: "settings",
-        versions: [{ alias: "13" }, { alias: "14" }],
+        nameAlias: "settings",
+        versions: [{ versionAlias: "13" }, { versionAlias: "14" }],
     },
 ];

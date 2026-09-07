@@ -35,11 +35,10 @@ export interface Environment {
 
 export interface CreateEnvironmentInput {
   platform: { name: string; version: string; deviceModel?: string };
-  // Version omitted = latest the catalog offers; `source` attaches the user's own artifact instead.
+  // The registered application's word and, optionally, a build alias (omitted = last registered).
   applications: Array<{
-    name: string;
-    version?: string;
-    source?: { appKey: string; webdriverKey?: string };
+    nameAlias: string;
+    versionAlias?: string;
   }>;
   execution: string;
   environmentId?: string;
@@ -463,17 +462,19 @@ export interface PlatformLine {
 
 export interface ProjectApplication {
   name: string;
-  application: string;
+  uid: string;
+  nameAlias: string;
   createTime: string;
 }
 
 export interface ApplicationVersion {
   name: string;
-  // The owner's label — the build's id; a catalog build also declares its exact full version.
-  alias: string;
-  version?: string;
+  uid: string;
+  // The owner's label for the build; the honest version is detected on environments.
+  versionAlias: string;
   appRef?: string;
   webdriverRef?: string;
+  createTime: string;
 }
 
 export function listPlatforms(): Promise<Array<PlatformLine>> {
@@ -496,7 +497,7 @@ export function listApplicationVersions(
 ): Promise<Array<string>> {
   return swRequest<{ versions?: Array<ApplicationVersion> }>(
     `v1/projects/${project}/platforms/${platform}/applications/${application}/versions`,
-  ).then((d) => (d.versions ?? []).map((v) => v.alias));
+  ).then((d) => (d.versions ?? []).map((v) => v.versionAlias));
 }
 
 export function listCloudAccounts(project: string): Promise<Array<CloudAccount>> {

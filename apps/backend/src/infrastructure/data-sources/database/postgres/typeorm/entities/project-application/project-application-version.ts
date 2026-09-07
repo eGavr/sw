@@ -3,20 +3,19 @@ import { Column, Entity, ManyToOne, PrimaryColumn, Unique } from "typeorm";
 import {
     ProjectApplicationVersionData,
 } from "../../../../../../../domain/entities/project-application/project-application-version";
-import { Uuid } from "../../../../../../../domain/types/uuid/uuid";
 import { DateColumn } from "../../columns-extra/date-column";
 
 import { ProjectApplication } from "./project-application";
 
 @Entity()
-@Unique(["projectApplicationId", "alias"])
+@Unique(["projectApplicationId", "versionAlias"])
 export class ProjectApplicationVersion {
     static from(projectApplicationId: string, data: ProjectApplicationVersionData): ProjectApplicationVersion {
         const version = new ProjectApplicationVersion();
 
-        version.id = Uuid.create().getValue();
+        version.id = data.id;
         version.projectApplicationId = projectApplicationId;
-        version.alias = data.alias;
+        version.versionAlias = data.versionAlias;
         version.appRef = data.appRef ?? null;
         version.webdriverRef = data.webdriverRef ?? null;
         version.createdAt = data.createdAt;
@@ -35,7 +34,7 @@ export class ProjectApplicationVersion {
 
     // The owner's free-form label — the build's id; nobody declares a version, it is detected.
     @Column()
-    alias: string;
+    versionAlias: string;
 
     @Column({ type: "varchar", nullable: true })
     appRef: string | null;
@@ -48,7 +47,8 @@ export class ProjectApplicationVersion {
 
     toObject(): ProjectApplicationVersionData {
         return {
-            alias: this.alias,
+            id: this.id,
+            versionAlias: this.versionAlias,
             appRef: this.appRef,
             webdriverRef: this.webdriverRef,
             createdAt: this.createdAt,

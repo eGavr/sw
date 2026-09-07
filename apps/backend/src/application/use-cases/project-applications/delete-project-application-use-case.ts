@@ -38,7 +38,7 @@ export class DeleteProjectApplicationUseCase {
 
         await this.accessControl.authorize(user, project, this.permissionName);
 
-        const application = await this.projectApplicationRepository.find(
+        const application = await this.projectApplicationRepository.findByHandle(
             ProjectId.fromString(project.id),
             params.platform,
             params.application,

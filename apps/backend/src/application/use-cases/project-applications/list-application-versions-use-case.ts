@@ -1,10 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
-import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { isCatalogProject } from "../../../domain/entities/project-application/catalog-project";
-import { ProjectApplication } from "../../../domain/entities/project-application/project-application";
 import {
     ProjectApplicationVersion,
 } from "../../../domain/entities/project-application/project-application-version";
@@ -13,9 +11,10 @@ import {
     ProjectApplicationRepository,
 } from "../../interfaces/repositories/project-application-repository";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
+import { Page, PageRequest } from "../../pagination";
 import { AccessControl } from "../../services/access-control";
 
-type AddApplicationVersionInput = {
+type ListApplicationVersionsInput = {
     creds: {
         token: string;
     },
@@ -23,24 +22,15 @@ type AddApplicationVersionInput = {
         projectId: string;
         platform: string;
         application: string;
-        versionAlias: string;
-        appRef?: string;
-        webdriverRef?: string;
+        page: PageRequest;
     },
 };
 
-export type AddedApplicationVersion = {
-    application: ProjectApplication;
-    version: ProjectApplicationVersion;
-};
-
-// Registers one build of an application under the owner's free-form ALIAS — nobody declares a
-// version, the true one is detected on the device at delivery. A custom build always brings its
-// artifact (a key in the project's delegated bucket); only the install catalog may register a build
-// with nothing to deliver — a preinstalled system app.
+// The builds registered under one application, a page at a time. The catalog project's are public
+// like the applications themselves (see ListProjectApplicationsUseCase).
 @Injectable()
-export class AddApplicationVersionUseCase {
-    private readonly permissionName = UserPermissionName.Application.Create;
+export class ListApplicationVersionsUseCase {
+    private readonly permissionName = UserPermissionName.Application.Get;
 
     constructor(
         private readonly accessControl: AccessControl,
@@ -48,11 +38,13 @@ export class AddApplicationVersionUseCase {
         private readonly projectApplicationRepository: ProjectApplicationRepository,
     ) {}
 
-    async execute({ creds, params }: AddApplicationVersionInput): Promise<AddedApplicationVersion> {
+    async execute({ creds, params }: ListApplicationVersionsInput): Promise<Page<ProjectApplicationVersion>> {
         const user = await this.accessControl.authenticate(creds);
         const project = await this.projectRepository.getByHandle(params.projectId);
 
-        await this.accessControl.authorize(user, project, this.permissionName);
+        if (!isCatalogProject(project)) {
+            await this.accessControl.authorize(user, project, this.permissionName);
+        }
 
         const application = await this.projectApplicationRepository.findByHandle(
             ProjectId.fromString(project.id),
@@ -64,20 +56,6 @@ export class AddApplicationVersionUseCase {
             throw new NotFoundResourceError(`${params.platform}/${params.application}`);
         }
 
-        if (!isCatalogProject(project) && params.appRef === undefined) {
-            throw new InvalidArgumentError(
-                "a custom build requires an appRef — the artifact's object key in the project's bucket",
-            );
-        }
-
-        const version = application.addVersion({
-            versionAlias: params.versionAlias,
-            appRef: params.appRef,
-            webdriverRef: params.webdriverRef,
-        });
-
-        await this.projectApplicationRepository.save(application);
-
-        return { application, version };
+        return this.projectApplicationRepository.listVersions(application, params.page);
     }
 }

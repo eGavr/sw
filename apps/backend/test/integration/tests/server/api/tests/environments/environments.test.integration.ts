@@ -15,7 +15,7 @@ import { CreateProjectBody } from "../../utils/request/body/create-project-body"
 
 const validEnvironmentBody = {
     platform: { name: "ubuntu", version: "24.04" },
-    applications: [{ name: "chrome", version: "126" }],
+    applications: [{ nameAlias: "chrome", versionAlias: "126" }],
 };
 
 describe("/projects/:project/environments", () => {
@@ -92,7 +92,7 @@ describe("/projects/:project/environments", () => {
                 .set(owner)
                 .send({
                     platform: { name: "android", version: "13" },
-                    applications: [{ name: "settings", version: "13" }],
+                    applications: [{ nameAlias: "settings", versionAlias: "13" }],
                     execution: "emulator",
                 })
                 .expect(HttpStatus.CONFLICT);
@@ -181,7 +181,7 @@ describe("/projects/:project/environments", () => {
             const { body } = await request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
                 .set(owner)
-                .send({ ...validEnvironmentBody, applications: [{ name: "chrome", version: "latest" }] })
+                .send({ ...validEnvironmentBody, applications: [{ nameAlias: "chrome", versionAlias: "latest" }] })
                 .expect(HttpStatus.CREATED);
 
             expect(body.applications).toEqual([{
@@ -197,7 +197,7 @@ describe("/projects/:project/environments", () => {
             return request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
                 .set(owner)
-                .send({ ...validEnvironmentBody, applications: [{ name: "org.mozilla.firefox" }] })
+                .send({ ...validEnvironmentBody, applications: [{ nameAlias: "org.mozilla.firefox" }] })
                 .expect(HttpStatus.BAD_REQUEST);
         });
 
@@ -217,18 +217,18 @@ describe("/projects/:project/environments", () => {
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/ubuntu/applications`)
                 .set(owner)
-                .send({ name: "com.mycorp.browser" })
+                .send({ nameAlias: "com.mycorp.browser" })
                 .expect(HttpStatus.CREATED);
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/ubuntu/applications/com.mycorp.browser/versions`)
                 .set(owner)
-                .send({ alias: "7.1-rc2", appRef: "builds/app-7.1.zip", webdriverRef: "builds/driver-7.1" })
+                .send({ versionAlias: "7.1-rc2", appRef: "builds/app-7.1.zip", webdriverRef: "builds/driver-7.1" })
                 .expect(HttpStatus.CREATED);
 
             const { body } = await request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
                 .set(owner)
-                .send({ ...validEnvironmentBody, applications: [{ name: "com.mycorp.browser" }] })
+                .send({ ...validEnvironmentBody, applications: [{ nameAlias: "com.mycorp.browser" }] })
                 .expect(HttpStatus.CREATED);
 
             // A custom declares no version: until the agent detects the delivered build, the
@@ -246,18 +246,18 @@ describe("/projects/:project/environments", () => {
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/ubuntu/applications`)
                 .set(owner)
-                .send({ name: "com.mycorp.browser" })
+                .send({ nameAlias: "com.mycorp.browser" })
                 .expect(HttpStatus.CREATED);
             await request(app.getHttpServer())
                 .post(`/projects/${projectId}/platforms/ubuntu/applications/com.mycorp.browser/versions`)
                 .set(owner)
-                .send({ alias: "7.1", appRef: "builds/app-7.1.0.zip" })
+                .send({ versionAlias: "7.1", appRef: "builds/app-7.1.0.zip" })
                 .expect(HttpStatus.CREATED);
 
             const { body: created } = await request(app.getHttpServer())
                 .post(`/projects/${projectId}/environments`)
                 .set(owner)
-                .send({ ...validEnvironmentBody, applications: [{ name: "com.mycorp.browser" }] })
+                .send({ ...validEnvironmentBody, applications: [{ nameAlias: "com.mycorp.browser" }] })
                 .expect(HttpStatus.CREATED);
 
             await request(app.getHttpServer())
@@ -431,7 +431,7 @@ describe("/projects/:project/environments", () => {
     describe("provider resolution by (platform, execution)", () => {
         const androidEnvironment = {
             platform: { name: "android", version: "13", deviceModel: "pixel-7" },
-            applications: [{ name: "settings", version: "13" }],
+            applications: [{ nameAlias: "settings", versionAlias: "13" }],
         };
 
         const createProjectWithClouds = async (

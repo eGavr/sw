@@ -16,9 +16,9 @@ import { ProjectRepository } from "../../interfaces/repositories/project-reposit
 
 export type CatalogSeedApplication = {
     readonly platformName: string;
-    readonly name: string;
+    readonly nameAlias: string;
     readonly versions: ReadonlyArray<{
-        readonly alias: string;
+        readonly versionAlias: string;
         readonly appRef?: string;
         readonly webdriverRef?: string;
     }>;
@@ -102,7 +102,7 @@ export class EnsureCatalogProjectUseCase {
             const application = ProjectApplication.create({
                 projectId: project.id,
                 platformName: entry.platformName,
-                name: entry.name,
+                nameAlias: entry.nameAlias,
             });
 
             for (const version of entry.versions) {

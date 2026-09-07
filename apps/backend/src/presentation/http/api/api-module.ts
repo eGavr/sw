@@ -87,6 +87,9 @@ import {
     GetProjectApplicationUseCase,
 } from "../../../application/use-cases/project-applications/get-project-application-use-case";
 import {
+    ListApplicationVersionsUseCase,
+} from "../../../application/use-cases/project-applications/list-application-versions-use-case";
+import {
     ListProjectApplicationsUseCase,
 } from "../../../application/use-cases/project-applications/list-project-applications-use-case";
 import { CreateProjectUseCase } from "../../../application/use-cases/projects/create-project-use-case";
@@ -270,6 +273,7 @@ import {
         CreateProjectApplicationUseCase,
         AddApplicationVersionUseCase,
         ListProjectApplicationsUseCase,
+        ListApplicationVersionsUseCase,
         GetProjectApplicationUseCase,
         DeleteProjectApplicationUseCase,
         EnsureCatalogProjectUseCase,

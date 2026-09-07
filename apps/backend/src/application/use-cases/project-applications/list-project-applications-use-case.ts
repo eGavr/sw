@@ -10,6 +10,7 @@ import {
     ProjectApplicationRepository,
 } from "../../interfaces/repositories/project-application-repository";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
+import { Page, PageRequest } from "../../pagination";
 import { AccessControl } from "../../services/access-control";
 
 type ListProjectApplicationsInput = {
@@ -19,6 +20,7 @@ type ListProjectApplicationsInput = {
     params: {
         projectId: string;
         platform: string;
+        page: PageRequest;
     },
 };
 
@@ -36,7 +38,7 @@ export class ListProjectApplicationsUseCase {
         private readonly platformCatalog: PlatformCatalog,
     ) {}
 
-    async execute({ creds, params }: ListProjectApplicationsInput): Promise<Array<ProjectApplication>> {
+    async execute({ creds, params }: ListProjectApplicationsInput): Promise<Page<ProjectApplication>> {
         const user = await this.accessControl.authenticate(creds);
         const project = await this.projectRepository.getByHandle(params.projectId);
 
@@ -48,6 +50,6 @@ export class ListProjectApplicationsUseCase {
             throw new NotFoundResourceError(params.platform);
         }
 
-        return this.projectApplicationRepository.list(ProjectId.fromString(project.id), params.platform);
+        return this.projectApplicationRepository.listByPlatform(ProjectId.fromString(project.id), params.platform, params.page);
     }
 }

@@ -1,13 +1,18 @@
 import { Injectable } from "@nestjs/common";
 import { DataSource, In } from "typeorm";
 
+import { Page, PageRequest } from "../../../../application/pagination";
 import {
     ProjectApplication as ProjectApplicationEntity,
     ProjectApplicationData,
 } from "../../../../domain/entities/project-application/project-application";
+import {
+    ProjectApplicationVersionData,
+} from "../../../../domain/entities/project-application/project-application-version";
 
 import { ProjectApplication } from "./typeorm/entities/project-application/project-application";
 import { ProjectApplicationVersion } from "./typeorm/entities/project-application/project-application-version";
+import { keysetPage } from "./typeorm/keyset-page";
 
 @Injectable()
 export class ProjectApplicationDataSource {
@@ -25,18 +30,41 @@ export class ProjectApplicationDataSource {
         });
     }
 
-    async findOne(projectId: string, platformName: string, name: string): Promise<ProjectApplicationData | null> {
+    // Resolve within a project and platform by the identifier used in the URL: the server id or the
+    // name alias. The eager `versions` relation is not auto-loaded by the query builder, so it is joined
+    // explicitly. `id::text` avoids a uuid-syntax error when the handle is a word.
+    async findByHandle(projectId: string, platformName: string, handle: string): Promise<ProjectApplicationData | null> {
         const row = await this.dataSource.getRepository(ProjectApplication)
-            .findOne({ where: { projectId, platformName, name } });
+            .createQueryBuilder("application")
+            .leftJoinAndSelect("application.versions", "versions")
+            .where("application.projectId = :projectId", { projectId })
+            .andWhere("application.platformName = :platformName", { platformName })
+            .andWhere("(application.id::text = :handle OR application.nameAlias = :handle)", { handle })
+            .getOne();
 
         return row?.toObject() ?? null;
     }
 
-    async listByProject(projectId: string, platformName?: string): Promise<Array<ProjectApplicationData>> {
-        const rows = await this.dataSource.getRepository(ProjectApplication)
-            .find({ where: platformName === undefined ? { projectId } : { projectId, platformName } });
+    async pageByProject(projectId: string, platformName: string, page: PageRequest): Promise<Page<ProjectApplicationData>> {
+        const query = this.dataSource.getRepository(ProjectApplication)
+            .createQueryBuilder("application")
+            .leftJoinAndSelect("application.versions", "versions")
+            .where("application.projectId = :projectId", { projectId })
+            .andWhere("application.platformName = :platformName", { platformName });
 
-        return rows.map((row) => row.toObject());
+        const { items, nextCursor } = await keysetPage(query, "application", page);
+
+        return { items: items.map((row) => row.toObject()), nextCursor };
+    }
+
+    async pageVersions(applicationId: string, page: PageRequest): Promise<Page<ProjectApplicationVersionData>> {
+        const query = this.dataSource.getRepository(ProjectApplicationVersion)
+            .createQueryBuilder("version")
+            .where("version.projectApplicationId = :applicationId", { applicationId });
+
+        const { items, nextCursor } = await keysetPage(query, "version", page);
+
+        return { items: items.map((row) => row.toObject()), nextCursor };
     }
 
     async listByProjects(projectIds: Array<string>): Promise<Array<ProjectApplicationData>> {

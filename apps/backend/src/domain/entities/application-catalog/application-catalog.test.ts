@@ -8,9 +8,9 @@ describe("ApplicationCatalog", () => {
     const provided = (
         platformName: string,
         name: string,
-        versions: Array<{ alias: string; appRef?: string; webdriverRef?: string }>,
+        versions: Array<{ versionAlias: string; appRef?: string; webdriverRef?: string }>,
     ): ProjectApplication => {
-        const application = ProjectApplication.create({ projectId: "catalog-id", platformName, name });
+        const application = ProjectApplication.create({ projectId: "catalog-id", platformName, nameAlias: name });
 
         versions.forEach((version) => application.addVersion(version));
 
@@ -20,9 +20,9 @@ describe("ApplicationCatalog", () => {
     const custom = (
         platformName: string,
         name: string,
-        versions: Array<{ alias: string; appRef: string; webdriverRef?: string }>,
+        versions: Array<{ versionAlias: string; appRef: string; webdriverRef?: string }>,
     ): ProjectApplication => {
-        const application = ProjectApplication.create({ projectId: "project-id", platformName, name });
+        const application = ProjectApplication.create({ projectId: "project-id", platformName, nameAlias: name });
 
         versions.forEach((version) => application.addVersion(version));
 
@@ -34,15 +34,15 @@ describe("ApplicationCatalog", () => {
             // One word per application, the same on every platform it exists on; identity is
             // detected on the device, never declared here.
             provided("ubuntu", "chrome", [
-                { alias: "151", appRef: "ref://chrome-151" },
-                { alias: "152", appRef: "ref://chrome-152", webdriverRef: "ref://driver-152" },
+                { versionAlias: "151", appRef: "ref://chrome-151" },
+                { versionAlias: "152", appRef: "ref://chrome-152", webdriverRef: "ref://driver-152" },
             ]),
-            provided("android", "chrome", [{ alias: "152", appRef: "ref://chrome-apk-152" }]),
-            provided("android", "settings", [{ alias: "14" }]),
+            provided("android", "chrome", [{ versionAlias: "152", appRef: "ref://chrome-apk-152" }]),
+            provided("android", "settings", [{ versionAlias: "14" }]),
         ],
         own: [
             custom("android", "com.mycorp.app", [
-                { alias: "7.1-rc2", appRef: "builds/app-7.1.apk", webdriverRef: "builds/driver-7.1" },
+                { versionAlias: "7.1-rc2", appRef: "builds/app-7.1.apk", webdriverRef: "builds/driver-7.1" },
             ]),
         ],
     });

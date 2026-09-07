@@ -48,15 +48,15 @@
    Через UI (Settings → Cloud → Add platform) или API `POST …/cloudAccounts/{id}/computeBindings`.
 
 2. **Окружение**: `POST /v1/projects/{p}/environments` с
-   `{"platform":{"name":"android","version":"14"},"execution":"emulator","applications":[{"name":"settings"}]}` —
+   `{"platform":{"name":"android","version":"14","deviceModel":"pixel-7"},"execution":"emulator","applications":[{"nameAlias":"settings"}]}` —
    окружение повиснет в `PREPARING`, а пул «закажет машину». `settings` — предустановленное системное
    приложение (доставлять нечего). Чтобы доставить **свой APK**: положи его в бакет проекта (в dev с
    `LOG_STORAGE=fs` это `apps/backend/.dev-storage/<bucket>/<key>`), настрой storageDestination
    проекта, зарегистрируй приложение и билд, затем сошлись на него в окружении:
 
    ```bash
-   curl -X POST …/projects/{p}/platforms/android/applications -d '{"name":"myapp"}'
-   curl -X POST …/platforms/android/applications/myapp/versions -d '{"alias":"v1","appRef":"builds/app.apk"}'
+   curl -X POST …/projects/{p}/platforms/android/applications -d '{"nameAlias":"myapp"}'
+   curl -X POST …/platforms/android/applications/myapp/versions -d '{"versionAlias":"v1","appRef":"builds/app.apk"}'
    # applications:[{"name":"myapp"}] в create-environment
    ```
 

@@ -6,10 +6,10 @@ import {
 } from "../../../../../../domain/entities/project-application/project-application-version";
 import { Presenter } from "../../../../presenters/presenter";
 
-// One registered build, addressed by its alias (the owner's label) — nobody declares a version, the
-// honest one is detected on environments. The refs are echoed for a CUSTOM build — they are the
-// owner's own bucket keys; the catalog project's artifact locations are the install's internals and
-// are not published.
+// One registered build: a resource by its server id, addressed by its version alias (the owner's
+// label) — nobody declares a version, the honest one is detected on environments. The refs are echoed
+// for a CUSTOM build — they are the owner's own bucket keys; the catalog project's artifact locations
+// are the install's internals and are not published.
 export class ApplicationVersionPresenter implements Presenter {
     constructor(
         private readonly projectHandle: string,
@@ -21,12 +21,14 @@ export class ApplicationVersionPresenter implements Presenter {
     present(): object {
         return {
             name: `projects/${this.projectHandle}/platforms/${this.application.platformName}`
-                + `/applications/${this.application.name}/versions/${this.version.alias}`,
-            alias: this.version.alias,
+                + `/applications/${this.application.id}/versions/${this.version.id}`,
+            uid: this.version.id,
+            versionAlias: this.version.versionAlias,
             ...(this.exposeRefs && this.version.appRef !== null ? { appRef: this.version.appRef } : {}),
             ...(this.exposeRefs && this.version.webdriverRef !== null
                 ? { webdriverRef: this.version.webdriverRef }
                 : {}),
+            createTime: this.version.createdAt.toISOString(),
         };
     }
 }
@@ -35,14 +37,17 @@ export class ListApplicationVersionsPresenter implements Presenter {
     constructor(
         private readonly projectHandle: string,
         private readonly application: ProjectApplication,
+        private readonly versions: ReadonlyArray<ProjectApplicationVersion>,
         private readonly exposeRefs: boolean,
+        private readonly nextPageToken?: string,
     ) {}
 
     present(): object {
         return {
-            versions: this.application.versionsNewestFirst().map((version) =>
+            versions: this.versions.map((version) =>
                 new ApplicationVersionPresenter(this.projectHandle, this.application, version, this.exposeRefs)
                     .present()),
+            nextPageToken: this.nextPageToken,
         };
     }
 }

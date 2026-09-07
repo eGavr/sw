@@ -25,7 +25,7 @@ type CreateProjectApplicationInput = {
     params: {
         projectId: string;
         platform: string;
-        name: string;
+        nameAlias: string;
     },
 };
 
@@ -60,17 +60,17 @@ export class CreateProjectApplicationUseCase {
         const application = ProjectApplication.create({
             projectId: project.id,
             platformName: params.platform,
-            name: params.name,
+            nameAlias: params.nameAlias,
         });
 
-        if (await this.projectApplicationRepository.find(projectId, params.platform, params.name)) {
-            throw new ApplicationConflictError(params.platform, params.name);
+        if (await this.projectApplicationRepository.findByHandle(projectId, params.platform, application.nameAlias)) {
+            throw new ApplicationConflictError(params.platform, application.nameAlias);
         }
 
         const catalog = await this.applicationCatalogLoader.loadFor(projectId);
 
-        if (catalog.catalogReserves(params.platform, application.name)) {
-            throw new ReservedApplicationWordError(params.platform, application.name);
+        if (catalog.catalogReserves(params.platform, application.nameAlias)) {
+            throw new ReservedApplicationWordError(params.platform, application.nameAlias);
         }
 
         await this.projectApplicationRepository.save(application);

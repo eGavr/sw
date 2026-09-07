@@ -4,5 +4,5 @@ export class CreateProjectApplicationRequestModel {
     // The ONE word the application is addressed by (`chrome`, `myapp`); format is the domain's call.
     @IsString()
     @IsNotEmpty()
-    name: string;
+    nameAlias: string;
 }
