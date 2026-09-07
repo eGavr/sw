@@ -207,8 +207,10 @@ export function deleteEnvironment(project: string, environment: string): Promise
 
 export interface CreateSessionInput {
   environmentId: string;
-  // The pinned environment's platform — the W3C platformName the session is matched on.
+  // The pinned environment's platform and execution substrate — the stereotype the session is matched
+  // on (a targeted ask still has to fit its target; the substrate defaults to container otherwise).
   platform: string;
+  execution: string;
   // The word to ask the app by, and optionally a version (the detected one, or a prefix); omitted =
   // whatever the pinned environment offers.
   application: { name: string; version?: string };
@@ -222,8 +224,8 @@ export interface CreatedSession {
 }
 
 // W3C New Session through the wd BFF proxy: the requested application rides as browserName/Version,
-// the platform as platformName, our opt-ins as vendor sw:* capabilities, and sw:environmentId pins the
-// session to the chosen row.
+// the platform as platformName and the substrate as sw:execution, our opt-ins as vendor sw:*
+// capabilities, and sw:environmentId pins the session to the chosen row.
 export async function createSession(project: string, input: CreateSessionInput): Promise<CreatedSession> {
   const res = await fetch("/api/wd/sessions", {
     method: "POST",
@@ -234,6 +236,7 @@ export async function createSession(project: string, input: CreateSessionInput):
           browserName: input.application.name,
           ...(input.application.version ? { browserVersion: input.application.version } : {}),
           platformName: input.platform,
+          "sw:execution": input.execution,
           "sw:projectId": project,
           "sw:environmentId": input.environmentId,
           "sw:logging": input.logging,

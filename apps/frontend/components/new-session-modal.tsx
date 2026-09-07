@@ -48,6 +48,7 @@ export function NewSessionModal({
       return createSession(project, {
         environmentId: environment.uid,
         platform: environment.platform.name,
+        execution: environment.execution,
         // Pin to this environment and ask by its word; the detected version narrows it when known.
         application: { name: application.nameAlias, version: application.version },
         logging,
