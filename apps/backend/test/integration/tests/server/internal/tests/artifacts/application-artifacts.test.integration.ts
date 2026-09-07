@@ -161,7 +161,7 @@ describe("/internal/environments/:id/applications/:name:downloadApp|:downloadWeb
 
         const environment = await app.get(EnvironmentRepository).create({
             projectId: ProjectId.fromString(project.id),
-            platform: Platform.fromObject({ name: "android", version: "14" }),
+            platform: Platform.fromObject({ name: "android", version: "14", deviceModel: "pixel-7" }),
             applications: ApplicationList.fromObject(applications as never),
         });
 

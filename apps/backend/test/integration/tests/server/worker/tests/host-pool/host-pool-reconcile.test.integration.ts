@@ -171,7 +171,7 @@ describe("host-pool reconcile", () => {
         ) as Array<{ project_id: string }>;
         const environment = await environmentRepository.create({
             projectId: ProjectId.fromString(projects[0].project_id),
-            platform: Platform.fromObject({ name: "android", version: "14" }),
+            platform: Platform.fromObject({ name: "android", version: "14", deviceModel: "pixel-7" }),
             applications: ApplicationList.fromObject([{ nameAlias: "chrome" }]),
         });
 

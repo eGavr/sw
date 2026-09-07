@@ -14,7 +14,7 @@ export interface Environment {
   uid: string;
   state: string; // ENQUEUED | PREPARING | ACTIVE | UNHEALTHY | DELETING | DELETED | FAILED
   stateReason?: string;
-  platform: { name: string; version: string; deviceModel?: string };
+  platform: { name: string; version: string; deviceModel: string };
   execution: string;
   // name/version are the detected truth from the device (absent until the agent delivers); the aliases
   // are how it was addressed — nameAlias is the word it was asked by, versionAlias the build label.
@@ -457,6 +457,8 @@ export interface PlatformLine {
   name: string;
   platform: string;
   versions: Array<string>;
+  // The device kinds an environment on this platform can be (a hardware profile for a virtual one).
+  devices: Array<{ id: string; displayName: string }>;
 }
 
 export interface ProjectApplication {

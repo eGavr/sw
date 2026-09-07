@@ -90,8 +90,8 @@ describe("/sessions", () => {
     };
 
     const platformsByName: Record<string, Platform> = {
-        ubuntu: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
-        android: Platform.fromObject({ name: "android", version: "14" }),
+        ubuntu: Platform.fromObject({ name: "ubuntu", version: "24.04", deviceModel: "desktop" }),
+        android: Platform.fromObject({ name: "android", version: "14", deviceModel: "pixel-7" }),
     };
 
     // Bring one environment to executing (endpoint + fresh heartbeat) in the given project, so it is
@@ -196,6 +196,8 @@ describe("/sessions", () => {
             expect(caps.browserName).toBe("chrome");
             expect(caps.browserVersion).toBe(chromeVersion);
             expect(caps.platformName).toBe("ubuntu");
+            expect(caps["sw:platformVersion"]).toBe("24.04");
+            expect(caps["sw:deviceModel"]).toBe("desktop");
             expect(SessionRoute.decode(body.value.sessionId))
                 .toEqual({ endpoint: nodeEndpoint, webDriverSessionId: wdSessionId });
 
@@ -331,7 +333,7 @@ describe("/sessions", () => {
             const environmentRepository = app.get(EnvironmentRepository);
             await environmentRepository.create({
                 projectId: ProjectId.fromString(projectId),
-                platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
+                platform: Platform.fromObject({ name: "ubuntu", version: "24.04", deviceModel: "desktop" }),
                 applications: ApplicationList.fromObject([
                     { nameAlias: "chrome", versionAlias: chromeVersion, version: chromeVersion },
                 ]),
@@ -427,6 +429,72 @@ describe("/sessions", () => {
             return createSession(projectId, owner, chrome, { platform: "windows" }).expect(HttpStatus.BAD_REQUEST);
         });
 
+        // The stereotype's other parts — OS version (by leading segments) and device kind (any spelling,
+        // folded to the catalog id) — narrow the pool the same way, in our sw: words or Appium's.
+        const stereotypeSession = (owner: AuthHeader, projectId: string, parts: object): request.Test =>
+            request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send({ capabilities: { alwaysMatch: { browserName: "chrome", "sw:projectId": projectId, ...parts } } });
+
+        test("allocates by platform version prefix and device kind (sw: spelling)", async () => {
+            const { owner, projectId } = await seedProject();
+            const androidId = await registerExecutingEnvironment(projectId, chromeVersion, Execution.Container, "android");
+            await registerExecutingEnvironment(projectId, chromeVersion, Execution.Container, "ubuntu");
+
+            const { body } = await stereotypeSession(owner, projectId, { "sw:platformVersion": "14", "sw:deviceModel": "Pixel 7" })
+                .expect(HttpStatus.OK);
+
+            expect(body.value.capabilities["sw:environmentId"]).toBe(androidId);
+            expect(body.value.capabilities["sw:deviceModel"]).toBe("pixel-7");
+        });
+
+        test("accepts Appium's spelling of the version and device kind as aliases", async () => {
+            const { owner, projectId } = await seedProject();
+            const androidId = await registerExecutingEnvironment(projectId, chromeVersion, Execution.Container, "android");
+            await registerExecutingEnvironment(projectId, chromeVersion, Execution.Container, "ubuntu");
+
+            const { body } = await stereotypeSession(owner, projectId, {
+                "appium:platformVersion": "14", "appium:deviceName": "pixel_7",
+            }).expect(HttpStatus.OK);
+
+            expect(body.value.capabilities["sw:environmentId"]).toBe(androidId);
+        });
+
+        test("responds FAILED_PRECONDITION when no environment is the asked device kind", async () => {
+            const { owner, projectId } = await seedProject();
+            await registerExecutingEnvironment(projectId, chromeVersion, Execution.Container, "android");
+
+            return request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send({
+                    capabilities: {
+                        alwaysMatch: {
+                            browserName: "chrome", "sw:deviceModel": "pixel-3a", "sw:projectId": projectId,
+                        },
+                    },
+                })
+                .expect(HttpStatus.BAD_REQUEST)
+                .expect((response) => expect(JSON.stringify(response.body)).toMatch(/on pixel-3a container/));
+        });
+
+        test("responds BAD_REQUEST when a platform part is spelled both ways", async () => {
+            const { owner, projectId } = await seedExecutingEnvironment();
+
+            return request(app.getHttpServer())
+                .post("/sessions")
+                .set(owner)
+                .send({
+                    capabilities: {
+                        alwaysMatch: {
+                            browserName: "chrome", "sw:platformName": "ubuntu", platformName: "linux", "sw:projectId": projectId,
+                        },
+                    },
+                })
+                .expect(HttpStatus.BAD_REQUEST);
+        });
+
         // Any application — a native one here — is asked through sw:appName/sw:appVersion, and the reply
         // names it back in the same vocabulary rather than as a "browser".
         test("allocates an application named through sw:appName and answers in that vocabulary", async () => {
@@ -515,7 +583,7 @@ describe("/sessions", () => {
 
             await environmentRepository.create({
                 projectId: ProjectId.fromString(projectId),
-                platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
+                platform: Platform.fromObject({ name: "ubuntu", version: "24.04", deviceModel: "desktop" }),
                 execution: Execution.Container,
                 applications: ApplicationList.fromObject([{
                     nameAlias: "myapp",
@@ -632,7 +700,7 @@ describe("/sessions", () => {
             const environmentRepository = app.get(EnvironmentRepository);
             const enqueued = await environmentRepository.create({
                 projectId: ProjectId.fromString(projectId),
-                platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
+                platform: Platform.fromObject({ name: "ubuntu", version: "24.04", deviceModel: "desktop" }),
                 applications: ApplicationList.fromObject([
                     { nameAlias: "chrome", versionAlias: chromeVersion, version: chromeVersion },
                 ]),

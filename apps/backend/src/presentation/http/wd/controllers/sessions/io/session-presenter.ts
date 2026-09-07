@@ -5,8 +5,9 @@ import { SessionRoute } from "../../../../session-route";
 import { ApplicationCapability } from "./session-capabilities";
 
 // W3C WebDriver "New Session"-shaped response: { value: { sessionId, capabilities } }. The application
-// is named back in the vocabulary the request used (browserName/browserVersion or sw:appName/sw:appVersion),
-// with the honest platform it landed on. The stateless WebSocket protocols (BiDi / DevTools / VNC) are
+// is named back in the vocabulary the request used (browserName/browserVersion or sw:appName/
+// sw:appVersion), with the honest platform stereotype it landed on (the W3C platformName plus our
+// version/device parts). The stateless WebSocket protocols (BiDi / DevTools / VNC) are
 // advertised as vendor extension capabilities in our `sw:` namespace — the way Selenium Grid exposes
 // `se:vnc` / `se:cdp` — rather than as ad-hoc top-level fields. `sw:vnc` is the raw RFB-over-WS URL a
 // VNC client connects to; `sw:interactive` is the ready-to-open hosted viewer page — an https URL a
@@ -29,6 +30,8 @@ export class SessionPresenter implements Presenter {
                 capabilities: {
                     ...this.applicationCapabilities(),
                     platformName: this.session.platform.name,
+                    "sw:platformVersion": this.session.platform.version,
+                    "sw:deviceModel": this.session.platform.deviceModel,
                     "sw:environmentId": this.session.environmentId.getValue(),
                     "sw:bidi": `${proxy}/bidi`,
                     "sw:cdp": `${proxy}/cdp`,

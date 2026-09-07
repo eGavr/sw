@@ -19,7 +19,7 @@ const freshnessMs = 6_000;
 function makeEnvironment(): Environment {
     return Environment.create({
         projectId: ProjectId.create(),
-        platform: Platform.fromObject({ name: "ubuntu", version: "6" }),
+        platform: Platform.fromObject({ name: "ubuntu", version: "6", deviceModel: "desktop" }),
         applications: ApplicationList.create({ applications: [Application.create({ nameAlias: "chrome", versionAlias: "100" })] }),
     });
 }

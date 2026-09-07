@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { DataSource, In } from "typeorm";
+import { DataSource, In, SelectQueryBuilder } from "typeorm";
 
 import { Page, PageRequest } from "../../../../application/pagination";
 import { Environment as EnvironmentEntity, EnvironmentData } from "../../../../domain/entities/environment/environment";
@@ -239,9 +239,9 @@ export class EnvironmentDataSource {
     }
 
     // Free environments an project may allocate a session onto, in random order. The state/busy rule,
-    // freshness cutoff, the admitted platforms (null = any) and the requested application (expanded into
-    // candidate names and a version segment prefix) arrive ready from the domain criteria; this only
-    // translates them into SQL. A null prefix means "latest" — match by name only and skip the row limit,
+    // freshness cutoff, the platform stereotype parts (each null = any) and the requested application
+    // (expanded into candidate names and a version segment prefix) arrive ready from the domain
+    // criteria; this only translates them into SQL. A null prefix means "latest" — match by name only and skip the row limit,
     // since the newest is chosen upstream and must not be capped away (the set is bounded by free
     // inventory). The row limit is a query bound for prefixed requests, not a business threshold.
     async findAllocatable(
@@ -251,10 +251,9 @@ export class EnvironmentDataSource {
             occupancy: string;
             heartbeatCutoff: Date;
             execution: string;
-            platformNames: ReadonlyArray<string> | null;
             applicationNames: ReadonlyArray<string>;
             applicationVersionAsk: string | null;
-        },
+        } & PlatformPredicate,
         limit: number,
     ): Promise<Array<EnvironmentData>> {
         const idQuery = this.dataSource.getRepository(Environment)
@@ -267,9 +266,7 @@ export class EnvironmentDataSource {
             .andWhere("environment.lastHeartbeatAt > :cutoff", { cutoff: predicate.heartbeatCutoff })
             .andWhere(offersApplicationSql(predicate), offersApplicationParams(predicate));
 
-        if (predicate.platformNames !== null) {
-            idQuery.andWhere("environment.platformName IN (:...platformNames)", { platformNames: [...predicate.platformNames] });
-        }
+        applyPlatformPredicate(idQuery, predicate);
 
         if (predicate.applicationVersionAsk !== null) {
             idQuery.limit(limit);
@@ -313,10 +310,9 @@ export class EnvironmentDataSource {
         predicate: {
             states: Array<string>;
             execution: string;
-            platformNames: ReadonlyArray<string> | null;
             applicationNames: ReadonlyArray<string>;
             applicationVersionAsk: string | null;
-        },
+        } & PlatformPredicate,
     ): Promise<boolean> {
         const query = this.dataSource.getRepository(Environment)
             .createQueryBuilder("environment")
@@ -327,9 +323,7 @@ export class EnvironmentDataSource {
             .andWhere(offersApplicationSql(predicate), offersApplicationParams(predicate))
             .limit(1);
 
-        if (predicate.platformNames !== null) {
-            query.andWhere("environment.platformName IN (:...platformNames)", { platformNames: [...predicate.platformNames] });
-        }
+        applyPlatformPredicate(query, predicate);
 
         return (await query.getRawOne()) !== undefined;
     }
@@ -366,10 +360,39 @@ export class EnvironmentDataSource {
     }
 }
 
+type PlatformPredicate = {
+    platformNames: ReadonlyArray<string> | null;
+    platformVersionAsk: string | null;
+    deviceModel: string | null;
+};
+
 type OffersApplicationPredicate = {
     applicationNames: ReadonlyArray<string>;
     applicationVersionAsk: string | null;
 };
+
+// The platform stereotype parts the domain asked for, each null meaning "any": the admitted platform
+// names, the OS version exactly or by segment prefix ("14" -> "14.…"), and the device kind.
+function applyPlatformPredicate(query: SelectQueryBuilder<Environment>, predicate: PlatformPredicate): void {
+    if (predicate.platformNames !== null) {
+        query.andWhere("environment.platformName IN (:...platformNames)", { platformNames: [...predicate.platformNames] });
+    }
+
+    if (predicate.platformVersionAsk !== null) {
+        query.andWhere(
+            "(environment.platformVersion = :platformVersionAsk"
+                + " OR environment.platformVersion LIKE :platformVersionAskOpen ESCAPE '\\')",
+            {
+                platformVersionAsk: predicate.platformVersionAsk,
+                platformVersionAskOpen: `${escapeLikePattern(predicate.platformVersionAsk)}.%`,
+            },
+        );
+    }
+
+    if (predicate.deviceModel !== null) {
+        query.andWhere("environment.deviceModel = :deviceModel", { deviceModel: predicate.deviceModel });
+    }
+}
 
 // The domain's "offers the requested application" clause in SQL: a word matches the declared name OR
 // the detected identity; a version ask matches the picked build's alias, or the detected version

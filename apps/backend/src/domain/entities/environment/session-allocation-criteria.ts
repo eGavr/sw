@@ -25,8 +25,10 @@ export type AllocatableEnvironmentPredicate = {
     readonly occupancy: EnvironmentOccupancy;
     readonly heartbeatCutoff: Date;
     readonly execution: Execution;
-    // The concrete platforms the request admits; null when the platform was not asked (any platform).
+    // The platform parts the request constrains; each null when not asked (any).
     readonly platformNames: ReadonlyArray<PlatformName> | null;
+    readonly platformVersionAsk: string | null;
+    readonly deviceModel: string | null;
     readonly applicationNames: ReadonlyArray<string>;
     readonly applicationVersionAsk: string | null;
 };
@@ -35,7 +37,7 @@ export type SessionAllocationParams = {
     readonly now: Date;
     readonly freshnessMs: number;
     readonly execution: Execution;
-    readonly platform: RequestedPlatform | null;
+    readonly platform: RequestedPlatform;
     readonly application: RequestedApplication;
     readonly match: ApplicationMatch;
 };
@@ -44,6 +46,8 @@ export type OfferedApplicationPredicate = {
     readonly states: ReadonlyArray<EnvironmentState>;
     readonly execution: Execution;
     readonly platformNames: ReadonlyArray<PlatformName> | null;
+    readonly platformVersionAsk: string | null;
+    readonly deviceModel: string | null;
     readonly applicationNames: ReadonlyArray<string>;
     readonly applicationVersionAsk: string | null;
 };
@@ -59,8 +63,8 @@ const statesEventuallyServing: ReadonlyArray<EnvironmentState> = [
 ];
 
 // Which environments a session may be allocated onto: `executing`, free, with a fresh agent heartbeat,
-// on the requested execution substrate and platform (when one was asked — a catalog word like `chrome`
-// lives on several platforms), and offering the requested application. What "free" and "fresh" mean is
+// on the requested execution substrate and platform stereotype (whichever parts were asked — a catalog
+// word like `chrome` lives on several platforms), and offering the requested application. What "free" and "fresh" mean is
 // a domain decision expressed here as a ready predicate; the data source only translates it into a
 // query. The request arrives expanded into an ApplicationMatch: candidate names (alias-aware) and a
 // version segment prefix, null meaning "latest" — match by name and let `rank` order by newest.
@@ -71,7 +75,9 @@ export class SessionAllocationCriteria {
             occupancy: EnvironmentOccupancy.Free,
             heartbeatCutoff: new Date(params.now.getTime() - params.freshnessMs),
             execution: params.execution,
-            platformNames: params.platform?.names ?? null,
+            platformNames: params.platform.names,
+            platformVersionAsk: params.platform.versionAsk,
+            deviceModel: params.platform.deviceModel,
             applicationNames: params.match.names,
             applicationVersionAsk: params.match.versionAsk,
         });
@@ -80,7 +86,7 @@ export class SessionAllocationCriteria {
     private constructor(
         private readonly application: RequestedApplication,
         private readonly match: ApplicationMatch,
-        private readonly platform: RequestedPlatform | null,
+        private readonly platform: RequestedPlatform,
         private readonly predicate: AllocatableEnvironmentPredicate,
     ) {}
 
@@ -95,6 +101,8 @@ export class SessionAllocationCriteria {
             states: statesEventuallyServing,
             execution: this.predicate.execution,
             platformNames: this.predicate.platformNames,
+            platformVersionAsk: this.predicate.platformVersionAsk,
+            deviceModel: this.predicate.deviceModel,
             applicationNames: this.predicate.applicationNames,
             applicationVersionAsk: this.predicate.applicationVersionAsk,
         };
@@ -144,17 +152,17 @@ export class SessionAllocationCriteria {
         return this.application.version() ?? latestApplicationVersion;
     }
 
-    // Where the session was asked to run, as the caller phrased it: the platform word when one was
-    // asked, and the execution substrate.
+    // Where the session was asked to run, as the caller phrased it: the platform parts that were asked,
+    // and the execution substrate.
     private requestedStereotype(): string {
-        return this.platform
-            ? `${this.platform.word} ${this.predicate.execution}`
-            : this.predicate.execution;
+        const platform = this.platform.describe();
+
+        return platform ? `${platform} ${this.predicate.execution}` : this.predicate.execution;
     }
 
     private offersRequested(environment: Environment): boolean {
         return environment.execution === this.predicate.execution
-            && (this.platform === null || this.platform.matches(environment.platform))
+            && this.platform.matches(environment.platform)
             && environment.applicationMatching(this.match) !== null;
     }
 

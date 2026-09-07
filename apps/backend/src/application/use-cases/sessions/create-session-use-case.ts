@@ -48,8 +48,12 @@ type CreateSessionInput = {
     params: {
         projectId: string;
         execution: string;
-        // The W3C platform word (`android`, `linux`); omitted means any platform.
-        platform?: string;
+        // The platform stereotype parts asked for (`android`, `14`, `Pixel 7`); each omitted = any.
+        platform: {
+            name?: string;
+            version?: string;
+            deviceModel?: string;
+        };
         application: {
             name: string;
             version?: string;
@@ -70,7 +74,7 @@ const reservationConfirmIntervalMs = 3_000;
 type SessionAsk = {
     readonly application: RequestedApplication;
     readonly match: ApplicationMatch;
-    readonly platform: RequestedPlatform | null;
+    readonly platform: RequestedPlatform;
 };
 
 // Pessimistic allocation. The caller asks for an application (or targets one environment with
@@ -122,7 +126,7 @@ export class CreateSessionUseCase {
         const ask: SessionAsk = {
             application,
             match: catalog.expand(application),
-            platform: params.platform === undefined ? null : RequestedPlatform.create(params.platform),
+            platform: RequestedPlatform.create(params.platform),
         };
 
         const reserved = await this.reserveWithinBudget(projectId, params, ask);

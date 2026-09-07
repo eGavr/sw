@@ -25,7 +25,9 @@ describe("SessionAllocationCriteria", () => {
     // carries the detected layer.
     const environmentWith = (version: string, platformName: string = "ubuntu"): Environment => Environment.create({
         projectId: ProjectId.create(),
-        platform: Platform.fromObject({ name: platformName, version: platformName === "android" ? "14" : "24.04" }),
+        platform: Platform.fromObject(platformName === "android"
+            ? { name: "android", version: "14", deviceModel: "pixel-7" }
+            : { name: "ubuntu", version: "24.04", deviceModel: "desktop" }),
         applications: ApplicationList.fromObject([{ nameAlias: "chrome", versionAlias: "b", version }]),
     });
 
@@ -35,7 +37,7 @@ describe("SessionAllocationCriteria", () => {
 
     const criteriaFor = (
         application: RequestedApplication,
-        platform: RequestedPlatform | null = null,
+        platform: RequestedPlatform = RequestedPlatform.any(),
     ): SessionAllocationCriteria =>
         SessionAllocationCriteria.from({
             now, freshnessMs: 6_000, execution: Execution.Container, platform, application, match: matchFor(application),
@@ -50,6 +52,8 @@ describe("SessionAllocationCriteria", () => {
             heartbeatCutoff: new Date(4_000),
             execution: Execution.Container,
             platformNames: null,
+            platformVersionAsk: null,
+            deviceModel: null,
             applicationNames: ["chrome"],
             applicationVersionAsk: "100",
         });
@@ -64,9 +68,20 @@ describe("SessionAllocationCriteria", () => {
     test("an asked platform narrows the predicate to the concrete platforms it opens onto", () => {
         const chrome = RequestedApplication.create({ name: "chrome" });
 
-        expect(criteriaFor(chrome, RequestedPlatform.create("linux")).toPredicate().platformNames).toEqual(["ubuntu"]);
-        expect(criteriaFor(chrome, RequestedPlatform.create("android")).toOfferPredicate().platformNames)
+        expect(criteriaFor(chrome, RequestedPlatform.create({ name: "linux" })).toPredicate().platformNames)
+            .toEqual(["ubuntu"]);
+        expect(criteriaFor(chrome, RequestedPlatform.create({ name: "android" })).toOfferPredicate().platformNames)
             .toEqual(["android"]);
+    });
+
+    test("an asked platform version and device kind ride into the predicate, the device folded to its id", () => {
+        const chrome = RequestedApplication.create({ name: "chrome" });
+        const predicate = criteriaFor(chrome, RequestedPlatform.create({ version: "14", deviceModel: "Pixel 7" }))
+            .toPredicate();
+
+        expect(predicate.platformNames).toBeNull();
+        expect(predicate.platformVersionAsk).toBe("14");
+        expect(predicate.deviceModel).toBe("pixel-7");
     });
 
     test("the offer predicate relaxes to every still-viable state, keeping the request shape", () => {
@@ -81,6 +96,8 @@ describe("SessionAllocationCriteria", () => {
             ],
             execution: Execution.Container,
             platformNames: null,
+            platformVersionAsk: null,
+            deviceModel: null,
             applicationNames: ["chrome"],
             applicationVersionAsk: "100",
         });
@@ -98,13 +115,13 @@ describe("SessionAllocationCriteria", () => {
             expect(() => criteria.refuseAllocation(false)).toThrow(/chrome 141 on container — create one first/);
         });
 
-        test("names the asked platform in the refusal", () => {
+        test("names the asked platform parts in the refusal", () => {
             const onAndroid = criteriaFor(
                 RequestedApplication.create({ name: "chrome", version: "141" }),
-                RequestedPlatform.create("android"),
+                RequestedPlatform.create({ name: "android", version: "14", deviceModel: "Pixel 7" }),
             );
 
-            expect(() => onAndroid.refuseAllocation(false)).toThrow(/chrome 141 on android container/);
+            expect(() => onAndroid.refuseAllocation(false)).toThrow(/chrome 141 on android 14 pixel-7 container/);
         });
 
         test("a pool taken in the race is refused as the same transient shortage", () => {
@@ -179,13 +196,13 @@ describe("SessionAllocationCriteria", () => {
                 now,
                 freshnessMs: 6_000,
                 execution: Execution.Container,
-                platform: null,
+                platform: RequestedPlatform.any(),
                 application: requested,
                 match: ApplicationMatch.create({ names: ["chrome", "com.android.chrome"], versionAsk: null }),
             });
             const canonical = Environment.create({
                 projectId: ProjectId.create(),
-                platform: Platform.fromObject({ name: "ubuntu", version: "24.04" }),
+                platform: Platform.fromObject({ name: "ubuntu", version: "24.04", deviceModel: "desktop" }),
                 applications: ApplicationList.fromObject([
                     { nameAlias: "com.android.chrome", version: "152.0.7977.82" },
                 ]),
@@ -214,7 +231,7 @@ describe("SessionAllocationCriteria", () => {
                 now,
                 freshnessMs: 6_000,
                 execution: Execution.Emulator,
-                platform: null,
+                platform: RequestedPlatform.any(),
                 application: requested,
                 match: matchFor(requested),
             });
@@ -225,19 +242,31 @@ describe("SessionAllocationCriteria", () => {
         test("admits the platform the request asks for, a family word opening onto its platforms", () => {
             const chrome = RequestedApplication.create({ name: "chrome", version: "141" });
 
-            expect(() => criteriaFor(chrome, RequestedPlatform.create("linux")).admit(executingEnvironmentWith("141")))
-                .not.toThrow();
-            expect(() => criteriaFor(chrome, RequestedPlatform.create("android"))
+            expect(() => criteriaFor(chrome, RequestedPlatform.create({ name: "linux" }))
+                .admit(executingEnvironmentWith("141"))).not.toThrow();
+            expect(() => criteriaFor(chrome, RequestedPlatform.create({ name: "android" }))
                 .admit(executingEnvironmentWith("141", now, "android"))).not.toThrow();
+        });
+
+        test("admits by platform version prefix and device kind", () => {
+            const chrome = RequestedApplication.create({ name: "chrome", version: "141" });
+            const android = executingEnvironmentWith("141", now, "android");
+
+            expect(() => criteriaFor(chrome, RequestedPlatform.create({ version: "14", deviceModel: "Pixel 7" }))
+                .admit(android)).not.toThrow();
+            expect(() => criteriaFor(chrome, RequestedPlatform.create({ version: "13" })).admit(android))
+                .toThrow(IncompatibleSessionTargetError);
+            expect(() => criteriaFor(chrome, RequestedPlatform.create({ deviceModel: "pixel-3a" })).admit(android))
+                .toThrow(/on pixel-3a container/);
         });
 
         test("rejects as incompatible on another platform", () => {
             const chrome = RequestedApplication.create({ name: "chrome", version: "141" });
 
-            expect(() => criteriaFor(chrome, RequestedPlatform.create("android")).admit(executingEnvironmentWith("141")))
-                .toThrow(IncompatibleSessionTargetError);
-            expect(() => criteriaFor(chrome, RequestedPlatform.create("android")).admit(executingEnvironmentWith("141")))
-                .toThrow(/on android container/);
+            expect(() => criteriaFor(chrome, RequestedPlatform.create({ name: "android" }))
+                .admit(executingEnvironmentWith("141"))).toThrow(IncompatibleSessionTargetError);
+            expect(() => criteriaFor(chrome, RequestedPlatform.create({ name: "android" }))
+                .admit(executingEnvironmentWith("141"))).toThrow(/on android container/);
         });
 
         test("rejects as not ready while the environment is still provisioning", () => {

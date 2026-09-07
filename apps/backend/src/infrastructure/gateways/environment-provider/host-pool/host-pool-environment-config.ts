@@ -5,7 +5,8 @@ export type HostPoolEnvironmentConfig = {
     // Seats per machine. Set from the leased configuration's size (e.g. 48 cores / 4 per emulator = 12);
     // the domain caps it at the adb-imposed 16 regardless.
     slotsPerHost: number;
-    // Requested Android version -> the baked AVD name the slot boots (must exist in the golden image).
+    // Requested Android version -> the baked BASE AVD name for that version (must exist in the golden
+    // image); the slot derives the per-device-kind AVD from it (`<base>-<device>`) on first use.
     avdName: (platformVersion: string) => string;
     // Base URL the in-slot agent calls back on (its per-env token arrives with the desired slot).
     internalUrl: string;

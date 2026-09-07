@@ -52,6 +52,8 @@ export class HostPoolEnvironmentProviderGateway extends EnvironmentProviderGatew
             providerContext: this.withCloud(binding.config, account),
             launch: {
                 avd: this.config.avdName(environment.platform.version),
+                // The device kind the slot dresses the AVD as (an emulator device definition by id).
+                device: environment.platform.deviceModel,
                 internalUrl: this.config.internalUrl,
                 // What the slot must deliver onto the device: every application with an artifact
                 // (preinstalled ones have nothing to pull), plus whether a paired webdriver comes along.

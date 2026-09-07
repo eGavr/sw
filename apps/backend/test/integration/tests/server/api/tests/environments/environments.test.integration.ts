@@ -147,8 +147,8 @@ describe("/projects/:project/environments", () => {
                         bindings: [
                             { role: "roles/admin", members: [`user:${ownerId}`] },
                             { role: "roles/developer", members: ["group:eng"] },
-                        ], 
-                    }, 
+                        ],
+                    },
                 })
                 .expect(HttpStatus.OK);
 
@@ -430,7 +430,7 @@ describe("/projects/:project/environments", () => {
 
     describe("provider resolution by (platform, execution)", () => {
         const androidEnvironment = {
-            platform: { name: "android", version: "13" },
+            platform: { name: "android", version: "13", deviceModel: "pixel-7" },
             applications: [{ name: "settings", version: "13" }],
         };
 
@@ -467,6 +467,25 @@ describe("/projects/:project/environments", () => {
 
         const createEnvironmentBody = (projectId: string, owner: { authorization: string }, body: object): request.Test =>
             request(app.getHttpServer()).post(`/projects/${projectId}/environments`).set(owner).send(body);
+
+        // The device kind is the line's business: a desktop line implies its one kind, an android line
+        // offers several and makes the caller choose; the word folds to the catalog id.
+        test("an android environment must name a device kind the line offers, in any spelling", async () => {
+            const { owner, projectId } = await createProjectWithClouds(["yandex-cloud"]);
+            const post = (platform: object): request.Test =>
+                createEnvironmentBody(projectId, owner, { platform, applications: androidEnvironment.applications });
+
+            await post({ name: "android", version: "13" })
+                .expect(HttpStatus.BAD_REQUEST)
+                .expect((response) => expect(JSON.stringify(response.body)).toMatch(/deviceModel is required.*pixel-7/));
+            await post({ name: "android", version: "13", deviceModel: "galaxy-s23" })
+                .expect(HttpStatus.BAD_REQUEST)
+                .expect((response) => expect(JSON.stringify(response.body)).toMatch(/galaxy-s23: unsupported/));
+
+            const { body } = await post({ name: "android", version: "13", deviceModel: "Pixel 3a" })
+                .expect(HttpStatus.CREATED);
+            expect(body.platform).toEqual({ name: "android", version: "13", deviceModel: "pixel-3a" });
+        });
 
         // Every substrate is bound explicitly; each vm binding carries the folder it provisions into.
         test("routes each environment to the binding serving its substrate", async () => {
