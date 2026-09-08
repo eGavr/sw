@@ -330,6 +330,40 @@ describe("machine pool on self-hosted machines", () => {
         expect(new Set([leaseOfOne?.machineId, leaseOfThree?.machineId])).toEqual(new Set([first.id, second.id]));
     });
 
+    // The decided semantics: a machine may be ELIGIBLE for several platforms, but it works under ONE
+    // lease at a time. Once the emulator pool holds it, a browser environment has nowhere to go — it
+    // fails instead of waiting for a machine that is not coming.
+    test("a machine held by one platform's pool is not given to another platform", async () => {
+        const seeded = await seedSelfHostedCloud(androidEmulator);
+        const account = await cloudAccountRepository.get(CloudAccountId.fromString(seeded.cloudAccountId));
+
+        account.bindCompute({
+            platformName: "ubuntu",
+            execution: Execution.Container,
+            kind: "baremetal",
+            config: { maxEnvironments: 4 },
+        });
+        await cloudAccountRepository.save(account);
+
+        const machine = await seedReadyMachine(seeded.cloudAccountId, "box-1.lab");
+        machine.reprovide([androidEmulator, ubuntuContainer]);
+        await machineRepository.save(machine);
+
+        const emulatorEnvironment = await createEnvironment(seeded);
+        await prepareNext();
+
+        const held = await machineRepository.get(MachineId.fromString(machine.id));
+        expect(held.leaseId).not.toBeNull();
+
+        const browserEnvironment = await createEnvironment(seeded, ubuntuContainer);
+        await prepareNext();
+
+        expect((await environmentRepository.get(EnvironmentId.fromString(browserEnvironment))).state)
+            .toBe(EnvironmentState.Failed);
+        expect((await environmentRepository.get(EnvironmentId.fromString(emulatorEnvironment))).state)
+            .not.toBe(EnvironmentState.Failed);
+    });
+
     test("with every machine spent, the next environment fails instead of waiting for a machine that cannot come", async () => {
         const seeded = await seedSelfHostedCloud();
         await seedReadyMachine(seeded.cloudAccountId, "box-1.lab");
