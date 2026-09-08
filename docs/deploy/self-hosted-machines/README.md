@@ -52,7 +52,9 @@
      -d '{"platform":"android","execution":"emulator","kind":"baremetal","config":{"maxEnvironments":2}}'
    ```
 
-2. **Подключить машину**: `POST …/machines` с её адресом; `provides` по умолчанию — все платформы
+2. **Подключить машину**: в UI на карточке self-hosted облака секция **Machines** → **Attach machine**
+   (адрес, какие платформы облака машина обслуживает, слоты) — команда установки из шага 3 покажется
+   сразу после. Или API: `POST …/machines` с её адресом; `provides` по умолчанию — все платформы
    облака; `slotCapacity` — если хочешь задать слоты руками (иначе домен посчитает из cores /
    `MACHINE_SLOT_CORES`, дефолт 4). Для мака, где CP живёт на той же машине, адрес `127.0.0.1`.
 
@@ -63,9 +65,10 @@
    ```
 
 3. **Токен регистрации и установка** — одноразовый токен показывается один раз вместе с готовой
-   командой; она регистрирует машину, кладёт долгоживущий machine-токен в `~/.sw/machine.env`,
-   скачивает агента и запускает его (на linux с systemd от root — как `sw-machine-agent.service`,
-   иначе в foreground):
+   командой (в UI — модалка с copy после Attach machine; потерял — «Install command» в меню машины,
+   пока она `pending`); она регистрирует машину, кладёт долгоживущий machine-токен в
+   `~/.sw/machine.env`, скачивает агента и запускает его (на linux с systemd от root — как
+   `sw-machine-agent.service`, иначе в foreground):
 
    ```bash
    curl -X POST "$API/v1/projects/$P/cloudAccounts/$C/machines/$M:generateRegistrationToken" \

@@ -38,9 +38,11 @@ import {
   listPlatforms,
   platformLabel,
   listProjectApplications,
+  selfHostedCloudType,
 } from "@/lib/sw";
 import { addFreeing, loadFreeing, removeFreeing } from "@/lib/freeing-store";
 import { shortId } from "@/lib/format";
+import { useMachines } from "@/lib/use-machines";
 
 // The wire statuses of GET environments (EnvironmentStatus): ACTIVE is "executing and heartbeating".
 const STATE_COLOR: Record<string, string> = {
@@ -88,6 +90,15 @@ export function EnvironmentsTab({ project }: { project: string }) {
   });
   const noClouds = !clouds.isLoading
     && !(clouds.data ?? []).some((cloud) => cloud.computeBindings.length > 0);
+
+  // Which of the user's own machines an environment sits on: the seat is the machine's fact (its
+  // lease lists the environments), so the map is read off the self-hosted cloud's inventory.
+  const selfHosted = (clouds.data ?? []).find((cloud) => cloud.type === selfHostedCloudType);
+  const machines = useMachines(project, selfHosted?.uid);
+  const machineOf = new Map(
+    (machines.data ?? []).flatMap((machine) =>
+      (machine.lease?.environments ?? []).map((name) => [name.split("/").pop() as string, machine.fqdn])),
+  );
 
   // The delivery vocabulary: platform lines, then what the project can install — its own registrations
   // first, the reserved catalog project's provided set behind them, a word the project registered
@@ -351,7 +362,12 @@ export function EnvironmentsTab({ project }: { project: string }) {
                       .map((a) => (a.version ? `${a.nameAlias} ${a.version}` : a.nameAlias))
                       .join(", ")}
                   </Table.Td>
-                  <Table.Td>{e.execution}</Table.Td>
+                  <Table.Td>
+                    {e.execution}
+                    {machineOf.has(e.uid) && (
+                      <Text size="xs" c="dimmed">on {machineOf.get(e.uid)}</Text>
+                    )}
+                  </Table.Td>
                   <Table.Td>
                     {/* The destructive actions gather behind one kebab, sectioned by blast radius:
                         killing the session frees the row, deleting the environment takes the

@@ -28,6 +28,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { MachineCountBadge, MachinesSection } from "@/components/machines-section";
 import {
   CloudAccount,
   CloudGrant,
@@ -41,6 +42,7 @@ import {
   listCloudAccounts,
   listCloudTypes,
   platformLabel,
+  selfHostedCloudType,
   SubstrateOffer,
   testComputeBinding,
   updateComputeBinding,
@@ -177,11 +179,18 @@ function CloudAccountCard({
   // binding cancels the whole connection (user decision).
   const isUnsavedSetup = startOpen && account.computeBindings.length === 0;
 
+  // A self-hosted cloud's capacity is the machines the user attached, so the card carries their
+  // inventory; other clouds hand us boxes on demand and show none.
+  const isSelfHosted = account.type === selfHostedCloudType;
+
   return (
     <Box p="md" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
       <Stack gap="sm">
         <Group justify="space-between" wrap="nowrap">
-          <Badge variant="light">{account.type}</Badge>
+          <Group gap="xs">
+            <Badge variant="light">{account.type}</Badge>
+            {isSelfHosted && <MachineCountBadge project={project} account={account.uid} />}
+          </Group>
           {managing ? (
             <Group gap="xs">
               <Tooltip label="Disconnect cloud">
@@ -336,6 +345,8 @@ function CloudAccountCard({
             </Group>
           )
         )}
+
+        {isSelfHosted && !isUnsavedSetup && <MachinesSection project={project} account={account} />}
       </Stack>
     </Box>
   );

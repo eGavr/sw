@@ -625,3 +625,119 @@ export function testComputeBinding(
     { method: "POST" },
   );
 }
+
+// The cloud type whose inventory is the user's own machines (attached here, run by our machine agent).
+// The only type with a Machines section — other clouds hand us boxes on demand and show none.
+export const selfHostedCloudType = "self-hosted";
+
+// A machine's connectivity — a fact of the agent's check-ins: attached but never registered, syncing,
+// or silent past the allowance (it comes back to online by itself on the next sync).
+export type MachineState = "pending" | "online" | "offline";
+
+// The operator's intent: the pool may take it, no new lease (maintenance), or being emptied for detach.
+export type MachineAdmission = "open" | "cordoned" | "draining";
+
+// One judgement about the machine's fitness for what it provides; `blocking` = the pool must not lease
+// it, otherwise the machine merely degrades (sessions work, a side feature does not).
+export interface MachineCondition {
+  type: string;
+  blocking: boolean;
+  message: string;
+}
+
+// What the agent reported about the box on its last sync; null until it registers.
+export interface MachineFacts {
+  cores: number;
+  memoryMb: number;
+  virtualization: "kvm" | "hvf" | "none";
+  emulator: boolean;
+  avds: Array<string>;
+  docker: boolean;
+  vncStack: boolean;
+  agentVersion: string;
+}
+
+// One of the user's machines in their self-hosted cloud: address, what it serves, the three axes
+// (state, admission, conditions) plus the derived `ready`, its slots, and — while the pool holds it —
+// the binding and the environments seated on it.
+export interface Machine {
+  name: string; // "projects/{project}/cloudAccounts/{cloudAccount}/machines/{uid}"
+  uid: string;
+  origin: "attached" | "ordered";
+  fqdn: string;
+  provides: Array<Substrate>;
+  state: MachineState;
+  admission: MachineAdmission;
+  ready: boolean;
+  conditions: Array<MachineCondition>;
+  facts: MachineFacts | null;
+  // Null until the agent reports cores (unless the user overrode it at attach).
+  slotCapacity: number | null;
+  lease: { computeBinding: string; environments: Array<string> } | null;
+  lastSyncTime: string | null;
+  createTime: string;
+}
+
+export interface AttachMachineInput {
+  fqdn: string;
+  // Omitted = every platform the cloud is bound to right now.
+  provides?: Array<Substrate>;
+  slotCapacity?: number;
+}
+
+// The one-time registration token and the command that spends it — shown exactly once; the server
+// keeps only the token's hash, so a lost command means generating a new one.
+export interface MachineRegistration {
+  registrationToken: string;
+  expireTime: string;
+  installCommand: string;
+}
+
+const machinesPath = (project: string, cloudAccount: string): string =>
+  `v1/projects/${project}/cloudAccounts/${cloudAccount}/machines`;
+
+export function listMachines(project: string, cloudAccount: string): Promise<Array<Machine>> {
+  return swRequest<{ machines?: Array<Machine> }>(machinesPath(project, cloudAccount))
+    .then((d) => d.machines ?? []);
+}
+
+export function attachMachine(project: string, cloudAccount: string, input: AttachMachineInput): Promise<Machine> {
+  return swRequest<Machine>(machinesPath(project, cloudAccount), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+// Without force the API refuses (FAILED_PRECONDITION) while the pool holds the machine; with it the
+// environments seated there die with their slots.
+export function detachMachine(project: string, cloudAccount: string, machine: string, force: boolean): Promise<void> {
+  return swRequest<void>(`${machinesPath(project, cloudAccount)}/${machine}${force ? "?force=true" : ""}`, {
+    method: "DELETE",
+  });
+}
+
+export function generateMachineRegistrationToken(
+  project: string,
+  cloudAccount: string,
+  machine: string,
+): Promise<MachineRegistration> {
+  // AIP-136 custom method (colon verb on the machine resource).
+  return swRequest<MachineRegistration>(
+    `${machinesPath(project, cloudAccount)}/${machine}:generateRegistrationToken`,
+    { method: "POST" },
+  );
+}
+
+// The operator's intent as a verb on the machine. A drain of a machine nobody holds detaches it right
+// away — the API answers with an empty object then, not a machine.
+export function setMachineAdmission(
+  project: string,
+  cloudAccount: string,
+  machine: string,
+  verb: "cordon" | "uncordon" | "drain",
+): Promise<Machine | null> {
+  return swRequest<Partial<Machine>>(`${machinesPath(project, cloudAccount)}/${machine}:${verb}`, {
+    method: "POST",
+  }).then((body) => (body.uid ? (body as Machine) : null));
+}
