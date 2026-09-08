@@ -25,7 +25,7 @@ emulator (host, adb :5555+2i) ← adb connect ← scrcpy → Xvfb :99 → openbo
 docker build -t sw-android-vnc-sidecar images/android-vnc-sidecar
 ```
 
-The pool-host agent finds the image by name (`SW_VNC_SIDECAR_IMAGE` overrides) and starts one
+The machine agent finds the image by name (`SW_VNC_SIDECAR_IMAGE` overrides) and starts one
 container per seat, `sw-vnc-<environment id>`, restarted by the slot if it dies; without the image the
 seat runs without VNC (sessions work, the viewer reports the route unavailable).
 

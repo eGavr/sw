@@ -5,7 +5,7 @@ import { raw } from "express";
 
 import { RemoteArtifactGateway } from "../../../application/interfaces/gateways/remote-artifact-gateway";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
-import { PoolHostRepository } from "../../../application/interfaces/repositories/pool-host-repository";
+import { MachineLeaseRepository } from "../../../application/interfaces/repositories/machine-lease-repository";
 import {
     SessionOwnershipRepository,
 } from "../../../application/interfaces/repositories/session-ownership-repository";
@@ -22,16 +22,16 @@ import {
     UploadSessionVideoUseCase,
 } from "../../../application/use-cases/environments/upload-session-video-use-case";
 import {
-    RecordHostHeartbeatUseCase,
-} from "../../../application/use-cases/host-pool/record-host-heartbeat-use-case";
+    RecordLeaseHeartbeatUseCase,
+} from "../../../application/use-cases/machine-pool/record-lease-heartbeat-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import {
     AgentTokenServiceProvider,
 } from "../../../infrastructure/agent-token/agent-token-service-provider";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import {
-    PoolHostDataSource,
-} from "../../../infrastructure/data-sources/database/postgres/pool-host-data-source";
+    MachineLeaseDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/machine-lease-data-source";
 import {
     SessionOwnershipDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/session-ownership-data-source";
@@ -46,11 +46,11 @@ import {
     HttpRemoteArtifactGateway,
 } from "../../../infrastructure/gateways/remote-artifact/http-remote-artifact-gateway";
 import {
-    HostTokenServiceProvider,
-} from "../../../infrastructure/host-token/host-token-service-provider";
+    LeaseTokenServiceProvider,
+} from "../../../infrastructure/lease-token/lease-token-service-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
-import { PoolHostRepositoryImpl } from "../../../infrastructure/repositories/pool-host-repository-impl";
+import { MachineLeaseRepositoryImpl } from "../../../infrastructure/repositories/machine-lease-repository-impl";
 import {
     SessionOwnershipRepositoryImpl,
 } from "../../../infrastructure/repositories/session-ownership-repository-impl";
@@ -66,9 +66,9 @@ import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { InternalAgentController } from "./controllers/agent/agent-controller";
 import { InternalEnvironmentsController } from "./controllers/environments/environments-controller";
-import { InternalPoolHostsController } from "./controllers/pool-hosts/pool-hosts-controller";
+import { InternalMachineLeasesController } from "./controllers/machine-leases/machine-leases-controller";
 import { InternalAgentTokenGuard } from "./guards/internal-agent-token-guard";
-import { InternalHostTokenGuard } from "./guards/internal-host-token-guard";
+import { InternalLeaseTokenGuard } from "./guards/internal-lease-token-guard";
 
 @Module({
     imports: [
@@ -81,7 +81,7 @@ import { InternalHostTokenGuard } from "./guards/internal-host-token-guard";
     controllers: [
         InternalEnvironmentsController,
         InternalAgentController,
-        InternalPoolHostsController,
+        InternalMachineLeasesController,
     ],
     providers: [
         RecordEnvironmentHeartbeatUseCase,
@@ -89,25 +89,25 @@ import { InternalHostTokenGuard } from "./guards/internal-host-token-guard";
         UploadSessionVideoUseCase,
         GetApplicationArtifactUseCase,
         { provide: RemoteArtifactGateway, useClass: HttpRemoteArtifactGateway },
-        RecordHostHeartbeatUseCase,
+        RecordLeaseHeartbeatUseCase,
 
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
-        { provide: PoolHostRepository, useClass: PoolHostRepositoryImpl },
+        { provide: MachineLeaseRepository, useClass: MachineLeaseRepositoryImpl },
         StorageDestinationRepositoryProvider,
         ObjectStorageGatewayProvider,
 
         EnvironmentDataSource,
         SessionOwnershipDataSource,
         StorageDestinationDataSource,
-        PoolHostDataSource,
+        MachineLeaseDataSource,
         AgentTokenServiceProvider,
-        HostTokenServiceProvider,
+        LeaseTokenServiceProvider,
 
         // Two token audiences guard two caller kinds: environment agents (their controllers) and host
         // agents (the hosts controller); each controller declares its guard, there is no global one.
         InternalAgentTokenGuard,
-        InternalHostTokenGuard,
+        InternalLeaseTokenGuard,
 
         // A session id is a capability secret; mask it out of request logs (session log/video upload routes).
         { provide: UrlRedactions, useValue: [sessionIdUrlRedaction] },

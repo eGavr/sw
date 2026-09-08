@@ -1152,6 +1152,16 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 - Почему не Xvfb-x11grab с зеркала: два кодирования и потеря качества, ~ядро хоста на пишущий слот (12 слотов), связность с VNC-конвейером (моргнул scrcpy — дырка; выключили VNC опцией — нет видео), на маке невозможно. x11grab остаётся у linux-нод, где X-дисплей и есть правда. Caveat под S5: софтверный энкодер в госте эмулятора несёт два потока (зеркало + запись) — померить на metal, при нужде опустить `--max-size`/fps. scrcpy заканчивает запись, если устройство «моргнуло» (файл финализируется, но обрывается) — сегментирование не делаем заранее.
 - Golden-образ metal: требование scrcpy поднято до ≥ 2.2 (`--time-limit`).
 
+## Self-hosted machines (своё железо как облако) — ДИЗАЙН СОГЛАСОВАН, S0 СДЕЛАН (ветка `refactor.machine-pool-vocabulary`)
+
+Полный дизайн и словарь — `docs/design/self-hosted-machines.md`. Суть (решение юзера 2026-09-07): пользователь подключает свои машины (FQDN, наш агент), они становятся инвентарём облака типа `self-hosted`; пул просит у него «дай машину» ровно так же, как заказывает BareMetal у YC; кончились машины → `429 RESOURCE_EXHAUSTED` (`MACHINE_POOL_AT_CAPACITY`), гарантированный синхронной посадкой места на create-environment под пер-пуловым локом. Ничего в пуле по типу облака не ветвится.
+
+Словарь (после двух независимых ревью 2026-09-08): `Machine` (инвентарная коробка, физическая или виртуальная — Cluster API), `MachineLease` (удержание машины пулом; было `PoolHost`), `MachinePool` (было `HostPool`), `SlotAssignment` (было `HostPlacement`), `MachineProviderGateway` (было `HostProviderGateway`; + `headroom`), `machine-agent.sh`. `kind: vm` — НЕ Machine (виртуалка одного окружения, `VmProvisioner`). Табу: голое `agent`, `capabilities` для фактов машины (W3C), `seat` в доках, `Node`/`Host` для машины. Отвергнуто: `Host` (адресное слово + словарь пула), `LeasedHost` (читается как подтип), `NodePool` (Selenium-node), `Server` (наши серверы, adb server, scrcpy-server).
+
+**S0 (сделано)** — только словарь пула, поведение то же: переименования по карте из дизайн-дока, миграция `1789300000000` (переименование таблиц `pool_host → machine_lease`, `host_placement → slot_assignment`, колонок `capacity_slots → slot_capacity`, `host_id → machine_lease_id`, индексов/констрейнтов), internal `poolHosts → machineLeases`, агент `machine-agent.sh` с `SW_LEASE_ID`/`SW_LEASE_TOKEN` (идентичность агента станет `Machine` в S1), конфиг `POOL_HOST_* → MACHINE_POOL_*` (`MACHINE_POOL_SLOTS_PER_MACHINE`, `MACHINE_AGENT_EMULATOR_WINDOW`). Гоча: sed нельзя пускать по старым миграциям — переименованный класс миграции TypeORM считает новой и пытается создать таблицу заново; исторические миграции возвращены из main нетронутыми.
+
+**Дальше:** S1 — контекст `machine` + `self-hosted` + синхронный 429 + `:register`/`:sync` + поглощение byo-роута `local`; S2 — UI (секция Machines); S3 — live на VM юзера (есть `/dev/kvm`); S4 — linux-слоты пула. Follow-ups: mTLS агента, ротация `machineToken`.
+
 ## Follow-up: поиск в селектах приложений и версий (new-environment) — НЕ начато (юзер, 2026-09-07)
 
 Селект приложений в модалке нового окружения (и селект версий/билдов) сегодня — плоский список. Приложений
