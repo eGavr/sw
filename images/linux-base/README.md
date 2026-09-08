@@ -20,6 +20,8 @@ Chrome for Testing publishes linux builds for amd64 only, so the image is built 
 docker buildx build --platform linux/amd64 --build-arg UBUNTU_VERSION=24.04 \
   -t sw-linux-base:24.04 --load images/linux-base
 # RU networks: --build-arg APT_MIRROR=mirror.yandex.ru
+# Hosts whose docker containers get no outbound DNS (corporate boxes): add --network host, or apt
+# cannot resolve the mirror during the build.
 ```
 
 ## Control-plane config

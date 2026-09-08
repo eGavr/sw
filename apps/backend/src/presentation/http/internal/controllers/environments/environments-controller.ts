@@ -1,3 +1,5 @@
+import { pipeline } from "stream/promises";
+
 import {
     BadRequestException,
     Controller,
@@ -28,6 +30,7 @@ import {
     UploadSessionVideoUseCase,
 } from "../../../../../application/use-cases/environments/upload-session-video-use-case";
 import { ClassValidatorError } from "../../../../../domain/utils/class-validator/class-validator-error";
+import { Logger } from "../../../../../infrastructure/logging/logger";
 import { InternalAgentTokenGuard } from "../../guards/internal-agent-token-guard";
 
 import { EnvironmentHeartbeatPresenter } from "./io/environment-heartbeat-presenter";
@@ -49,6 +52,7 @@ export class InternalEnvironmentsController {
         private readonly uploadSessionLogsUseCase: UploadSessionLogsUseCase,
         private readonly uploadSessionVideoUseCase: UploadSessionVideoUseCase,
         private readonly getApplicationArtifactUseCase: GetApplicationArtifactUseCase,
+        private readonly logger: Logger,
     ) {}
 
     // Custom methods (AIP-136): POST /internal/environments/{id}:{verb}. express matches "{id}:{verb}"
@@ -124,7 +128,13 @@ export class InternalEnvironmentsController {
         });
 
         response.setHeader("content-type", artifact.contentType ?? "application/octet-stream");
-        artifact.body.pipe(response);
+
+        // A download can die mid-flight — the agent hangs up, the store drops the connection. pipeline
+        // tears both ends down and reports it here; a bare pipe would leave the stream's error
+        // unheard, and an unheard stream error ends the process.
+        await pipeline(artifact.body, response).catch((error: Error) => {
+            this.logger.warn(`artifact stream: ${applicationName}: ${error.message}`);
+        });
     }
 
     private async heartbeat(environmentId: string, request: Request): Promise<EnvironmentHeartbeatPresenter> {
