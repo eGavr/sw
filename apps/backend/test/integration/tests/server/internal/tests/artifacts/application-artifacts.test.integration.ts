@@ -89,12 +89,36 @@ import { internalAgentToken } from "../../../utils/request/internal-agent-token"
 // tests may mock). Keyed by URL.
 class FakeRemoteArtifactGateway extends RemoteArtifactGateway {
     readonly artifacts = new Map<string, Buffer>();
+    // Refs whose download dies after the first chunk — a store dropping the connection mid-transfer.
+    readonly dying = new Set<string>();
 
     async fetch(url: string): Promise<{ body: Readable; contentType?: string } | null> {
         const found = this.artifacts.get(url);
 
-        return found ? { body: Readable.from(found), contentType: "application/octet-stream" } : null;
+        if (!found) {
+            return null;
+        }
+
+        return { body: this.dying.has(url) ? dyingStream(found) : Readable.from(found), contentType: "application/octet-stream" };
     }
+}
+
+// Emits one chunk, then fails — the shape of a store hanging up half way through a big artifact.
+function dyingStream(head: Buffer): Readable {
+    let sent = false;
+
+    return new Readable({
+        read(): void {
+            if (sent) {
+                this.destroy(new Error("remote store hung up"));
+
+                return;
+            }
+
+            sent = true;
+            this.push(head);
+        },
+    });
 }
 
 describe("/internal/environments/:id/applications/:name:downloadApp|:downloadWebdriver", () => {
@@ -206,6 +230,24 @@ describe("/internal/environments/:id/applications/:name:downloadApp|:downloadWeb
         const { body } = await download(id, "chrome:downloadApp").expect(200);
 
         expect(body.toString()).toBe("chrome-bytes");
+    });
+
+    // A download dying in flight must not take the control plane with it: the stream's error used to
+    // be unheard, and node ends the process on those (it did, twice, on the dev stand).
+    test("survives a store that hangs up mid-download", async () => {
+        remoteArtifacts.artifacts.set("https://store.test/chrome-152.zip", Buffer.from("head"));
+        remoteArtifacts.dying.add("https://store.test/chrome-152.zip");
+
+        const { id } = await seedEnvironment([{
+            nameAlias: "chrome",
+            versionAlias: "152",
+            source: { type: "provided", appRef: "https://store.test/chrome-152.zip" },
+        }]);
+
+        await download(id, "chrome:downloadApp").catch(() => undefined);
+
+        // The server is still there and still serving — that is the whole point of the test.
+        await download(id, "chrome:downloadWebdriver").expect(404);
     });
 
     test("responds NOT_FOUND when the build carries no such artifact (preinstalled / no webdriver)", async () => {
