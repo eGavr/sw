@@ -242,6 +242,36 @@ describe("/projects/:project/cloudAccounts/:cloudAccount/machines", () => {
         expect(environment.uid).toBeDefined();
     });
 
+    // The inventory is the ACCOUNT's, not one binding's: a machine already spoken for by an environment
+    // of another platform is gone from everyone's headroom, so the second platform is refused at create
+    // instead of being told yes and failing at provisioning.
+    test("two platforms on one cloud draw from the same machines: the second is refused, not queued", async () => {
+        const { owner, uid } = await seedProject();
+        const { account, machines } = await seedSelfHostedCloud(owner, uid);
+
+        await request(api.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${account}/computeBindings`).set(owner)
+            .send({ platform: "ubuntu", execution: "container", kind: "baremetal", config: { maxEnvironments: 2 } })
+            .expect(HttpStatus.CREATED);
+
+        const machineId = (await attach(owner, machines, "box-1.lab").expect(HttpStatus.CREATED)).body.uid;
+
+        await request(api.getHttpServer()).patch(`${machines}/${machineId}`).set(owner)
+            .send({ provides: [{ platform: "android", execution: "emulator" }, { platform: "ubuntu", execution: "container" }] })
+            .expect(HttpStatus.OK);
+        await registerAndSync(owner, machines, machineId);
+
+        // The emulator platform takes the only machine...
+        await createEnvironment(owner, uid).expect(HttpStatus.CREATED);
+
+        // ...so the browser platform has none left, even though the machine serves it too.
+        await request(api.getHttpServer()).post(`/projects/${uid}/environments`).set(owner).send({
+            platform: { name: "ubuntu", version: "24.04", deviceModel: "desktop" },
+            execution: "container",
+            applications: [{ nameAlias: "chrome", versionAlias: "126" }],
+        }).expect(HttpStatus.TOO_MANY_REQUESTS);
+    });
+
     test("cordon closes the door, uncordon reopens it, drain of a free machine detaches it", async () => {
         const { owner, uid } = await seedProject();
         const { machines } = await seedSelfHostedCloud(owner, uid);

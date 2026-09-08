@@ -88,10 +88,10 @@ export class MachineLeaseDataSource {
         limits: PoolLimits,
     ): Promise<{ data: MachineLeaseData; created: boolean } | null> {
         return this.dataSource.transaction(async (manager) => {
-            await manager.query(
-                "SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))",
-                [pool.cloudAccountId, pool.bindingId],
-            );
+            // The lock is taken on the CLOUD ACCOUNT, not on the pool: what placers contend for is the
+            // account's machine inventory, which every binding draws from. A per-pool lock would let a
+            // browser placement and an emulator placement each count the same free machine as theirs.
+            await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [pool.cloudAccountId]);
 
             // The seat this environment already holds wins over any placement — checked under the lock,
             // so two placers of the same environment (the API's reservation racing the worker's
@@ -125,11 +125,18 @@ export class MachineLeaseDataSource {
                 return { data: next, created: false };
             }
 
-            const [{ count, awaiting }] = (await manager.query(
-                `SELECT count(*)::int AS count, count(*) FILTER (WHERE machine_id IS NULL)::int AS awaiting
-                 FROM machine_lease WHERE cloud_account_id = $1 AND binding_id = $2`,
+            // Two budgets of two different scopes. The lease cap is the BINDING's — it derives from that
+            // platform's environment quota, the single spend knob. The machines-being-waited-for budget
+            // is the ACCOUNT's, because the inventory is: a lease of any binding that still has no
+            // machine has already spoken for one of the free machines this placement is counting on.
+            const [{ count }] = (await manager.query(
+                "SELECT count(*)::int AS count FROM machine_lease WHERE cloud_account_id = $1 AND binding_id = $2",
                 [pool.cloudAccountId, pool.bindingId],
-            )) as Array<{ count: number; awaiting: number }>;
+            )) as Array<{ count: number }>;
+            const [{ awaiting }] = (await manager.query(
+                "SELECT count(*)::int AS awaiting FROM machine_lease WHERE cloud_account_id = $1 AND machine_id IS NULL",
+                [pool.cloudAccountId],
+            )) as Array<{ awaiting: number }>;
 
             if (count >= limits.maxLeases) {
                 return null;
