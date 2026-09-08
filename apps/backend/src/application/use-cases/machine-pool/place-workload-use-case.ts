@@ -4,7 +4,10 @@ import { EnvironmentId } from "../../../domain/entities/environment/environment-
 import { MachinePoolExhaustedError } from "../../../domain/entities/machine-pool/error/machine-pool-exhausted-error";
 import { MachineLease, MachineLeaseProviderContext } from "../../../domain/entities/machine-pool/machine-lease";
 import { MachineLeaseId } from "../../../domain/entities/machine-pool/machine-lease-id";
-import { placeableMachineLeaseStates } from "../../../domain/entities/machine-pool/machine-lease-state";
+import {
+    MachineLeaseState,
+    placeableMachineLeaseStates,
+} from "../../../domain/entities/machine-pool/machine-lease-state";
 import { MachinePoolKey } from "../../../domain/entities/machine-pool/machine-pool-key";
 import { WorkloadLaunch } from "../../../domain/entities/machine-pool/slot-assignment";
 import { MachineProviderGateway } from "../../interfaces/gateways/machine-provider-gateway";
@@ -13,18 +16,23 @@ import { MachineLeaseRepository } from "../../interfaces/repositories/machine-le
 export type PlaceWorkloadParams = {
     readonly environmentId: EnvironmentId;
     readonly poolKey: MachinePoolKey;
+    // The pool's estimate of a machine's slots — what a new lease seats until its machine arrives.
     readonly slotCapacity: number;
-    readonly maxHosts: number;
+    readonly maxLeases: number;
     readonly providerContext: MachineLeaseProviderContext;
     readonly launch: WorkloadLaunch;
 };
 
-// Seat an environment somewhere in its binding's pool: on the machine already holding its seat (a
-// provisioning retry), else on the fullest machine with a free slot, else on a newly built one —
-// atomically, serialised per pool, so concurrent placers (N workers) can never order surplus
-// machines or breach the spend cap. Only a freshly built machine is actually ordered from the cloud;
-// the environment then waits in `preparing` until its slot's agent registers it, exactly like every
-// other compute path.
+// Seat an environment somewhere in its binding's pool, in two steps that may run apart:
+//   seat     — synchronously, at create-environment time: on the machine already holding its seat (a
+//              retry), else on the fullest lease with a free slot, else on a new `enqueued` lease if
+//              the pool's cap and the cloud's headroom allow — atomically, serialised per pool, so
+//              concurrent placers (N workers, N API calls) can never over-seat. No room anywhere is
+//              RESOURCE_EXHAUSTED, right there in the caller's face;
+//   provision — later, by the worker: an enqueued lease gets its machine from the cloud (a leased
+//              server, or one of the user's attached machines) and moves to `ordering`, waiting for the
+//              machine's agent. The environment then waits in `preparing` until its slot's agent
+//              registers it, exactly like every other compute path.
 @Injectable()
 export class PlaceWorkloadUseCase {
     constructor(
@@ -33,12 +41,18 @@ export class PlaceWorkloadUseCase {
     ) {}
 
     async execute(params: PlaceWorkloadParams): Promise<void> {
+        const lease = await this.seat(params);
+
+        await this.provisionIfEnqueued(lease);
+    }
+
+    async seat(params: PlaceWorkloadParams): Promise<MachineLease> {
         const environmentId = params.environmentId.getValue();
         const existing = await this.machineLeaseRepository.findByEnvironment(params.environmentId);
 
         if (existing) {
             if (placeableMachineLeaseStates.includes(existing.state)) {
-                return;
+                return existing;
             }
 
             // The seat is on a written-off machine (silent / never arrived): leave the sinking ship —
@@ -48,15 +62,18 @@ export class PlaceWorkloadUseCase {
             });
         }
 
+        const headroom = await this.machineProviderGateway.headroom(params.providerContext);
+        const limits = headroom.limitsFor(params.maxLeases);
         const seated = await this.machineLeaseRepository.placeOrCreate(
             params.poolKey,
+            params.environmentId,
             (lease) => {
                 lease.place(environmentId, params.launch);
             },
             () => {
                 const lease = MachineLease.create({
                     poolKey: params.poolKey,
-                    slotCapacity: params.slotCapacity,
+                    slotCapacity: headroom.slotCapacityOr(params.slotCapacity),
                     providerContext: params.providerContext,
                 });
 
@@ -64,25 +81,49 @@ export class PlaceWorkloadUseCase {
 
                 return lease;
             },
-            params.maxHosts,
+            limits,
         );
 
         if (!seated) {
-            throw new MachinePoolExhaustedError(params.maxHosts);
+            throw new MachinePoolExhaustedError(headroom.capAt(params.maxLeases));
         }
 
-        if (!seated.created) {
+        return seated.lease;
+    }
+
+    // Exactly one worker asks the cloud for a lease's machine: the enqueued → ordering transition runs
+    // under the row lock, so a rival that seated onto the same lease finds it already taken and leaves
+    // the order to whoever made it. A cloud that refuses drops the row so the pool does not count a
+    // phantom lease; its environments re-enter the queue via the preparing reclaim and are seated afresh.
+    private async provisionIfEnqueued(lease: MachineLease): Promise<void> {
+        if (lease.state !== MachineLeaseState.Enqueued) {
             return;
         }
 
+        const leaseId = MachineLeaseId.fromString(lease.id);
+        let ordering = false;
+        const taken = await this.machineLeaseRepository.with(leaseId, (locked) => {
+            if (locked.state === MachineLeaseState.Enqueued) {
+                locked.markOrdering();
+                ordering = true;
+            }
+        });
+
+        if (!taken || !ordering) {
+            return;
+        }
+
+        let machine;
+
         try {
-            await this.machineProviderGateway.provision(seated.lease);
+            machine = await this.machineProviderGateway.provision(taken);
         } catch (error) {
-            // The order never went out — drop the row so the pool does not count a phantom machine.
-            // A rival seated here between our commit and this delete loses its assignment with the row;
-            // its environment re-enters the queue via the preparing reclaim and is seated afresh.
-            await this.machineLeaseRepository.delete(MachineLeaseId.fromString(seated.lease.id)).catch(() => undefined);
+            await this.machineLeaseRepository.delete(leaseId).catch(() => undefined);
             throw error;
         }
+
+        await this.machineLeaseRepository.with(leaseId, (locked) => {
+            locked.adoptMachine(machine);
+        });
     }
 }

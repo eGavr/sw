@@ -64,4 +64,8 @@ export abstract class EnvironmentRepository {
     abstract with(environmentId: EnvironmentId, mutate: (environment: Environment) => void): Promise<Environment | null>;
 
     abstract save(environment: Environment): Promise<void>;
+
+    // Hard delete — only for an environment that never got past creation (its seat could not be
+    // reserved); everything live goes through its own lifecycle and the garbage collector.
+    abstract delete(environmentId: EnvironmentId): Promise<void>;
 }

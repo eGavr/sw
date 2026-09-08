@@ -26,6 +26,15 @@ export type OwnershipVerification = {
 // no bound cloud account. deprovision must tear down in the same place it provisioned (the binding's
 // folder), or the VM leaks.
 export abstract class EnvironmentProviderGateway {
+    // Reserve room for a freshly created environment, synchronously, before the caller answers: a
+    // substrate whose capacity is finite and known (a machine pool) takes the seat right here and
+    // refuses with RESOURCE_EXHAUSTED when there is none — an immediate 429 instead of an asynchronous
+    // `failed`. Substrates that admit anything (a docker daemon, a cloud of VMs) reserve nothing.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- the default reserves nothing; the parameters are the port's contract
+    async reserve(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
+        return undefined;
+    }
+
     abstract provision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void>;
 
     abstract deprovision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void>;

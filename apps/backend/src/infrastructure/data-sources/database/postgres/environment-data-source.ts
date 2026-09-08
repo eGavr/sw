@@ -153,6 +153,10 @@ export class EnvironmentDataSource {
 
     // Hard-delete rows matching any of the (state, cutoff) predicates, each detected by its own
     // timestamp column (optionally counting a NULL timestamp as past the cutoff). The states, clocks
+    async delete(id: string): Promise<void> {
+        await this.dataSource.getRepository(Environment).delete({ id });
+    }
+
     // and cutoffs are decided upstream (the domain criteria); this only translates them into a delete.
     // Child applications are removed by the ON DELETE CASCADE foreign key.
     async deleteCollectable(

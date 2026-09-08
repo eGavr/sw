@@ -7,6 +7,7 @@ import { NoActiveCloudAccountError } from "../../../domain/entities/cloud-accoun
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
 import { RequestedApplication } from "../../../domain/entities/environment/application/requested-application";
 import { Environment } from "../../../domain/entities/environment/environment";
+import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { EnvironmentQuota, EnvironmentQuotaPolicy } from "../../../domain/entities/environment/environment-quota";
 import { defaultExecution, toExecution } from "../../../domain/entities/environment/execution";
 import { Platform } from "../../../domain/entities/environment/platform/platform";
@@ -14,6 +15,7 @@ import { ResourceIdConflictError } from "../../../domain/entities/error/resource
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { ensureNotCatalogProject } from "../../../domain/entities/project-application/catalog-project";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
+import { EnvironmentProviderGateway } from "../../interfaces/gateways/environment-provider-gateway";
 import { CloudAccountRepository } from "../../interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../interfaces/repositories/environment-repository";
 import { ProjectRepository } from "../../interfaces/repositories/project-repository";
@@ -52,6 +54,7 @@ export class CreateEnvironmentUseCase {
         private readonly quotaPolicy: EnvironmentQuotaPolicy,
         private readonly platformCatalog: PlatformCatalog,
         private readonly applicationCatalogLoader: ApplicationCatalogLoader,
+        private readonly environmentProviderGateway: EnvironmentProviderGateway,
     ) {}
 
     async execute({ creds, params }: CreateEnvironmentInput): Promise<Environment> {
@@ -106,7 +109,7 @@ export class CreateEnvironmentUseCase {
         // immediate 429, not an asynchronous `failed` from the worker.
         const quota = EnvironmentQuota.fromBindingConfig(binding.config, this.quotaPolicy);
 
-        return this.environmentRepository.create(
+        const environment = await this.environmentRepository.create(
             {
                 resourceId: params.environmentId,
                 projectId,
@@ -119,5 +122,16 @@ export class CreateEnvironmentUseCase {
             },
             quota.toClaim(cloudAccount.id, params.platform.name, execution),
         );
+
+        // A substrate of finite, known capacity (a machine pool) takes the environment's seat right
+        // here, or refuses with RESOURCE_EXHAUSTED — and an environment nothing can seat is not created.
+        try {
+            await this.environmentProviderGateway.reserve(environment, cloudAccount);
+        } catch (error) {
+            await this.environmentRepository.delete(EnvironmentId.fromString(environment.id));
+            throw error;
+        }
+
+        return environment;
     }
 }

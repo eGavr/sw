@@ -21,6 +21,7 @@ export class MachineLease {
         row.cloudAccountId = data.cloudAccountId;
         row.bindingId = data.bindingId;
         row.state = data.state;
+        row.machineId = data.machineId;
         row.slotCapacity = data.slotCapacity;
         row.hostIp = data.hostIp;
         row.providerContext = data.providerContext;
@@ -45,6 +46,10 @@ export class MachineLease {
 
     @Column()
     state: string;
+
+    // The machine the cloud handed this lease; null while enqueued (no machine asked for yet).
+    @Column({ type: "uuid", nullable: true })
+    machineId: string | null;
 
     @Column({ type: "int" })
     slotCapacity: number;
@@ -80,6 +85,7 @@ export class MachineLease {
             cloudAccountId: this.cloudAccountId,
             bindingId: this.bindingId,
             state: this.state,
+            machineId: this.machineId,
             slotCapacity: this.slotCapacity,
             hostIp: this.hostIp,
             providerContext: this.providerContext ?? {},

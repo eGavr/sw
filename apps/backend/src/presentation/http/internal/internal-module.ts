@@ -3,9 +3,11 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { raw } from "express";
 
+import { MachinePoolGateway } from "../../../application/interfaces/gateways/machine-pool-gateway";
 import { RemoteArtifactGateway } from "../../../application/interfaces/gateways/remote-artifact-gateway";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import { MachineLeaseRepository } from "../../../application/interfaces/repositories/machine-lease-repository";
+import { MachineRepository } from "../../../application/interfaces/repositories/machine-repository";
 import {
     SessionOwnershipRepository,
 } from "../../../application/interfaces/repositories/session-ownership-repository";
@@ -21,14 +23,18 @@ import {
 import {
     UploadSessionVideoUseCase,
 } from "../../../application/use-cases/environments/upload-session-video-use-case";
+import { GetMachineLeaseUseCase } from "../../../application/use-cases/machine-pool/get-machine-lease-use-case";
 import {
     RecordLeaseHeartbeatUseCase,
 } from "../../../application/use-cases/machine-pool/record-lease-heartbeat-use-case";
+import { RegisterMachineUseCase } from "../../../application/use-cases/machines/register-machine-use-case";
+import { SyncMachineUseCase } from "../../../application/use-cases/machines/sync-machine-use-case";
 import { ClassValidatorError } from "../../../domain/utils/class-validator/class-validator-error";
 import {
     AgentTokenServiceProvider,
 } from "../../../infrastructure/agent-token/agent-token-service-provider";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
+import { MachineDataSource } from "../../../infrastructure/data-sources/database/postgres/machine-data-source";
 import {
     MachineLeaseDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/machine-lease-data-source";
@@ -39,18 +45,22 @@ import {
     StorageDestinationDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/storage-destination-data-source";
 import { PostgresModule } from "../../../infrastructure/data-sources/database/postgres/typeorm/postgres-module";
+import { InProcessMachinePoolGateway } from "../../../infrastructure/gateways/machine-pool/in-process-machine-pool-gateway";
 import {
     ObjectStorageGatewayProvider,
 } from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
 import {
     HttpRemoteArtifactGateway,
 } from "../../../infrastructure/gateways/remote-artifact/http-remote-artifact-gateway";
-import {
-    LeaseTokenServiceProvider,
-} from "../../../infrastructure/lease-token/lease-token-service-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
+import { MachineTokenServiceProvider } from "../../../infrastructure/machine-token/machine-token-service-provider";
+import { SlotCapacityPolicyProvider } from "../../../infrastructure/machines/slot-capacity-policy-provider";
+import {
+    RegistrationTokenServiceProvider,
+} from "../../../infrastructure/registration-token/registration-token-service-provider";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import { MachineLeaseRepositoryImpl } from "../../../infrastructure/repositories/machine-lease-repository-impl";
+import { MachineRepositoryImpl } from "../../../infrastructure/repositories/machine-repository-impl";
 import {
     SessionOwnershipRepositoryImpl,
 } from "../../../infrastructure/repositories/session-ownership-repository-impl";
@@ -66,9 +76,10 @@ import { sessionIdUrlRedaction } from "../session-route-redaction";
 
 import { InternalAgentController } from "./controllers/agent/agent-controller";
 import { InternalEnvironmentsController } from "./controllers/environments/environments-controller";
-import { InternalMachineLeasesController } from "./controllers/machine-leases/machine-leases-controller";
+import { InternalMachineRegistrationController } from "./controllers/machines/machine-registration-controller";
+import { InternalMachinesController } from "./controllers/machines/machines-controller";
 import { InternalAgentTokenGuard } from "./guards/internal-agent-token-guard";
-import { InternalLeaseTokenGuard } from "./guards/internal-lease-token-guard";
+import { InternalMachineTokenGuard } from "./guards/internal-machine-token-guard";
 
 @Module({
     imports: [
@@ -81,7 +92,8 @@ import { InternalLeaseTokenGuard } from "./guards/internal-lease-token-guard";
     controllers: [
         InternalEnvironmentsController,
         InternalAgentController,
-        InternalMachineLeasesController,
+        InternalMachinesController,
+        InternalMachineRegistrationController,
     ],
     providers: [
         RecordEnvironmentHeartbeatUseCase,
@@ -89,11 +101,16 @@ import { InternalLeaseTokenGuard } from "./guards/internal-lease-token-guard";
         UploadSessionVideoUseCase,
         GetApplicationArtifactUseCase,
         { provide: RemoteArtifactGateway, useClass: HttpRemoteArtifactGateway },
+        RegisterMachineUseCase,
+        SyncMachineUseCase,
         RecordLeaseHeartbeatUseCase,
+        GetMachineLeaseUseCase,
+        { provide: MachinePoolGateway, useClass: InProcessMachinePoolGateway },
 
         { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
         { provide: SessionOwnershipRepository, useClass: SessionOwnershipRepositoryImpl },
         { provide: MachineLeaseRepository, useClass: MachineLeaseRepositoryImpl },
+        { provide: MachineRepository, useClass: MachineRepositoryImpl },
         StorageDestinationRepositoryProvider,
         ObjectStorageGatewayProvider,
 
@@ -101,13 +118,16 @@ import { InternalLeaseTokenGuard } from "./guards/internal-lease-token-guard";
         SessionOwnershipDataSource,
         StorageDestinationDataSource,
         MachineLeaseDataSource,
+        MachineDataSource,
         AgentTokenServiceProvider,
-        LeaseTokenServiceProvider,
+        MachineTokenServiceProvider,
+        RegistrationTokenServiceProvider,
+        SlotCapacityPolicyProvider,
 
-        // Two token audiences guard two caller kinds: environment agents (their controllers) and host
-        // agents (the hosts controller); each controller declares its guard, there is no global one.
+        // Two token audiences guard two caller kinds: environment agents (their controllers) and machine
+        // agents (the machines controller); each controller declares its guard, there is no global one.
         InternalAgentTokenGuard,
-        InternalLeaseTokenGuard,
+        InternalMachineTokenGuard,
 
         // A session id is a capability secret; mask it out of request logs (session log/video upload routes).
         { provide: UrlRedactions, useValue: [sessionIdUrlRedaction] },

@@ -7,25 +7,21 @@ import {
     MachineProviderGateway,
 } from "../../../application/interfaces/gateways/machine-provider-gateway";
 import { InternalError } from "../../../domain/entities/error/internal-error";
+import { Headroom } from "../../../domain/entities/machine-pool/headroom";
 import { MachineLease } from "../../../domain/entities/machine-pool/machine-lease";
+import { ProvisionedMachine } from "../../../domain/entities/machine-pool/provisioned-machine";
 
-// The routing discriminator inside the otherwise-opaque provider context/config: the CLOUD TYPE the
-// machines come from — no vocabulary of its own, clouds are already the "who provides resources"
-// axis. The bridge stamps it from the binding's cloud account when placing (and probing), every host
-// row carries it in providerContext from birth — so any later call (return, orphan sweep) still knows
-// a machine's cloud even after the binding is gone.
-export const machineProviderCloudKey = "cloud";
+import { machineProviderCloudKey } from "./machine-provider-context";
 
 // One MachineProviderGateway over many clouds-with-big-machines, dispatching by the context's cloud type
 // — the pool's use cases stay single-ported and never learn which cloud a machine lives in (mirrors
-// RoutingEnvironmentProviderGateway). Adapter CLASSES are named by mechanism (byo, yandex-baremetal)
-// and reusable: a future cloud type may plug an existing class under its own key.
+// RoutingEnvironmentProviderGateway).
 export class RoutingMachineProviderGateway extends MachineProviderGateway {
     constructor(private readonly providers: Map<string, MachineProviderGateway>) {
         super();
     }
 
-    async provision(lease: MachineLease): Promise<void> {
+    async provision(lease: MachineLease): Promise<ProvisionedMachine> {
         return this.at(lease.providerContext).provision(lease);
     }
 
@@ -35,6 +31,10 @@ export class RoutingMachineProviderGateway extends MachineProviderGateway {
 
     async listLeaseIds(config: MachineProviderConfig): Promise<Array<string>> {
         return this.at(config).listLeaseIds(config);
+    }
+
+    async headroom(config: MachineProviderConfig): Promise<Headroom> {
+        return this.at(config).headroom(config);
     }
 
     async checkAccess(config: MachineProviderConfig): Promise<CloudReachability> {
@@ -50,7 +50,7 @@ export class RoutingMachineProviderGateway extends MachineProviderGateway {
         const provider = typeof cloud === "string" ? this.providers.get(cloud) : undefined;
 
         if (!provider) {
-            throw new InternalError(`lease provider: no machines source for cloud ${String(cloud)}`);
+            throw new InternalError(`machine provider: no machines source for cloud ${String(cloud)}`);
         }
 
         return provider;

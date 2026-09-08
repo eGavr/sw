@@ -7,6 +7,8 @@ export type YandexBaremetalShape = {
     zone: string;
     subnetId?: string;
     internalUrl: string;
+    // Slots one leased server is worth (its configuration is fixed per install: e.g. 48 cores / 4).
+    slotsPerMachine: number;
 };
 
 // The binding's opaque config, read the yandex-baremetal way: the folder is the BYOC delegation

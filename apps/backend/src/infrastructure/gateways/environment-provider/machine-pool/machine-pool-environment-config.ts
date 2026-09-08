@@ -22,7 +22,7 @@ export type BuildMachinePoolEnvironmentConfigOptions = {
     sessionTimeoutSeconds: number;
 };
 
-export const defaultSlotsPerHost = 12;
+export const defaultSlotsPerMachine = 12;
 // AVDs are named by API level in the golden image (system images are published by API level).
 export const defaultPoolAndroidVersion = "34";
 

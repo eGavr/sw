@@ -7,6 +7,7 @@ import { IdleLeaseCriteria } from "./idle-lease-criteria";
 import { MachineLeaseId } from "./machine-lease-id";
 import { MachineLeaseState, placeableMachineLeaseStates } from "./machine-lease-state";
 import { MachinePoolKey } from "./machine-pool-key";
+import { ProvisionedMachine } from "./provisioned-machine";
 import { ReturnableLeaseCriteria } from "./returnable-lease-criteria";
 import { SilentLeaseCriteria } from "./silent-lease-criteria";
 import { SlotAssignment, SlotAssignmentData, WorkloadLaunch } from "./slot-assignment";
@@ -23,6 +24,7 @@ export type MachineLeaseData = {
     cloudAccountId: string;
     bindingId: string;
     state: string;
+    machineId: string | null;
     slotCapacity: number;
     hostIp: string | null;
     providerContext: MachineLeaseProviderContext;
@@ -35,6 +37,7 @@ export type MachineLeaseData = {
 
 export type MachineLeaseCreateParams = {
     poolKey: MachinePoolKey;
+    // The pool's estimate of a machine's slots, good until the machine arrives with its real capacity.
     slotCapacity: number;
     providerContext?: MachineLeaseProviderContext;
 };
@@ -43,6 +46,7 @@ type MachineLeaseConstructorParams = {
     id?: MachineLeaseId;
     poolKey: MachinePoolKey;
     state?: MachineLeaseState;
+    machineId?: string | null;
     slotCapacity: number;
     hostIp?: string | null;
     providerContext?: MachineLeaseProviderContext;
@@ -53,21 +57,23 @@ type MachineLeaseConstructorParams = {
     updatedAt?: Date;
 };
 
-// One big rented machine of a pool, sliced into slots. The capacity invariant lives here: a assignment
-// occupies exactly one slot, and the aggregate refuses to overbook. The host's own agent drives the
-// slots (it polls for the desired set), so this aggregate only decides WHO sits WHERE — never how a
-// slot is launched.
+// The pool's hold on one machine, sliced into slots. The capacity invariant lives here: an assignment
+// occupies exactly one slot, and the aggregate refuses to overbook. The machine's own agent drives
+// the slots (it syncs for the desired set), so this aggregate only decides WHO sits WHERE — never how
+// a slot is launched. A lease is born `enqueued` with the pool's estimate of a machine's slots (so a
+// burst of environments packs onto one lease instead of ordering one machine each); the real capacity
+// arrives with the machine the cloud hands it.
 export class MachineLease {
     static create(params: MachineLeaseCreateParams): MachineLease {
-        if (!Number.isInteger(params.slotCapacity)
-            || params.slotCapacity < 1
-            || params.slotCapacity > SlotPorts.maxSlots) {
-            throw new InvalidArgumentError(
-                `lease capacity must be 1..${SlotPorts.maxSlots} slots, got ${params.slotCapacity}`,
-            );
-        }
+        MachineLease.validateCapacity(params.slotCapacity);
 
         return new MachineLease(params);
+    }
+
+    private static validateCapacity(slotCapacity: number): void {
+        if (!Number.isInteger(slotCapacity) || slotCapacity < 1 || slotCapacity > SlotPorts.maxSlots) {
+            throw new InvalidArgumentError(`lease capacity must be 1..${SlotPorts.maxSlots} slots, got ${slotCapacity}`);
+        }
     }
 
     static fromObject(data: MachineLeaseData): MachineLease {
@@ -75,6 +81,7 @@ export class MachineLease {
             id: MachineLeaseId.fromString(data.id),
             poolKey: new MachinePoolKey(data.cloudAccountId, data.bindingId),
             state: data.state as MachineLeaseState,
+            machineId: data.machineId ?? null,
             slotCapacity: data.slotCapacity,
             hostIp: data.hostIp ?? null,
             providerContext: data.providerContext ?? {},
@@ -86,13 +93,14 @@ export class MachineLease {
         });
     }
 
-    readonly slotCapacity: number;
     readonly createdAt: Date;
 
     private readonly _id: MachineLeaseId;
     private readonly _poolKey: MachinePoolKey;
     private readonly _providerContext: MachineLeaseProviderContext;
     private _state: MachineLeaseState;
+    private _machineId: string | null;
+    private _slotCapacity: number;
     private _hostIp: string | null;
     private _lastSeenAt: Date | null;
     private _lastEmptiedAt: Date;
@@ -102,8 +110,9 @@ export class MachineLease {
     private constructor(params: MachineLeaseConstructorParams) {
         this._id = params.id ?? MachineLeaseId.create();
         this._poolKey = params.poolKey;
-        this._state = params.state ?? MachineLeaseState.Ordering;
-        this.slotCapacity = params.slotCapacity;
+        this._state = params.state ?? MachineLeaseState.Enqueued;
+        this._machineId = params.machineId ?? null;
+        this._slotCapacity = params.slotCapacity;
         this._hostIp = params.hostIp ?? null;
         this._providerContext = params.providerContext ?? {};
         this._lastSeenAt = params.lastSeenAt ?? null;
@@ -124,6 +133,14 @@ export class MachineLease {
 
     get state(): MachineLeaseState {
         return this._state;
+    }
+
+    get machineId(): string | null {
+        return this._machineId;
+    }
+
+    get slotCapacity(): number {
+        return this._slotCapacity;
     }
 
     get hostIp(): string | null {
@@ -159,7 +176,30 @@ export class MachineLease {
     }
 
     hasFreeSlot(): boolean {
-        return this._placements.length < this.slotCapacity;
+        return this._placements.length < this._slotCapacity;
+    }
+
+    // The worker took the lease to provision: the one transition that decides which of N workers asks
+    // the cloud (it runs under the row lock, so exactly one caller sees `enqueued`).
+    markOrdering(): void {
+        if (this._state !== MachineLeaseState.Enqueued) {
+            throw new InvalidMachineLeaseStateTransitionError(this._state, MachineLeaseState.Ordering);
+        }
+        this._state = MachineLeaseState.Ordering;
+        this.touch();
+    }
+
+    // The cloud handed the lease its machine: from now on the lease is worth that machine's slots and
+    // waits for the machine's agent to sync. A machine that synced before this landed (the claim and
+    // this write are two steps) already made the lease ready — only the machine and capacity are adopted.
+    adoptMachine(machine: ProvisionedMachine): void {
+        MachineLease.validateCapacity(machine.slotCapacity);
+        this._machineId = machine.machineId;
+        this._slotCapacity = Math.max(machine.slotCapacity, this._placements.length);
+        if (this._state === MachineLeaseState.Enqueued) {
+            this._state = MachineLeaseState.Ordering;
+        }
+        this.touch();
     }
 
     // Seat an environment on this host. Idempotent per environment (a provisioning retry gets its
@@ -176,7 +216,7 @@ export class MachineLease {
         }
 
         if (!this.hasFreeSlot()) {
-            throw new MachineLeaseCapacityExceededError(this.id, this.slotCapacity);
+            throw new MachineLeaseCapacityExceededError(this.id, this._slotCapacity);
         }
 
         const assignment = SlotAssignment.create({
@@ -283,7 +323,7 @@ export class MachineLease {
     // The first check-in flips a host to ready, so age in `ordering` is exactly how long the hand-over
     // has been pending; past the allowance the order is written off (and returned, in case it half-exists).
     writeOffIfStuckOrdering(criteria: StuckOrderingCriteria): void {
-        if (this._state !== criteria.toPredicate().state) {
+        if (!criteria.toPredicate().states.includes(this._state)) {
             return;
         }
 
@@ -305,7 +345,8 @@ export class MachineLease {
             cloudAccountId: this._poolKey.cloudAccountId,
             bindingId: this._poolKey.bindingId,
             state: this._state,
-            slotCapacity: this.slotCapacity,
+            machineId: this._machineId,
+            slotCapacity: this._slotCapacity,
             hostIp: this._hostIp,
             providerContext: { ...this._providerContext },
             lastSeenAt: this._lastSeenAt,

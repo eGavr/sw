@@ -24,6 +24,10 @@ export class RoutingEnvironmentProviderGateway extends EnvironmentProviderGatewa
         super();
     }
 
+    async reserve(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
+        return this.gatewayFor(environment).reserve(environment, cloudAccount);
+    }
+
     async provision(environment: Environment, cloudAccount: CloudAccount | null): Promise<void> {
         await this.gatewayFor(environment).provision(environment, cloudAccount);
     }

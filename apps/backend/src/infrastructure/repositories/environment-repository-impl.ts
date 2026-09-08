@@ -199,4 +199,8 @@ export class EnvironmentRepositoryImpl extends EnvironmentRepository {
     async save(environment: Environment): Promise<void> {
         await this.environmentDataSource.save(environment);
     }
+
+    async delete(environmentId: EnvironmentId): Promise<void> {
+        await this.environmentDataSource.delete(environmentId.getValue());
+    }
 }

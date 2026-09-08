@@ -16,6 +16,7 @@ import {
 import {
     MachineLeaseRepository,
 } from "../../../../../../../src/application/interfaces/repositories/machine-lease-repository";
+import { MachineRepository } from "../../../../../../../src/application/interfaces/repositories/machine-repository";
 import {
     ProjectRepository,
 } from "../../../../../../../src/application/interfaces/repositories/project-repository";
@@ -25,9 +26,13 @@ import {
 import {
     ReconcileMachinePoolUseCase,
 } from "../../../../../../../src/application/use-cases/machine-pool/reconcile-machine-pool-use-case";
+import { DiscardMachineUseCase } from "../../../../../../../src/application/use-cases/machines/discard-machine-use-case";
+import { EnlistMachineUseCase } from "../../../../../../../src/application/use-cases/machines/enlist-machine-use-case";
 import { CloudAccount } from "../../../../../../../src/domain/entities/cloud-account/cloud-account";
+import { Stereotype } from "../../../../../../../src/domain/entities/cloud-account/stereotype";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
 import { EnvironmentId } from "../../../../../../../src/domain/entities/environment/environment-id";
+import { Execution } from "../../../../../../../src/domain/entities/environment/execution";
 import { Platform } from "../../../../../../../src/domain/entities/environment/platform/platform";
 import { MachineLease } from "../../../../../../../src/domain/entities/machine-pool/machine-lease";
 import { MachineLeaseId } from "../../../../../../../src/domain/entities/machine-pool/machine-lease-id";
@@ -41,6 +46,7 @@ import {
 import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
+import { MachineDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/machine-data-source";
 import {
     MachineLeaseDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/machine-lease-data-source";
@@ -51,14 +57,17 @@ import {
     PostgresModule,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/typeorm/postgres-module";
 import {
+    stampProviderContext,
+} from "../../../../../../../src/infrastructure/gateways/machine-provider/machine-provider-context";
+import {
     YandexBaremetalClient,
 } from "../../../../../../../src/infrastructure/gateways/machine-provider/yandex-baremetal/yandex-baremetal-client";
 import {
     YandexBaremetalMachineProvider,
 } from "../../../../../../../src/infrastructure/gateways/machine-provider/yandex-baremetal/yandex-baremetal-machine-provider";
 import {
-    Hs256LeaseTokenService,
-} from "../../../../../../../src/infrastructure/lease-token/hs256-lease-token-service";
+    RegistrationTokenServiceProvider,
+} from "../../../../../../../src/infrastructure/registration-token/registration-token-service-provider";
 import {
     CloudAccountRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/cloud-account-repository-impl";
@@ -68,6 +77,7 @@ import {
 import {
     MachineLeaseRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/machine-lease-repository-impl";
+import { MachineRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/machine-repository-impl";
 import {
     ProjectRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
@@ -121,14 +131,27 @@ describe("machine-pool reconcile", () => {
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 { provide: CloudAccountRepository, useClass: CloudAccountRepositoryImpl },
                 { provide: MachineLeaseRepository, useClass: MachineLeaseRepositoryImpl },
+                { provide: MachineRepository, useClass: MachineRepositoryImpl },
+                MachineDataSource,
+                RegistrationTokenServiceProvider,
+                EnlistMachineUseCase,
+                DiscardMachineUseCase,
                 { provide: ApplicationLogger, useValue: noopLogger },
                 {
                     provide: MachineProviderGateway,
-                    useValue: new YandexBaremetalMachineProvider(
-                        client,
-                        { configurationId: "test-configuration", zone: "ru-central1-m", internalUrl: "http://cp:3002" },
-                        new Hs256LeaseTokenService(new TextEncoder().encode("test-internal-secret"), 3600),
-                    ),
+                    useFactory: (enlist: EnlistMachineUseCase, discard: DiscardMachineUseCase): MachineProviderGateway =>
+                        new YandexBaremetalMachineProvider(
+                            client,
+                            {
+                                configurationId: "test-configuration",
+                                zone: "ru-central1-m",
+                                internalUrl: "http://cp:3002",
+                                slotsPerMachine: 2,
+                            },
+                            enlist,
+                            discard,
+                        ),
+                    inject: [EnlistMachineUseCase, DiscardMachineUseCase],
                 },
             ],
         }).compile();
@@ -178,7 +201,14 @@ describe("machine-pool reconcile", () => {
         return environment.id;
     };
 
-    const seedHost = async (poolKey: MachinePoolKey, providerContext = { folderId }): Promise<MachineLease> => {
+    // A lease's whereabouts as the bridge stamps them: the folder, the cloud, the account, the stereotype.
+    const contextOf = (poolKey: MachinePoolKey): Record<string, unknown> => stampProviderContext(
+        { folderId },
+        { type: "yandex-cloud", id: poolKey.cloudAccountId },
+        new Stereotype("android", Execution.Emulator),
+    );
+
+    const seedHost = async (poolKey: MachinePoolKey, providerContext = contextOf(poolKey)): Promise<MachineLease> => {
         return machineLeaseRepository.create({ poolKey, slotCapacity: 2, providerContext });
     };
 
@@ -285,8 +315,8 @@ describe("machine-pool reconcile", () => {
             environmentId: EnvironmentId.fromString(environmentId),
             poolKey,
             slotCapacity: 2,
-            maxHosts: 2,
-            providerContext: { folderId },
+            maxLeases: 2,
+            providerContext: contextOf(poolKey),
             launch: { avd: "sw-android-14" },
         });
 

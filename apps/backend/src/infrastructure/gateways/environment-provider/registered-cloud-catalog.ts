@@ -7,6 +7,7 @@ import {
 import { Stereotype } from "../../../domain/entities/cloud-account/stereotype";
 import { Execution } from "../../../domain/entities/environment/execution";
 import { InternalError } from "../../../domain/entities/error/internal-error";
+import { selfHostedCloudType } from "../../../domain/entities/machine/self-hosted-cloud-type";
 
 // The install's published compute identity the user grants roles to on their own cloud (delegated BYOC).
 // Optional: a dev/local install has none and its catalogue simply lists no grants. The storage identity is
@@ -56,14 +57,18 @@ function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArr
         : [];
 
     return new Map<string, ReadonlyArray<SubstrateOffer>>([
-        // The machine sw itself runs on — the operator's own hardware, so no config and no ownership
-        // proof for either kind: browsers run through its docker daemon, android emulators as slots of
-        // the machine itself (a dev Mac IS bare metal; the operator starts the host agent by hand).
+        // The machine sw itself runs on: browsers through its docker daemon, no config and no ownership
+        // proof. Its emulator slots are a self-hosted matter now (attach the box as a machine).
         ["local", [
             {
                 stereotype: new Stereotype("ubuntu", Execution.Container),
                 compute: [{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }],
             },
+        ]],
+        // The user's own machines: attached one by one, each running our machine agent, sliced into
+        // slots by the pool exactly like leased metal. Nothing to name and nothing to grant — running the
+        // agent with a token the user generated IS the access and the proof.
+        [selfHostedCloudType, [
             {
                 stereotype: new Stereotype("android", Execution.Emulator),
                 compute: [{ kind: "baremetal", requiredConfig: [], grants: [], ownershipProof: "none" }],

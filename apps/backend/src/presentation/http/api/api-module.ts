@@ -4,12 +4,14 @@ import { BadRequestException, MiddlewareConsumer, Module, NestModule, Validation
 import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 
+import { MachinePoolGateway } from "../../../application/interfaces/gateways/machine-pool-gateway";
 import {
     WebDriverSessionGateway,
 } from "../../../application/interfaces/gateways/webdriver-session-gateway";
 import { CloudAccountRepository } from "../../../application/interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
 import { MachineLeaseRepository } from "../../../application/interfaces/repositories/machine-lease-repository";
+import { MachineRepository } from "../../../application/interfaces/repositories/machine-repository";
 import {
     NetBridgeCredentialRepository,
 } from "../../../application/interfaces/repositories/net-bridge-credential-repository";
@@ -58,8 +60,25 @@ import { CreateEnvironmentUseCase } from "../../../application/use-cases/environ
 import { DeleteEnvironmentUseCase } from "../../../application/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../application/use-cases/environments/get-environment-use-case";
 import { ListEnvironmentsUseCase } from "../../../application/use-cases/environments/list-environments-use-case";
+import { GetMachineLeaseUseCase } from "../../../application/use-cases/machine-pool/get-machine-lease-use-case";
 import { PlaceWorkloadUseCase } from "../../../application/use-cases/machine-pool/place-workload-use-case";
+import { RecordLeaseHeartbeatUseCase } from "../../../application/use-cases/machine-pool/record-lease-heartbeat-use-case";
 import { ReleaseWorkloadUseCase } from "../../../application/use-cases/machine-pool/release-workload-use-case";
+import { AttachMachineUseCase } from "../../../application/use-cases/machines/attach-machine-use-case";
+import { ClaimMachineUseCase } from "../../../application/use-cases/machines/claim-machine-use-case";
+import { DetachMachineUseCase } from "../../../application/use-cases/machines/detach-machine-use-case";
+import { DiscardMachineUseCase } from "../../../application/use-cases/machines/discard-machine-use-case";
+import { EnlistMachineUseCase } from "../../../application/use-cases/machines/enlist-machine-use-case";
+import {
+    GenerateRegistrationTokenUseCase,
+} from "../../../application/use-cases/machines/generate-registration-token-use-case";
+import { GetMachineUseCase } from "../../../application/use-cases/machines/get-machine-use-case";
+import { ListMachineLeaseIdsUseCase } from "../../../application/use-cases/machines/list-machine-lease-ids-use-case";
+import { ListMachinesUseCase } from "../../../application/use-cases/machines/list-machines-use-case";
+import { MachineAccess } from "../../../application/use-cases/machines/machine-access";
+import { MeasureHeadroomUseCase } from "../../../application/use-cases/machines/measure-headroom-use-case";
+import { ReleaseMachineUseCase } from "../../../application/use-cases/machines/release-machine-use-case";
+import { SetMachineAdmissionUseCase } from "../../../application/use-cases/machines/set-machine-admission-use-case";
 import {
     CreateNetBridgeCredentialUseCase,
 } from "../../../application/use-cases/net-bridge-credentials/create-net-bridge-credential-use-case";
@@ -133,6 +152,7 @@ import {
     CloudAccountDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/cloud-account-data-source";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
+import { MachineDataSource } from "../../../infrastructure/data-sources/database/postgres/machine-data-source";
 import {
     MachineLeaseDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/machine-lease-data-source";
@@ -157,6 +177,7 @@ import {
 import {
     RegisteredCloudCatalogProvider,
 } from "../../../infrastructure/gateways/environment-provider/registered-cloud-catalog-provider";
+import { InProcessMachinePoolGateway } from "../../../infrastructure/gateways/machine-pool/in-process-machine-pool-gateway";
 import {
     MachineProviderGatewayProvider,
 } from "../../../infrastructure/gateways/machine-provider/machine-provider-gateway-provider";
@@ -167,14 +188,19 @@ import { WebDriverClient } from "../../../infrastructure/gateways/webdriver-sess
 import {
     WebDriverSessionGatewayImpl,
 } from "../../../infrastructure/gateways/webdriver-session/webdriver-session-gateway-impl";
-import { LeaseTokenServiceProvider } from "../../../infrastructure/lease-token/lease-token-service-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
+import { MachineInstallConfigProvider } from "../../../infrastructure/machines/machine-install-config";
+import { SlotCapacityPolicyProvider } from "../../../infrastructure/machines/slot-capacity-policy-provider";
 import {
     EnvironmentQuotaPolicyProvider,
 } from "../../../infrastructure/quota/environment-quota-policy-provider";
+import {
+    RegistrationTokenServiceProvider,
+} from "../../../infrastructure/registration-token/registration-token-service-provider";
 import { CloudAccountRepositoryImpl } from "../../../infrastructure/repositories/cloud-account-repository-impl";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
 import { MachineLeaseRepositoryImpl } from "../../../infrastructure/repositories/machine-lease-repository-impl";
+import { MachineRepositoryImpl } from "../../../infrastructure/repositories/machine-repository-impl";
 import {
     NetBridgeCredentialRepositoryImpl,
 } from "../../../infrastructure/repositories/net-bridge-credential-repository-impl";
@@ -201,6 +227,7 @@ import { CloudAccountsController } from "./controllers/cloud-accounts/cloud-acco
 import { CloudTypesController } from "./controllers/cloud-types/cloud-types-controller";
 import { ComputeBindingsController } from "./controllers/compute-bindings/compute-bindings-controller";
 import { EnvironmentsController } from "./controllers/environments/environments-controller";
+import { MachinesController } from "./controllers/machines/machines-controller";
 import {
     NetBridgeCredentialsController,
 } from "./controllers/net-bridge-credentials/net-bridge-credentials-controller";
@@ -230,6 +257,7 @@ import {
         EnvironmentsController,
         CloudAccountsController,
         ComputeBindingsController,
+        MachinesController,
         CloudTypesController,
         PlatformsController,
         ProjectApplicationsController,
@@ -263,6 +291,27 @@ import {
         DeleteCloudAccountUseCase,
         TestComputeBindingAccessUseCase,
         CloudAccountAccess,
+        MachineAccess,
+        AttachMachineUseCase,
+        GenerateRegistrationTokenUseCase,
+        GetMachineUseCase,
+        ListMachinesUseCase,
+        DetachMachineUseCase,
+        SetMachineAdmissionUseCase,
+        ClaimMachineUseCase,
+        ReleaseMachineUseCase,
+        ListMachineLeaseIdsUseCase,
+        MeasureHeadroomUseCase,
+        EnlistMachineUseCase,
+        DiscardMachineUseCase,
+        RecordLeaseHeartbeatUseCase,
+        GetMachineLeaseUseCase,
+        { provide: MachinePoolGateway, useClass: InProcessMachinePoolGateway },
+        { provide: MachineRepository, useClass: MachineRepositoryImpl },
+        MachineDataSource,
+        RegistrationTokenServiceProvider,
+        SlotCapacityPolicyProvider,
+        MachineInstallConfigProvider,
         CreateComputeBindingUseCase,
         UpdateComputeBindingUseCase,
         DeleteComputeBindingUseCase,
@@ -316,7 +365,6 @@ import {
         ReleaseWorkloadUseCase,
         { provide: MachineLeaseRepository, useClass: MachineLeaseRepositoryImpl },
         MachineProviderGatewayProvider,
-        LeaseTokenServiceProvider,
 
         ProjectDataSource,
         EnvironmentDataSource,

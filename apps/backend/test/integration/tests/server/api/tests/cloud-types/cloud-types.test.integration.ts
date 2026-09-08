@@ -35,6 +35,12 @@ describe("/cloudTypes", () => {
                         execution: "container",
                         compute: [{ kind: "docker", requiredConfig: [], grants: [], ownershipProof: "none" }],
                     },
+                ],
+            },
+            {
+                name: "cloudTypes/self-hosted",
+                type: "self-hosted",
+                provides: [
                     {
                         platform: "android",
                         execution: "emulator",

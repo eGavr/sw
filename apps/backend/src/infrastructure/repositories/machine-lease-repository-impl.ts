@@ -7,6 +7,7 @@ import { MachineLease } from "../../domain/entities/machine-pool/machine-lease";
 import { MachineLeaseId } from "../../domain/entities/machine-pool/machine-lease-id";
 import { placeableMachineLeaseStates } from "../../domain/entities/machine-pool/machine-lease-state";
 import { MachinePoolKey } from "../../domain/entities/machine-pool/machine-pool-key";
+import { PoolLimits } from "../../domain/entities/machine-pool/pool-limits";
 import { MachineLeaseDataSource } from "../data-sources/database/postgres/machine-lease-data-source";
 
 @Injectable()
@@ -33,6 +34,12 @@ export class MachineLeaseRepositoryImpl extends MachineLeaseRepository {
         return MachineLease.fromObject(data);
     }
 
+    async find(leaseId: MachineLeaseId): Promise<MachineLease | null> {
+        const data = await this.machineLeaseDataSource.findOne(leaseId.getValue());
+
+        return data ? MachineLease.fromObject(data) : null;
+    }
+
     async findByEnvironment(environmentId: EnvironmentId): Promise<MachineLease | null> {
         const data = await this.machineLeaseDataSource.findByEnvironment(environmentId.getValue());
 
@@ -53,15 +60,17 @@ export class MachineLeaseRepositoryImpl extends MachineLeaseRepository {
 
     async placeOrCreate(
         poolKey: MachinePoolKey,
+        environmentId: EnvironmentId,
         mutate: (lease: MachineLease) => void,
         build: () => MachineLease,
-        maxHosts: number,
+        limits: PoolLimits,
     ): Promise<{ lease: MachineLease; created: boolean } | null> {
         const result = await this.machineLeaseDataSource.placeOrCreate(
             {
                 cloudAccountId: poolKey.cloudAccountId,
                 bindingId: poolKey.bindingId,
                 states: placeableMachineLeaseStates,
+                environmentId: environmentId.getValue(),
             },
             (row) => {
                 const lease = MachineLease.fromObject(row);
@@ -71,7 +80,7 @@ export class MachineLeaseRepositoryImpl extends MachineLeaseRepository {
                 return lease.toObject();
             },
             () => build().toObject(),
-            maxHosts,
+            limits,
         );
 
         return result ? { lease: MachineLease.fromObject(result.data), created: result.created } : null;
