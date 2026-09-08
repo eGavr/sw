@@ -73,6 +73,13 @@ function offersByType(identities: DelegationIdentities): Map<string, ReadonlyArr
                 stereotype: new Stereotype("android", Execution.Emulator),
                 compute: [{ kind: "baremetal", requiredConfig: [], grants: [], ownershipProof: "none" }],
             },
+            // The same machines also run browser slots — their docker, our linux base image. A machine
+            // declares every stereotype it can serve; which one it serves at a given time is decided by
+            // the pool that leases it (one lease at a time, so slots on a box are all of one kind).
+            {
+                stereotype: new Stereotype("ubuntu", Execution.Container),
+                compute: [{ kind: "baremetal", requiredConfig: [], grants: [], ownershipProof: "none" }],
+            },
         ]],
         ["yandex-cloud", [
             {

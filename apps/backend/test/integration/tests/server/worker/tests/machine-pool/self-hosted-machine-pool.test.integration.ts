@@ -94,6 +94,7 @@ import { UserFactory } from "../../../utils/entities/user/user-factory";
 
 const noopLogger = { log: (): void => undefined, warn: (): void => undefined, error: (): void => undefined };
 const androidEmulator = new Stereotype("android", Execution.Emulator);
+const ubuntuContainer = new Stereotype("ubuntu", Execution.Container);
 const policy = new SlotCapacityPolicy(4, 16);
 
 // The self-hosted cloud under the pool: the worker's provision takes a free attached machine for the
@@ -167,7 +168,7 @@ describe("machine pool on self-hosted machines", () => {
 
     type Seeded = { projectId: string; cloudAccountId: string };
 
-    const seedSelfHostedCloud = async (): Promise<Seeded> => {
+    const seedSelfHostedCloud = async (stereotype: Stereotype = androidEmulator): Promise<Seeded> => {
         const externalId = UserFactory.createId();
         const project = await projectRepository.create({
             name: `team-${externalId}`,
@@ -182,8 +183,8 @@ describe("machine pool on self-hosted machines", () => {
         });
 
         cloudAccount.bindCompute({
-            platformName: "android",
-            execution: Execution.Emulator,
+            platformName: stereotype.platformName,
+            execution: stereotype.execution,
             kind: "baremetal",
             config: { maxEnvironments: 4 },
         });
@@ -193,8 +194,12 @@ describe("machine pool on self-hosted machines", () => {
     };
 
     // A machine the way the agent leaves it after registration: online, fit, eight cores = two slots.
-    const seedReadyMachine = async (cloudAccountId: string, fqdn: string): Promise<Machine> => {
-        const machine = Machine.attach({ cloudAccountId, origin: MachineOrigin.Attached, fqdn, provides: [androidEmulator] });
+    const seedReadyMachine = async (
+        cloudAccountId: string,
+        fqdn: string,
+        stereotype: Stereotype = androidEmulator,
+    ): Promise<Machine> => {
+        const machine = Machine.attach({ cloudAccountId, origin: MachineOrigin.Attached, fqdn, provides: [stereotype] });
 
         machine.expectRegistration("hash", new Date(Date.now() + 60_000));
         machine.register("hash", MachineFacts.fromObject({
@@ -203,7 +208,7 @@ describe("machine pool on self-hosted machines", () => {
             virtualization: "kvm",
             emulator: true,
             avds: ["sw-android-14"],
-            docker: false,
+            docker: true,
             vncStack: true,
             agentVersion: "1",
             address: null,
@@ -213,14 +218,17 @@ describe("machine pool on self-hosted machines", () => {
         return machine;
     };
 
-    const createEnvironment = async (seeded: Seeded): Promise<string> => {
+    const createEnvironment = async (seeded: Seeded, stereotype: Stereotype = androidEmulator): Promise<string> => {
+        const android = stereotype.platformName === "android";
         const environment = await environmentRepository.create({
             projectId: ProjectId.fromString(seeded.projectId),
             cloudAccountId: CloudAccountId.fromString(seeded.cloudAccountId),
             cloudType: selfHostedCloudType,
             computeKind: "baremetal",
-            platform: Platform.fromObject({ name: "android", version: "14", deviceModel: "pixel-7" }),
-            execution: Execution.Emulator,
+            platform: Platform.fromObject(android
+                ? { name: "android", version: "14", deviceModel: "pixel-7" }
+                : { name: "ubuntu", version: "24.04", deviceModel: "desktop" }),
+            execution: stereotype.execution,
             applications: ApplicationList.fromObject([{ nameAlias: "chrome" }]),
         });
 
@@ -272,6 +280,35 @@ describe("machine pool on self-hosted machines", () => {
         expect(environment.state).toBe(EnvironmentState.Preparing);
     });
 
+    // The pool is not the emulator's: the same machines take browser seats, and the launch descriptor
+    // the agent receives is the linux node's — image of the platform version, node env, agent bootstrap.
+    test("a machine that serves browsers gets a container slot instead of an emulator one", async () => {
+        const seeded = await seedSelfHostedCloud(ubuntuContainer);
+        const machine = await seedReadyMachine(seeded.cloudAccountId, "box-1.lab", ubuntuContainer);
+        const envId = await createEnvironment(seeded, ubuntuContainer);
+
+        await prepareNext();
+
+        const answer = await sync(machine);
+        expect(answer.assignments.map((assignment) => assignment.environmentId)).toEqual([envId]);
+
+        const launch = answer.assignments[0].launch as {
+            kind: string;
+            image: string;
+            containerPort: number;
+            command: string;
+            env: Record<string, string>;
+        };
+
+        expect(launch.kind).toBe("container");
+        expect(launch.image).toContain("24.04");
+        expect(launch.containerPort).toBe(4444);
+        expect(launch.command).toContain("agentScript:download");
+        expect(launch.env.SW_APPS).toBe("chrome~0~0");
+        expect(launch.env.SW_SCREEN_WIDTH).toBeDefined();
+        expect(launch).not.toHaveProperty("avd");
+    });
+
     test("a second environment packs onto the leased machine; a third one needs a second machine", async () => {
         const seeded = await seedSelfHostedCloud();
         const first = await seedReadyMachine(seeded.cloudAccountId, "box-1.lab");
@@ -291,6 +328,40 @@ describe("machine pool on self-hosted machines", () => {
         expect(leaseOfOne?.id).toBe(leaseOfTwo?.id);
         expect(leaseOfThree?.id).not.toBe(leaseOfOne?.id);
         expect(new Set([leaseOfOne?.machineId, leaseOfThree?.machineId])).toEqual(new Set([first.id, second.id]));
+    });
+
+    // The decided semantics: a machine may be ELIGIBLE for several platforms, but it works under ONE
+    // lease at a time. Once the emulator pool holds it, a browser environment has nowhere to go — it
+    // fails instead of waiting for a machine that is not coming.
+    test("a machine held by one platform's pool is not given to another platform", async () => {
+        const seeded = await seedSelfHostedCloud(androidEmulator);
+        const account = await cloudAccountRepository.get(CloudAccountId.fromString(seeded.cloudAccountId));
+
+        account.bindCompute({
+            platformName: "ubuntu",
+            execution: Execution.Container,
+            kind: "baremetal",
+            config: { maxEnvironments: 4 },
+        });
+        await cloudAccountRepository.save(account);
+
+        const machine = await seedReadyMachine(seeded.cloudAccountId, "box-1.lab");
+        machine.reprovide([androidEmulator, ubuntuContainer]);
+        await machineRepository.save(machine);
+
+        const emulatorEnvironment = await createEnvironment(seeded);
+        await prepareNext();
+
+        const held = await machineRepository.get(MachineId.fromString(machine.id));
+        expect(held.leaseId).not.toBeNull();
+
+        const browserEnvironment = await createEnvironment(seeded, ubuntuContainer);
+        await prepareNext();
+
+        expect((await environmentRepository.get(EnvironmentId.fromString(browserEnvironment))).state)
+            .toBe(EnvironmentState.Failed);
+        expect((await environmentRepository.get(EnvironmentId.fromString(emulatorEnvironment))).state)
+            .not.toBe(EnvironmentState.Failed);
     });
 
     test("with every machine spent, the next environment fails instead of waiting for a machine that cannot come", async () => {

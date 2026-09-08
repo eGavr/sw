@@ -79,6 +79,7 @@ import { MachineAccess } from "../../../application/use-cases/machines/machine-a
 import { MeasureHeadroomUseCase } from "../../../application/use-cases/machines/measure-headroom-use-case";
 import { ReleaseMachineUseCase } from "../../../application/use-cases/machines/release-machine-use-case";
 import { SetMachineAdmissionUseCase } from "../../../application/use-cases/machines/set-machine-admission-use-case";
+import { UpdateMachineUseCase } from "../../../application/use-cases/machines/update-machine-use-case";
 import {
     CreateNetBridgeCredentialUseCase,
 } from "../../../application/use-cases/net-bridge-credentials/create-net-bridge-credential-use-case";
@@ -298,6 +299,7 @@ import {
         ListMachinesUseCase,
         DetachMachineUseCase,
         SetMachineAdmissionUseCase,
+        UpdateMachineUseCase,
         ClaimMachineUseCase,
         ReleaseMachineUseCase,
         ListMachineLeaseIdsUseCase,

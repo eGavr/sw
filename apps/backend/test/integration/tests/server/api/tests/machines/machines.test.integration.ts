@@ -148,6 +148,39 @@ describe("/projects/:project/cloudAccounts/:cloudAccount/machines", () => {
             .expect(HttpStatus.BAD_REQUEST);
     });
 
+    // A box is not bought for one substrate: what it serves is the operator's declaration, editable
+    // without detaching (which would mean reinstalling the agent), and still bounded by what the cloud
+    // binds.
+    test("what a machine serves is editable in place, within the platforms the cloud binds", async () => {
+        const { owner, uid } = await seedProject();
+        const { account, machines } = await seedSelfHostedCloud(owner, uid);
+        const machine = (await attach(owner, machines, "box-1.lab").expect(HttpStatus.CREATED)).body;
+
+        expect(machine.provides).toEqual([{ platform: "android", execution: "emulator" }]);
+
+        await request(api.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${account}/computeBindings`).set(owner)
+            .send({ platform: "ubuntu", execution: "container", kind: "baremetal", config: { maxEnvironments: 2 } })
+            .expect(HttpStatus.CREATED);
+
+        const updated = (await request(api.getHttpServer())
+            .patch(`${machines}/${machine.uid}`).set(owner)
+            .send({ provides: [{ platform: "android", execution: "emulator" }, { platform: "ubuntu", execution: "container" }] })
+            .expect(HttpStatus.OK)).body;
+
+        expect(updated.provides).toEqual([
+            { platform: "android", execution: "emulator" },
+            { platform: "ubuntu", execution: "container" },
+        ]);
+
+        await request(api.getHttpServer()).patch(`${machines}/${machine.uid}`).set(owner)
+            .send({ provides: [{ platform: "windows", execution: "container" }] })
+            .expect(HttpStatus.BAD_REQUEST);
+        await request(api.getHttpServer()).patch(`${machines}/${machine.uid}`).set(owner)
+            .send({ provides: [] })
+            .expect(HttpStatus.BAD_REQUEST);
+    });
+
     test("registration spends the token once and brings the machine online with its facts judged", async () => {
         const { owner, uid } = await seedProject();
         const { machines } = await seedSelfHostedCloud(owner, uid);

@@ -717,6 +717,21 @@ export function detachMachine(project: string, cloudAccount: string, machine: st
   });
 }
 
+// Re-declare what an attached machine serves. Only stereotypes the cloud binds are accepted, and the
+// machine keeps whatever it currently holds — the pool returns that lease on its own clock.
+export function updateMachine(
+  project: string,
+  cloudAccount: string,
+  machine: string,
+  input: { provides: Array<Substrate> },
+): Promise<Machine> {
+  return swRequest<Machine>(`${machinesPath(project, cloudAccount)}/${machine}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
 export function generateMachineRegistrationToken(
   project: string,
   cloudAccount: string,

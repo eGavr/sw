@@ -125,6 +125,9 @@ export const EnvironmentProviderGatewayProvider = {
             // own attached machines).
             [routingKey("yandex-cloud", "android", Execution.Emulator, "baremetal"), machinePoolGateway],
             [routingKey(selfHostedCloudType, "android", Execution.Emulator, "baremetal"), machinePoolGateway],
+            // A machine is not one substrate's box: the same pool slices it into browser slots too, run
+            // by the machine's own docker. Same bridge, same seats — only the launch descriptor differs.
+            [routingKey(selfHostedCloudType, "ubuntu", Execution.Container, "baremetal"), machinePoolGateway],
             [routingKey("yandex-cloud", "ubuntu", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_BROWSER_FOLDER_ID")),
                 browserVmConfig(configService, idleTimeoutSeconds),
@@ -275,6 +278,12 @@ function machinePoolConfig(
         internalUrl: configService.get<string>("COMPUTE_BAREMETAL_INTERNAL_URL")
             ?? `http://127.0.0.1:${internalPort}`,
         sessionTimeoutSeconds,
+        // Container slots run the same linux base image as our own docker route; the machine's agent
+        // publishes its slot's wd port onto the node's port inside the container.
+        baseImage: configService.get<string>("COMPUTE_BAREMETAL_BASE_IMAGE")
+            ?? configService.get<string>("COMPUTE_DOCKER_BASE_IMAGE") ?? defaultLinuxBaseImage,
+        containerPort: Number(configService.get<string>("COMPUTE_BAREMETAL_CONTAINER_PORT") ?? String(defaultInternalPort)),
+        screen: screenGeometry(configService, "COMPUTE_BAREMETAL"),
     });
 }
 

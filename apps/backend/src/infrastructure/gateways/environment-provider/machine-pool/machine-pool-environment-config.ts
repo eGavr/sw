@@ -1,3 +1,5 @@
+import { ScreenGeometry } from "../linux-node";
+
 // Install-level policy of a machine-pool route: how a big machine is sliced, and what every slot's
 // agent needs to call home. There is no machine cap here on purpose: the spend limit is the binding's
 // ENVIRONMENT quota, and the machine budget derives from it (ceil(quota / slotsPerMachine)).
@@ -13,6 +15,13 @@ export type MachinePoolEnvironmentConfig = {
     // The smart idle timeout the slot's wd door applies to a session with no commands — the install's
     // one session idle timeout, the same every node kind enforces.
     sessionTimeoutSeconds: number;
+    // Container slots: the linux base image template (`{version}` = the platform version), the port the
+    // node listens on inside the container (the slot's wd port is published onto it), and the headless
+    // display geometry — the same shape every linux compute adapter runs, here executed by the machine's
+    // own docker instead of ours.
+    baseImage: string;
+    containerPort: number;
+    screen: ScreenGeometry;
 };
 
 export type BuildMachinePoolEnvironmentConfigOptions = {
@@ -20,6 +29,9 @@ export type BuildMachinePoolEnvironmentConfigOptions = {
     defaultAndroidVersion: string;
     internalUrl: string;
     sessionTimeoutSeconds: number;
+    baseImage: string;
+    containerPort: number;
+    screen: ScreenGeometry;
 };
 
 export const defaultSlotsPerMachine = 12;
@@ -40,5 +52,8 @@ export function buildMachinePoolEnvironmentConfig(
         avdName: (platformVersion: string): string => toAvdName(platformVersion, options.defaultAndroidVersion),
         internalUrl: options.internalUrl,
         sessionTimeoutSeconds: options.sessionTimeoutSeconds,
+        baseImage: options.baseImage,
+        containerPort: options.containerPort,
+        screen: options.screen,
     };
 }

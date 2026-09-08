@@ -178,7 +178,74 @@ done' &
 # Android version), SW_DEVICE (the device kind to dress it as), SW_WD_PORT, SW_APPIUM_PORT,
 # SW_CONSOLE_PORT, SW_VNC_PORT, SW_ENV_AGENT_TOKEN, SW_INTERNAL_URL, SW_HOST_IP, SW_SLOT_DIR,
 # SW_SESSION_IDLE_TIMEOUT_SECONDS, SW_APPS.
+# A slot is whatever the control plane placed here: an emulator instance of a baked AVD, or a
+# container of the linux base image run by this machine's docker. The launch descriptor names which;
+# the agent itself stays free of substrate knowledge beyond dispatching to the right launcher.
 run_slot() {
+    case "${SW_SLOT_KIND:-emulator}" in
+        container) run_container_slot ;;
+        *) run_emulator_slot ;;
+    esac
+}
+
+# The container slot IS the linux node every other compute backend runs — same image, same node env,
+# same in-container agent bootstrap. Only what the machine alone knows is added here: the endpoint the
+# node is published at, the callback URL that works from this box, and the per-environment token. The
+# slot process stays in the foreground so the agent's liveness probe covers the container, and it takes
+# the container down with it when the seat is withdrawn.
+run_container_slot() {
+    : "${SW_ENVIRONMENT_ID:?}" "${SW_WD_PORT:?}" "${SW_ENV_AGENT_TOKEN:?}" "${SW_INTERNAL_URL:?}" "${SW_HOST_IP:?}"
+    : "${SW_SLOT_DIR:?}" "${SW_LAUNCH:?}"
+
+    mkdir -p "${SW_SLOT_DIR}"
+    cd "${SW_SLOT_DIR}"
+    exec >>"${SW_SLOT_DIR}/session.log" 2>&1
+
+    exec node -e '
+const { spawn, spawnSync } = require("child_process");
+const launch = JSON.parse(Buffer.from(process.env.SW_LAUNCH, "base64").toString("utf8"));
+const name = `sw-slot-${process.env.SW_ENVIRONMENT_ID}`;
+// The callback URL the AGENT uses may be a loopback one (the control plane runs on this very box);
+// inside a container that address is the container itself, so it is translated to the docker host
+// alias — the same one our own docker backend hands its containers.
+const dockerHostAlias = "host.docker.internal";
+const internalUrl = (process.env.SW_INTERNAL_URL || "")
+    .replace(/^(https?:\/\/)(127\.0\.0\.1|localhost)(?=[:/]|$)/, `$1${dockerHostAlias}`);
+const env = {
+    ...(launch.env || {}),
+    SW_ENVIRONMENT_ID: process.env.SW_ENVIRONMENT_ID,
+    SW_ENDPOINT: `http://${process.env.SW_HOST_IP}:${process.env.SW_WD_PORT}`,
+    SW_INTERNAL_URL: internalUrl,
+    SW_INTERNAL_TOKEN: process.env.SW_ENV_AGENT_TOKEN,
+};
+
+// A leftover container of the same seat (the agent restarted, the slot crashed) would hold the port.
+spawnSync("docker", ["rm", "-f", name], { stdio: "ignore" });
+
+const args = ["run", "--rm", "--name", name, "--shm-size", "2g",
+    // Docker Desktop resolves the host alias by itself; on plain linux docker it has to be mapped.
+    "--add-host", `${dockerHostAlias}:host-gateway`,
+    "-p", `${process.env.SW_WD_PORT}:${launch.containerPort}`];
+if (launch.platform) {
+    args.push("--platform", launch.platform);
+}
+for (const [key, value] of Object.entries(env)) {
+    args.push("-e", `${key}=${value}`);
+}
+args.push("--entrypoint", "bash", launch.image, "-c", launch.command);
+
+const child = spawn("docker", args, { stdio: "inherit" });
+const teardown = () => {
+    spawnSync("docker", ["rm", "-f", name], { stdio: "ignore" });
+    process.exit(0);
+};
+process.on("SIGTERM", teardown);
+process.on("SIGINT", teardown);
+child.on("exit", (code) => process.exit(code === null ? 0 : code));
+'
+}
+
+run_emulator_slot() {
     : "${SW_ENVIRONMENT_ID:?}" "${SW_AVD:?}" "${SW_DEVICE:?}" "${SW_WD_PORT:?}" "${SW_APPIUM_PORT:?}" "${SW_VNC_PORT:?}"
     : "${SW_CONSOLE_PORT:?}" "${SW_ENV_AGENT_TOKEN:?}" "${SW_INTERNAL_URL:?}" "${SW_HOST_IP:?}" "${SW_SLOT_DIR:?}"
 
@@ -504,11 +571,14 @@ reconcile() {
     slots_dir="${state_dir}/slots"
     mkdir -p "${slots_dir}"
 
-    # One line per desired seat: envId wd appium console vnc avd device internalUrl token idleTimeout apps.
-    # Parsed with node — already a hard dependency of every slot (the wd door and Appium are node), so
-    # the agent needs no second runtime (macOS no longer ships python3). apps encodes the launch's
-    # application list as name~appFlag~webdriverFlag entries (the separators are outside the
-    # application-name alphabet). No field but the last may be empty: `read` folds adjacent tabs.
+    # One line per desired seat: envId wd appium console vnc avd device internalUrl token idleTimeout
+    # apps kind launch. Parsed with node — already a hard dependency of every slot (the wd door and
+    # Appium are node), so the agent needs no second runtime (macOS no longer ships python3). apps
+    # encodes the emulator launch's application list as name~appFlag~webdriverFlag entries (the
+    # separators are outside the application-name alphabet); `launch` is the whole descriptor, base64 so
+    # it survives a tab-separated line, for launchers whose parameters are richer than flat fields (the
+    # container slot's image, env and command). No field but the last may be empty: `read` folds
+    # adjacent tabs.
     desired_file="${state_dir}/desired.tsv"
     node -e '
 const doc = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -517,7 +587,8 @@ for (const s of doc.assignments || []) {
     const apps = (l.apps || []).map((a) => `${a.name}~${a.app ? 1 : 0}~${a.webdriver ? 1 : 0}`).join(",");
     process.stdout.write([
         s.environmentId, p.wd, p.appium, p.console, p.vnc, l.avd || "", l.device || "", l.internalUrl || "",
-        s.agentToken, l.sessionTimeoutSeconds || 0, apps,
+        s.agentToken, l.sessionTimeoutSeconds || 0, apps, l.kind || "emulator",
+        Buffer.from(JSON.stringify(l)).toString("base64"),
     ].join("\t") + "\n");
 }
 ' "$response_file" >"${desired_file}"
@@ -533,7 +604,7 @@ for (const s of doc.assignments || []) {
     done
 
     # Start (or restart after a crash) every desired slot that is not running.
-    while IFS=$'\t' read -r env_id wd appium console vnc avd device internal_url token idle_timeout apps; do
+    while IFS=$'\t' read -r env_id wd appium console vnc avd device internal_url token idle_timeout apps kind launch; do
         [ -n "${env_id}" ] || continue
         slot_dir="${slots_dir}/${env_id}"
 
@@ -544,7 +615,7 @@ for (const s of doc.assignments || []) {
             continue
         fi
 
-        echo "[machine-agent] starting slot for ${env_id} (wd :${wd}, avd ${avd} as ${device})"
+        echo "[machine-agent] starting ${kind} slot for ${env_id} (wd :${wd}${avd:+, avd ${avd} as ${device}})"
         mkdir -p "${slot_dir}"
         # Spawn the slot in its own session (its own process group), so the whole slot dies as one and
         # nothing it starts is orphaned onto the agent. node stands in for setsid (macOS ships neither
@@ -553,6 +624,7 @@ for (const s of doc.assignments || []) {
         SW_ENVIRONMENT_ID="${env_id}" SW_AVD="${avd}" SW_DEVICE="${device}" SW_WD_PORT="${wd}" SW_APPIUM_PORT="${appium}" \
         SW_CONSOLE_PORT="${console}" SW_VNC_PORT="${vnc}" SW_ENV_AGENT_TOKEN="${token}" SW_INTERNAL_URL="${internal_url}" \
         SW_HOST_IP="${host_ip}" SW_SLOT_DIR="${slot_dir}" SW_SESSION_IDLE_TIMEOUT_SECONDS="${idle_timeout}" SW_APPS="${apps:-}" \
+        SW_SLOT_KIND="${kind:-emulator}" SW_LAUNCH="${launch:-}" \
             node -e 'const c=require("child_process").spawn("bash",[process.argv[1],"slot"],{detached:true,stdio:"ignore"});console.log(c.pid);c.unref();' \
             "$0" >"${slot_dir}/pgid"
     done <"${desired_file}"
