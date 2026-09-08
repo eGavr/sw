@@ -268,6 +268,7 @@ describe("machine-pool assignment (baremetal route)", () => {
         expect(lease?.state).toBe(MachineLeaseState.Ordering);
         expect(lease?.assignmentFor(envId)?.slotIndex).toBe(0);
         expect(lease?.assignmentFor(envId)?.launch).toEqual({
+            kind: "emulator",
             avd: "sw-android-14",
             device: "pixel-7",
             internalUrl: "http://cp:3002",
