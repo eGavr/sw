@@ -28,6 +28,7 @@ import {
   IconCopy,
   IconDots,
   IconLogout,
+  IconPencil,
   IconPlayerPause,
   IconPlayerPlay,
   IconPlus,
@@ -48,6 +49,7 @@ import {
   platformLabel,
   setMachineAdmission,
   Substrate,
+  updateMachine,
 } from "@/lib/sw";
 import { machinesQueryKey, useMachines } from "@/lib/use-machines";
 
@@ -91,6 +93,7 @@ export function MachinesSection({ project, account }: { project: string; account
   const machines = useMachines(project, account.uid);
   const [attaching, setAttaching] = useState(false);
   const [registration, setRegistration] = useState<{ machine: Machine; grant: MachineRegistration } | null>(null);
+  const [editing, setEditing] = useState<Machine | null>(null);
   const [confirm, setConfirm] = useState<{ machine: Machine; action: "drain" | "detach" } | null>(null);
 
   const refresh = (): Promise<void> => queryClient.invalidateQueries({ queryKey: machinesQueryKey(project, account.uid) });
@@ -224,6 +227,9 @@ export function MachinesSection({ project, account }: { project: string; account
                           Install command
                         </Menu.Item>
                       )}
+                      <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => setEditing(machine)}>
+                        What it serves
+                      </Menu.Item>
                       {machine.admission === "open" && (
                         <Menu.Item
                           leftSection={<IconPlayerPause size={14} />}
@@ -282,6 +288,17 @@ export function MachinesSection({ project, account }: { project: string; account
         onAttached={(machine, grant) => {
           setAttaching(false);
           setRegistration({ machine, grant });
+          void refresh();
+        }}
+      />
+
+      <EditProvidesModal
+        project={project}
+        account={account}
+        machine={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null);
           void refresh();
         }}
       />
@@ -452,18 +469,7 @@ function AttachMachineModal({
           error={fqdn.trim() !== "" && !fqdnValid ? "Doesn't look like a hostname or an IPv4 address" : undefined}
           onChange={(event) => setFqdn(event.currentTarget.value)}
         />
-        <Checkbox.Group
-          label="Provides"
-          description="Which of the cloud's platforms this machine can run"
-          value={selected}
-          onChange={setProvides}
-        >
-          <Stack gap={6} mt={6}>
-            {bound.map((substrate) => (
-              <Checkbox key={substrateLabel(substrate)} value={substrateLabel(substrate)} label={substrateLabel(substrate)} />
-            ))}
-          </Stack>
-        </Checkbox.Group>
+        <ProvidesPicker bound={bound} value={selected} onChange={setProvides} />
         <NumberInput
           label="Slots"
           description="How many environments may run on it at once; empty = derived from the cores the agent reports"
@@ -484,6 +490,98 @@ function AttachMachineModal({
           </Button>
         </Group>
       </Stack>
+    </Modal>
+  );
+}
+
+// Which of the cloud's platforms a machine runs. A box is not bought for one substrate: the same
+// machine takes emulator seats or browser seats, so this is a plain multi-choice over what the cloud
+// binds — and the same control serves attaching and editing.
+function ProvidesPicker({
+  bound,
+  value,
+  onChange,
+}: {
+  bound: Array<Substrate>;
+  value: Array<string>;
+  onChange: (next: Array<string>) => void;
+}) {
+  return (
+    <Checkbox.Group
+      label="Provides"
+      description="Which of the cloud's platforms this machine can run"
+      value={value}
+      onChange={onChange}
+    >
+      <Stack gap={6} mt={6}>
+        {bound.map((substrate) => (
+          <Checkbox key={substrateLabel(substrate)} value={substrateLabel(substrate)} label={substrateLabel(substrate)} />
+        ))}
+      </Stack>
+    </Checkbox.Group>
+  );
+}
+
+// Editing what an attached machine serves: a box that gained docker starts taking browser seats
+// without being detached, which would mean reinstalling its agent.
+function EditProvidesModal({
+  project,
+  account,
+  machine,
+  onClose,
+  onSaved,
+}: {
+  project: string;
+  account: CloudAccount;
+  machine: Machine | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const bound: Array<Substrate> = account.computeBindings.map((binding) => ({
+    platform: binding.platform,
+    execution: binding.execution,
+  }));
+  const [selected, setSelected] = useState<Array<string> | null>(null);
+  const current = machine?.provides.map(substrateLabel) ?? [];
+  const value = selected ?? current;
+
+  const save = useMutation({
+    mutationFn: () =>
+      updateMachine(project, account.uid, (machine as Machine).uid, {
+        provides: bound.filter((substrate) => value.includes(substrateLabel(substrate))),
+      }),
+    onSuccess: () => {
+      setSelected(null);
+      onSaved();
+    },
+    onError: (error) =>
+      notifications.show({ color: "red", title: "Change failed", message: (error as Error).message }),
+  });
+
+  return (
+    <Modal
+      opened={machine !== null}
+      onClose={() => {
+        setSelected(null);
+        onClose();
+      }}
+      title={machine ? `What ${machine.fqdn} serves` : ""}
+    >
+      {machine && (
+        <Stack>
+          <ProvidesPicker bound={bound} value={value} onChange={setSelected} />
+          <Text size="xs" c="dimmed">
+            Dropping a platform stops new environments of it landing here; what the machine already runs
+            stays until it is released.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => { setSelected(null); onClose(); }}>Cancel</Button>
+            <Button loading={save.isPending} disabled={value.length === 0} onClick={() => save.mutate()}>
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      )}
     </Modal>
   );
 }

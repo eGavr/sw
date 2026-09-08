@@ -135,6 +135,32 @@ describe("Machine", () => {
         });
     });
 
+    describe("what it serves", () => {
+        test("re-declaring what it serves re-judges its fitness", () => {
+            const machine = registered(attach(), facts({ docker: false }));
+            expect(machine.isReady()).toBe(true);
+
+            machine.reprovide([androidEmulator, ubuntuContainer]);
+
+            expect(machine.conditions().map((condition) => condition.type)).toEqual(["DockerMissing"]);
+            expect(machine.isReady()).toBe(false);
+        });
+
+        test("a machine must go on serving something", () => {
+            expect(() => registered(attach()).reprovide([])).toThrow(InvalidArgumentError);
+        });
+
+        test("a browser-only machine is not judged on the emulator's VNC pipeline", () => {
+            const machine = registered(
+                attach({ provides: [ubuntuContainer] }),
+                facts({ emulator: false, avds: [], vncStack: false }),
+            );
+
+            expect(machine.conditions()).toEqual([]);
+            expect(machine.isReady()).toBe(true);
+        });
+    });
+
     describe("claims", () => {
         test("a ready, free machine is claimed; a claim is idempotent per lease", () => {
             const machine = registered(attach());

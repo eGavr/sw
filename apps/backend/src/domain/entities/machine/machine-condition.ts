@@ -43,7 +43,9 @@ export function judgeConditions(provides: ReadonlyArray<Stereotype>, facts: Mach
     if (containerStereotype && !facts.docker) {
         conditions.push({ type: "DockerMissing", blocking: true, message: "docker is not installed" });
     }
-    if (!facts.vncStack) {
+    // The machine's own VNC pipeline serves emulator slots (scrcpy off the device); a container slot
+    // carries its display inside the image, so a browser-only box is not judged on it.
+    if (emulatorStereotype && !facts.vncStack) {
         conditions.push({
             type: "VncStackMissing",
             blocking: false,

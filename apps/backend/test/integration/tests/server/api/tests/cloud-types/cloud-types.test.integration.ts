@@ -46,6 +46,11 @@ describe("/cloudTypes", () => {
                         execution: "emulator",
                         compute: [{ kind: "baremetal", requiredConfig: [], grants: [], ownershipProof: "none" }],
                     },
+                    {
+                        platform: "ubuntu",
+                        execution: "container",
+                        compute: [{ kind: "baremetal", requiredConfig: [], grants: [], ownershipProof: "none" }],
+                    },
                 ],
             },
             {

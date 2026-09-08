@@ -2,6 +2,7 @@ import { Stereotype, StereotypeData } from "../cloud-account/stereotype";
 import { Execution } from "../environment/execution";
 import { InvalidArgumentError } from "../error/invalid-argument-error";
 
+import { EmptyProvidesError } from "./error/empty-provides-error";
 import { InvalidMachineAdmissionTransitionError } from "./error/invalid-machine-admission-transition-error";
 import { MachineNotClaimableError } from "./error/machine-not-claimable-error";
 import { RegistrationTokenInvalidError } from "./error/registration-token-invalid-error";
@@ -117,7 +118,7 @@ export class Machine {
     readonly origin: MachineOrigin;
     readonly createdAt: Date;
     private readonly _id: MachineId;
-    private readonly _provides: ReadonlyArray<Stereotype>;
+    private _provides: ReadonlyArray<Stereotype>;
     private readonly _slotCapacityOverride: number | null;
     private _fqdn: string | null;
     private _state: MachineState;
@@ -187,6 +188,19 @@ export class Machine {
 
     provides(): ReadonlyArray<Stereotype> {
         return [...this._provides];
+    }
+
+    // The operator re-declares what the box can serve (a machine that gained docker now runs browser
+    // slots too). Fitness is re-judged from the same facts, so a machine can lose `ready` right here —
+    // that is the point: it stops being taken for what it cannot run. A machine that serves nothing
+    // would be inventory noise the pool can never use.
+    reprovide(stereotypes: ReadonlyArray<Stereotype>): void {
+        if (stereotypes.length === 0) {
+            throw new EmptyProvidesError(this.id);
+        }
+
+        this._provides = [...stereotypes];
+        this.touch();
     }
 
     providesStereotype(platformName: string, execution: Execution): boolean {

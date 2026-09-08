@@ -17,12 +17,20 @@ import {
     EnvironmentQuota,
     EnvironmentQuotaPolicy,
 } from "../../../../domain/entities/environment/environment-quota";
+import { Execution } from "../../../../domain/entities/environment/execution";
 import { InternalError } from "../../../../domain/entities/error/internal-error";
 import { MachinePoolKey } from "../../../../domain/entities/machine-pool/machine-pool-key";
+import { WorkloadLaunch } from "../../../../domain/entities/machine-pool/slot-assignment";
 import { OwnershipMarker } from "../../../../domain/entities/verification/ownership-marker";
 import { stampProviderContext } from "../../machine-provider/machine-provider-context";
+import { agentBootstrap, linuxNodeEntrypoint, sessionLogFile } from "../agent-bootstrap";
+import { linuxNodeProvisioning } from "../linux-node";
 
 import { MachinePoolEnvironmentConfig } from "./machine-pool-environment-config";
+
+// The slot kinds the machine agent's launcher dispatches on — the one word both sides agree upon.
+export const emulatorSlotKind = "emulator";
+export const containerSlotKind = "container";
 
 // The bridge between the environment context and the machine pool: to the routing gateway this is one
 // more compute adapter (the `baremetal` kind); inside, it drives the pool's use cases the way a
@@ -77,23 +85,59 @@ export class MachinePoolEnvironmentProviderGateway extends EnvironmentProviderGa
             slotCapacity: this.config.slotsPerMachine,
             maxLeases: Math.ceil(quota.limit / this.config.slotsPerMachine),
             providerContext: this.context(account, binding),
-            launch: {
-                avd: this.config.avdName(environment.platform.version),
-                // The device kind the slot dresses the AVD as (an emulator device definition by id).
-                device: environment.platform.deviceModel,
-                internalUrl: this.config.internalUrl,
-                sessionTimeoutSeconds: this.config.sessionTimeoutSeconds,
-                // What the slot handles per application: pull and install the build's artifact, and
-                // stage its paired webdriver for Appium — either may be absent (a preinstalled app has
-                // nothing to install, a native app nothing to drive); every application is listed so
-                // the slot detects what the image ships under a preinstalled word too.
-                apps: environment.applications.toArray()
-                    .map((application) => ({
-                        name: application.nameAlias,
-                        app: Boolean(application.source?.appRef),
-                        webdriver: Boolean(application.source?.webdriverRef),
-                    })),
-            },
+            launch: this.launch(environment),
+        };
+    }
+
+    // What the machine's slot launcher must start. The pool carries it verbatim, so the substrate the
+    // environment asked for is decided here, once: an emulator instance of a baked AVD, or a container
+    // of the linux base image — the same shape our own docker adapter runs, executed by the machine's
+    // docker instead of ours.
+    private launch(environment: Environment): WorkloadLaunch {
+        return environment.execution === Execution.Emulator
+            ? this.emulatorLaunch(environment)
+            : this.containerLaunch(environment);
+    }
+
+    private emulatorLaunch(environment: Environment): WorkloadLaunch {
+        return {
+            kind: emulatorSlotKind,
+            avd: this.config.avdName(environment.platform.version),
+            // The device kind the slot dresses the AVD as (an emulator device definition by id).
+            device: environment.platform.deviceModel,
+            internalUrl: this.config.internalUrl,
+            sessionTimeoutSeconds: this.config.sessionTimeoutSeconds,
+            // What the slot handles per application: pull and install the build's artifact, and stage
+            // its paired webdriver for Appium — either may be absent (a preinstalled app has nothing to
+            // install, a native app nothing to drive); every application is listed so the slot detects
+            // what the image ships under a preinstalled word too.
+            apps: environment.applications.toArray()
+                .map((application) => ({
+                    name: application.nameAlias,
+                    app: Boolean(application.source?.appRef),
+                    webdriver: Boolean(application.source?.webdriverRef),
+                })),
+        };
+    }
+
+    // The container slot is the linux node, provisioned exactly as every other linux adapter does it —
+    // image of the platform version plus the node script's env. What only the machine knows (its own
+    // address, the callback URL that works from there, the per-environment token) the agent adds.
+    private containerLaunch(environment: Environment): WorkloadLaunch {
+        const provisioning = linuxNodeProvisioning({
+            platform: environment.platform.toObject(),
+            applications: environment.applications.toArray(),
+            baseImage: this.config.baseImage,
+            sessionTimeoutSeconds: this.config.sessionTimeoutSeconds,
+            screen: this.config.screen,
+        });
+
+        return {
+            kind: containerSlotKind,
+            image: provisioning.image,
+            containerPort: this.config.containerPort,
+            command: agentBootstrap(linuxNodeEntrypoint),
+            env: { ...provisioning.env, SW_SESSION_LOG_GLOB: sessionLogFile },
         };
     }
 

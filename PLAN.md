@@ -1166,7 +1166,18 @@ Live на маке (2026-09-08): мак подключён как `Machine` че
 
 **S2 (сделано, ветка `feat.self-hosted-ui`)** — UI без новых ручек: `lib/sw.ts` (тип `Machine`, list/attach/detach?force/`:generateRegistrationToken`/`:cordon|:uncordon|:drain`), `lib/use-machines.ts` (поллинг 3с), `components/machines-section.tsx` — на карточке self-hosted облака бейдж «N ready / M attached» и таблица машин (fqdn + facts в tooltip, provides, state + admission, ready с conditions (blocking красные, degrading жёлтые), slots used/total, last sync, agent), кебаб: Install command (пока `pending`), Cordon/Uncordon, Drain (подтверждение), Detach (force-подтверждение, если машина в аренде); модалка Attach machine (fqdn, provides чекбоксами из привязок, слоты override) → сразу `:generateRegistrationToken` → одноразовая `installCommand` с copy; у окружения подпись «on <fqdn>» (обратная связь через `lease.environments`). Проверено: tsc + `next build`; форма API на стенде совпадает.
 
+**S4 (сделано, ветка `feat.self-hosted-any-stereotype`)** — «машина обслуживает любой наш стереотип». Мост (`MachinePoolEnvironmentProviderGateway`) выбирает `launch` по execution окружения: эмуляторный (avd/device/apps) или контейнерный (`kind: container`, образ `linuxNodeProvisioning`, `containerPort`, `command: agentBootstrap`, env нода) — та же сборка, что у docker-адаптера, только выполняет её агент на машине пользователя. `machine-agent.sh`: `run_slot` диспатчит по `SW_SLOT_KIND`, контейнерный лончер делает `docker run --rm` (публикует порт слота на порт нода, добавляет `SW_ENDPOINT`/`SW_INTERNAL_TOKEN`, переписывает loopback CP в `host.docker.internal`, снимает контейнер по SIGTERM); desired.tsv несёт `kind` и base64 всего дескриптора. Каталог `self-hosted` получил `ubuntu/container` на `baremetal`, роутинг — соответствующий ключ; конфиг: `COMPUTE_BAREMETAL_BASE_IMAGE`/`COMPUTE_BAREMETAL_CONTAINER_PORT`/`COMPUTE_BAREMETAL_SCREEN_*`. Новое: `PATCH /v1/projects/{p}/cloudAccounts/{c}/machines/{m}` (`provides`) + `Machine.reprovide` + «What it serves» в UI; `VncStackMissing` теперь судит только эмуляторные машины. Тесты: unit (reprovide, сужённое условие), integration (контейнерный `launch` в ответе sync; PATCH в границах привязок облака; каталог). **Не проверено вживую** — на маке машина занята арендой android-пула, а `ubuntu/container` в проекте отдан облаку `local` (привязка платформы уникальна на проект).
+
 **Дальше:** S3 — live на VM юзера (есть `/dev/kvm`); S4 — linux-слоты пула. Follow-ups: mTLS агента, ротация `machineToken`, реальная ёмкость машины vs оценка при провижне YC (после регистрации сервера аренда могла бы взять facts-ёмкость).
+
+## [BUG] процесс падает от разовой ошибки Postgres — НЕ начато (замечено 2026-09-08)
+
+На маке несколько раз подряд наблюдалась вспышка `error: password authentication failed for user "sw"` от `pg`: она
+убила воркер (после 2.5 ч работы), потом api под nodemon, потом прогон `cloud-types.test.integration`. Между вспышками
+20 из 20 соединений с теми же кредами проходят, а в логе самого `sw-db` записей об отказе аутентификации НЕТ — то есть
+отвергает не сервер, а что-то на пути (подозрение на проброс порта Lima). Дефект НАШ, независимо от причины вспышки:
+разовая ошибка соединения роняет процесс целиком (unhandled error на пуле), вместо ретрая с backoff. Чинить: обработчик
+`pool.on("error")` + переподключение, чтобы воркер/api переживали моргание базы.
 
 ## [BUG] internal падает на таймауте потоковой отдачи артефакта — НЕ начато (замечено 2026-09-08)
 

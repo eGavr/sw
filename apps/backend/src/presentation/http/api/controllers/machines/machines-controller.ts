@@ -7,6 +7,7 @@ import {
     HttpStatus,
     NotFoundException,
     Param,
+    Patch,
     Post,
     Query,
 } from "@nestjs/common";
@@ -20,6 +21,7 @@ import {
 import { GetMachineUseCase } from "../../../../../application/use-cases/machines/get-machine-use-case";
 import { ListMachinesUseCase } from "../../../../../application/use-cases/machines/list-machines-use-case";
 import { SetMachineAdmissionUseCase } from "../../../../../application/use-cases/machines/set-machine-admission-use-case";
+import { UpdateMachineUseCase } from "../../../../../application/use-cases/machines/update-machine-use-case";
 import { MachineAdmission } from "../../../../../domain/entities/machine/machine-admission";
 import { MachineInstallConfig } from "../../../../../infrastructure/machines/machine-install-config";
 import { BearerToken } from "../../../decorators/param/bearer-token";
@@ -27,6 +29,7 @@ import { BearerToken } from "../../../decorators/param/bearer-token";
 import { AttachMachineRequestModel } from "./io/attach-machine-request-model";
 import { MachinePresenter } from "./io/machine-presenter";
 import { RegistrationTokenPresenter } from "./io/registration-token-presenter";
+import { UpdateMachineRequestModel } from "./io/update-machine-request-model";
 
 const generateRegistrationTokenVerb = "generateRegistrationToken";
 const cordonVerb = "cordon";
@@ -45,6 +48,7 @@ export class MachinesController {
         private readonly detachMachineUseCase: DetachMachineUseCase,
         private readonly generateRegistrationTokenUseCase: GenerateRegistrationTokenUseCase,
         private readonly setMachineAdmissionUseCase: SetMachineAdmissionUseCase,
+        private readonly updateMachineUseCase: UpdateMachineUseCase,
         private readonly getCloudAccountUseCase: GetCloudAccountUseCase,
         private readonly installConfig: MachineInstallConfig,
     ) {}
@@ -106,6 +110,29 @@ export class MachinesController {
         });
 
         return new MachinePresenter(view, account).present();
+    }
+
+    // What the machine serves is the operator's declaration, so it is editable in place — detaching a
+    // box only to re-attach it would mean reinstalling its agent for a checkbox.
+    @Patch(":machine")
+    async updateMachine(
+        @Param("project") project: string,
+        @Param("cloudAccount") cloudAccount: string,
+        @Param("machine") machine: string,
+        @Body() body: UpdateMachineRequestModel,
+        @BearerToken() token: string,
+    ): Promise<object> {
+        await this.updateMachineUseCase.execute({
+            creds: { token },
+            params: {
+                projectId: project,
+                cloudAccountId: cloudAccount,
+                machineId: machine,
+                provides: body.provides,
+            },
+        });
+
+        return this.getMachine(project, cloudAccount, machine, token);
     }
 
     @Delete(":machine")
