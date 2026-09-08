@@ -1,6 +1,5 @@
 import { Injectable, OnApplicationBootstrap, OnApplicationShutdown } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Client } from "pg";
 
 import {
     CollectGarbageEnvironmentsUseCase,
@@ -30,6 +29,7 @@ import { defaultHeartbeatFreshnessMs } from "../../domain/entities/environment/h
 import {
     PreparingTimeoutOverride,
 } from "../../domain/entities/environment/stuck-provisioning-criteria";
+import { WorkerConnection } from "../../infrastructure/data-sources/database/postgres/worker-connection";
 import { Logger } from "../../infrastructure/logging/logger";
 
 const channel = "environment_work";
@@ -86,7 +86,7 @@ function parsePreparingTimeouts(configured: string | undefined): ReadonlyArray<P
 // notification is just a dumb broadcast, so N workers can all wake and the atomic claim de-dupes them.
 @Injectable()
 export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationShutdown {
-    private client: Client | null = null;
+    private connection: WorkerConnection | null = null;
     private pumping = false;
     private pending = false;
     private reaperTimer: NodeJS.Timeout | null = null;
@@ -156,17 +156,11 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     }
 
     async onApplicationBootstrap(): Promise<void> {
-        this.client = new Client({
-            host: this.configService.getOrThrow("POSTGRES_HOST"),
-            port: Number(this.configService.getOrThrow("POSTGRES_PORT")),
-            user: this.configService.getOrThrow("POSTGRES_USER"),
-            password: this.configService.getOrThrow("POSTGRES_PASSWORD"),
-            database: this.configService.getOrThrow("POSTGRES_DATABASE"),
-        });
-
-        await this.client.connect();
-        this.client.on("notification", () => void this.pump());
-        await this.client.query(`LISTEN ${channel}`);
+        // The session rings on NOTIFY and reconnects itself if the database blinks; every ring —
+        // including the one it gives on (re)connection — is just a wakeup, and the pump catches up on
+        // whatever is waiting, so a missed notification costs nothing.
+        this.connection = new WorkerConnection(this.configService, (message) => this.logger.warn(message));
+        await this.connection.listen(channel, () => void this.pump());
         this.logger.log(`worker: listening on "${channel}"`);
 
         // A timeout has no event, and an in-memory timer dies with the worker, so the reaper is a
@@ -191,8 +185,6 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         this.machinePoolTimer = setInterval(() => void this.reconcilePool(), this.machinePoolReconcileIntervalMs);
         this.machinePoolTimer.unref();
 
-        // NOTIFY is not durable: catch up on whatever is already waiting.
-        await this.pump();
     }
 
     async onApplicationShutdown(): Promise<void> {
@@ -218,8 +210,8 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
             this.machinePoolTimer = null;
         }
 
-        await this.client?.end();
-        this.client = null;
+        await this.connection?.stop();
+        this.connection = null;
     }
 
     // Coalesced drain: overlapping wakeups fold into a single re-run so two pumps never run at once.
@@ -291,25 +283,23 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     }
 
     // Run a sweep only if this worker wins the advisory lock (so N workers don't all sweep). Advisory
-    // locks are per-connection, so lock and unlock run on the same captured client — a concurrent
-    // shutdown swapping `this.client` cannot split the pair.
+    // locks live in a session, so lock and unlock both run on the worker's own connection; while that
+    // session is down there is no lock to win and the round is simply skipped.
     private async underLock(key: number, sweep: () => Promise<void>): Promise<void> {
-        const client = this.client;
+        const connection = this.connection;
+        const result = await connection?.query<{ locked: boolean }>(
+            "SELECT pg_try_advisory_lock($1) AS locked",
+            [key],
+        );
 
-        if (!client) {
-            return;
-        }
-
-        const result = await client.query<{ locked: boolean }>("SELECT pg_try_advisory_lock($1) AS locked", [key]);
-
-        if (!result.rows[0]?.locked) {
+        if (!connection || !result?.rows[0]?.locked) {
             return;
         }
 
         try {
             await sweep();
         } finally {
-            await client.query("SELECT pg_advisory_unlock($1)", [key]);
+            await connection.query("SELECT pg_advisory_unlock($1)", [key]);
         }
     }
 }
