@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { DataSource, EntityManager } from "typeorm";
 
 import { MachineLease as HostEntity, MachineLeaseData } from "../../../../domain/entities/machine-pool/machine-lease";
+import { PoolLimits } from "../../../../domain/entities/machine-pool/pool-limits";
 
 import { MachineLease } from "./typeorm/entities/machine-pool/machine-lease";
 import { SlotAssignment } from "./typeorm/entities/machine-pool/slot-assignment";
@@ -81,10 +82,10 @@ export class MachineLeaseDataSource {
     // already serialised by the pool lock, and a concurrent release holding the row is worth the wait.
     // The states arrive ready from the domain; the cap arrives ready from the caller's policy.
     async placeOrCreate(
-        pool: { cloudAccountId: string; bindingId: string; states: ReadonlyArray<string> },
+        pool: { cloudAccountId: string; bindingId: string; states: ReadonlyArray<string>; environmentId: string },
         applyToExisting: (data: MachineLeaseData) => MachineLeaseData,
         buildNew: () => MachineLeaseData,
-        maxHosts: number,
+        limits: PoolLimits,
     ): Promise<{ data: MachineLeaseData; created: boolean } | null> {
         return this.dataSource.transaction(async (manager) => {
             await manager.query(
@@ -92,7 +93,18 @@ export class MachineLeaseDataSource {
                 [pool.cloudAccountId, pool.bindingId],
             );
 
-            const candidates = (await manager.query(
+            // The seat this environment already holds wins over any placement — checked under the lock,
+            // so two placers of the same environment (the API's reservation racing the worker's
+            // provisioning) can never take two seats.
+            const seated = (await manager.query(
+                `SELECT l.id FROM machine_lease l
+                 JOIN slot_assignment a ON a.machine_lease_id = l.id
+                 WHERE a.environment_id = $1 AND l.state = ANY($2)
+                 FOR UPDATE OF l`,
+                [pool.environmentId, pool.states],
+            )) as Array<{ id: string }>;
+
+            const candidates = seated.length > 0 ? seated : (await manager.query(
                 `SELECT id FROM machine_lease
                  WHERE cloud_account_id = $1 AND binding_id = $2 AND state = ANY($3)
                    AND (SELECT count(*) FROM slot_assignment p WHERE p.machine_lease_id = machine_lease.id) < slot_capacity
@@ -113,12 +125,16 @@ export class MachineLeaseDataSource {
                 return { data: next, created: false };
             }
 
-            const [{ count }] = (await manager.query(
-                "SELECT count(*)::int AS count FROM machine_lease WHERE cloud_account_id = $1 AND binding_id = $2",
+            const [{ count, awaiting }] = (await manager.query(
+                `SELECT count(*)::int AS count, count(*) FILTER (WHERE machine_id IS NULL)::int AS awaiting
+                 FROM machine_lease WHERE cloud_account_id = $1 AND binding_id = $2`,
                 [pool.cloudAccountId, pool.bindingId],
-            )) as Array<{ count: number }>;
+            )) as Array<{ count: number; awaiting: number }>;
 
-            if (count >= maxHosts) {
+            if (count >= limits.maxLeases) {
+                return null;
+            }
+            if (limits.maxAwaitingMachine !== null && awaiting >= limits.maxAwaitingMachine) {
                 return null;
             }
 
@@ -142,6 +158,8 @@ export class MachineLeaseDataSource {
     private async persist(manager: EntityManager, data: MachineLeaseData): Promise<void> {
         await manager.getRepository(MachineLease).update(data.id, {
             state: data.state,
+            machineId: data.machineId,
+            slotCapacity: data.slotCapacity,
             hostIp: data.hostIp ?? null,
             lastSeenAt: data.lastSeenAt ?? null,
             lastEmptiedAt: data.lastEmptiedAt,

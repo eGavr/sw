@@ -16,6 +16,7 @@ import {
 import {
     MachineLeaseRepository,
 } from "../../../../../../../src/application/interfaces/repositories/machine-lease-repository";
+import { MachineRepository } from "../../../../../../../src/application/interfaces/repositories/machine-repository";
 import {
     ProjectRepository,
 } from "../../../../../../../src/application/interfaces/repositories/project-repository";
@@ -31,6 +32,8 @@ import {
 import {
     ReleaseWorkloadUseCase,
 } from "../../../../../../../src/application/use-cases/machine-pool/release-workload-use-case";
+import { DiscardMachineUseCase } from "../../../../../../../src/application/use-cases/machines/discard-machine-use-case";
+import { EnlistMachineUseCase } from "../../../../../../../src/application/use-cases/machines/enlist-machine-use-case";
 import { CloudAccount } from "../../../../../../../src/domain/entities/cloud-account/cloud-account";
 import { CloudAccountId } from "../../../../../../../src/domain/entities/cloud-account/cloud-account-id";
 import { ApplicationList } from "../../../../../../../src/domain/entities/environment/application/application-list";
@@ -57,6 +60,7 @@ import {
 import {
     EnvironmentDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/environment-data-source";
+import { MachineDataSource } from "../../../../../../../src/infrastructure/data-sources/database/postgres/machine-data-source";
 import {
     MachineLeaseDataSource,
 } from "../../../../../../../src/infrastructure/data-sources/database/postgres/machine-lease-data-source";
@@ -76,8 +80,8 @@ import {
     YandexBaremetalMachineProvider,
 } from "../../../../../../../src/infrastructure/gateways/machine-provider/yandex-baremetal/yandex-baremetal-machine-provider";
 import {
-    Hs256LeaseTokenService,
-} from "../../../../../../../src/infrastructure/lease-token/hs256-lease-token-service";
+    RegistrationTokenServiceProvider,
+} from "../../../../../../../src/infrastructure/registration-token/registration-token-service-provider";
 import {
     CloudAccountRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/cloud-account-repository-impl";
@@ -87,6 +91,7 @@ import {
 import {
     MachineLeaseRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/machine-lease-repository-impl";
+import { MachineRepositoryImpl } from "../../../../../../../src/infrastructure/repositories/machine-repository-impl";
 import {
     ProjectRepositoryImpl,
 } from "../../../../../../../src/infrastructure/repositories/project-repository-impl";
@@ -127,8 +132,6 @@ describe("machine-pool assignment (baremetal route)", () => {
             checkAccess: async (): Promise<{ reachable: boolean }> => ({ reachable: true }),
         } as unknown as YandexBaremetalClient;
 
-        const leaseTokens = new Hs256LeaseTokenService(new TextEncoder().encode("test-internal-secret"), 3600);
-
         const moduleRef = await Test.createTestingModule({
             imports: [
                 ConfigModule.forRoot({ envFilePath: [".env", `env/.env.${process.env.NODE_ENV || "development"}`] }),
@@ -147,19 +150,28 @@ describe("machine-pool assignment (baremetal route)", () => {
                 { provide: EnvironmentRepository, useClass: EnvironmentRepositoryImpl },
                 { provide: CloudAccountRepository, useClass: CloudAccountRepositoryImpl },
                 { provide: MachineLeaseRepository, useClass: MachineLeaseRepositoryImpl },
+                { provide: MachineRepository, useClass: MachineRepositoryImpl },
+                MachineDataSource,
+                RegistrationTokenServiceProvider,
+                EnlistMachineUseCase,
+                DiscardMachineUseCase,
                 { provide: ApplicationLogger, useValue: noopLogger },
                 { provide: EnvironmentQuotaPolicy, useValue: new EnvironmentQuotaPolicy(5, 50) },
                 {
                     provide: MachineProviderGateway,
-                    useValue: new YandexBaremetalMachineProvider(
-                        client,
-                        {
-                            configurationId: "test-configuration",
-                            zone: "ru-central1-m",
-                            internalUrl: "http://cp:3002",
-                        },
-                        leaseTokens,
-                    ),
+                    useFactory: (enlist: EnlistMachineUseCase, discard: DiscardMachineUseCase): MachineProviderGateway =>
+                        new YandexBaremetalMachineProvider(
+                            client,
+                            {
+                                configurationId: "test-configuration",
+                                zone: "ru-central1-m",
+                                internalUrl: "http://cp:3002",
+                                slotsPerMachine: 2,
+                            },
+                            enlist,
+                            discard,
+                        ),
+                    inject: [EnlistMachineUseCase, DiscardMachineUseCase],
                 },
                 AgentTokenServiceProvider,
                 EnvironmentProviderGatewayProvider,
@@ -249,8 +261,8 @@ describe("machine-pool assignment (baremetal route)", () => {
         expect(order.configurationId).toBe("test-configuration");
         expect(order.name).toMatch(/^sw-lease-/);
         expect(order.labels["sw-lease-id"]).toBeDefined();
-        expect(order.userData).toContain("SW_LEASE_ID=");
-        expect(order.userData).toContain("SW_LEASE_TOKEN=");
+        expect(order.userData).toContain("SW_MACHINE_ID=");
+        expect(order.userData).toContain("SW_REGISTRATION_TOKEN=");
 
         const lease = await machineLeaseRepository.findByEnvironment(EnvironmentId.fromString(envId));
         expect(lease?.state).toBe(MachineLeaseState.Ordering);

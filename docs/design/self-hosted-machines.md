@@ -106,7 +106,7 @@ copy. Строка окружения на self-hosted получает подп
   `HostProviderGateway → MachineProviderGateway`, `poolHosts → machineLeases` (internal), `pool-host-agent.sh →
   machine-agent.sh`, `POOL_HOST_* → MACHINE_POOL_*`, таблицы `pool_host → machine_lease`, `host_placement →
   slot_assignment`. Идентичность агента (пока аренда: `SW_LEASE_ID`/`SW_LEASE_TOKEN`) меняется в S1.
-- **S1** — контекст `machine`: агрегат `Machine`, `self-hosted` в каталоге, `SelfHostedMachineProvider`
+- **S1 (сделано, ветка `feat.self-hosted-machines`)** — контекст `machine`: агрегат `Machine`, `self-hosted` в каталоге, `SelfHostedMachineProvider`
   (мост), `headroom` на порту, состояние `enqueued` + синхронная посадка → 429, `:register`/`:sync`, факты и
   conditions, публичный API машин, поглощение byo-роута `local`; интеграционные тесты (две машины → третье
   окружение 429; молчание → offline → возврат → online).

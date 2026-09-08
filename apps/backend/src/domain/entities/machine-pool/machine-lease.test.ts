@@ -76,9 +76,34 @@ describe("MachineLease", () => {
         expect(() => lease.place(environmentId(), {})).toThrow(MachineLeaseCapacityExceededError);
     });
 
+    test("is born enqueued, moves to ordering with its machine, and seats environments all along", () => {
+        const lease = createHost();
+
+        expect(lease.state).toBe(MachineLeaseState.Enqueued);
+        expect(lease.place(environmentId(), {}).slotIndex).toBe(0);
+
+        lease.adoptMachine({ machineId: Uuid.create().getValue(), slotCapacity: 5 });
+
+        expect(lease.state).toBe(MachineLeaseState.Ordering);
+        expect(lease.slotCapacity).toBe(5);
+        expect(lease.machineId).not.toBeNull();
+    });
+
+    test("never shrinks below what is already seated when the machine turns out smaller", () => {
+        const lease = createHost(4);
+
+        lease.place(environmentId(), {});
+        lease.place(environmentId(), {});
+        lease.adoptMachine({ machineId: Uuid.create().getValue(), slotCapacity: 1 });
+
+        expect(lease.slotCapacity).toBe(2);
+        expect(lease.hasFreeSlot()).toBe(false);
+    });
+
     test("accepts assignments while still ordering — environments queue onto the booting machine", () => {
         const lease = createHost();
 
+        lease.adoptMachine({ machineId: Uuid.create().getValue(), slotCapacity: 3 });
         expect(lease.state).toBe(MachineLeaseState.Ordering);
         expect(lease.place(environmentId(), {}).slotIndex).toBe(0);
     });
@@ -172,20 +197,24 @@ describe("MachineLease", () => {
             talkative.writeOffIfSilent(criteria);
             expect(talkative.state).toBe(MachineLeaseState.Ready);
 
-            // An ordering host has not checked in yet by definition — silence does not condemn it.
-            const ordering = createHost();
-            ordering.writeOffIfSilent(criteria);
-            expect(ordering.state).toBe(MachineLeaseState.Ordering);
+            // A lease whose machine has not checked in yet cannot be silent — nothing has spoken.
+            const enqueued = createHost();
+            enqueued.writeOffIfSilent(criteria);
+            expect(enqueued.state).toBe(MachineLeaseState.Enqueued);
         });
 
-        test("an order the agent never answered past the allowance is written off", () => {
+        test("a lease whose machine never arrived past the allowance is written off, enqueued or ordering", () => {
             const stuck = hostWith({ createdAt: past });
             stuck.writeOffIfStuckOrdering(StuckOrderingCriteria.from(now, 60_000));
             expect(stuck.state).toBe(MachineLeaseState.Failed);
 
-            const pending = hostWith({ createdAt: now });
-            pending.writeOffIfStuckOrdering(StuckOrderingCriteria.from(now, 60_000));
-            expect(pending.state).toBe(MachineLeaseState.Ordering);
+            const stuckOrdering = hostWith({ createdAt: past, state: MachineLeaseState.Ordering });
+            stuckOrdering.writeOffIfStuckOrdering(StuckOrderingCriteria.from(now, 60_000));
+            expect(stuckOrdering.state).toBe(MachineLeaseState.Failed);
+
+            const fresh = hostWith({ createdAt: now });
+            fresh.writeOffIfStuckOrdering(StuckOrderingCriteria.from(now, 60_000));
+            expect(fresh.state).toBe(MachineLeaseState.Enqueued);
         });
 
         test("only an empty deleting or failed lease is returnable to the cloud", () => {

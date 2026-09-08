@@ -23,6 +23,9 @@ import {
 import {
     ReconcileMachinePoolUseCase,
 } from "../../application/use-cases/machine-pool/reconcile-machine-pool-use-case";
+import {
+    MarkSilentMachinesOfflineUseCase,
+} from "../../application/use-cases/machines/mark-silent-machines-offline-use-case";
 import { defaultHeartbeatFreshnessMs } from "../../domain/entities/environment/heartbeat-freshness";
 import {
     PreparingTimeoutOverride,
@@ -116,6 +119,7 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         private readonly collectGarbageEnvironments: CollectGarbageEnvironmentsUseCase,
         private readonly releaseStaleReservations: ReleaseStaleReservationsUseCase,
         private readonly reconcileMachinePool: ReconcileMachinePoolUseCase,
+        private readonly markSilentMachinesOffline: MarkSilentMachinesOfflineUseCase,
     ) {
         this.reaperIntervalMs = this.number("WORKER_REAPER_INTERVAL_MS", defaultReaperIntervalMs);
         this.startingTimeoutMs = this.number("WORKER_STARTING_TIMEOUT_MS", defaultStartingTimeoutMs);
@@ -276,11 +280,14 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     }
 
     private async reconcilePool(): Promise<void> {
-        await this.underLock(machinePoolLockKey, () => this.reconcileMachinePool.execute({
-            idleTtlMs: this.machinePoolIdleTtlMs,
-            silenceAllowanceMs: this.machinePoolSilenceAllowanceMs,
-            orderingTimeoutMs: this.machinePoolOrderingTimeoutMs,
-        }));
+        await this.underLock(machinePoolLockKey, async () => {
+            await this.markSilentMachinesOffline.execute({ silenceAllowanceMs: this.machinePoolSilenceAllowanceMs });
+            await this.reconcileMachinePool.execute({
+                idleTtlMs: this.machinePoolIdleTtlMs,
+                silenceAllowanceMs: this.machinePoolSilenceAllowanceMs,
+                orderingTimeoutMs: this.machinePoolOrderingTimeoutMs,
+            });
+        });
     }
 
     // Run a sweep only if this worker wins the advisory lock (so N workers don't all sweep). Advisory

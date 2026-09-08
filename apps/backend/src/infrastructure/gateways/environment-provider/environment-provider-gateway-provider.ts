@@ -7,6 +7,7 @@ import { PlaceWorkloadUseCase } from "../../../application/use-cases/machine-poo
 import { ReleaseWorkloadUseCase } from "../../../application/use-cases/machine-pool/release-workload-use-case";
 import { EnvironmentQuotaPolicy } from "../../../domain/entities/environment/environment-quota";
 import { Execution } from "../../../domain/entities/environment/execution";
+import { selfHostedCloudType } from "../../../domain/entities/machine/self-hosted-cloud-type";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
 
 import {
@@ -58,7 +59,7 @@ import { defaultLinuxBaseImage, defaultScreen, ScreenGeometry } from "./linux-no
 import {
     buildMachinePoolEnvironmentConfig,
     defaultPoolAndroidVersion,
-    defaultSlotsPerHost,
+    defaultSlotsPerMachine,
 } from "./machine-pool/machine-pool-environment-config";
 import {
     MachinePoolEnvironmentProviderGateway,
@@ -119,11 +120,11 @@ export const EnvironmentProviderGatewayProvider = {
             )],
             // The emulator's home on both clouds: whole machines sliced into slots (standard YC VMs
             // expose no /dev/kvm; one machine per emulator would be absurd waste). ONE bridge serves
-            // both routes — it stamps the account's cloud type into every provider call, and the host
-            // provider registry routes by it (yandex-cloud leases metal, local is the operator's own
-            // machine attached by hand).
+            // both routes — it stamps the account's cloud type into every provider call, and the machine
+            // provider registry routes by it (yandex-cloud leases metal, self-hosted hands out the user's
+            // own attached machines).
             [routingKey("yandex-cloud", "android", Execution.Emulator, "baremetal"), machinePoolGateway],
-            [routingKey("local", "android", Execution.Emulator, "baremetal"), machinePoolGateway],
+            [routingKey(selfHostedCloudType, "android", Execution.Emulator, "baremetal"), machinePoolGateway],
             [routingKey("yandex-cloud", "ubuntu", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_BROWSER_FOLDER_ID")),
                 browserVmConfig(configService, idleTimeoutSeconds),
@@ -268,7 +269,7 @@ function machinePoolConfig(
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
     return buildMachinePoolEnvironmentConfig({
-        slotsPerMachine: Number(configService.get<string>("MACHINE_POOL_SLOTS_PER_MACHINE") ?? String(defaultSlotsPerHost)),
+        slotsPerMachine: Number(configService.get<string>("MACHINE_POOL_SLOTS_PER_MACHINE") ?? String(defaultSlotsPerMachine)),
         defaultAndroidVersion:
             configService.get<string>("COMPUTE_BAREMETAL_DEFAULT_VERSION") ?? defaultPoolAndroidVersion,
         internalUrl: configService.get<string>("COMPUTE_BAREMETAL_INTERNAL_URL")

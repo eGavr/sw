@@ -11,6 +11,7 @@ import { CloudAccount } from "./entities/cloud-account/cloud-account";
 import { ComputeBinding } from "./entities/cloud-account/compute-binding";
 import { Environment } from "./entities/environment/environment";
 import { EnvironmentApplication } from "./entities/environment/environment-application";
+import { Machine } from "./entities/machine/machine";
 import { MachineLease } from "./entities/machine-pool/machine-lease";
 import { SlotAssignment } from "./entities/machine-pool/slot-assignment";
 import { NetBridgeCredential } from "./entities/net-bridge-credential/net-bridge-credential";
@@ -54,6 +55,7 @@ export class PostgresConnection {
                 ComputeBinding,
                 Environment,
                 EnvironmentApplication,
+                Machine,
                 MachineLease,
                 SlotAssignment,
                 NetBridgeCredential,

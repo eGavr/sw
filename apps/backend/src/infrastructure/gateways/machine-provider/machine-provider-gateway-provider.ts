@@ -1,12 +1,17 @@
 import { ConfigService } from "@nestjs/config";
 
 import { MachineProviderGateway } from "../../../application/interfaces/gateways/machine-provider-gateway";
-import { LeaseTokenService } from "../../../application/interfaces/lease-token-service";
-import { Logger } from "../../logging/logger";
+import { ClaimMachineUseCase } from "../../../application/use-cases/machines/claim-machine-use-case";
+import { DiscardMachineUseCase } from "../../../application/use-cases/machines/discard-machine-use-case";
+import { EnlistMachineUseCase } from "../../../application/use-cases/machines/enlist-machine-use-case";
+import { ListMachineLeaseIdsUseCase } from "../../../application/use-cases/machines/list-machine-lease-ids-use-case";
+import { MeasureHeadroomUseCase } from "../../../application/use-cases/machines/measure-headroom-use-case";
+import { ReleaseMachineUseCase } from "../../../application/use-cases/machines/release-machine-use-case";
+import { selfHostedCloudType } from "../../../domain/entities/machine/self-hosted-cloud-type";
+import { defaultSlotsPerMachine } from "../environment-provider/machine-pool/machine-pool-environment-config";
 
-import { ByoMachineProvider } from "./byo-machine/byo-machine-provider";
-import { LocalMachineAgentLauncher } from "./byo-machine/local-machine-agent-launcher";
 import { RoutingMachineProviderGateway } from "./routing-machine-provider-gateway";
+import { SelfHostedMachineProvider } from "./self-hosted/self-hosted-machine-provider";
 import { YandexBaremetalClient } from "./yandex-baremetal/yandex-baremetal-client";
 import { YandexBaremetalMachineProvider } from "./yandex-baremetal/yandex-baremetal-machine-provider";
 
@@ -14,27 +19,23 @@ import { YandexBaremetalMachineProvider } from "./yandex-baremetal/yandex-bareme
 const defaultInternalCallbackPort = 3002;
 
 // Where each cloud's big machines come from, behind one routed port keyed by CLOUD TYPE (no
-// vocabulary of its own): yandex-cloud leases metal in the binding's folder, local is the operator's
-// own machines attached by hand (dev Macs, lab boxes). Adapter classes are named by mechanism and
-// reusable — a new cloud with big machines adds an entry here, the pool code never changes.
+// vocabulary of its own): yandex-cloud leases metal in the binding's folder, self-hosted hands out the
+// user's own attached machines from the inventory. A new cloud with big machines adds an entry here,
+// the pool code never changes.
 export const MachineProviderGatewayProvider = {
     provide: MachineProviderGateway,
     useFactory: (
         configService: ConfigService,
-        leaseTokens: LeaseTokenService,
-        logger: Logger,
+        claimMachine: ClaimMachineUseCase,
+        releaseMachine: ReleaseMachineUseCase,
+        listMachineLeaseIds: ListMachineLeaseIdsUseCase,
+        measureHeadroom: MeasureHeadroomUseCase,
+        enlistMachine: EnlistMachineUseCase,
+        discardMachine: DiscardMachineUseCase,
     ): MachineProviderGateway => {
         const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
         const baremetalInternalUrl = configService.get<string>("COMPUTE_BAREMETAL_INTERNAL_URL")
             ?? `http://127.0.0.1:${internalPort}`;
-        // The local box always reaches the internal API over loopback — never the baremetal VPC URL.
-        const localInternalUrl = `http://127.0.0.1:${internalPort}`;
-
-        // On the `local` cloud the CP runs on the same machine as the pool host, so it can start the
-        // agent itself (MACHINE_POOL_LOCAL_AUTOSTART) instead of a human — the zero-ceremony dev flow;
-        // MACHINE_AGENT_EMULATOR_WINDOW shows the emulator in a native window (no per-slot VNC yet).
-        const localAutostart = configService.get<string>("MACHINE_POOL_LOCAL_AUTOSTART") === "true";
-        const emulatorWindow = configService.get<string>("MACHINE_AGENT_EMULATOR_WINDOW") === "true";
 
         return new RoutingMachineProviderGateway(new Map<string, MachineProviderGateway>([
             ["yandex-cloud", new YandexBaremetalMachineProvider(
@@ -44,14 +45,28 @@ export const MachineProviderGatewayProvider = {
                     zone: configService.get<string>("COMPUTE_BAREMETAL_ZONE") ?? "ru-central1-m",
                     subnetId: configService.get<string>("COMPUTE_BAREMETAL_SUBNET_ID"),
                     internalUrl: baremetalInternalUrl,
+                    slotsPerMachine: Number(
+                        configService.get<string>("MACHINE_POOL_SLOTS_PER_MACHINE") ?? String(defaultSlotsPerMachine),
+                    ),
                 },
-                leaseTokens,
+                enlistMachine,
+                discardMachine,
             )],
-            ["local", new ByoMachineProvider(leaseTokens, localInternalUrl, logger, {
-                emulatorWindow,
-                launcher: localAutostart ? new LocalMachineAgentLauncher() : undefined,
-            })],
+            [selfHostedCloudType, new SelfHostedMachineProvider(
+                claimMachine,
+                releaseMachine,
+                listMachineLeaseIds,
+                measureHeadroom,
+            )],
         ]));
     },
-    inject: [ConfigService, LeaseTokenService, Logger],
+    inject: [
+        ConfigService,
+        ClaimMachineUseCase,
+        ReleaseMachineUseCase,
+        ListMachineLeaseIdsUseCase,
+        MeasureHeadroomUseCase,
+        EnlistMachineUseCase,
+        DiscardMachineUseCase,
+    ],
 };
