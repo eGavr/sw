@@ -48,6 +48,14 @@ import {
   updateComputeBinding,
 } from "@/lib/sw";
 
+// A substrate serves a project from exactly ONE cloud (the API refuses a second binding), so the form
+// shows the ones another cloud already took as unavailable, naming the holder — instead of letting the
+// user pick and meet a conflict.
+type TakenSubstrate = { platform: string; execution: string; cloudType: string };
+
+const substrateKey = (substrate: { platform: string; execution: string }): string =>
+  `${substrate.platform}/${substrate.execution}`;
+
 // The grant targets what the kind names: the cluster for a kubernetes binding, the folder otherwise —
 // picked by the kind's required keys so the right command shows even before the id is typed.
 const grantCommand = (grant: CloudGrant, kindOffer: ComputeKindOffer, config: Record<string, string>): string =>
@@ -105,6 +113,13 @@ export function CloudsTab({ project }: { project: string }) {
           key={account.uid}
           project={project}
           account={account}
+          takenElsewhere={accounts
+            .filter((other) => other.uid !== account.uid)
+            .flatMap((other) => other.computeBindings.map((binding) => ({
+              platform: binding.platform,
+              execution: binding.execution,
+              cloudType: other.type,
+            })))}
           catalogueEntry={catalogue.find((entry) => entry.type === account.type)}
           startOpen={account.uid === settingUp}
           onDone={() => {
@@ -128,12 +143,14 @@ function CloudAccountCard({
   project,
   account,
   catalogueEntry,
+  takenElsewhere,
   startOpen,
   onDone,
 }: {
   project: string;
   account: CloudAccount;
   catalogueEntry?: CloudType;
+  takenElsewhere: Array<TakenSubstrate>;
   startOpen: boolean;
   onDone: () => void;
 }) {
@@ -255,6 +272,7 @@ function CloudAccountCard({
             <BindingForm
               key={binding.uid}
               offers={offers}
+              takenElsewhere={takenElsewhere}
               knownFolderId={knownFolderId}
               project={project}
               existing={binding}
@@ -312,6 +330,7 @@ function CloudAccountCard({
         {adding && remaining.length > 0 ? (
           <BindingForm
             offers={remaining}
+            takenElsewhere={takenElsewhere}
             knownFolderId={knownFolderId}
             project={project}
             pending
@@ -358,6 +377,7 @@ function CloudAccountCard({
 // the row appears with its badge and turns available once access is granted.
 function BindingForm({
   offers,
+  takenElsewhere,
   knownFolderId,
   project,
   existing,
@@ -366,6 +386,7 @@ function BindingForm({
   onSubmit,
 }: {
   offers: Array<SubstrateOffer>;
+  takenElsewhere: Array<TakenSubstrate>;
   knownFolderId: string;
   project: string;
   existing?: ComputeBinding;
@@ -381,10 +402,18 @@ function BindingForm({
   );
   const [saving, setSaving] = useState(false);
 
+  // Which substrate another cloud of this project already serves, and which cloud that is.
+  const holderOf = new Map(takenElsewhere.map((taken) => [substrateKey(taken), taken.cloudType]));
   const platforms = [...new Set(offers.map((offer) => offer.platform))];
   const executionsFor = (p: string): Array<{ value: string; label: string; disabled?: boolean }> => {
     const available = offers.filter((offer) => offer.platform === p).map((offer) => offer.execution);
-    const options = available.map((value) => ({ value, label: value }));
+    const options = available.map((value) => {
+      const holder = holderOf.get(substrateKey({ platform: p, execution: value }));
+
+      return holder
+        ? { value, label: `${value} (on ${holder})`, disabled: true }
+        : { value, label: value };
+    });
 
     // The emulator substrate exists in the model but is not offered until live-verified.
     if (p === "android" && !available.includes("emulator")) {
@@ -393,6 +422,15 @@ function BindingForm({
 
     return options;
   };
+
+  // A platform whose every execution is served elsewhere has nothing to offer here.
+  const platformOptions = platforms.map((value) => ({
+    value,
+    label: platformLabel(value),
+    disabled: offers
+      .filter((offer) => offer.platform === value)
+      .every((offer) => holderOf.has(substrateKey(offer))),
+  }));
 
   const substrate = offers.find((offer) => offer.platform === platform && offer.execution === execution);
   const kinds = substrate?.compute ?? [];
@@ -409,13 +447,14 @@ function BindingForm({
 
   // A sole option needs no decision — preselect it (the whole cascade collapses for a
   // single-platform cloud like local).
-  if (!platform && platforms.length === 1) {
-    setPlatform(platforms[0]);
+  const choosablePlatforms = platformOptions.filter((option) => !option.disabled);
+  if (!platform && choosablePlatforms.length === 1) {
+    setPlatform(choosablePlatforms[0].value);
   }
   if (platform && !execution) {
-    const options = offers.filter((offer) => offer.platform === platform);
+    const options = executionsFor(platform).filter((option) => !option.disabled);
     if (options.length === 1) {
-      setExecution(options[0].execution);
+      setExecution(options[0].value);
     }
   }
   if (substrate && !kind && kinds.length === 1) {
@@ -439,7 +478,7 @@ function BindingForm({
         <Select
           label="Platform"
           size="xs"
-          data={platforms.map((p) => ({ value: p, label: platformLabel(p) }))}
+          data={platformOptions}
           value={platform}
           disabled={!pending}
           onChange={(value) => { setPlatform(value); setExecution(null); setKind(null); setConfig({}); }}
@@ -469,6 +508,13 @@ function BindingForm({
           />
         )}
       </Group>
+
+      {takenElsewhere.length > 0 && (
+        <Text size="xs" c="dimmed">
+          A platform is served by one cloud per project. The greyed-out ones are already bound on
+          another cloud here — remove them there to move them.
+        </Text>
+      )}
 
       {kindOffer && kindOffer.requiredConfig.map((requirement) => (
         <TextInput
