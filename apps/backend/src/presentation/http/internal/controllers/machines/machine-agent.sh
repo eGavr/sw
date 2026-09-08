@@ -174,10 +174,10 @@ done' &
 }
 
 # ---------------------------------------------------------------- slot mode
-# Environment (set by the agent when spawning): SW_ENVIRONMENT_ID, SW_AVD (the baked base AVD of the
-# Android version), SW_DEVICE (the device kind to dress it as), SW_WD_PORT, SW_APPIUM_PORT,
-# SW_CONSOLE_PORT, SW_VNC_PORT, SW_ENV_AGENT_TOKEN, SW_INTERNAL_URL, SW_HOST_IP, SW_SLOT_DIR,
-# SW_SESSION_IDLE_TIMEOUT_SECONDS, SW_APPS.
+# Environment (set by the agent when spawning): SW_ENVIRONMENT_ID, SW_WD_PORT, SW_APPIUM_PORT,
+# SW_CONSOLE_PORT, SW_VNC_PORT, SW_ENV_AGENT_TOKEN, SW_HOST_IP, SW_SLOT_DIR, SW_SLOT_KIND and
+# SW_LAUNCH (the base64 launch descriptor each launcher reads its own parameters from). SW_INTERNAL_URL
+# is the agent's own, inherited.
 # A slot is whatever the control plane placed here: an emulator instance of a baked AVD, or a
 # container of the linux base image run by this machine's docker. The launch descriptor names which;
 # the agent itself stays free of substrate knowledge beyond dispatching to the right launcher.
@@ -245,9 +245,31 @@ child.on("exit", (code) => process.exit(code === null ? 0 : code));
 '
 }
 
+# One field of the launch descriptor, as a plain string (empty when absent) — the launchers read what
+# they need from it instead of relying on the desired line's column order.
+launch_field() {
+    node -e '
+const launch = JSON.parse(Buffer.from(process.env.SW_LAUNCH, "base64").toString("utf8"));
+const value = launch[process.argv[1]];
+if (process.argv[1] === "apps") {
+    process.stdout.write((value || []).map((a) => `${a.name}~${a.app ? 1 : 0}~${a.webdriver ? 1 : 0}`).join(","));
+} else {
+    process.stdout.write(value === undefined || value === null ? "" : String(value));
+}
+' "$1"
+}
+
 run_emulator_slot() {
-    : "${SW_ENVIRONMENT_ID:?}" "${SW_AVD:?}" "${SW_DEVICE:?}" "${SW_WD_PORT:?}" "${SW_APPIUM_PORT:?}" "${SW_VNC_PORT:?}"
-    : "${SW_CONSOLE_PORT:?}" "${SW_ENV_AGENT_TOKEN:?}" "${SW_INTERNAL_URL:?}" "${SW_HOST_IP:?}" "${SW_SLOT_DIR:?}"
+    : "${SW_ENVIRONMENT_ID:?}" "${SW_WD_PORT:?}" "${SW_APPIUM_PORT:?}" "${SW_VNC_PORT:?}"
+    : "${SW_CONSOLE_PORT:?}" "${SW_ENV_AGENT_TOKEN:?}" "${SW_HOST_IP:?}" "${SW_SLOT_DIR:?}" "${SW_LAUNCH:?}"
+
+    SW_AVD="$(launch_field avd)"
+    SW_DEVICE="$(launch_field device)"
+    SW_INTERNAL_URL="$(launch_field internalUrl)"
+    SW_SESSION_IDLE_TIMEOUT_SECONDS="$(launch_field sessionTimeoutSeconds)"
+    SW_APPS="$(launch_field apps)"
+    export SW_AVD SW_DEVICE SW_INTERNAL_URL SW_SESSION_IDLE_TIMEOUT_SECONDS SW_APPS
+    : "${SW_AVD:?}" "${SW_DEVICE:?}" "${SW_INTERNAL_URL:?}"
 
     mkdir -p "${SW_SLOT_DIR}"
     cd "${SW_SLOT_DIR}"
@@ -571,23 +593,20 @@ reconcile() {
     slots_dir="${state_dir}/slots"
     mkdir -p "${slots_dir}"
 
-    # One line per desired seat: envId wd appium console vnc avd device internalUrl token idleTimeout
-    # apps kind launch. Parsed with node — already a hard dependency of every slot (the wd door and
-    # Appium are node), so the agent needs no second runtime (macOS no longer ships python3). apps
-    # encodes the emulator launch's application list as name~appFlag~webdriverFlag entries (the
-    # separators are outside the application-name alphabet); `launch` is the whole descriptor, base64 so
-    # it survives a tab-separated line, for launchers whose parameters are richer than flat fields (the
-    # container slot's image, env and command). No field but the last may be empty: `read` folds
-    # adjacent tabs.
+    # One line per desired seat: envId wd appium console vnc token kind launch. Parsed with node —
+    # already a hard dependency of every slot (the wd door and Appium are node), so the agent needs no
+    # second runtime (macOS no longer ships python3). Only fields that are NEVER empty travel as
+    # columns: `read` with a tab IFS folds adjacent tabs, so one empty column would shift every field
+    # after it (an emulator launch happened to fill them all, a container launch does not). Everything
+    # a particular launcher needs rides in `launch` — the whole descriptor, base64 so it survives a
+    # tab-separated line — and each launcher reads its own fields out of it.
     desired_file="${state_dir}/desired.tsv"
     node -e '
 const doc = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 for (const s of doc.assignments || []) {
     const l = s.launch || {}, p = s.ports || {};
-    const apps = (l.apps || []).map((a) => `${a.name}~${a.app ? 1 : 0}~${a.webdriver ? 1 : 0}`).join(",");
     process.stdout.write([
-        s.environmentId, p.wd, p.appium, p.console, p.vnc, l.avd || "", l.device || "", l.internalUrl || "",
-        s.agentToken, l.sessionTimeoutSeconds || 0, apps, l.kind || "emulator",
+        s.environmentId, p.wd, p.appium, p.console, p.vnc, s.agentToken, l.kind || "emulator",
         Buffer.from(JSON.stringify(l)).toString("base64"),
     ].join("\t") + "\n");
 }
@@ -604,7 +623,7 @@ for (const s of doc.assignments || []) {
     done
 
     # Start (or restart after a crash) every desired slot that is not running.
-    while IFS=$'\t' read -r env_id wd appium console vnc avd device internal_url token idle_timeout apps kind launch; do
+    while IFS=$'\t' read -r env_id wd appium console vnc token kind launch; do
         [ -n "${env_id}" ] || continue
         slot_dir="${slots_dir}/${env_id}"
 
@@ -615,16 +634,15 @@ for (const s of doc.assignments || []) {
             continue
         fi
 
-        echo "[machine-agent] starting ${kind} slot for ${env_id} (wd :${wd}${avd:+, avd ${avd} as ${device}})"
+        echo "[machine-agent] starting ${kind} slot for ${env_id} (wd :${wd})"
         mkdir -p "${slot_dir}"
         # Spawn the slot in its own session (its own process group), so the whole slot dies as one and
         # nothing it starts is orphaned onto the agent. node stands in for setsid (macOS ships neither
         # setsid nor a reliable python3); `detached` = a fresh session, `stdio: ignore` frees the
         # agent's fds (no pipe to hang on), and the printed leader pid IS the group id.
-        SW_ENVIRONMENT_ID="${env_id}" SW_AVD="${avd}" SW_DEVICE="${device}" SW_WD_PORT="${wd}" SW_APPIUM_PORT="${appium}" \
-        SW_CONSOLE_PORT="${console}" SW_VNC_PORT="${vnc}" SW_ENV_AGENT_TOKEN="${token}" SW_INTERNAL_URL="${internal_url}" \
-        SW_HOST_IP="${host_ip}" SW_SLOT_DIR="${slot_dir}" SW_SESSION_IDLE_TIMEOUT_SECONDS="${idle_timeout}" SW_APPS="${apps:-}" \
-        SW_SLOT_KIND="${kind:-emulator}" SW_LAUNCH="${launch:-}" \
+        SW_ENVIRONMENT_ID="${env_id}" SW_WD_PORT="${wd}" SW_APPIUM_PORT="${appium}" SW_CONSOLE_PORT="${console}" \
+        SW_VNC_PORT="${vnc}" SW_ENV_AGENT_TOKEN="${token}" SW_HOST_IP="${host_ip}" SW_SLOT_DIR="${slot_dir}" \
+        SW_SLOT_KIND="${kind:-emulator}" SW_LAUNCH="${launch}" \
             node -e 'const c=require("child_process").spawn("bash",[process.argv[1],"slot"],{detached:true,stdio:"ignore"});console.log(c.pid);c.unref();' \
             "$0" >"${slot_dir}/pgid"
     done <"${desired_file}"
