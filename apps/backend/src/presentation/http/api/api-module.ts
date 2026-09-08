@@ -9,10 +9,10 @@ import {
 } from "../../../application/interfaces/gateways/webdriver-session-gateway";
 import { CloudAccountRepository } from "../../../application/interfaces/repositories/cloud-account-repository";
 import { EnvironmentRepository } from "../../../application/interfaces/repositories/environment-repository";
+import { MachineLeaseRepository } from "../../../application/interfaces/repositories/machine-lease-repository";
 import {
     NetBridgeCredentialRepository,
 } from "../../../application/interfaces/repositories/net-bridge-credential-repository";
-import { PoolHostRepository } from "../../../application/interfaces/repositories/pool-host-repository";
 import {
     ProjectApplicationRepository,
 } from "../../../application/interfaces/repositories/project-application-repository";
@@ -58,8 +58,8 @@ import { CreateEnvironmentUseCase } from "../../../application/use-cases/environ
 import { DeleteEnvironmentUseCase } from "../../../application/use-cases/environments/delete-environment-use-case";
 import { GetEnvironmentUseCase } from "../../../application/use-cases/environments/get-environment-use-case";
 import { ListEnvironmentsUseCase } from "../../../application/use-cases/environments/list-environments-use-case";
-import { PlaceWorkloadUseCase } from "../../../application/use-cases/host-pool/place-workload-use-case";
-import { ReleaseWorkloadUseCase } from "../../../application/use-cases/host-pool/release-workload-use-case";
+import { PlaceWorkloadUseCase } from "../../../application/use-cases/machine-pool/place-workload-use-case";
+import { ReleaseWorkloadUseCase } from "../../../application/use-cases/machine-pool/release-workload-use-case";
 import {
     CreateNetBridgeCredentialUseCase,
 } from "../../../application/use-cases/net-bridge-credentials/create-net-bridge-credential-use-case";
@@ -134,11 +134,11 @@ import {
 } from "../../../infrastructure/data-sources/database/postgres/cloud-account-data-source";
 import { EnvironmentDataSource } from "../../../infrastructure/data-sources/database/postgres/environment-data-source";
 import {
+    MachineLeaseDataSource,
+} from "../../../infrastructure/data-sources/database/postgres/machine-lease-data-source";
+import {
     NetBridgeCredentialDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/net-bridge-credential-data-source";
-import {
-    PoolHostDataSource,
-} from "../../../infrastructure/data-sources/database/postgres/pool-host-data-source";
 import {
     ProjectApplicationDataSource,
 } from "../../../infrastructure/data-sources/database/postgres/project-application-data-source";
@@ -158,8 +158,8 @@ import {
     RegisteredCloudCatalogProvider,
 } from "../../../infrastructure/gateways/environment-provider/registered-cloud-catalog-provider";
 import {
-    HostProviderGatewayProvider,
-} from "../../../infrastructure/gateways/host-provider/host-provider-gateway-provider";
+    MachineProviderGatewayProvider,
+} from "../../../infrastructure/gateways/machine-provider/machine-provider-gateway-provider";
 import {
     ObjectStorageGatewayProvider,
 } from "../../../infrastructure/gateways/object-storage/object-storage-gateway-provider";
@@ -167,17 +167,17 @@ import { WebDriverClient } from "../../../infrastructure/gateways/webdriver-sess
 import {
     WebDriverSessionGatewayImpl,
 } from "../../../infrastructure/gateways/webdriver-session/webdriver-session-gateway-impl";
-import { HostTokenServiceProvider } from "../../../infrastructure/host-token/host-token-service-provider";
+import { LeaseTokenServiceProvider } from "../../../infrastructure/lease-token/lease-token-service-provider";
 import { LoggerModule } from "../../../infrastructure/logging/logger-module";
 import {
     EnvironmentQuotaPolicyProvider,
 } from "../../../infrastructure/quota/environment-quota-policy-provider";
 import { CloudAccountRepositoryImpl } from "../../../infrastructure/repositories/cloud-account-repository-impl";
 import { EnvironmentRepositoryImpl } from "../../../infrastructure/repositories/environment-repository-impl";
+import { MachineLeaseRepositoryImpl } from "../../../infrastructure/repositories/machine-lease-repository-impl";
 import {
     NetBridgeCredentialRepositoryImpl,
 } from "../../../infrastructure/repositories/net-bridge-credential-repository-impl";
-import { PoolHostRepositoryImpl } from "../../../infrastructure/repositories/pool-host-repository-impl";
 import {
     ProjectApplicationRepositoryImpl,
 } from "../../../infrastructure/repositories/project-application-repository-impl";
@@ -310,19 +310,19 @@ import {
         ApplicationCatalogLoader,
         { provide: ProjectApplicationRepository, useClass: ProjectApplicationRepositoryImpl },
         ProjectApplicationDataSource,
-        // The baremetal route's construction chain: the routed gateway holds the host-pool bridge,
+        // The baremetal route's construction chain: the routed gateway holds the machine-pool bridge,
         // which drives the pool use cases over their repository and host provider.
         PlaceWorkloadUseCase,
         ReleaseWorkloadUseCase,
-        { provide: PoolHostRepository, useClass: PoolHostRepositoryImpl },
-        HostProviderGatewayProvider,
-        HostTokenServiceProvider,
+        { provide: MachineLeaseRepository, useClass: MachineLeaseRepositoryImpl },
+        MachineProviderGatewayProvider,
+        LeaseTokenServiceProvider,
 
         ProjectDataSource,
         EnvironmentDataSource,
         CloudAccountDataSource,
         NetBridgeCredentialDataSource,
-        PoolHostDataSource,
+        MachineLeaseDataSource,
         SessionOwnershipDataSource,
         WebDriverClient,
         StorageDestinationDataSource,

@@ -21,8 +21,8 @@ import {
     ReleaseStaleReservationsUseCase,
 } from "../../application/use-cases/environments/release-stale-reservations-use-case";
 import {
-    ReconcileHostPoolUseCase,
-} from "../../application/use-cases/host-pool/reconcile-host-pool-use-case";
+    ReconcileMachinePoolUseCase,
+} from "../../application/use-cases/machine-pool/reconcile-machine-pool-use-case";
 import { defaultHeartbeatFreshnessMs } from "../../domain/entities/environment/heartbeat-freshness";
 import {
     PreparingTimeoutOverride,
@@ -32,12 +32,12 @@ import { Logger } from "../../infrastructure/logging/logger";
 const channel = "environment_work";
 
 // Session-scoped advisory-lock keys so that, with N workers, only one runs each time-based sweep
-// (reaper / GC / reservation / host pool) at a time (the others skip it); they never block the
+// (reaper / GC / reservation / machine pool) at a time (the others skip it); they never block the
 // LISTEN/pump path.
 const reaperLockKey = 0x53574b52;
 const gcLockKey = 0x53574743;
 const reservationLockKey = 0x53575253;
-const hostPoolLockKey = 0x53574850;
+const machinePoolLockKey = 0x53574850;
 
 const defaultReaperIntervalMs = 10_000;
 const defaultStartingTimeoutMs = 15_000;
@@ -51,13 +51,13 @@ const defaultFailedTtlMs = 3_600_000;
 const defaultReservationSweepIntervalMs = 3_000;
 const defaultReservationStalenessMs = 10_000;
 
-// The host pool's own clocks: an emptied machine lingers for the idle TTL (the next environment
+// The machine pool's own clocks: an emptied machine lingers for the idle TTL (the next environment
 // starts in seconds instead of waiting for a lease), a minute of agent silence writes a machine off,
 // and a physical machine's hand-over gets the same generous allowance as its environments' preparing.
-const defaultHostPoolReconcileIntervalMs = 30_000;
-const defaultHostPoolIdleTtlMs = 15 * 60_000;
-const defaultHostPoolSilenceAllowanceMs = 60_000;
-const defaultHostPoolOrderingTimeoutMs = 45 * 60_000;
+const defaultMachinePoolReconcileIntervalMs = 30_000;
+const defaultMachinePoolIdleTtlMs = 15 * 60_000;
+const defaultMachinePoolSilenceAllowanceMs = 60_000;
+const defaultMachinePoolOrderingTimeoutMs = 45 * 60_000;
 
 // Per-kind preparing leases, e.g. WORKER_PREPARING_TIMEOUTS="baremetal=2700000": a physical machine is
 // handed over in minutes, not the seconds the default lease assumes. Malformed entries fail fast.
@@ -89,7 +89,7 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     private reaperTimer: NodeJS.Timeout | null = null;
     private gcTimer: NodeJS.Timeout | null = null;
     private reservationTimer: NodeJS.Timeout | null = null;
-    private hostPoolTimer: NodeJS.Timeout | null = null;
+    private machinePoolTimer: NodeJS.Timeout | null = null;
 
     private readonly reaperIntervalMs: number;
     private readonly startingTimeoutMs: number;
@@ -101,10 +101,10 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     private readonly failedTtlMs: number;
     private readonly reservationSweepIntervalMs: number;
     private readonly reservationStalenessMs: number;
-    private readonly hostPoolReconcileIntervalMs: number;
-    private readonly hostPoolIdleTtlMs: number;
-    private readonly hostPoolSilenceAllowanceMs: number;
-    private readonly hostPoolOrderingTimeoutMs: number;
+    private readonly machinePoolReconcileIntervalMs: number;
+    private readonly machinePoolIdleTtlMs: number;
+    private readonly machinePoolSilenceAllowanceMs: number;
+    private readonly machinePoolOrderingTimeoutMs: number;
 
     constructor(
         private readonly configService: ConfigService,
@@ -115,7 +115,7 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         private readonly reclaimCrashedEnvironments: ReclaimCrashedEnvironmentsUseCase,
         private readonly collectGarbageEnvironments: CollectGarbageEnvironmentsUseCase,
         private readonly releaseStaleReservations: ReleaseStaleReservationsUseCase,
-        private readonly reconcileHostPool: ReconcileHostPoolUseCase,
+        private readonly reconcileMachinePool: ReconcileMachinePoolUseCase,
     ) {
         this.reaperIntervalMs = this.number("WORKER_REAPER_INTERVAL_MS", defaultReaperIntervalMs);
         this.startingTimeoutMs = this.number("WORKER_STARTING_TIMEOUT_MS", defaultStartingTimeoutMs);
@@ -132,18 +132,18 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
             defaultReservationSweepIntervalMs,
         );
         this.reservationStalenessMs = this.number("RESERVATION_STALENESS_MS", defaultReservationStalenessMs);
-        this.hostPoolReconcileIntervalMs = this.number(
-            "POOL_HOST_RECONCILE_INTERVAL_MS",
-            defaultHostPoolReconcileIntervalMs,
+        this.machinePoolReconcileIntervalMs = this.number(
+            "MACHINE_POOL_RECONCILE_INTERVAL_MS",
+            defaultMachinePoolReconcileIntervalMs,
         );
-        this.hostPoolIdleTtlMs = this.number("POOL_HOST_IDLE_TTL_MS", defaultHostPoolIdleTtlMs);
-        this.hostPoolSilenceAllowanceMs = this.number(
-            "POOL_HOST_SILENCE_ALLOWANCE_MS",
-            defaultHostPoolSilenceAllowanceMs,
+        this.machinePoolIdleTtlMs = this.number("MACHINE_POOL_IDLE_TTL_MS", defaultMachinePoolIdleTtlMs);
+        this.machinePoolSilenceAllowanceMs = this.number(
+            "MACHINE_POOL_SILENCE_ALLOWANCE_MS",
+            defaultMachinePoolSilenceAllowanceMs,
         );
-        this.hostPoolOrderingTimeoutMs = this.number(
-            "POOL_HOST_ORDERING_TIMEOUT_MS",
-            defaultHostPoolOrderingTimeoutMs,
+        this.machinePoolOrderingTimeoutMs = this.number(
+            "MACHINE_POOL_ORDERING_TIMEOUT_MS",
+            defaultMachinePoolOrderingTimeoutMs,
         );
     }
 
@@ -182,10 +182,10 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
         this.reservationTimer = setInterval(() => void this.sweepReservations(), this.reservationSweepIntervalMs);
         this.reservationTimer.unref();
 
-        // The host pool's self-audit: write off silent/never-arrived machines, return idle and
+        // The machine pool's self-audit: write off silent/never-arrived machines, return idle and
         // written-off empty ones, sweep leaked leases — machines cost money by the hour.
-        this.hostPoolTimer = setInterval(() => void this.reconcilePool(), this.hostPoolReconcileIntervalMs);
-        this.hostPoolTimer.unref();
+        this.machinePoolTimer = setInterval(() => void this.reconcilePool(), this.machinePoolReconcileIntervalMs);
+        this.machinePoolTimer.unref();
 
         // NOTIFY is not durable: catch up on whatever is already waiting.
         await this.pump();
@@ -209,9 +209,9 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
             this.reservationTimer = null;
         }
 
-        if (this.hostPoolTimer) {
-            clearInterval(this.hostPoolTimer);
-            this.hostPoolTimer = null;
+        if (this.machinePoolTimer) {
+            clearInterval(this.machinePoolTimer);
+            this.machinePoolTimer = null;
         }
 
         await this.client?.end();
@@ -276,10 +276,10 @@ export class EnvironmentWorker implements OnApplicationBootstrap, OnApplicationS
     }
 
     private async reconcilePool(): Promise<void> {
-        await this.underLock(hostPoolLockKey, () => this.reconcileHostPool.execute({
-            idleTtlMs: this.hostPoolIdleTtlMs,
-            silenceAllowanceMs: this.hostPoolSilenceAllowanceMs,
-            orderingTimeoutMs: this.hostPoolOrderingTimeoutMs,
+        await this.underLock(machinePoolLockKey, () => this.reconcileMachinePool.execute({
+            idleTtlMs: this.machinePoolIdleTtlMs,
+            silenceAllowanceMs: this.machinePoolSilenceAllowanceMs,
+            orderingTimeoutMs: this.machinePoolOrderingTimeoutMs,
         }));
     }
 

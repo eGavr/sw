@@ -2,9 +2,9 @@ import { ConfigService } from "@nestjs/config";
 
 import { AgentTokenService } from "../../../application/interfaces/agent-token-service";
 import { EnvironmentProviderGateway } from "../../../application/interfaces/gateways/environment-provider-gateway";
-import { HostProviderGateway } from "../../../application/interfaces/gateways/host-provider-gateway";
-import { PlaceWorkloadUseCase } from "../../../application/use-cases/host-pool/place-workload-use-case";
-import { ReleaseWorkloadUseCase } from "../../../application/use-cases/host-pool/release-workload-use-case";
+import { MachineProviderGateway } from "../../../application/interfaces/gateways/machine-provider-gateway";
+import { PlaceWorkloadUseCase } from "../../../application/use-cases/machine-pool/place-workload-use-case";
+import { ReleaseWorkloadUseCase } from "../../../application/use-cases/machine-pool/release-workload-use-case";
 import { EnvironmentQuotaPolicy } from "../../../domain/entities/environment/environment-quota";
 import { Execution } from "../../../domain/entities/environment/execution";
 import { SessionIdleTimeout } from "../../../domain/entities/session/session-idle-timeout";
@@ -46,14 +46,6 @@ import {
     DockerEnvironmentConfig,
 } from "./docker/docker-environment-config";
 import { DockerEnvironmentProviderGateway } from "./docker/docker-environment-provider-gateway";
-import {
-    buildHostPoolEnvironmentConfig,
-    defaultPoolAndroidVersion,
-    defaultSlotsPerHost,
-} from "./host-pool/host-pool-environment-config";
-import {
-    HostPoolEnvironmentProviderGateway,
-} from "./host-pool/host-pool-environment-provider-gateway";
 import { KubernetesClient } from "./kubernetes/kubernetes-client";
 import {
     buildKubernetesEnvironmentConfig,
@@ -63,6 +55,14 @@ import {
     KubernetesEnvironmentProviderGateway,
 } from "./kubernetes/kubernetes-environment-provider-gateway";
 import { defaultLinuxBaseImage, defaultScreen, ScreenGeometry } from "./linux-node";
+import {
+    buildMachinePoolEnvironmentConfig,
+    defaultPoolAndroidVersion,
+    defaultSlotsPerHost,
+} from "./machine-pool/machine-pool-environment-config";
+import {
+    MachinePoolEnvironmentProviderGateway,
+} from "./machine-pool/machine-pool-environment-provider-gateway";
 import { RoutingEnvironmentProviderGateway, routingKey } from "./routing-environment-provider-gateway";
 import { YandexComputeClient } from "./yandex-compute/yandex-compute-client";
 
@@ -82,18 +82,18 @@ export const EnvironmentProviderGatewayProvider = {
         agentTokens: AgentTokenService,
         placeWorkload: PlaceWorkloadUseCase,
         releaseWorkload: ReleaseWorkloadUseCase,
-        hostProvider: HostProviderGateway,
+        machineProvider: MachineProviderGateway,
         quotaPolicy: EnvironmentQuotaPolicy,
     ): EnvironmentProviderGateway => {
         // One backend-agnostic idle timeout (domain policy), handed by each gateway to the node's wd
         // door — no per-backend copy of the default.
         const idleTimeoutSeconds = resolveSessionIdleTimeout(configService).toSeconds();
 
-        const hostPoolGateway = new HostPoolEnvironmentProviderGateway(
+        const machinePoolGateway = new MachinePoolEnvironmentProviderGateway(
             placeWorkload,
             releaseWorkload,
-            hostProvider,
-            hostPoolConfig(configService, idleTimeoutSeconds),
+            machineProvider,
+            machinePoolConfig(configService, idleTimeoutSeconds),
             quotaPolicy,
         );
 
@@ -122,8 +122,8 @@ export const EnvironmentProviderGatewayProvider = {
             // both routes — it stamps the account's cloud type into every provider call, and the host
             // provider registry routes by it (yandex-cloud leases metal, local is the operator's own
             // machine attached by hand).
-            [routingKey("yandex-cloud", "android", Execution.Emulator, "baremetal"), hostPoolGateway],
-            [routingKey("local", "android", Execution.Emulator, "baremetal"), hostPoolGateway],
+            [routingKey("yandex-cloud", "android", Execution.Emulator, "baremetal"), machinePoolGateway],
+            [routingKey("local", "android", Execution.Emulator, "baremetal"), machinePoolGateway],
             [routingKey("yandex-cloud", "ubuntu", Execution.Container, "vm"), new BrowserVmEnvironmentProviderGateway(
                 new YandexComputeClient(configService.get<string>("COMPUTE_BROWSER_FOLDER_ID")),
                 browserVmConfig(configService, idleTimeoutSeconds),
@@ -140,7 +140,7 @@ export const EnvironmentProviderGatewayProvider = {
         AgentTokenService,
         PlaceWorkloadUseCase,
         ReleaseWorkloadUseCase,
-        HostProviderGateway,
+        MachineProviderGateway,
         EnvironmentQuotaPolicy,
     ],
 };
@@ -261,14 +261,14 @@ function screenGeometry(configService: ConfigService, prefix: string): ScreenGeo
 
 // Pool policy for the baremetal routes: how a machine is sliced. The machines themselves come from
 // each cloud's host provider (leased via COMPUTE_BAREMETAL_*, or the operator's own byo machine).
-function hostPoolConfig(
+function machinePoolConfig(
     configService: ConfigService,
     sessionTimeoutSeconds: number,
-): ReturnType<typeof buildHostPoolEnvironmentConfig> {
+): ReturnType<typeof buildMachinePoolEnvironmentConfig> {
     const internalPort = configService.get<string>("INTERNAL_PORT") ?? String(defaultInternalCallbackPort);
 
-    return buildHostPoolEnvironmentConfig({
-        slotsPerHost: Number(configService.get<string>("POOL_HOST_SLOTS") ?? String(defaultSlotsPerHost)),
+    return buildMachinePoolEnvironmentConfig({
+        slotsPerMachine: Number(configService.get<string>("MACHINE_POOL_SLOTS_PER_MACHINE") ?? String(defaultSlotsPerHost)),
         defaultAndroidVersion:
             configService.get<string>("COMPUTE_BAREMETAL_DEFAULT_VERSION") ?? defaultPoolAndroidVersion,
         internalUrl: configService.get<string>("COMPUTE_BAREMETAL_INTERNAL_URL")

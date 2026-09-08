@@ -1,4 +1,4 @@
-# Мак как pool-host: android-эмуляторы слотами на своей машине
+# Мак как машина пула: android-эмуляторы слотами на своей машине
 
 Локальная проверка всей baremetal-вертикали без облака: control plane считает твой мак «машиной
 пула» (`local:android:emulator:baremetal`, host-провайдер `byo`), host-агент на маке поднимает
@@ -89,19 +89,19 @@
 
    ```text
    byo host provider: host <uuid> ordered — start the host agent on the machine:
-     SW_HOST_ID=<uuid> \
-     SW_HOST_TOKEN=<jwt> \
+     SW_LEASE_ID=<uuid> \
+     SW_LEASE_TOKEN=<jwt> \
      SW_INTERNAL_URL=http://127.0.0.1:3002 \
-     bash pool-host-agent.sh
+     bash machine-agent.sh
    ```
 
 4. **Скачай и запусти агента** (или запусти прямо из репо —
-   `apps/backend/src/presentation/http/internal/controllers/pool-hosts/pool-host-agent.sh`):
+   `apps/backend/src/presentation/http/internal/controllers/machine-leases/machine-agent.sh`):
 
    ```bash
-   curl -H "Authorization: Bearer $SW_HOST_TOKEN" \
-        "$SW_INTERNAL_URL/internal/poolHosts/agent:download" -o pool-host-agent.sh
-   SW_HOST_ID=… SW_HOST_TOKEN=… SW_INTERNAL_URL=http://127.0.0.1:3002 bash pool-host-agent.sh
+   curl -H "Authorization: Bearer $SW_LEASE_TOKEN" \
+        "$SW_INTERNAL_URL/internal/machineLeases/agent:download" -o machine-agent.sh
+   SW_LEASE_ID=… SW_LEASE_TOKEN=… SW_INTERNAL_URL=http://127.0.0.1:3002 bash machine-agent.sh
    ```
 
    Агент чекинится каждые ~3с, стартует слот: эмулятор (`-read-only`, console-порт слота) → appium →
@@ -123,14 +123,14 @@
    слота адресно по его RFB-порту (`SW_VNC_RFB_PORT`), не трогая соседние слоты.
 
 6. **Уборка**: `DELETE` окружения → слот гаснет на следующем чекине; пустая машина живёт
-   `POOL_HOST_IDLE_TTL_MS` (для дев-цикла удобно поднять) и затем забывается — агент получает 404 и
+   `MACHINE_POOL_IDLE_TTL_MS` (для дев-цикла удобно поднять) и затем забывается — агент получает 404 и
    выходит (сам мак, разумеется, остаётся твоим). Новый прогон = новые креды из лога.
 
 ## Дев-ручки
 
-`POOL_HOST_SLOTS=2` (мак ≠ 48 ядер), `POOL_HOST_IDLE_TTL_MS=3600000` (не забывать машину посреди
+`MACHINE_POOL_SLOTS_PER_MACHINE=2` (мак ≠ 48 ядер), `MACHINE_POOL_IDLE_TTL_MS=3600000` (не забывать машину посреди
 отладки), `SW_HOST_IP` (переопределить адрес, по умолчанию мак определяет свой en0; для CP на этой же
-машине правильно `127.0.0.1`), `SW_STATE_DIR` (по умолчанию `/tmp/sw-pool-host/<host-id>`; там же
+машине правильно `127.0.0.1`), `SW_STATE_DIR` (по умолчанию `/tmp/sw-machine/<host-id>`; там же
 `slots/<envId>/session.log`).
 
 ## Известные ограничения mac-слотов (v1)
@@ -142,7 +142,7 @@
   «env-агент перезапускает x11vnc на конце сессии» в контейнер не дотягивается — на маке трубы рвёт
   только дверь (для дев-стенда достаточно). Эмулятор можно смотреть и напрямую —
   `SW_EMULATOR_WINDOW=1` при запуске агента из Terminal.
-- Гетерогенная ёмкость (мак-1 на 8 слотов, мак-2 на 12) — пока одна на всех из `POOL_HOST_SLOTS`.
+- Гетерогенная ёмкость (мак-1 на 8 слотов, мак-2 на 12) — пока одна на всех из `MACHINE_POOL_SLOTS_PER_MACHINE`.
 
 ## Linux-хост (арендованный metal): что должно быть в golden-образе для VNC
 
