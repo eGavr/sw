@@ -110,7 +110,9 @@ copy. Строка окружения на self-hosted получает подп
   (мост), `headroom` на порту, состояние `enqueued` + синхронная посадка → 429, `:register`/`:sync`, факты и
   conditions, публичный API машин, поглощение byo-роута `local`; интеграционные тесты (две машины → третье
   окружение 429; молчание → offline → возврат → online).
-- **S2** — UI (секция Machines, Attach machine, cordon/drain/detach, подпись Machine у окружения).
+- **S2 (сделано, ветка `feat.self-hosted-ui`)** — UI: секция Machines на карточке self-hosted облака (бейдж
+  «N ready / M attached», таблица с state/admission/ready/conditions/slots/last sync/agent), Attach machine с
+  одноразовой командой установки, cordon/uncordon/drain/detach(force), подпись «on <fqdn>» у окружения.
 - **S3** — live на VM юзера (есть `/dev/kvm`): attach, установка агента, env android → сессия → VNC → видео,
   429 при исчерпании, detach.
 - **S4** — linux-слоты пула (`ubuntu/container/baremetal`): мост + docker-лончер слота на `sw-linux-base`.
