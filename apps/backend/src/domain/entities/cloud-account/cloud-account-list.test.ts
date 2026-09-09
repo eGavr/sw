@@ -42,13 +42,13 @@ describe("CloudAccountList", () => {
         expect(CloudAccountList.of([]).candidatesFor("ubuntu", Execution.Container)).toEqual([]);
     });
 
-    test("pins to a named binding only when it serves what was asked", () => {
+    test("places on a named cloud only when that cloud serves what was asked", () => {
         const own = account("self-hosted");
         const binding = own.bindCompute({ platformName: "android", execution: Execution.Emulator, kind: "baremetal" });
         const list = CloudAccountList.of([own]);
 
-        expect(list.pinnedTo(binding.id, "android", Execution.Emulator)?.binding.id).toBe(binding.id);
-        expect(list.pinnedTo(binding.id, "ubuntu", Execution.Container)).toBeNull();
-        expect(list.pinnedTo("no-such-binding", "android", Execution.Emulator)).toBeNull();
+        expect(list.on(own.id, "android", Execution.Emulator)?.binding.id).toBe(binding.id);
+        expect(list.on(own.id, "ubuntu", Execution.Container)).toBeNull();
+        expect(list.on("no-such-cloud", "android", Execution.Emulator)).toBeNull();
     });
 });

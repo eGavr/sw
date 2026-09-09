@@ -12,7 +12,7 @@ import { BearerToken } from "../../../decorators/param/bearer-token";
 import { decodePageToken, encodePageToken } from "../../../pagination/page";
 import { PageRequestModel } from "../../../pagination/page-request-model";
 
-import { computeBindingIdOf, CreateEnvironmentRequestModel } from "./io/create-environment-request-model";
+import { cloudAccountIdOf, CreateEnvironmentRequestModel } from "./io/create-environment-request-model";
 import { EnvironmentPresenter } from "./io/environment-presenter";
 import { EnvironmentSessionPresenter } from "./io/environment-session-presenter";
 import { ListEnvironmentsPresenter } from "./io/list-environments-presenter";
@@ -41,7 +41,7 @@ export class EnvironmentsController {
                 platform: body.platform,
                 execution: body.execution,
                 applications: body.applications,
-                computeBindingId: computeBindingIdOf(body),
+                cloudAccountId: cloudAccountIdOf(body),
             },
         }), project);
     }

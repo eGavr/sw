@@ -49,16 +49,16 @@ export class CreateEnvironmentRequestModel {
     @Type(() => ApplicationModel)
     applications: Array<ApplicationModel>;
 
-    // Where to run it, when the caller cares: a binding of one of the project's clouds, by uid or by
-    // resource name. Omitted = the project's bindings for this substrate are walked in order.
+    // Which cloud of the project runs it, by uid or by resource name — the same address the created
+    // environment answers with. Required only when several clouds serve the substrate.
     @IsOptional()
     @IsString()
-    computeBinding?: string;
+    cloudAccount?: string;
 }
 
-// The uid a placement is pinned to; a resource name (…/computeBindings/{uid}) is accepted for symmetry
-// with what the API hands out, and reduced to its id here — the transport's business. A function, not a
-// method: the validation pipe does not transform, so the body arrives as a plain object.
-export function computeBindingIdOf(body: CreateEnvironmentRequestModel): string | undefined {
-    return body.computeBinding?.split("/").pop() || undefined;
+// The uid of the named cloud; a resource name (…/cloudAccounts/{uid}) is accepted for symmetry with what
+// the API hands out, and reduced to its id here — the transport's business. A function, not a method:
+// the validation pipe does not transform, so the body arrives as a plain object.
+export function cloudAccountIdOf(body: CreateEnvironmentRequestModel): string | undefined {
+    return body.cloudAccount?.split("/").pop() || undefined;
 }

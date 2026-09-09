@@ -15,11 +15,11 @@ export class CloudAccountList {
 
     private constructor(private readonly cloudAccounts: ReadonlyArray<CloudAccount>) {}
 
-    // Every connection that can run this substrate, in the order they are tried: the first one bound is
-    // the primary, the rest are what a full primary spills onto (ties, which only two bindings made in
-    // the same millisecond can produce, break by id so the order is never a coin toss). Several are
-    // legal on purpose — own machines for the baseline and a public cloud for the peaks, or one cloud
-    // standing in while another is unreachable.
+    // Every connection that can run this substrate, oldest binding first. Several are legal on purpose —
+    // own machines beside a public cloud — and WHICH one an environment goes to is named in the request,
+    // never guessed here; this list is what the caller chooses from (and what a refusal lists back).
+    // Ties, which only two bindings made in the same millisecond can produce, break by id so the listing
+    // is stable.
     candidatesFor(platformName: string, execution: Execution): Array<Placement> {
         return this.cloudAccounts
             .map((cloudAccount) => ({ cloudAccount, binding: cloudAccount.computeBindingFor(platformName, execution) }))
@@ -29,9 +29,10 @@ export class CloudAccountList {
                 || left.binding.id.localeCompare(right.binding.id));
     }
 
-    // The named binding, when it belongs to this project and serves the asked substrate — a placement the
-    // caller pinned rather than left to the order.
-    pinnedTo(bindingId: string, platformName: string, execution: Execution): Placement | null {
-        return this.candidatesFor(platformName, execution).find(({ binding }) => binding.id === bindingId) ?? null;
+    // The placement on the named cloud, when that cloud is this project's and runs the asked substrate.
+    // A cloud binds a substrate at most once, so naming the cloud names the binding.
+    on(cloudAccountId: string, platformName: string, execution: Execution): Placement | null {
+        return this.candidatesFor(platformName, execution)
+            .find(({ cloudAccount }) => cloudAccount.id === cloudAccountId) ?? null;
     }
 }

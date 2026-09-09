@@ -47,9 +47,9 @@ export interface CreateEnvironmentInput {
   }>;
   execution: string;
   environmentId?: string;
-  // Pin the placement to one binding (uid or resource name). Omitted = the project's bindings for this
-  // substrate are tried in order, the first with room taking it.
-  computeBinding?: string;
+  // Which cloud of the project runs it (uid or resource name). Required when several serve the
+  // platform — nothing is placed behind the caller's back.
+  cloudAccount?: string;
 }
 
 // A (platform, execution) pair a cloud can provision.
