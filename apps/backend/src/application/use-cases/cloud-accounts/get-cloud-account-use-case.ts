@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
 import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
-import { CloudAccountId } from "../../../domain/entities/cloud-account/cloud-account-id";
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
@@ -36,10 +35,11 @@ export class GetCloudAccountUseCase {
         await this.accessControl.authorize(user, project, this.permissionName);
 
         const projectId = ProjectId.fromString(project.id);
-        const cloudAccount = await this.cloudAccountRepository.get(CloudAccountId.fromString(params.cloudAccountId));
+        // Either address answers — the word chosen at connect or the uid — and the lookup is scoped to the
+        // project, so another project's connection is simply not there (its existence is not leaked).
+        const cloudAccount = await this.cloudAccountRepository.findByProjectAndHandle(projectId, params.cloudAccountId);
 
-        // A cloud account of another project is not addressable here — don't leak its existence.
-        if (!cloudAccount.belongsTo(projectId)) {
+        if (!cloudAccount) {
             throw new NotFoundResourceError(params.cloudAccountId);
         }
 

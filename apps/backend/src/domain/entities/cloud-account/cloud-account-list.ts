@@ -3,8 +3,11 @@ import { Execution } from "../environment/execution";
 import { CloudAccount } from "./cloud-account";
 import { ComputeBinding } from "./compute-binding";
 
-// The cloud connections of one project. Which connection runs a given substrate — and whether a new
-// binding would make that ambiguous — are domain rules, so they live here, not in the use case.
+// One connection of the project and the binding of it that serves a substrate — what a placement lands on.
+export type Placement = { cloudAccount: CloudAccount; binding: ComputeBinding };
+
+// The cloud connections of one project. Which of them can run a given substrate, and in what order they
+// are tried, is a domain rule, so it lives here rather than in the use case.
 export class CloudAccountList {
     static of(cloudAccounts: ReadonlyArray<CloudAccount>): CloudAccountList {
         return new CloudAccountList(cloudAccounts);
@@ -12,26 +15,25 @@ export class CloudAccountList {
 
     private constructor(private readonly cloudAccounts: ReadonlyArray<CloudAccount>) {}
 
-    // The connection and binding serving this substrate — at most one across the project, since bindings
-    // are kept substrate-unique (see isBound).
-    resolveFor(
-        platformName: string,
-        execution: Execution,
-    ): { cloudAccount: CloudAccount; binding: ComputeBinding } | null {
-        for (const cloudAccount of this.cloudAccounts) {
-            const binding = cloudAccount.computeBindingFor(platformName, execution);
-
-            if (binding) {
-                return { cloudAccount, binding };
-            }
-        }
-
-        return null;
+    // Every connection that can run this substrate, oldest binding first. Several are legal on purpose —
+    // own machines beside a public cloud — and WHICH one an environment goes to is named in the request,
+    // never guessed here; this list is what the caller chooses from (and what a refusal lists back).
+    // Ties, which only two bindings made in the same millisecond can produce, break by id so the listing
+    // is stable.
+    candidatesFor(platformName: string, execution: Execution): Array<Placement> {
+        return this.cloudAccounts
+            .map((cloudAccount) => ({ cloudAccount, binding: cloudAccount.computeBindingFor(platformName, execution) }))
+            .filter((candidate): candidate is Placement => Boolean(candidate.binding))
+            .sort((left, right) =>
+                left.binding.createdAt.getTime() - right.binding.createdAt.getTime()
+                || left.binding.id.localeCompare(right.binding.id));
     }
 
-    // Whether any connection of the project already binds this substrate — a second binding anywhere
-    // would make routing ambiguous.
-    isBound(platformName: string, execution: Execution): boolean {
-        return this.resolveFor(platformName, execution) !== null;
+    // The placement on the named cloud, when that cloud is this project's and runs the asked substrate.
+    // The name is either address — the word chosen at connect or the uid — and a cloud binds a substrate
+    // at most once, so naming the cloud names the binding.
+    on(cloudAccountHandle: string, platformName: string, execution: Execution): Placement | null {
+        return this.candidatesFor(platformName, execution)
+            .find(({ cloudAccount }) => cloudAccount.isAddressedBy(cloudAccountHandle)) ?? null;
     }
 }

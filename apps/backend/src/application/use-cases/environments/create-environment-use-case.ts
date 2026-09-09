@@ -2,14 +2,20 @@ import { Injectable } from "@nestjs/common";
 
 import { PlatformCatalog } from "../../../domain/entities/application-catalog/platform-catalog";
 import { CloudAccountId } from "../../../domain/entities/cloud-account/cloud-account-id";
-import { CloudAccountList } from "../../../domain/entities/cloud-account/cloud-account-list";
+import { CloudAccountList, Placement } from "../../../domain/entities/cloud-account/cloud-account-list";
+import {
+    AmbiguousPlacementError,
+} from "../../../domain/entities/cloud-account/error/ambiguous-placement-error";
+import {
+    CloudDoesNotServeError,
+} from "../../../domain/entities/cloud-account/error/cloud-does-not-serve-error";
 import { NoActiveCloudAccountError } from "../../../domain/entities/cloud-account/error/no-active-cloud-account-error";
 import { ApplicationList } from "../../../domain/entities/environment/application/application-list";
 import { RequestedApplication } from "../../../domain/entities/environment/application/requested-application";
 import { Environment } from "../../../domain/entities/environment/environment";
 import { EnvironmentId } from "../../../domain/entities/environment/environment-id";
 import { EnvironmentQuota, EnvironmentQuotaPolicy } from "../../../domain/entities/environment/environment-quota";
-import { defaultExecution, toExecution } from "../../../domain/entities/environment/execution";
+import { defaultExecution, Execution, toExecution } from "../../../domain/entities/environment/execution";
 import { Platform } from "../../../domain/entities/environment/platform/platform";
 import { ResourceIdConflictError } from "../../../domain/entities/error/resource-id-conflict-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
@@ -39,6 +45,9 @@ type CreateEnvironmentInput = {
             nameAlias: string;
             versionAlias?: string;
         }>;
+        // Which cloud of the project runs it (its uid). Required exactly when several serve the
+        // substrate — with one there is nothing to choose and nothing hidden.
+        cloudAccountId?: string;
     },
 }
 
@@ -74,14 +83,8 @@ export class CreateEnvironmentUseCase {
         }
 
         const execution = params.execution ? toExecution(params.execution) : defaultExecution;
-        const cloudAccounts = await this.cloudAccountRepository.listByProject(projectId);
-        const resolved = CloudAccountList.of(cloudAccounts).resolveFor(params.platform.name, execution);
-
-        if (!resolved) {
-            throw new NoActiveCloudAccountError(projectId.getValue());
-        }
-
-        const { cloudAccount, binding } = resolved;
+        const clouds = CloudAccountList.of(await this.cloudAccountRepository.listByProject(projectId));
+        const { cloudAccount, binding } = this.placement(clouds, params, execution, projectId);
 
         // The device kind is the line's business: the word typed folds to a catalog id, an untyped one
         // is implied when the line offers a single kind.
@@ -133,5 +136,45 @@ export class CreateEnvironmentUseCase {
         }
 
         return environment;
+    }
+
+    // Where the environment runs — always a decision the caller can account for. Naming a cloud picks it
+    // (a cloud runs a substrate one way, so the cloud names the binding); naming none is only allowed
+    // while exactly one cloud serves the substrate, because then there is no choice to make silently.
+    // With several, the request must say which, and the refusal lists them.
+    private placement(
+        clouds: CloudAccountList,
+        params: CreateEnvironmentInput["params"],
+        execution: Execution,
+        projectId: ProjectId,
+    ): Placement {
+        if (params.cloudAccountId !== undefined) {
+            const named = clouds.on(params.cloudAccountId, params.platform.name, execution);
+
+            if (!named) {
+                throw new CloudDoesNotServeError(params.cloudAccountId, params.platform.name, execution);
+            }
+
+            return named;
+        }
+
+        const candidates = clouds.candidatesFor(params.platform.name, execution);
+
+        if (candidates.length === 0) {
+            throw new NoActiveCloudAccountError(projectId.getValue());
+        }
+
+        if (candidates.length > 1) {
+            throw new AmbiguousPlacementError(
+                params.platform.name,
+                execution,
+                candidates.map(({ cloudAccount }) => ({
+                    type: cloudAccount.type,
+                    id: cloudAccount.resourceId ?? cloudAccount.id,
+                })),
+            );
+        }
+
+        return candidates[0];
     }
 }

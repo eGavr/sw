@@ -16,6 +16,8 @@ export class CloudAccount {
         const cloudAccount = new CloudAccount();
 
         cloudAccount.id = data.id;
+        cloudAccount.resourceId = data.resourceId ?? null;
+        cloudAccount.displayName = data.displayName ?? null;
         cloudAccount.projectId = data.projectId;
         cloudAccount.type = data.type;
         cloudAccount.credentialRef = data.credentialRef ?? null;
@@ -33,6 +35,14 @@ export class CloudAccount {
 
     @ManyToOne(() => Project, project => project.id)
     project: Project;
+
+    // The human-readable id chosen at connect; unique within the project (a partial unique index, so
+    // several connections may leave it unset and be addressed by uid).
+    @Column({ type: "varchar", nullable: true })
+    resourceId: string | null;
+
+    @Column({ type: "varchar", nullable: true })
+    displayName: string | null;
 
     @Column()
     projectId: string;
@@ -59,6 +69,8 @@ export class CloudAccount {
     toObject(): CloudAccountData {
         return {
             id: this.id,
+            resourceId: this.resourceId,
+            displayName: this.displayName,
             projectId: this.projectId,
             type: this.type,
             credentialRef: this.credentialRef,

@@ -186,7 +186,7 @@ describe("/projects/:project/cloudAccounts", () => {
             .get(`/projects/${second.uid}/cloudAccounts/${created.uid}`).set(second.owner).expect(HttpStatus.NOT_FOUND);
     });
 
-    test("keeps a substrate bound once across the project", async () => {
+    test("lets a second cloud serve a platform the first already serves, but not twice on one cloud", async () => {
         const { owner, uid } = await seedProject();
 
         const local = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
@@ -195,12 +195,53 @@ describe("/projects/:project/cloudAccounts", () => {
             .send({ platform: "ubuntu", execution: "container", kind: "docker" })
             .expect(HttpStatus.CREATED);
 
-        // yandex-cloud connects fine, but binding ITS linux would make routing ambiguous.
+        // A platform may be served by several clouds — they are tried in the order they were bound, so
+        // one carries the baseline and the next catches what does not fit.
         const yandex = (await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CREATED)).body;
 
-        return request(app.getHttpServer())
+        await request(app.getHttpServer())
             .post(`/projects/${uid}/cloudAccounts/${yandex.uid}/computeBindings`).set(owner)
             .send({ platform: "ubuntu", execution: "container", kind: "vm", config: { folderId: stubFolderId } })
+            .expect(HttpStatus.CREATED);
+
+        // Twice on the SAME cloud stays a conflict: that connection would have two ways to run one thing.
+        return request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${local.uid}/computeBindings`).set(owner)
+            .send({ platform: "ubuntu", execution: "container", kind: "docker" })
+            .expect(HttpStatus.CONFLICT);
+    });
+
+    // A connection is named in every create-environment request where a project has several, so it can be
+    // given a word to be addressed by (AIP-133) and a label for people (AIP-148) — the same two things a
+    // project has.
+    test("takes a chosen id and a display name, and answers to either address", async () => {
+        const { owner, uid } = await seedProject();
+
+        const created = (await request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts`).set(owner)
+            .send({ type: "local", cloudAccountId: "my-docker", displayName: "The box under my desk" })
+            .expect(HttpStatus.CREATED)).body;
+
+        expect(created).toMatchObject({
+            name: `projects/${uid}/cloudAccounts/my-docker`,
+            uid: expect.any(String),
+            type: "local",
+            displayName: "The box under my desk",
+        });
+
+        // The word and the uid address the same connection.
+        const byWord = (await request(app.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts/my-docker`).set(owner).expect(HttpStatus.OK)).body;
+        const byUid = (await request(app.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
+
+        expect(byWord.uid).toBe(created.uid);
+        expect(byUid.name).toBe(`projects/${uid}/cloudAccounts/my-docker`);
+
+        // The word is the project's to hand out once.
+        await request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts`).set(owner)
+            .send({ type: "self-hosted", cloudAccountId: "my-docker" })
             .expect(HttpStatus.CONFLICT);
     });
 

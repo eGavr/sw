@@ -7,17 +7,22 @@ export class ComputeBindingPresenter implements Presenter {
     constructor(
         private readonly binding: ComputeBinding,
         private readonly cloudAccount: CloudAccount,
+        private readonly projectHandle: string,
     ) {}
 
     present(): object {
+        const account = this.cloudAccount.resourceId ?? this.cloudAccount.id;
+
         return {
-            name: `projects/${this.cloudAccount.projectId.getValue()}`
-                + `/cloudAccounts/${this.cloudAccount.id}/computeBindings/${this.binding.id}`,
+            name: `projects/${this.projectHandle}/cloudAccounts/${account}/computeBindings/${this.binding.id}`,
             uid: this.binding.id,
             platform: this.binding.stereotype.platformName,
             execution: this.binding.stereotype.execution,
             kind: this.binding.kind,
             config: this.binding.config,
+            // The order placements are walked in is the order bindings were made, so the time is part of
+            // the resource, not an internal detail.
+            createTime: this.binding.createdAt.toISOString(),
         };
     }
 }

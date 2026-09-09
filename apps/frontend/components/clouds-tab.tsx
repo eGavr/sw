@@ -48,9 +48,9 @@ import {
   updateComputeBinding,
 } from "@/lib/sw";
 
-// A substrate serves a project from exactly ONE cloud (the API refuses a second binding), so the form
-// shows the ones another cloud already took as unavailable, naming the holder — instead of letting the
-// user pick and meet a conflict.
+// A platform may be served by several clouds of one project: the first bound carries it, the rest catch
+// the overflow. The form says which other cloud already serves a substrate — so the user adds a second
+// one knowingly, rather than wondering why it was allowed.
 type TakenSubstrate = { platform: string; execution: string; cloudType: string };
 
 const substrateKey = (substrate: { platform: string; execution: string }): string =>
@@ -206,6 +206,7 @@ function CloudAccountCard({
         <Group justify="space-between" wrap="nowrap">
           <Group gap="xs">
             <Badge variant="light">{account.type}</Badge>
+            {account.displayName && <Text size="sm" fw={600}>{account.displayName}</Text>}
             {isSelfHosted && <MachineCountBadge project={project} account={account.uid} />}
           </Group>
           {managing ? (
@@ -410,9 +411,7 @@ function BindingForm({
     const options = available.map((value) => {
       const holder = holderOf.get(substrateKey({ platform: p, execution: value }));
 
-      return holder
-        ? { value, label: `${value} (on ${holder})`, disabled: true }
-        : { value, label: value };
+      return holder ? { value, label: `${value} (also on ${holder})` } : { value, label: value };
     });
 
     // The emulator substrate exists in the model but is not offered until live-verified.
@@ -423,14 +422,7 @@ function BindingForm({
     return options;
   };
 
-  // A platform whose every execution is served elsewhere has nothing to offer here.
-  const platformOptions = platforms.map((value) => ({
-    value,
-    label: platformLabel(value),
-    disabled: offers
-      .filter((offer) => offer.platform === value)
-      .every((offer) => holderOf.has(substrateKey(offer))),
-  }));
+  const platformOptions = platforms.map((value) => ({ value, label: platformLabel(value) }));
 
   const substrate = offers.find((offer) => offer.platform === platform && offer.execution === execution);
   const kinds = substrate?.compute ?? [];
@@ -447,9 +439,8 @@ function BindingForm({
 
   // A sole option needs no decision — preselect it (the whole cascade collapses for a
   // single-platform cloud like local).
-  const choosablePlatforms = platformOptions.filter((option) => !option.disabled);
-  if (!platform && choosablePlatforms.length === 1) {
-    setPlatform(choosablePlatforms[0].value);
+  if (!platform && platformOptions.length === 1) {
+    setPlatform(platformOptions[0].value);
   }
   if (platform && !execution) {
     const options = executionsFor(platform).filter((option) => !option.disabled);
@@ -511,8 +502,8 @@ function BindingForm({
 
       {takenElsewhere.length > 0 && (
         <Text size="xs" c="dimmed">
-          A platform is served by one cloud per project. The greyed-out ones are already bound on
-          another cloud here — remove them there to move them.
+          A platform can run on several clouds. The ones marked as already bound elsewhere will be tried
+          in the order they were added — the first with room takes the environment.
         </Text>
       )}
 

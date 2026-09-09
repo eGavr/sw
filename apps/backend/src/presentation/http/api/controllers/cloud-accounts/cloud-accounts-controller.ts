@@ -35,8 +35,13 @@ export class CloudAccountsController {
     ): Promise<CloudAccountPresenter> {
         return new CloudAccountPresenter(await this.createCloudAccountUseCase.execute({
             creds: { token },
-            params: { projectId: project, type: body.type },
-        }));
+            params: {
+                projectId: project,
+                type: body.type,
+                cloudAccountId: body.cloudAccountId,
+                displayName: body.displayName,
+            },
+        }), project);
     }
 
     @Get()
@@ -46,6 +51,7 @@ export class CloudAccountsController {
     ): Promise<ListCloudAccountsPresenter> {
         return new ListCloudAccountsPresenter(
             await this.listCloudAccountsUseCase.execute({ creds: { token }, params: { projectId: project } }),
+            project,
         );
     }
 
@@ -58,7 +64,7 @@ export class CloudAccountsController {
         return new CloudAccountPresenter(await this.getCloudAccountUseCase.execute({
             creds: { token },
             params: { projectId: project, cloudAccountId: cloudAccount },
-        }));
+        }), project);
     }
 
     // A real delete (empty response); refused with CONFLICT while environments still reference the account.

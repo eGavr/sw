@@ -13,6 +13,7 @@ export type ComputeBindingData = {
     execution: string;
     kind: string;
     config: ComputeBindingConfig;
+    createdAt: Date;
 };
 
 export type ComputeBindingCreateParams = {
@@ -28,14 +29,23 @@ export type ComputeBindingCreateParams = {
 export class ComputeBinding {
     readonly id: string;
     readonly stereotype: Stereotype;
+    // When the binding was made — the order placements walk a platform's bindings in.
+    readonly createdAt: Date;
     private _kind: string;
     private _config: ComputeBindingConfig;
 
-    private constructor(id: string, stereotype: Stereotype, kind: string, config: ComputeBindingConfig) {
+    private constructor(
+        id: string,
+        stereotype: Stereotype,
+        kind: string,
+        config: ComputeBindingConfig,
+        createdAt: Date,
+    ) {
         this.id = id;
         this.stereotype = stereotype;
         this._kind = kind;
         this._config = config;
+        this.createdAt = createdAt;
     }
 
     static create(params: ComputeBindingCreateParams): ComputeBinding {
@@ -44,6 +54,7 @@ export class ComputeBinding {
             new Stereotype(params.platformName, params.execution),
             params.kind,
             params.config ?? {},
+            new Date(),
         );
     }
 
@@ -53,6 +64,7 @@ export class ComputeBinding {
             new Stereotype(data.platformName, toExecution(data.execution)),
             data.kind,
             data.config ?? {},
+            data.createdAt,
         );
     }
 
@@ -82,6 +94,7 @@ export class ComputeBinding {
             execution: this.stereotype.execution,
             kind: this._kind,
             config: { ...this._config },
+            createdAt: this.createdAt,
         };
     }
 }

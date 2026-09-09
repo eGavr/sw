@@ -65,6 +65,8 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const [appName, setAppName] = useState("chrome");
   const [appVersion, setAppVersion] = useState("latest");
   const [execution, setExecution] = useState("container");
+  // Which cloud runs the new environment; must be named when several serve the platform.
+  const [cloudAccount, setCloudAccount] = useState("");
   const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);
   // A busy environment's delete asks first: deprovision kills the running session with the container,
   // and its logs/video die unshipped (the agent uploads them on session end — here it dies too).
@@ -195,6 +197,17 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const executionOptions = (boundExecutions.length > 0 ? boundExecutions : ["container"])
     .map((value) => ({ value, label: value }));
 
+  // A platform can be served by several clouds of the project. Which one runs the environment is said
+  // here, never guessed: the field appears — and is required — exactly when there is a choice.
+  const servingClouds = (clouds.data ?? [])
+    .filter((cloud) => cloud.computeBindings.some(
+      (binding) => binding.platform === platformName && binding.execution === execution))
+    .map((cloud) => ({
+      value: cloud.uid,
+      label: `${cloud.displayName ?? cloud.type} · ${cloud.computeBindings.find(
+        (binding) => binding.platform === platformName && binding.execution === execution)?.kind ?? ""}`,
+    }));
+
   // Keep the chosen execution valid as the platform changes: snap to the first option the platform
   // actually offers, so the Select never sits on a value no binding serves (e.g. android has only
   // emulator bound, but the field still held the default container).
@@ -213,6 +226,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
         platform: { name: platformName, version: platformVersion, deviceModel },
         applications: [{ nameAlias: appName, ...(appVersion !== "latest" ? { versionAlias: appVersion } : {}) }],
         execution,
+        ...(cloudAccount ? { cloudAccount } : {}),
       }),
     onSuccess: async () => {
       await invalidate();
@@ -364,9 +378,13 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   </Table.Td>
                   <Table.Td>
                     {e.execution}
-                    {machineOf.has(e.uid) && (
+                    {/* Where it landed: the machine when we know it, the cloud otherwise — with a
+                        platform served by several clouds the row must say which one took it. */}
+                    {machineOf.has(e.uid) ? (
                       <Text size="xs" c="dimmed">on {machineOf.get(e.uid)}</Text>
-                    )}
+                    ) : e.cloudType ? (
+                      <Text size="xs" c="dimmed">on {e.cloudType}</Text>
+                    ) : null}
                   </Table.Td>
                   <Table.Td>
                     {/* The destructive actions gather behind one kebab, sectioned by blast radius:
@@ -530,6 +548,16 @@ export function EnvironmentsTab({ project }: { project: string }) {
             value={execution}
             onChange={(v) => setExecution(v ?? "container")}
           />
+          {servingClouds.length > 1 && (
+            <Select
+              label="Run on"
+              description="Several clouds serve this platform — pick the one to run on"
+              required
+              data={servingClouds}
+              value={cloudAccount}
+              onChange={(v) => setCloudAccount(v ?? "")}
+            />
+          )}
           {create.error && (
             <Text c="red" size="sm">
               {(create.error as Error).message}
@@ -542,7 +570,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
             <Button
               onClick={() => create.mutate()}
               loading={create.isPending}
-              disabled={!selectedOffering}
+              disabled={!selectedOffering || (servingClouds.length > 1 && cloudAccount === "")}
             >
               Create
             </Button>

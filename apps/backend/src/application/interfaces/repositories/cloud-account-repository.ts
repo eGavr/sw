@@ -7,6 +7,10 @@ export abstract class CloudAccountRepository {
 
     abstract listByProject(projectId: ProjectId): Promise<Array<CloudAccount>>;
 
+    // The project's connection addressed by `handle` — its chosen word or its uid; null when the project
+    // has no such connection.
+    abstract findByProjectAndHandle(projectId: ProjectId, handle: string): Promise<CloudAccount | null>;
+
     // Create and update both go through save (the aggregate is built by the caller via CloudAccount.create,
     // so cross-aggregate invariants like non-overlap can be checked before persisting).
     abstract save(cloudAccount: CloudAccount): Promise<void>;

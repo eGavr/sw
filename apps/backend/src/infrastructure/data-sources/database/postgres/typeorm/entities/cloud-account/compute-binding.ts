@@ -16,6 +16,7 @@ export class ComputeBinding {
         computeBinding.execution = binding.execution;
         computeBinding.kind = binding.kind;
         computeBinding.config = binding.config ?? {};
+        computeBinding.createdAt = binding.createdAt;
 
         return computeBinding;
     }
@@ -41,6 +42,10 @@ export class ComputeBinding {
     @Column({ type: "jsonb", default: {} })
     config: Record<string, unknown>;
 
+    // Placements walk a platform's bindings in this order: the first one bound is the primary.
+    @Column({ type: "timestamptz" })
+    createdAt: Date;
+
     private constructor() {}
 
     toObject(): ComputeBindingData {
@@ -50,6 +55,7 @@ export class ComputeBinding {
             execution: this.execution,
             kind: this.kind,
             config: this.config ?? {},
+            createdAt: this.createdAt,
         };
     }
 }

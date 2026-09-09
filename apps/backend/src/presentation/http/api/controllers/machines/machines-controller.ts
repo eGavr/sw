@@ -75,7 +75,7 @@ export class MachinesController {
             params: { projectId: project, cloudAccountId: cloudAccount },
         });
 
-        return new MachinePresenter({ machine, lease: null }, account).present();
+        return new MachinePresenter({ machine, lease: null }, account, project).present();
     }
 
     @Get()
@@ -90,7 +90,7 @@ export class MachinesController {
             this.getCloudAccountUseCase.execute({ creds: { token }, params }),
         ]);
 
-        return { machines: views.map((view) => new MachinePresenter(view, account).present()) };
+        return { machines: views.map((view) => new MachinePresenter(view, account, project).present()) };
     }
 
     @Get(":machine")
@@ -109,7 +109,7 @@ export class MachinesController {
             params: { projectId: project, cloudAccountId: cloudAccount },
         });
 
-        return new MachinePresenter(view, account).present();
+        return new MachinePresenter(view, account, project).present();
     }
 
     // What the machine serves is the operator's declaration, so it is editable in place — detaching a
@@ -200,6 +200,6 @@ export class MachinesController {
             params: { projectId: params.projectId, cloudAccountId: params.cloudAccountId },
         });
 
-        return new MachinePresenter(view, account).present();
+        return new MachinePresenter(view, account, params.projectId).present();
     }
 }

@@ -25,6 +25,11 @@ export interface Environment {
     versionAlias?: string;
     source?: { type: string; appRef?: string; webdriverRef?: string };
   }>;
+  // Where it landed, fixed at creation: with a platform served by several clouds the row has to say
+  // which one took it.
+  cloudAccount?: string;
+  cloudType?: string;
+  computeKind?: string;
   // Orthogonal to state: FREE | RESERVED (a session create is in flight) | BUSY (a session runs).
   occupancy: "FREE" | "RESERVED" | "BUSY";
   lastHeartbeatTime?: string;
@@ -42,6 +47,9 @@ export interface CreateEnvironmentInput {
   }>;
   execution: string;
   environmentId?: string;
+  // Which cloud of the project runs it (uid or resource name). Required when several serve the
+  // platform — nothing is placed behind the caller's back.
+  cloudAccount?: string;
 }
 
 // A (platform, execution) pair a cloud can provision.
@@ -99,9 +107,11 @@ export interface CloudType {
 }
 
 export interface CloudAccount {
-  name: string; // "projects/{project}/cloudAccounts/{uid}"
+  name: string; // "projects/{project}/cloudAccounts/{handle}" — the chosen word when set, else the uid
   uid: string;
   type: string;
+  // A label for people, set at connect; the address is the name's last segment, not this.
+  displayName?: string;
   computeBindings: Array<ComputeBinding>;
   createTime: string;
   updateTime: string;
@@ -564,12 +574,17 @@ export function listCloudAccounts(project: string): Promise<Array<CloudAccount>>
   ).then((d) => d.cloudAccounts ?? []);
 }
 
-// Connect takes nothing but the type: what the user names (folder, cluster) belongs to the bindings.
-export function connectCloud(project: string, type: string): Promise<CloudAccount> {
+// Connect takes the type and, optionally, what to call the connection: a word to address it by and a
+// label for people. What the user names for provisioning (folder, cluster) belongs to the bindings.
+export function connectCloud(
+  project: string,
+  type: string,
+  named?: { cloudAccountId?: string; displayName?: string },
+): Promise<CloudAccount> {
   return swRequest<CloudAccount>(`v1/projects/${project}/cloudAccounts`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ type }),
+    body: JSON.stringify({ type, ...named }),
   });
 }
 
