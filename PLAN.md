@@ -1334,6 +1334,60 @@ AWS/GCP/YC читается как БИЛЛИНГОВЫЙ аккаунт. Оба
 с появлением EKS/GKE `kubernetes` захочет стать отдельным провайдером. Это про нарезку концепта, а не про слово —
 решать отдельно.
 
+**6. Итоги ревизии словаря двумя независимыми ревьюерами (2026-09-09).** Один смотрел публичную поверхность, второй —
+домен и приватный протокол. Ниже всё, что они нашли, сгруппировано по силе сигнала.
+
+**Сошлись оба (сильнейший сигнал):**
+- `admission` (open|cordoned|draining) у машины — ложный друг: в Kubernetes admission это контроллеры валидации
+  запросов, а не планируемость. Значения верные, врёт ярлык → `schedulability` (`schedulable|cordoned|draining`).
+- Корень `execut*` перегружен: `Execution` (container|emulator|device) — это РОД хоста, а не акт исполнения;
+  `Environment.executing` означает «поднялось и простаивает» (окружение `executing` + `free` не исполняет ничего);
+  исполняет на самом деле `Session`. Три несвязанных смысла в одном грепе.
+- `facts` у машины — ОСТАВИТЬ. Устоявшееся заимствование (Puppet/Ansible) и сознательный уход от коллизии с
+  W3C `capabilities`.
+
+**Публичная поверхность (ревьюер 1):**
+- ХУДШЕЕ: `nameAlias`/`versionAlias` рядом с определёнными `name`/`version` у приложения. `name` зарезервировано
+  правилами под ИМЯ РЕСУРСА, а мы кладём туда определённый идентификатор пакета; плюс «alias» перевёрнут — адресуемся
+  мы как раз алиасом → `appName`/`appVersion` + вложенный `detected{...}` (совпадёт с капабилити `sw:appName`).
+- `UNHEALTHY` внутри `state` — здоровье не фаза жизненного цикла; у машины мы уже сделали правильно (`ready` +
+  `conditions[]`) → состояние оставить про жизненный цикл, здоровье вынести в conditions.
+- `roles/wizard` не сообщает ни объёма прав, ни места в иерархии → `roles/operator`.
+- `occupancy` читается как метрика-число (occupancy rate) → `allocation: AVAILABLE|RESERVED|IN_USE`.
+- `sw.environments.teleport` — чужой бренд (Teleport = продукт infra-access) → `sw.environments.attach`.
+- `netBridgeCredentials` — бренд вместо отраслевого слова (BrowserStack Local, Sauce Connect) → `tunnelKeys`.
+- `sw:netbridge` — единственная капабилити в нижнем регистре среди lowerCamel-соседей.
+- Три стиля значений в одном API: `ENQUEUED` / `online` / `self-hosted`; kebab не ложится в proto-энумы.
+- Один корень «provide» в трёх смыслах: `computeProviders`, `source.type: provided`, `machine.provides[]`.
+- Устройство названо четырьмя способами: `sw:deviceModel`, `platform.deviceModel`, `platforms.devices[].id`,
+  appium `deviceName`.
+- `ENQUEUED` и `PREPARING` обе значат «ещё не готово»; `DELETED` как состояние сомнительно (есть `deleteTime`).
+- Одно и то же на разных высотах: machine `pending` ↔ env `ENQUEUED`, machine `offline` ↔ env `UNHEALTHY`.
+
+**Домен и протокол (ревьюер 2):**
+- `EnvironmentProviderGateway` → `ComputeProviderGateway`: публично концепт теперь compute provider, а порт назван по
+  Environment и читается как репозиторий.
+- `agentToken` → `environmentToken` + печатные префиксы токенов (`swr_`/`swm_`/`swe_`, как `ghp_` у GitHub): агентов
+  два, и ровно в одном месте (ответ `:sync`) machine-токен и env-токен лежат рядом.
+- `Stereotype` — false friend: у Selenium это ПОЛНЫЙ шаблон capability, у нас два поля → `PlacementKey` или
+  `RuntimeTarget`. (Закрывает пункт 1 этой копилки: ни `Stereotype`, ни `Substrate`.)
+- `MachineLease` → `MachineClaim`: lease в распределённых системах ограничен временем и продлевается, у нас claim без
+  TTL — читатель пойдёт искать renew-путь. `SlotAssignment` назван лучше всех, `MachinePool` нормально.
+- `launch` → `runtimeSpec`: глагол в роли существительного, и это дискриминированное объединение спецификаций, а не
+  непрозрачный мешок; его `kind` должен браться из того же перечисления, что и род хоста.
+- `Headroom` держит два понятия (остаток + форма следующей машины) → расщепить при следующем касании.
+- `ProvisionedMachine` — четвёртое machine-существительное; если это исход провижна, так и назвать.
+- Девять `XxxCriteria`, из них три почти-синонима «пора вернуть» и две формы одного stage-таймаута; сам ПАТТЕРН
+  окупается (держит пороги вне SQL), популяция — нет. Схлопнуть до 4-5 — это ревизия поведения, не переименование.
+- `:heartbeat` у env-агента и `:sync` у machine-агента — одна форма взаимодействия, два имени.
+- `applications/{app}:downloadApp` заикается; `agentScript:download` против `machines/agent:download` — две формы;
+  снова голое «agent»; W3C пишет `WebDriver`.
+- «seat» в комментариях про `SlotAssignment` — слово, которое мы сами себе запретили.
+
+**КОНФЛИКТ между ревьюерами, решать юзеру:** оба хотят слово `runtime`, но для РАЗНОГО. Публичный — для `kind`
+привязки (docker|vm|kubernetes|baremetal), внутренний — для нашего `Execution` (container|emulator|device). Обоим
+отдать нельзя. Нужен третий словарь для одной из двух осей.
+
 **Заодно (не переименование, а пропуск):** `description` — отдельное стандартное поле для длинного текста про ресурс,
 оно НЕ альтернатива `displayName`, а дополнение. У нас его нет нигде; добавлять, только когда появится, что писать.
 
