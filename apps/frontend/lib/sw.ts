@@ -107,9 +107,11 @@ export interface CloudType {
 }
 
 export interface CloudAccount {
-  name: string; // "projects/{project}/cloudAccounts/{uid}"
+  name: string; // "projects/{project}/cloudAccounts/{handle}" — the chosen word when set, else the uid
   uid: string;
   type: string;
+  // A label for people, set at connect; the address is the name's last segment, not this.
+  displayName?: string;
   computeBindings: Array<ComputeBinding>;
   createTime: string;
   updateTime: string;
@@ -572,12 +574,17 @@ export function listCloudAccounts(project: string): Promise<Array<CloudAccount>>
   ).then((d) => d.cloudAccounts ?? []);
 }
 
-// Connect takes nothing but the type: what the user names (folder, cluster) belongs to the bindings.
-export function connectCloud(project: string, type: string): Promise<CloudAccount> {
+// Connect takes the type and, optionally, what to call the connection: a word to address it by and a
+// label for people. What the user names for provisioning (folder, cluster) belongs to the bindings.
+export function connectCloud(
+  project: string,
+  type: string,
+  named?: { cloudAccountId?: string; displayName?: string },
+): Promise<CloudAccount> {
   return swRequest<CloudAccount>(`v1/projects/${project}/cloudAccounts`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ type }),
+    body: JSON.stringify({ type, ...named }),
   });
 }
 

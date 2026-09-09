@@ -23,6 +23,12 @@ export class CloudAccountRepositoryImpl extends CloudAccountRepository {
         return CloudAccount.fromObject(data);
     }
 
+    async findByProjectAndHandle(projectId: ProjectId, handle: string): Promise<CloudAccount | null> {
+        const data = await this.cloudAccountDataSource.findByProjectAndHandle(projectId.getValue(), handle);
+
+        return data ? CloudAccount.fromObject(data) : null;
+    }
+
     async listByProject(projectId: ProjectId): Promise<Array<CloudAccount>> {
         const data = await this.cloudAccountDataSource.listByProject(projectId.getValue());
 

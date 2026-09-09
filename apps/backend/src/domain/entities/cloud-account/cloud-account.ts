@@ -1,3 +1,4 @@
+import { ResourceId } from "../../types/resource-id/resource-id";
 import { Execution } from "../environment/execution";
 import { ProjectId } from "../project/project-id";
 
@@ -12,6 +13,10 @@ import { ComputeBindingConflictError } from "./error/compute-binding-conflict-er
 
 export type CloudAccountData = {
     id: string;
+    // The human-readable id the connection is addressed by, when one was chosen; else the uid addresses it.
+    resourceId?: string | null;
+    // A free label for people (AIP-148): mutable, not unique, never an address.
+    displayName?: string | null;
     projectId: string;
     type: string;
     credentialRef?: string | null;
@@ -23,11 +28,15 @@ export type CloudAccountData = {
 export type CloudAccountCreateParams = {
     projectId: ProjectId;
     type: string;
+    resourceId?: string;
+    displayName?: string;
     credentialRef?: string | null;
 };
 
 type CloudAccountConstructorParams = {
     id?: CloudAccountId;
+    resourceId?: string | null;
+    displayName?: string | null;
     projectId: ProjectId;
     type: string;
     computeBindings?: ReadonlyArray<ComputeBinding>;
@@ -47,6 +56,8 @@ export class CloudAccount {
     static fromObject(data: CloudAccountData): CloudAccount {
         return new CloudAccount({
             id: CloudAccountId.fromString(data.id),
+            resourceId: data.resourceId,
+            displayName: data.displayName,
             projectId: ProjectId.fromString(data.projectId),
             type: data.type,
             credentialRef: data.credentialRef ?? null,
@@ -61,12 +72,16 @@ export class CloudAccount {
     readonly createdAt: Date;
 
     private readonly _id: CloudAccountId;
+    private readonly _resourceId: ResourceId | null;
+    private _displayName: string | null;
     private readonly _projectId: ProjectId;
     private _computeBindings: Array<ComputeBinding>;
     private _updatedAt: Date;
 
     private constructor(params: CloudAccountConstructorParams) {
         this._id = params.id ?? CloudAccountId.create();
+        this._resourceId = params.resourceId ? new ResourceId(params.resourceId) : null;
+        this._displayName = params.displayName ?? null;
         this._projectId = params.projectId;
         this.type = params.type;
         this._computeBindings = [...(params.computeBindings ?? [])];
@@ -77,6 +92,26 @@ export class CloudAccount {
 
     get id(): string {
         return this._id.getValue();
+    }
+
+    // The human-readable id chosen at connect, else null (then the uid addresses the connection).
+    get resourceId(): string | null {
+        return this._resourceId ? this._resourceId.getValue() : null;
+    }
+
+    // What people call it ("prod folder"). A label, never an address.
+    get displayName(): string | null {
+        return this._displayName;
+    }
+
+    // Either address answers for this connection: the word its owner chose, or its uid.
+    isAddressedBy(handle: string): boolean {
+        return this.id === handle || this.resourceId === handle;
+    }
+
+    rename(displayName: string | null): void {
+        this._displayName = displayName;
+        this.touch();
     }
 
     get projectId(): ProjectId {
@@ -153,6 +188,8 @@ export class CloudAccount {
     toObject(): CloudAccountData {
         return {
             id: this.id,
+            resourceId: this.resourceId,
+            displayName: this._displayName,
             projectId: this._projectId.getValue(),
             type: this.type,
             credentialRef: this.credentialRef,

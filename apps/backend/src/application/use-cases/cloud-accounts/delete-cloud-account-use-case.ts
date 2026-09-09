@@ -37,13 +37,12 @@ export class DeleteCloudAccountUseCase {
         await this.accessControl.authorize(user, project, this.permissionName);
 
         const projectId = ProjectId.fromString(project.id);
-        const cloudAccountId = CloudAccountId.fromString(params.cloudAccountId);
-        const cloudAccount = await this.cloudAccountRepository.get(cloudAccountId);
+        const cloudAccount = await this.cloudAccountRepository.findByProjectAndHandle(projectId, params.cloudAccountId);
 
-        if (!cloudAccount.belongsTo(projectId)) {
+        if (!cloudAccount) {
             throw new NotFoundResourceError(params.cloudAccountId);
         }
 
-        await this.cloudAccountRepository.delete(cloudAccountId);
+        await this.cloudAccountRepository.delete(CloudAccountId.fromString(cloudAccount.id));
     }
 }

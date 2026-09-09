@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
 import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
-import { CloudAccountId } from "../../../domain/entities/cloud-account/cloud-account-id";
 import { NotFoundResourceError } from "../../../domain/entities/error/not-found/not-found-resource-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
@@ -31,9 +30,9 @@ export class CloudAccountAccess {
         await this.accessControl.authorize(user, project, permission);
 
         const projectId = ProjectId.fromString(project.id);
-        const cloudAccount = await this.cloudAccountRepository.get(CloudAccountId.fromString(cloudAccountId));
+        const cloudAccount = await this.cloudAccountRepository.findByProjectAndHandle(projectId, cloudAccountId);
 
-        if (!cloudAccount.belongsTo(projectId)) {
+        if (!cloudAccount) {
             throw new NotFoundResourceError(cloudAccountId);
         }
 

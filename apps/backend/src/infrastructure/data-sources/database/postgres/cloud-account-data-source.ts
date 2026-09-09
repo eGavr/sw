@@ -46,6 +46,19 @@ export class CloudAccountDataSource {
         return cloudAccount?.toObject() ?? null;
     }
 
+    // Either address answers: the word the connection was named with, or its uid. Kept as one query so
+    // a caller never has to know which form it holds.
+    async findByProjectAndHandle(projectId: string, handle: string): Promise<CloudAccountData | null> {
+        const cloudAccount = await this.dataSource.getRepository(CloudAccount)
+            .createQueryBuilder("account")
+            .leftJoinAndSelect("account.computeBindings", "binding")
+            .where("account.projectId = :projectId", { projectId })
+            .andWhere("(account.resourceId = :handle OR account.id::text = :handle)", { handle })
+            .getOne();
+
+        return cloudAccount?.toObject() ?? null;
+    }
+
     async listByProject(projectId: string): Promise<Array<CloudAccountData>> {
         const cloudAccounts = await this.dataSource.getRepository(CloudAccount).find({ where: { projectId } });
 

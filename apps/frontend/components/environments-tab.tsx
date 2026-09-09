@@ -204,7 +204,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
       (binding) => binding.platform === platformName && binding.execution === execution))
     .map((cloud) => ({
       value: cloud.uid,
-      label: `${cloud.type} · ${cloud.computeBindings.find(
+      label: `${cloud.displayName ?? cloud.type} · ${cloud.computeBindings.find(
         (binding) => binding.platform === platformName && binding.execution === execution)?.kind ?? ""}`,
     }));
 

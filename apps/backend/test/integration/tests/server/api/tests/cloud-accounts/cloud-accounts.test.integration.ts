@@ -211,6 +211,40 @@ describe("/projects/:project/cloudAccounts", () => {
             .expect(HttpStatus.CONFLICT);
     });
 
+    // A connection is named in every create-environment request where a project has several, so it can be
+    // given a word to be addressed by (AIP-133) and a label for people (AIP-148) — the same two things a
+    // project has.
+    test("takes a chosen id and a display name, and answers to either address", async () => {
+        const { owner, uid } = await seedProject();
+
+        const created = (await request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts`).set(owner)
+            .send({ type: "local", cloudAccountId: "my-docker", displayName: "The box under my desk" })
+            .expect(HttpStatus.CREATED)).body;
+
+        expect(created).toMatchObject({
+            name: `projects/${uid}/cloudAccounts/my-docker`,
+            uid: expect.any(String),
+            type: "local",
+            displayName: "The box under my desk",
+        });
+
+        // The word and the uid address the same connection.
+        const byWord = (await request(app.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts/my-docker`).set(owner).expect(HttpStatus.OK)).body;
+        const byUid = (await request(app.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts/${created.uid}`).set(owner).expect(HttpStatus.OK)).body;
+
+        expect(byWord.uid).toBe(created.uid);
+        expect(byUid.name).toBe(`projects/${uid}/cloudAccounts/my-docker`);
+
+        // The word is the project's to hand out once.
+        await request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts`).set(owner)
+            .send({ type: "self-hosted", cloudAccountId: "my-docker" })
+            .expect(HttpStatus.CONFLICT);
+    });
+
     test("rejects an unknown cloud type with INVALID_ARGUMENT", async () => {
         const { owner, uid } = await seedProject();
 

@@ -168,7 +168,10 @@ export class CreateEnvironmentUseCase {
             throw new AmbiguousPlacementError(
                 params.platform.name,
                 execution,
-                candidates.map(({ cloudAccount }) => ({ type: cloudAccount.type, id: cloudAccount.id })),
+                candidates.map(({ cloudAccount }) => ({
+                    type: cloudAccount.type,
+                    id: cloudAccount.resourceId ?? cloudAccount.id,
+                })),
             );
         }
 

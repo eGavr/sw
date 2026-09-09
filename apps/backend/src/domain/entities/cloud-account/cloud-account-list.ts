@@ -30,9 +30,10 @@ export class CloudAccountList {
     }
 
     // The placement on the named cloud, when that cloud is this project's and runs the asked substrate.
-    // A cloud binds a substrate at most once, so naming the cloud names the binding.
-    on(cloudAccountId: string, platformName: string, execution: Execution): Placement | null {
+    // The name is either address — the word chosen at connect or the uid — and a cloud binds a substrate
+    // at most once, so naming the cloud names the binding.
+    on(cloudAccountHandle: string, platformName: string, execution: Execution): Placement | null {
         return this.candidatesFor(platformName, execution)
-            .find(({ cloudAccount }) => cloudAccount.id === cloudAccountId) ?? null;
+            .find(({ cloudAccount }) => cloudAccount.isAddressedBy(cloudAccountHandle)) ?? null;
     }
 }

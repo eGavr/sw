@@ -9,12 +9,13 @@ export class MachinePresenter implements Presenter {
     constructor(
         private readonly view: MachineView,
         private readonly cloudAccount: CloudAccount,
+        private readonly projectHandle: string,
     ) {}
 
     present(): object {
         const { machine, lease } = this.view;
-        const project = this.cloudAccount.projectId.getValue();
-        const account = `projects/${project}/cloudAccounts/${this.cloudAccount.id}`;
+        const project = this.projectHandle;
+        const account = `projects/${project}/cloudAccounts/${this.cloudAccount.resourceId ?? this.cloudAccount.id}`;
         const facts = machine.facts?.toObject() ?? null;
 
         return {

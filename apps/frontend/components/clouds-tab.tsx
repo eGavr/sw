@@ -206,6 +206,7 @@ function CloudAccountCard({
         <Group justify="space-between" wrap="nowrap">
           <Group gap="xs">
             <Badge variant="light">{account.type}</Badge>
+            {account.displayName && <Text size="sm" fw={600}>{account.displayName}</Text>}
             {isSelfHosted && <MachineCountBadge project={project} account={account.uid} />}
           </Group>
           {managing ? (

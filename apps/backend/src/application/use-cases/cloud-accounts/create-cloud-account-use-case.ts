@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 
 import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
 import { InvalidArgumentError } from "../../../domain/entities/error/invalid-argument-error";
+import { ResourceIdConflictError } from "../../../domain/entities/error/resource-id-conflict-error";
 import { ProjectId } from "../../../domain/entities/project/project-id";
 import { ensureNotCatalogProject } from "../../../domain/entities/project-application/catalog-project";
 import { UserPermissionName } from "../../../domain/entities/user/user-permission-name";
@@ -17,6 +18,10 @@ type CreateCloudAccountInput = {
     params: {
         projectId: string;
         type: string;
+        // The word this connection is addressed by afterwards; omitted = addressed by its uid.
+        cloudAccountId?: string;
+        // A label for people; never an address.
+        displayName?: string;
     },
 }
 
@@ -49,9 +54,22 @@ export class CreateCloudAccountUseCase {
         // computeBindings — no implicit defaults appearing behind their back (user decision). Everything
         // the user must name or grant (folder, cluster) belongs to a binding, so connect needs only the
         // type.
+        const projectId = ProjectId.fromString(project.id);
+
+        // A chosen word must be free among the project's connections — it is how they will be addressed.
+        if (params.cloudAccountId !== undefined) {
+            const connected = await this.cloudAccountRepository.listByProject(projectId);
+
+            if (connected.some((account) => account.isAddressedBy(params.cloudAccountId as string))) {
+                throw new ResourceIdConflictError(params.cloudAccountId);
+            }
+        }
+
         const cloudAccount = CloudAccount.create({
-            projectId: ProjectId.fromString(project.id),
+            projectId,
             type: params.type,
+            resourceId: params.cloudAccountId,
+            displayName: params.displayName,
         });
 
         await this.cloudAccountRepository.save(cloudAccount);

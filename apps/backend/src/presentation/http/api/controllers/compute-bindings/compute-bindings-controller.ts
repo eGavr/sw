@@ -64,7 +64,7 @@ export class ComputeBindingsController {
             },
         });
 
-        return new ComputeBindingPresenter(binding, account).present();
+        return new ComputeBindingPresenter(binding, account, project).present();
     }
 
     @Get()
@@ -80,7 +80,7 @@ export class ComputeBindingsController {
 
         return {
             computeBindings: account.computeBindings().map(
-                (binding) => new ComputeBindingPresenter(binding, account).present(),
+                (binding) => new ComputeBindingPresenter(binding, account, project).present(),
             ),
         };
     }
@@ -104,7 +104,7 @@ export class ComputeBindingsController {
             },
         });
 
-        return new ComputeBindingPresenter(binding, account).present();
+        return new ComputeBindingPresenter(binding, account, project).present();
     }
 
     @Delete(":binding")
