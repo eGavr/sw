@@ -25,6 +25,11 @@ export interface Environment {
     versionAlias?: string;
     source?: { type: string; appRef?: string; webdriverRef?: string };
   }>;
+  // Where it landed, fixed at creation: with a platform served by several clouds the row has to say
+  // which one took it.
+  cloudAccount?: string;
+  cloudType?: string;
+  computeKind?: string;
   // Orthogonal to state: FREE | RESERVED (a session create is in flight) | BUSY (a session runs).
   occupancy: "FREE" | "RESERVED" | "BUSY";
   lastHeartbeatTime?: string;
@@ -42,6 +47,9 @@ export interface CreateEnvironmentInput {
   }>;
   execution: string;
   environmentId?: string;
+  // Pin the placement to one binding (uid or resource name). Omitted = the project's bindings for this
+  // substrate are tried in order, the first with room taking it.
+  computeBinding?: string;
 }
 
 // A (platform, execution) pair a cloud can provision.

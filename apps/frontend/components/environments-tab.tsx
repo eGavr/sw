@@ -65,6 +65,8 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const [appName, setAppName] = useState("chrome");
   const [appVersion, setAppVersion] = useState("latest");
   const [execution, setExecution] = useState("container");
+  // Which binding to pin the placement to; empty = let the project's order decide.
+  const [computeBinding, setComputeBinding] = useState("");
   const [sessionTarget, setSessionTarget] = useState<Environment | null>(null);
   // A busy environment's delete asks first: deprovision kills the running session with the container,
   // and its logs/video die unshipped (the agent uploads them on session end — here it dies too).
@@ -195,6 +197,13 @@ export function EnvironmentsTab({ project }: { project: string }) {
   const executionOptions = (boundExecutions.length > 0 ? boundExecutions : ["container"])
     .map((value) => ({ value, label: value }));
 
+  // A platform can be served by several clouds; they are tried in the order they were bound. The form
+  // only asks where to run when there is more than one answer, and "wherever there is room" stays the
+  // default — pinning is for when the caller cares (cost, hardware, debugging).
+  const servingBindings = (clouds.data ?? []).flatMap((cloud) => cloud.computeBindings
+    .filter((binding) => binding.platform === platformName && binding.execution === execution)
+    .map((binding) => ({ value: binding.uid, label: `${cloud.type} · ${binding.kind}` })));
+
   // Keep the chosen execution valid as the platform changes: snap to the first option the platform
   // actually offers, so the Select never sits on a value no binding serves (e.g. android has only
   // emulator bound, but the field still held the default container).
@@ -213,6 +222,7 @@ export function EnvironmentsTab({ project }: { project: string }) {
         platform: { name: platformName, version: platformVersion, deviceModel },
         applications: [{ nameAlias: appName, ...(appVersion !== "latest" ? { versionAlias: appVersion } : {}) }],
         execution,
+        ...(computeBinding ? { computeBinding } : {}),
       }),
     onSuccess: async () => {
       await invalidate();
@@ -364,9 +374,13 @@ export function EnvironmentsTab({ project }: { project: string }) {
                   </Table.Td>
                   <Table.Td>
                     {e.execution}
-                    {machineOf.has(e.uid) && (
+                    {/* Where it landed: the machine when we know it, the cloud otherwise — with a
+                        platform served by several clouds the row must say which one took it. */}
+                    {machineOf.has(e.uid) ? (
                       <Text size="xs" c="dimmed">on {machineOf.get(e.uid)}</Text>
-                    )}
+                    ) : e.cloudType ? (
+                      <Text size="xs" c="dimmed">on {e.cloudType}</Text>
+                    ) : null}
                   </Table.Td>
                   <Table.Td>
                     {/* The destructive actions gather behind one kebab, sectioned by blast radius:
@@ -530,6 +544,15 @@ export function EnvironmentsTab({ project }: { project: string }) {
             value={execution}
             onChange={(v) => setExecution(v ?? "container")}
           />
+          {servingBindings.length > 1 && (
+            <Select
+              label="Run on"
+              description="Several clouds serve this platform; leave it to the order or name one"
+              data={[{ value: "", label: "wherever there is room" }, ...servingBindings]}
+              value={computeBinding}
+              onChange={(v) => setComputeBinding(v ?? "")}
+            />
+          )}
           {create.error && (
             <Text c="red" size="sm">
               {(create.error as Error).message}

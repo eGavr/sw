@@ -1,9 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { CloudAccount } from "../../../domain/entities/cloud-account/cloud-account";
-import { CloudAccountList } from "../../../domain/entities/cloud-account/cloud-account-list";
 import { ComputeBinding, ComputeBindingConfig } from "../../../domain/entities/cloud-account/compute-binding";
-import { ComputeBindingConflictError } from "../../../domain/entities/cloud-account/error/compute-binding-conflict-error";
 import {
     EnvironmentQuota,
     EnvironmentQuotaPolicy,
@@ -46,7 +44,7 @@ export class CreateComputeBindingUseCase {
     ) {}
 
     async execute({ creds, params }: CreateComputeBindingInput): Promise<{ binding: ComputeBinding; account: CloudAccount }> {
-        const { project, cloudAccount } = await this.cloudAccountAccess.authorize(
+        const { cloudAccount } = await this.cloudAccountAccess.authorize(
             creds,
             params.projectId,
             params.cloudAccountId,
@@ -57,13 +55,6 @@ export class CreateComputeBindingUseCase {
         const offer = validateOffer(this.cloudCatalog, cloudAccount.type, params);
 
         EnvironmentQuota.validateConfigured(params.config?.[maxEnvironmentsConfigKey], this.quotaPolicy);
-
-        // One binding per substrate ACROSS the project, or provisioning could not pick a connection.
-        const connected = await this.cloudAccountRepository.listByProject(project);
-
-        if (CloudAccountList.of(connected).isBound(params.platformName, execution)) {
-            throw new ComputeBindingConflictError(params.platformName, params.execution);
-        }
 
         const binding = cloudAccount.bindCompute({
             platformName: params.platformName,

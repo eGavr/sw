@@ -186,7 +186,7 @@ describe("/projects/:project/cloudAccounts", () => {
             .get(`/projects/${second.uid}/cloudAccounts/${created.uid}`).set(second.owner).expect(HttpStatus.NOT_FOUND);
     });
 
-    test("keeps a substrate bound once across the project", async () => {
+    test("lets a second cloud serve a platform the first already serves, but not twice on one cloud", async () => {
         const { owner, uid } = await seedProject();
 
         const local = (await connect(uid, owner, "local").expect(HttpStatus.CREATED)).body;
@@ -195,12 +195,19 @@ describe("/projects/:project/cloudAccounts", () => {
             .send({ platform: "ubuntu", execution: "container", kind: "docker" })
             .expect(HttpStatus.CREATED);
 
-        // yandex-cloud connects fine, but binding ITS linux would make routing ambiguous.
+        // A platform may be served by several clouds — they are tried in the order they were bound, so
+        // one carries the baseline and the next catches what does not fit.
         const yandex = (await connect(uid, owner, "yandex-cloud").expect(HttpStatus.CREATED)).body;
 
-        return request(app.getHttpServer())
+        await request(app.getHttpServer())
             .post(`/projects/${uid}/cloudAccounts/${yandex.uid}/computeBindings`).set(owner)
             .send({ platform: "ubuntu", execution: "container", kind: "vm", config: { folderId: stubFolderId } })
+            .expect(HttpStatus.CREATED);
+
+        // Twice on the SAME cloud stays a conflict: that connection would have two ways to run one thing.
+        return request(app.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${local.uid}/computeBindings`).set(owner)
+            .send({ platform: "ubuntu", execution: "container", kind: "docker" })
             .expect(HttpStatus.CONFLICT);
     });
 

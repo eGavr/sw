@@ -35,6 +35,15 @@ export class EnvironmentPresenter implements Presenter {
                 ...(application.version ? { version: application.version } : {}),
                 source: application.source?.type === "custom" ? application.source : { type: "provided" },
             })),
+            // Where it landed: with a platform served by several clouds, the row has to say which one
+            // took it — the placement is fixed at creation and never moves.
+            ...(this.environment.cloudAccountId
+                ? {
+                    cloudAccount: `projects/${this.projectHandle}/cloudAccounts/${this.environment.cloudAccountId}`,
+                    ...(this.environment.cloudType ? { cloudType: this.environment.cloudType } : {}),
+                    ...(this.environment.computeKind ? { computeKind: this.environment.computeKind } : {}),
+                }
+                : {}),
             // Occupancy is orthogonal to lifecycle (a session never changes `state`); the liveness rules
             // live in the entity. Not secrets — the session id is.
             occupancy: this.environment.effectiveOccupancy().toUpperCase(),

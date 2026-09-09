@@ -272,6 +272,79 @@ describe("/projects/:project/cloudAccounts/:cloudAccount/machines", () => {
         }).expect(HttpStatus.TOO_MANY_REQUESTS);
     });
 
+    // A platform may be served by several clouds of one project. They are walked in the order they were
+    // bound: the first with room takes the environment, so own machines carry the baseline and another
+    // cloud catches the overflow instead of the caller meeting a 429.
+    const seedOverflow = async (): Promise<{ owner: AuthHeader; uid: string; machines: string; primary: string; fallback: string }> => {
+        const { owner, uid } = await seedProject();
+        const account = (await request(api.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts`).set(owner).send({ type: "self-hosted" })
+            .expect(HttpStatus.CREATED)).body.uid;
+        const primary = (await request(api.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${account}/computeBindings`).set(owner)
+            .send({ platform: "ubuntu", execution: "container", kind: "baremetal", config: { maxEnvironments: 4 } })
+            .expect(HttpStatus.CREATED)).body.uid;
+
+        const machines = `/projects/${uid}/cloudAccounts/${account}/machines`;
+        const machineId = (await attach(owner, machines, "box-1.lab").expect(HttpStatus.CREATED)).body.uid;
+        await registerAndSync(owner, machines, machineId);
+
+        const local = (await request(api.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts`).set(owner).send({ type: "local" })
+            .expect(HttpStatus.CREATED)).body.uid;
+        const fallback = (await request(api.getHttpServer())
+            .post(`/projects/${uid}/cloudAccounts/${local}/computeBindings`).set(owner)
+            .send({ platform: "ubuntu", execution: "container", kind: "docker", config: { maxEnvironments: 4 } })
+            .expect(HttpStatus.CREATED)).body.uid;
+
+        return { owner, uid, machines, primary, fallback };
+    };
+
+    const createBrowser = (owner: AuthHeader, project: string, computeBinding?: string): request.Test =>
+        request(api.getHttpServer()).post(`/projects/${project}/environments`).set(owner).send({
+            platform: { name: "ubuntu", version: "24.04", deviceModel: "desktop" },
+            execution: "container",
+            applications: [{ nameAlias: "chrome", versionAlias: "126" }],
+            ...(computeBinding ? { computeBinding } : {}),
+        });
+
+    test("a platform bound on two clouds: the machines carry it until they are full, then the other cloud does", async () => {
+        const { owner, uid } = await seedOverflow();
+
+        // The single-slot machine takes the first one...
+        const first = (await createBrowser(owner, uid).expect(HttpStatus.CREATED)).body;
+        expect(first.cloudType).toBe("self-hosted");
+
+        // ...and the second lands on the cloud bound after it, instead of a 429.
+        const second = (await createBrowser(owner, uid).expect(HttpStatus.CREATED)).body;
+        expect(second.cloudType).toBe("local");
+        expect(second.computeKind).toBe("docker");
+    });
+
+    test("a pinned placement runs where it was told, and is refused rather than moved when that cloud is full", async () => {
+        const { owner, uid, primary, fallback } = await seedOverflow();
+
+        const pinned = (await createBrowser(owner, uid, fallback).expect(HttpStatus.CREATED)).body;
+        expect(pinned.cloudType).toBe("local");
+
+        // The machine is still free, but the caller asked for the docker cloud and got it — no drift.
+        const onMachines = (await createBrowser(owner, uid, primary).expect(HttpStatus.CREATED)).body;
+        expect(onMachines.cloudType).toBe("self-hosted");
+
+        // Its one slot is now taken, and a pin does not spill onto the cloud that still has room.
+        await createBrowser(owner, uid, primary).expect(HttpStatus.TOO_MANY_REQUESTS);
+    });
+
+    test("a pin naming a binding that does not serve the platform is refused as a bad argument", async () => {
+        const { owner, uid } = await seedProject();
+        const { account } = await seedSelfHostedCloud(owner, uid);
+        const emulatorBinding = (await request(api.getHttpServer())
+            .get(`/projects/${uid}/cloudAccounts`).set(owner).expect(HttpStatus.OK))
+            .body.cloudAccounts.find((cloud: { uid: string }) => cloud.uid === account).computeBindings[0].uid;
+
+        await createBrowser(owner, uid, emulatorBinding).expect(HttpStatus.BAD_REQUEST);
+    });
+
     test("cordon closes the door, uncordon reopens it, drain of a free machine detaches it", async () => {
         const { owner, uid } = await seedProject();
         const { machines } = await seedSelfHostedCloud(owner, uid);

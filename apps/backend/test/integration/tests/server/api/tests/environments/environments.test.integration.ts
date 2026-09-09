@@ -78,6 +78,11 @@ describe("/projects/:project/environments", () => {
                     source: { type: "provided" },
                 }],
                 occupancy: "FREE",
+                // Where it landed — a platform can be served by several clouds, so the resource says
+                // which one took it and how it runs there.
+                cloudAccount: expect.stringMatching(/^projects\/[^/]+\/cloudAccounts\/[0-9a-f-]{36}$/),
+                cloudType: "local",
+                computeKind: "docker",
                 createTime: expect.any(String),
             });
         });
