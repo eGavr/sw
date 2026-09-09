@@ -18,6 +18,9 @@ export class ComputeBindingPresenter implements Presenter {
             execution: this.binding.stereotype.execution,
             kind: this.binding.kind,
             config: this.binding.config,
+            // The order placements are walked in is the order bindings were made, so the time is part of
+            // the resource, not an internal detail.
+            createTime: this.binding.createdAt.toISOString(),
         };
     }
 }
