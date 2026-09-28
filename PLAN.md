@@ -75,7 +75,7 @@ service-identity), мы грузим под своей identity; включен�
   аккаунт (решено — закладываем):** аккаунт может держать redroid+emulator+device одновременно; агрегат `ProviderAccount` уже N-на-аккаунт,
   надо лишь дать create-environment резолвить провайдера по `execution` (сейчас берёт «активный» = один; при одном — неявно).
   **`execution` — И match-капа сессии (важно):** раз redroid+emulator могут сосуществовать с ИДЕНТИЧНЫМ стереотипом, сессия адресует
-  конкретный через **`sw:execution`** (`alwaysMatch sw:execution=container` = строго redroid; «любой эмулированный» = W3C `firstMatch:
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] конкретный через **`sw:execution`** (`alwaysMatch sw:execution=container` = строго redroid; «любой эмулированный» = W3C `firstMatch:
   [{sw:execution:container},{sw:execution:emulator}]`). Для браузеров `sw:execution` не указывается (дефолт `container`). Матч расширяем
   в `SessionAllocationCriteria` (`execution` + platform/device), окружение хранит свой `execution`. Домен-lifecycle/логи/видео/VNC НЕ
   меняются.
@@ -558,7 +558,7 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
     (AIP-ресурс `accounts/{a}/providerAccounts` — create/list/delete, или расширить create-account до массива). Матч сессии по `execution`
     уже готов (ось `execution`, п. D). Это ПРЯМОЕ продолжение D — без него «redroid+emulator на одном аккаунте» не выбираемы.
 
-23. **Версия приложения окружения обязана быть КОНКРЕТНОЙ; `latest` — только capability сессии — СДЕЛАНО (части «а» и «б»).**
+[ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] 23. **Версия приложения окружения обязана быть КОНКРЕТНОЙ; `latest` — только capability сессии — СДЕЛАНО (части «а» и «б»).**
     Сделано (часть «а», ветка `fix.api-correctness-sweep`): `Application.create` отвергает зарезервированную версию `latest` (новая доменная ошибка `NonConcreteApplicationVersionError`);
     `CreateEnvironmentUseCase` переведён с `Application.fromObject` (реконституция, толерантна) на `Application.create` (создание с инвариантом),
     поэтому создать окружение с `version:"latest"` теперь `400`; в ответе окружения `latest` больше не появится. Unit + integration покрыто.
@@ -1019,7 +1019,7 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 ## Follow-up: удаление проекта (API + UI) — НЕ начато
 
 Вопрос юзера (2026-08-31): удаления проекта нет нигде — ни `DELETE /v1/projects/{p}` в api, ни в UI. Сделать:
-- **API**: `DELETE /v1/projects/{project}` (AIP-135), новое право `sw.projects.delete` (только admin-роль). Семантика с детьми — первым заходом **вариант «пустой или отказ»**: при живых окружениях → 409 «delete environments first» (арбитр — FK, как у cloudAccounts); у пустого проекта остальное (iam-биндинги, cloud accounts, storage destination) удаляется каскадом/явно. Каскадный вариант (перевести все env в deleting → воркер депровиженит → потом снести проект) — сложная асинхронная оркестрация, отложить, пока не понадобится. Hard delete — по нашей доктрине (soft отвергнут юзером ранее); для справки: GCP держит проекты 30 дней в soft-delete, нам это осознанно не нужно.
+- **[ПОПРАВКА 2026-09-28: при детях — FAILED_PRECONDITION, не 409 (AIP-135 `0135.md:154` MUST); среди детей теперь applications; проект `catalog` удалять нельзя]** **API**: `DELETE /v1/projects/{project}` (AIP-135), новое право `sw.projects.delete` (только admin-роль). Семантика с детьми — первым заходом **вариант «пустой или отказ»**: при живых окружениях → 409 «delete environments first» (арбитр — FK, как у cloudAccounts); у пустого проекта остальное (iam-биндинги, cloud accounts, storage destination) удаляется каскадом/явно. Каскадный вариант (перевести все env в deleting → воркер депровиженит → потом снести проект) — сложная асинхронная оркестрация, отложить, пока не понадобится. Hard delete — по нашей доктрине (soft отвергнут юзером ранее); для справки: GCP держит проекты 30 дней в soft-delete, нам это осознанно не нужно.
 - **UI**: Settings-таб, «Danger zone» внизу: Delete project с confirm-диалогом (паттерн уже есть — confirm busy-env), после удаления — редирект на корень + инвалидация списка проектов в сайдбаре.
 
 ## Follow-up: self-verifying session id (подпись в самом id) — различать «удалена» и «не существовала» — НЕ начато
@@ -1242,7 +1242,7 @@ lowerCamelCase без ведущего слэша (AIP-122), `uid` — сист�
 lowerCamelCase (AIP-140), клиентский идентификатор при создании — отдельным полем `{resource}Id` (AIP-133).
 
 Неровности (замер по всем presenter-ам API):
-- **`updateTime` есть только у проекта и облачного подключения.** У окружения, привязки, машины, приложения, версии
+[ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] - **`updateTime` есть только у проекта и облачного подключения.** У окружения, привязки, машины, приложения, версии
   приложения и netbridge-кредa есть `createTime`, но нет `updateTime` — а все они изменяемые.
 - `displayName` нет там, где он был бы уместен: у окружения и у машины (человеку удобнее «ночная коробка», чем fqdn).
 - `uid` нет у `platform`, `storageDelegation`, `storageDestination` — первые два install-статика, третий синглтон
@@ -1290,6 +1290,9 @@ AIP-158 требует, чтобы List-методы отдавали стран
 - Механика провижна всё равно двух сортов: машины под управлением агента (многослотовые) и машины, которые создаются
   сразу с окружением (однослотовые: под, мелкая vm, контейнер на докере). ОТКРЫТЫЙ ВОПРОС: нужен ли однослотовой
   машине двухуровневый протокол (machine-agent + environment-agent), или для неё они схлопываются в один.
+  Довод ревьюера (2026-09-13): не нужны — у Karpenter/CAPI NodeClaim 1:1 с инстансом, ноду регистрирует сам kubelet;
+  environment-agent в поде регистрируется как машина с capacity = 1 окружение. ЮЗЕР: обсудить ОТДЕЛЬНО при возврате к
+  реализации, хочет услышать аргументы — не решать походя.
 - Диагностика заранее (`facts`, `hosts`) есть у любой машины, но у однослотовых она приходит поздно — вместе с самой
   машиной, а не до заказа.
 
@@ -1321,13 +1324,967 @@ AIP-158 требует, чтобы List-методы отдавали стран
 5. **429.** Гарантия сохраняется, но запрос меняется: не «count(*) < capacity», а «влезает ли заявка хоть куда-то» —
    суммирование под тем же пер-аккаунтным локом.
 6. **Факты.** Диск сейчас не собираем, а он нужен (образы AVD, браузеры) — расширить `facts`.
-7. **API.** Вместо `slotCapacity: 3` — `capacity{cores,memoryMb}`, `allocated{cores,memoryMb}` и производное
-   `fits: {"android/emulator": 1, "ubuntu/container": 4}` (сколько ещё влезет каждого вида) — последнее реально нужно UI.
+7. **API.** Вместо `slotCapacity: 3` — блок `resources{capacity,reserved,allocated}` (форма согласована в пункте
+   «ресурсы machine и machineLease» ниже). `fits: {"android/emulator": 1, …}` ОТВЕРГНУТ юзером: это знание про виды
+   окружений на коробке; «сколько ещё влезет» — вопрос стороны размещения, если понадобится UI — отдельный запрос.
 8. **Оговорка, которую математика не ловит:** эмулятор рядом с браузерами — шумный сосед; по цифрам сойдётся, по
    времени отклика нет.
 
 Этот пункт ПОГЛОЩАЕТ ранее записанную «цену слота по стереотипу» и закрывает follow-up про vector bin-packing.
 Порядок работ: сначала переименования (дёшево, те же файлы), сразу после — этот срез на устоявшихся именах.
+
+## [ARCH] машина = общая ёмкость: разные окружения на одной коробке, аренда только у заказанных — РЕШЕНИЕ ЮЗЕРА, ДЕЛАТЬ (2026-09-13)
+
+**Решение юзера:** на одной машине живут окружения РАЗНЫХ runtime/привязок; обратную совместимость ломаем. Это
+ПОГЛОЩАЕТ пункт «ёмкость по ресурсам вместо счётчика слотов» (его п.1 «снять инвариант одна аренда на машину» — здесь
+решён: аренда остаётся ТОЛЬКО у заказанных машин) и реализует «одну схему» в домене.
+
+**Модель (5 правил):**
+1. **Machine — общая ёмкость.** `capacity` (инвентарная: измерено агентом при регистрации; заказанная: из заказа с
+   момента заказа), `reserved` (политика инсталляции: ОС/агент/docker; конфиг `MACHINE_RESERVED_{CPU_MILLICORES,
+   MEMORY_MB,DISK_GB}`), `allocated` = Σ заявок размещённых окружений. Свободно = capacity − reserved − allocated.
+   Единица CPU — `cpuMillicores` везде. `slotCapacity`/override/`MACHINE_SLOT_CORES`/`SlotCapacityPolicy` — снос.
+2. **Размещение (`MachinePlacement`) — ребёнок МАШИНЫ, не аренды** (заменяет `SlotAssignment`): envId UNIQUE, runtime,
+   заявка ресурсов, slotIndex (для портов), state. Инвариант ёмкости — в `Machine.place(request)`: не влезает →
+   доменная ошибка. Порты — по runtime: эмулятору console/adb/vnc/wd/appium из индексов 0..15 (потолок adb),
+   контейнеру один порт ноды из отдельного диапазона индексов (16..N) — `SlotPorts.forRuntime(runtime, index)`.
+3. **Пригодность машины — по фактам против требований runtime** (`platforms/{p}/runtimes/{r}.requirements.anyOf`),
+   `Machine.satisfies(requirements)`; `provides[]` и `judgeConditions` (kvm/docker-правила) — снос. Каталог runtime
+   (требования + заявка, размер слота включая overhead) — install-static в PlatformCatalogProvider рядом с versions.
+4. **Аренда (`MachineLease`) — только запись о ЗАКАЗЕ**: у машин, которые провайдер изготовил по нашему запросу
+   (binding, request, providerContext, state pending|active|releasing|released|failed, времена). У инвентарных машин
+   аренды НЕТ (`machine.lease` отсутствует — заказа не было). Строка машины создаётся В МОМЕНТ заказа (capacity из
+   заказа, connectivity offline, agent absent) — размещение всегда идёт на строку машины, «enqueued-seat» аренды исчезает.
+5. **Правило размещения одно на оба рода:** среди машин ПРОВАЙДЕРА (не привязки!), удовлетворяющих требованиям runtime
+   и имеющих свободное место (включая ещё грузящиеся заказанные) — best-fit (наименьшая подходящая; консолидация);
+   нет → у заказывающего провайдера привязка заказывает новую (в пределах `limits.maxMachineCount`), у инвентарного —
+   429. Всё под пер-аккаунтным advisory-lock (прецедент 429-гарантии). Заказанная машина ДЕЛИТСЯ между привязками
+   провайдера (как нода Karpenter: запустил один NodePool, поды любые), считается в лимит заказавшей, возвращается по
+   idle-TTL только когда ПУСТА ОТ ВСЕХ окружений.
+
+**Решения юзера по следствиям (2026-09-13):**
+- **Соседство — НЕ ручка (юзер, 2026-09-14: `machineSharing: exclusive|shared` ОТМЕНЁН), а в v1 — вообще не вопрос
+  (юзер, 2026-09-15: МЕТКИ ТОЖЕ ЗА СКОБКИ).** v1 оперирует только тем, что даёт железо: годность = факты машины ⊨
+  `runtime.requirements.anyOf` (есть kvm → можно эмуляторы), место = свободные ресурсы. Селектора на привязке НЕТ,
+  `labels` у машины НЕТ. Правило размещения: кандидат = машина провайдера, факты ⊨ требования runtime ∧ хватает
+  свободного; best-fit (наименьшая подходящая); нет кандидата → заказывающий провайдер заказывает машину (форма — из
+  `machineSelector.resources`… см. ниже), инвентарный → 429. Разделение «эти коробки под эмуляторы, те под браузеры»
+  — ОТДЕЛЬНЫЙ ШАГ (метки на машине + `machineSelector.matchLabels`, k8s nodeSelector + well-known labels: cloud
+  ставит `shape`/`zone` сам, админ — свои; `matchExpressions`/`In` ещё позже). Форма расширяется добавлением полей,
+  не ломая v1.
+- **`limits.maxMachineCount` — универсален и REQUIRED, определение одно:** максимум машин, ОДНОВРЕМЕННО несущих
+  окружения этой привязки (у заказывающего+exclusive это ровно «сколько может заказать»; у инвентарного — потолок
+  разброса по коробкам). Юзер: «пусть будет».
+- **Селектор вместо шаблона — юзеру НРАВИТСЯ, докручиваем (2026-09-13).** Принцип юзера: привязка — ДЕКЛАРАЦИЯ, захват
+  и потребление ресурсов в ней не происходят → на привязке НЕТ ни `resolvedShape`, ни `machineCapacity` (оба —
+  предсказания, а не декларация; прежнее решение про `machineCapacity` OUTPUT_ONLY на привязке ОТМЕНЕНО). Три слоя:
+  привязка = `machineSelector` (что должна удовлетворять машина); аренда = что РЕАЛЬНО заказали (`request` — снимок
+  селектора/требований, `parameters` — выбранный SKU/spec провайдера: `configurationId`+`hardwarePoolId` или spec VM);
+  машина = что получили (`resources.capacity`). Превью для UI («что бы выбрал провайдер сейчас») — НЕ поле привязки,
+  а read-метод провайдера: `POST …/computeProviders/{cp}:quoteMachine {runtime, machineSelector}` →
+  `{shape, capacity}` (позже `price`); `validateOnly` на привязке остаётся чистой валидацией, полей не выдумывает.
+  `folderId`/`zoneId`/`platformId` — настройки соединения провайдера (разобрать в `computeProviders`).
+
+**Срезы (ветка → PR → юзер мержит):**
+- **S1 домен:** `MachineResources` VO (cpuMillicores/memoryMb/diskGb; plus/minus/fits), `Machine.{capacity,reserved,
+  allocated,place,release,satisfies}`, `MachinePlacement`, `SlotPorts.forRuntime`, каталог runtime с requirements+
+  resources, аренда → запись о заказе; unit-тесты (place/release/инвариант/порты/satisfies/best-fit-критерий).
+- **S2 персистентность + размещение:** миграция (`machine_placement`; у `machine` capacity-колонки, снос
+  slot_capacity/override/provides/lease_id; у `machine_lease` снос assignments/slot_capacity/host_ip, + machine_id,
+  request); data sources/репозитории; Place/Release/Reconcile на новой модели; 429 «влезает ли куда-то»; поток
+  заказа (строка машины при заказе); desired-state агента из placements; integration blackbox: эмулятор + контейнер
+  на одной коробке; 429 при «не влезает»; заказанная машина делится; возврат только когда пуста от всех; молчащая.
+- **S3 минимальная поверхность API/UI:** машина отдаёт `resources{capacity,reserved,allocated}` вместо `slotCapacity`,
+  attach без `provides`/`slotCapacity`, `maxEnvironments` из config привязки — снос (429 по факту); фронт (таблица
+  машин, attach-модалка) и runbook self-hosted. Имена НЕ переименовываем — это волна переименований.
+- **Live:** Mac (эмулятор + контейнер на одной коробке), VM `gavryushin-dev` (kvm).
+
+## [DESIGN] ресурсы `machine` и `machineLease` на проводе — СОГЛАСОВАНО поле за полем (юзер, 2026-09-12..13)
+
+Итог разбора ручки `machines` под «одну схему»: машина — только КОРОБКА, ничего про окружения; всё, что было знанием
+про виды окружений на коробке, удалено. Проверено по первоисточникам (AIP-121/122/124/133/135, GKE, k8s, Ansible) и
+независимым ревьюером; ошибки ревью зафиксированы, чтобы не повторять.
+
+**Machine** — `projects/{p}/computeProviders/{cp}/machines/{uuid}`:
+- `providerId` — по стандарту k8s Node / Cluster API `providerID`: `<провайдер>://<где>/<id>`
+  (`yandex-cloud://ru-central1-a/<serverId>`, `self-hosted://<address>`). Строка самоописывающаяся.
+- `address` (вместо `fqdn` — принимает и IP, имя врало). Self-hosted: обязателен при attach; cloud: absent, пока
+  провайдер не выделил интерфейс (агент — fallback). ЕДИНСТВЕННЫЙ адрес: «адрес агента» = адрес той же коробки,
+  различаются только написания/интерфейсы — второе поле убрано.
+- `connectivity: online|offline`, `schedulability: schedulable|cordoned|draining` (k8s-слова по выбору юзера),
+  `ready = online ∧ schedulable` — оставлено сознательно как единственное слово пула/UI: формула удлинится на нашей
+  стороне, когда появятся conditions.
+- `conditions[]` — ВОЗВРАЩЕНЫ решением юзера 2026-09-13 (см. пункт computeBinding: `DiskPressure` у машины,
+  `NoFittingMachine` у привязки). Исходно было убрано: `NotRegistered` дублировал отсутствие `agent.registerTime`,
+  `CapacityUnverified`/`CapacityBelowOrder` — недоверие к контракту облака (заказали `bm-epyc-64` — получили его;
+  расхождения = наши единицы GB/GiB), `SlotLaunchFailed` — событие ОКРУЖЕНИЯ (`failed` с причиной), не коробки.
+  Формат зафиксирован (`{type, severity: error|warning, message}`, GKE-прецедент) и вернётся с первым настоящим
+  условием про коробку (`DiskPressure`) — добавление поля обратно совместимо (AIP-180).
+- `facts{arch, os{name: ubuntu|debian|macos, version}, virtualization: kvm|hvf|none}` — слово из Ansible/Puppet.
+  Cloud: известны из заказа с первой секунды (конфигурация + образ); self-hosted: absent до регистрации.
+- `resources{capacity, reserved, allocated}` по `{cores, memoryMb, diskGb}`: capacity — всего у коробки (cloud: форма
+  заказа НАВСЕГДА, измерением не перепроверяется; self-hosted: измерено агентом, absent до регистрации); reserved —
+  под ОС/агент/docker, политика инсталляции; allocated — сумма ЗАЯВОК размещённых окружений (не измеренное
+  потребление). Свободно = вычитание. k8s-аналог `capacity`/`allocatable`/Allocated resources; `reserved` вместо
+  `allocatable`, чтобы не публиковать два одинаковых по виду блока.
+- `agent{version, registerTime, lastSyncTime}` — про наш демон, absent до регистрации.
+- `lease` — полное имя текущей аренды или `null` (OUTPUT_ONLY, голое имя, не embedded).
+- `createTime`, `updateTime`.
+- УДАЛЕНО: `origin` (выводится из типа провайдера), `provides[]` (требования переезжают в runtime kind и матчатся
+  против `facts`, k8s nodeSelector; `judgeConditions` с kvm/docker-правилами исчезает; намерение оператора «сюда не
+  селить» — позже через labels+selector), `fqdn`, `state`, `admission`, `slotCapacity`, `agentVersion`, docker/avd/
+  emulator/vncStack из facts, `hosts[]`, `fits`, `order` (см. lease).
+
+**MachineLease** — `projects/{p}/computeProviders/{cp}/computeBindings/{b}/machineLeases/{uuid}`:
+- Родитель — ПРИВЯЗКА, не машина. Верный AIP-довод (мой «владение/каскад» AIP-ам приписан зря): AIP-124 — ровно один
+  канонический родитель, остальные связи полями + `filter`; AIP-133 — create в already-existing collection, а в облаке
+  аренда СОЗДАЁТ машину; AIP-135 — detach машины с историей аренд падал бы `FAILED_PRECONDITION`. Прецедент один в
+  один — k8s PV/PVC (claim у потребителя, PVC предшествует PV при dynamic provisioning, PV переживает PVC при Retain,
+  bi-directional binding), GCE Reservation (`zones/{z}/reservations/{r}`, не под инстансом).
+- Аренда = ЗАПРОС, машина = его исполнение; аренда создаётся ПЕРВОЙ (так и в коде: `enqueued` → `ordering` → `ready`).
+  Одна форма для всех провайдеров: `request{requirements{…, resources{cores,memoryMb,diskGb}}, parameters{configuration,
+  zone} | {}}` (`shape` слит в `requirements.resources` по замечанию юзера), `machine` (absent, пока провайдер не выдал
+  коробку), `requestTime`, `acquireTime` (absent до выдачи).
+- Требования — ЯВНЫЙ allow-list ПРОВЕРЕННЫХ профилей (юзер): `requirements.anyOf[]`, каждый элемент — конъюнкция
+  одиночных значений фактов (`{os, arch, virtualization}`), между элементами — ИЛИ. Прецедент k8s
+  `nodeAffinity.nodeSelectorTerms[]` («terms are ORed, expressions within a term are ANDed»), слово `anyOf` — из JSON
+  Schema. Отвергнуто: независимые списки по фактам (`os: [..], arch: [..]`) — (а) массив ≠ «или» в индустрии
+  (GitHub Actions `runs-on: [self-hosted, linux, x64]` — это И), (б) декартово произведение допускает непроверенные
+  комбинации (linux+arm64+hvf). `os` — по имени дистрибутива, как в `facts.os.name` (`ubuntu`, `macos`), без нового
+  понятия «семейство»: список — то, на чём реально гоняли; новая коробка (debian, windows) допускается осознанно.
+  Пустого требования нет: «все текущие проходят» — не семантика allow-list.
+- `environments[]` НА АРЕНДЕ НЕТ (юзер): связь many-to-one, канон AIP-124 — ссылка на стороне окружения
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] (`environment.machine`, OUTPUT_ONLY, полное имя, на МАШИНУ, не на аренду — физический факт «где исполняется») +
+  `LIST environments?filter=machine=…` (AIP-160, пагинируется). Вложенная коллекция `…/machineLeases/{l}/environments`
+  ОТВЕРГНУТА ревьюером как нарушение AIP-124 по букве (второй канонический путь того же ресурса). Прецеденты: k8s
+  `pods --field-selector spec.nodeName=`, Spanner `backups.list?filter=database:`; GCE `instanceGroups.listInstances`
+  и Pub/Sub `topics.subscriptions.list` отдают ССЫЛКИ/имена, не ресурс под вторым путём. Нагрузку без перечисления
+  показывает `machine.resources.allocated`.
+- «Что этот пул держит / за что плачу у провайдера» — `LIST …/computeBindings/-/machineLeases` (AIP-159 `-`).
+- Ресурс read-only (создаёт/отпускает пул; действия оператора — на машине: `:cordon`/`:drain`). Поля: `state:
+  pending|active|releasing|released|failed`, `request`, `machine`, `createTime` (= момент запроса), `acquireTime`,
+  `releaseTime`, `updateTime`. `uid` НЕ даём ни аренде, ни машине — id в имени уже uuid.
+- `pending` — ТОЛЬКО окно «заказ в пути» у облака. Очереди ожидания нет (принцип гарантированных ресурсов): self-hosted
+  без свободной коробки и облако у потолка привязки отвечают 429 синхронно на create-environment, аренда не создаётся;
+  отказ облака на заказ → `failed` → окружение `failed`.
+- Провайдер ВЫБИРАЕТ исполнимый профиль из `anyOf` (YC → ubuntu/amd64/kvm); macos никуда не «пропихивается».
+  Привязка при создании проверяет, что провайдер может исполнить хотя бы один профиль (см. разбор computeBinding).
+- `filter` — синтаксис AIP-160 с первого дня (поле = "значение", AND), но ПОДМНОЖЕСТВО полей, задокументированное на
+  каждом List; неподдерживаемое выражение → 400 INVALID_ARGUMENT (так делают сами Google API).
+- Упрощения: состояние `ordering` становится производным от `machine.connectivity`;
+  `Headroom.nextSlotCapacity` — это `requirements.resources` заказываемой машины.
+
+**Ошибки ревью, зафиксированные по ходу:** `facts`/`capacity` дубль; `fits`/`hosts`/`provides`/`SlotLaunchFailed` —
+знание окружений на машине; `agent` появился без объявления; `blocking|degraded` — выдумка без прецедента;
+«AIP велит вкладывать под владельца» — не велит.
+
+## [DESIGN] ресурс `computeBinding` — два раунда трёх независимых ревьюеров, СВЕДЕНО, ждёт «ок» юзера (2026-09-13)
+
+Три ревьюера (AIP / домен / прецеденты) по восьми вопросам юзера. Сведённые выводы:
+- **`uid` вернуть** на привязке: AIP-148 «declarative-friendly resources **should** include» — uid различает инкарнации
+  одного имени; нужен ровно потому, что id становится пользовательским (`android-emulator` удалили-создали → name тот же,
+  объект другой). Прецеденты: Cloud Run Service, Cloud Deploy Target (user id → uid есть), Dialogflow Agent (uuid в
+  имени → uid нет). Отсюда: у машины/аренды (uuid в имени) uid НЕ нужен — прежнее решение верно. Плюс `etag` (AIP-154).
+- **Комбинаторика platform × runtime — одно поле-ссылка на каталог** `environmentType: "environmentTypes/android-emulator"`
+  (REQUIRED, IMMUTABLE, resource_reference): невалидную пару нельзя ВЫРАЗИТЬ — защита нативная, а не правило сервера,
+  которое UI/клиенты дублируют. Декартов enum отпадает по AIP-126 (enum растёт не чаще раза в год). Прецедент GCE
+  `machineType` = ссылка `zones/{z}/machineTypes/{t}`. `platform`/`runtime` на привязке — OUTPUT_ONLY для filter.
+  Каталожный ресурс и есть место для требований вида окружения: `{platform, runtime, requirements{anyOf}, resources}`.
+- **`kind` НЕ растворяется — переезжает.** [ARCH] прав на уровне пула (после `providerId` пулу всё равно, как у CAPI
+  `Machine`), но механизм изготовления не исчезает: у YC Compute VM / BareMetal — разные API и параметры, не «размер».
+  Все эталоны разводят пул и провайдер-специфичный шаблон: Karpenter NodePool→EC2NodeClass, CAPI Machine→
+  InfraMachineTemplate, GitLab executor+секция, Jenkins cloud→template. Наша привязка = Karpenter NodePool, аренда =
+  NodeClaim. Форма — inline `oneof` (AIP-146 «least generic», Cloud Deploy Target `gke|run|customTarget`, Secret
+  Manager `automatic|userManaged`, сам YC: `bootDiskSpec` «only one of»): `machineTemplate: {vm: {…}} | {baremetal: {…}}`
+  (имя — CAPI `MachineTemplate`; `machineSource`/`machineClass` — альтернативы ревьюеров). Дискриминатор = имя
+  присутствующего члена, отдельный `machineKind` НЕ нужен. Каталожный `requiredConfig[{key,pattern}]` умирает —
+  валидирует схема.
+- **`machineKind: attached|builtin|…` — категориальная ошибка**: смешивает тип провайдера (родитель) с рецептом машины
+  одного провайдера. У инвентарных провайдеров (self-hosted, builtin) `machineTemplate` ОТСУТСТВУЕТ; выбор коробки —
+  селектором требований (Metal3 `hostSelector`).
+- **`kubernetes` — не вид машины, а ТИП ПРОВАЙДЕРА** (свой инвентарь, креды, «под = машина на одно окружение»; CAPI
+  kubevirt/vcluster — отдельные providers, Jenkins — отдельный cloud). Решать при разборе `computeProviders`.
+- **Словарь:** `runtime` (без `Kind`) = container|emulator|device — k8s `runtimeClassName`, Nomad `driver`; конфликт
+  ревьюеров закрыт: docker|vm|kubernetes|baremetal — это provisioner/executor, не runtime. Суффикс `Kind` никто не
+  пишет (`machineType`, `driver`, `executor`). `machineShape` — неверное слово (OCI shape = размер).
+- **`environmentsPerMachine` — выводимо** (k8s: `allocatable ÷ (requests + overhead)`; Karpenter ручки нет). Заявка
+  окружения — на `environmentType` (дефолт) с override на привязке; размер машины — в шаблоне (`vm.cores`, у
+  baremetal фиксирован конфигурацией). «Первый запрос поднимает коробку на N» = размер шаблона. Опциональный потолок
+  `maxEnvironmentsPerMachine` (GKE `maxPodsPerNode`, Selenium `--max-sessions`) — когда ресурсы врут (hvf на Mac).
+- **`limits` — одна крышка на деньги**: `maxMachineCount` (конвенция `max<Noun>Count`: GKE `maxNodeCount`, Cloud Run
+  `maxInstanceCount`). Закономерность: кто платит за железо — капит billable unit; кто продаёт ёмкость — сессии
+  (BrowserStack `parallel_sessions_max_allowed`). `maxEnvironments` счёт не ограничивает → это КВОТА ПРОЕКТА, не
+  привязки. Для инвентарных провайдеров `maxMachineCount` не принимается (потолок = инвентарь).
+- **`:test` → `GET …:verifyAccess`** (AIP-136 глагол+существительное, чтение = GET; KMS `ekmConnections:verifyConnectivity`).
+- **id `android-emulator` — допустимо, но**: свободный `computeBindingId` с дефолтом = id environmentType; уникальность
+  «одна привязка на environmentType у провайдера» — серверная проверка ALREADY_EXISTS, не структура id.
+- **Факт YC** (ревьюер 3 по api-ref): BareMetal `Server.create` = `folderId, hardwarePoolId, configurationId` — `zone`
+  там НЕТ; Compute `Instance.create` = `folderId, zoneId, platformId, resourcesSpec{memory,cores,coreFraction}`.
+
+**Раунд 2 (после правок юзера: без environmentTypes/override/maxEnvironmentsPerMachine; uid везде; вложить resources в
+requirements; неудобство от `yandexCloudVm` внутри привязки). Счёт и решение:**
+- **Шаблон машины — INLINE oneof, члены по МЕХАНИЗМУ, не по провайдеру** (`machineTemplate: {vm: {…}} | {baremetal: {…}}`).
+  2:1 (AIP + прецеденты против домена). Прецеденты 4 ref : 3 inline (GCE MIG/AWS ASG/CAPI/Karpenter — ref; GKE
+  `NodeConfig`/EKS/Azure VMSS — inline); решающий фактор ref-стиля — версионируемый переиспользуемый шаблон или тип в
+  ЧУЖОЙ API-группе; у нас ни того ни другого. «Утечка родителя» была в ИМЕНИ члена: мульти-провайдерные API держат
+  имя провайдера в ребёнке всегда (`nodeClassRef.kind: EC2NodeClass`), single-provider — никогда (`NodeConfig.machineType`);
+  наш родитель `computeProviders/{cp}` уже фиксирует провайдера → член `vm`, поля — словарь провайдера-родителя
+  (схема члена определяется типом родителя, документируется per type). Вынос в `machineTemplates/*` + ref — по правилу
+  трёх, EKS-образец (`launchTemplate` взаимоисключает inline-поля).
+- **Имя `machineTemplate`** 3:0 (template ×4: GCE instanceTemplate, AWS launch template, CAPI *MachineTemplate, Jenkins;
+  class ×1 Karpenter; домен отозвал `machineClass`).
+- **`folderId` — на соединение провайдера** (Crossplane `ProviderConfig.projectID`, Terraform `google.project`), из
+  шаблона убрать; несколько папок = второе соединение. Финализировать при разборе `computeProviders`.
+- **CPU — `cpuMillicores` int** 2:1 (AIP-141 «unit as suffix», без float и без строк-quantity; Docker `NanoCpus` int64,
+  ECS `cpu` int, k8s хранит `MilliValue()`); домен хотел `cores` int («машинный уровень») — отклонено: единица одна на
+  capacity/allocated/request и должна вмещать дробь (YC `coreFraction`, полъядра на браузер). `memoryMb`/`diskGb`
+  остаются. В шаблоне YC-VM — ИХ поля (`cores`, `coreFraction`): зеркало API провайдера.
+- **`runtime` — одно поле-ссылка на ДОЧЕРНЮЮ read-only коллекцию существующего каталога**:
+  `runtime: "platforms/android/runtimes/emulator"`. Снимает и «валидируем, а не защищаем» (AIP), и возражение юзера
+  против нового топ-левел типа. Отдельного `platform` (OUTPUT_ONLY «для filter») НЕТ — юзер: «зачем обе?»; фильтр по
+  префиксу `runtime` (AIP-160 wildcard) закрывает ту же нужду одним полем. `platforms/{p}/runtimes/{r}` = {runtime,
+  requirements{anyOf, resources}} — resources ВЛОЖЕНЫ в requirements (одна семантика с арендой: «факты ∈ anyOf И
+  свободных ресурсов ≥ resources»); число = размер СЛОТА включая overhead (эмулятор + adb + агент; k8s
+  `RuntimeClass.overhead`) — задокументировать, отдельного поля не заводить.
+- **Полоса declarative-friendly (AIP-128) — принять для конфигурационных ресурсов** (project, computeProvider,
+  computeBinding, machine): опциональный пользовательский `computeBindingId` (AIP-133 MUST на management plane; нет —
+  uuid), `uid`, `etag` на PATCH (AIP-154). `uid` на транзиентных (environment, lease) — косметика, но единое правило
+  «у каждой строки БД» дешевле исключений; каталоги без uid (`Location`, GCE `MachineType` его не несут).
+- **`limits.maxMachineCount` — ОБЯЗАТЕЛЕН у всех провайдеров, включая инвентарные** (юзер: «всегда стоит задавать»).
+  Отсутствие = «без потолка» — ровно та неожиданность в счёте, от которой предостерегает Jenkins EC2 (instance cap
+  по умолчанию не ограничен); принцип гарантированных, полностью известных ресурсов требует явного потолка. Для
+  инвентарных — доля инвентаря, не отдать всё одной привязке. Прежнее «не принимается у self-hosted» снято.
+- **Одна привязка на пару (platform, runtime) у провайдера** — уже энфорсит агрегат → `ALREADY_EXISTS` (ResourceInfo
+  на существующую); смена механизма — PATCH `machineTemplate`, не вторая привязка (живые аренды доживают на снимке).
+- **Межполевая зависимость `runtime × machineTemplate` — НОРМА, не smell (ревьюер, 2026-09-13; юзер сомневался).**
+  AIP запрещают лишь неверную аннотацию (AIP-203: условно-обязательное не помечать REQUIRED → `machineTemplate`
+  OPTIONAL + документ «обязателен у изготавливающих, запрещён у инвентарных»); AIP-146 — oneof, без каскадов.
+  Прецеденты отказа на create из-за двух по отдельности валидных полей: GCE GPU×machineType, Cloud TPU
+  `invalid_argument: Accelerator type … is not available in zone`, GKE `400: Accelerator type … does not exist in
+  zone`, Cloud SQL `Invalid Tier … for … Edition`, k8s hostPort/hostNetwork и CEL-правила CRD. Правило: **отвергай
+  невозможное по конструкции, откладывай зависящее от состояния** (k8s: структурное — на admission, nodeSelector
+  без нод — Pending) → асимметрия cloud/self-hosted ПРИНЦИПИАЛЬНА, self-hosted при пустом инвентаре не отвергать.
+  Структурно не убрать: связь N:M (ubuntu/container идёт и на vm, и на baremetal); выводить шаблон из runtime —
+  скрытый defaulting оплачиваемой конфигурации. Дополнение (b): `computeProviderTypes/{t}` отдаёт
+  `machineTemplateKinds[] {kind, facts}`, чтобы UI считал совместимость той же функцией, что сервер (как GKE
+  `getServerConfig.validNodeVersions`).
+  **Код — `INVALID_ARGUMENT`, не FAILED_PRECONDITION** (code.proto: «problematic regardless of the state of the
+  system»; у YC-vm нет состояния, которое можно починить — kvm там не появится; TPU для зоны тоже invalid_argument).
+  Details (AIP-193): `ErrorInfo{reason: RUNTIME_MACHINE_TEMPLATE_INCOMPATIBLE, metadata{runtime, templateKind,
+  requiredAnyOf, providedFacts}}` + `BadRequest.field_violations[{field: "machineTemplate.vm"}]` — указывать на
+  шаблон (его выбирает пользователь; runtime immutable); self-hosted + шаблон → `MACHINE_TEMPLATE_NOT_ALLOWED_FOR_PROVIDER`.
+  Прежние упоминания FAILED_PRECONDITION для этой проверки в пункте — считать исправленными.
+  **Настоящая дыра по ревьюеру — не зависимость, а отсутствие статуса у привязки**: GKE NodePool имеет `conditions[]`
+  + `RUNNING_WITH_ERROR`, Karpenter NodePool — `NodeRegistrationHealthy`. Варианты: `Warning`-header на create
+  (k8s RFC 7234 — снимок, не статус) или OUTPUT_ONLY `fittingMachineCount` у инвентарных (0 = «ничего не поедет»).
+  РЕШЕНИЕ ЮЗЕРА (2026-09-13): ПОДНЯТЬ — вводим `conditions[]` одним срезом на ОБА ресурса, один формат
+  `{type, severity: error|warning, message}` (GKE-прецедент, проверен). Содержимое первой версии:
+  · `computeBinding`: `NoFittingMachine` (warning) — ни одна машина провайдера не удовлетворяет
+    `runtime.requirements.anyOf` (считается на чтении из текущего инвентаря доменом, не хранится; у изготавливающих
+    не бывает — шаблон гарантирует). message: требования + «N attached, 0 fit».
+  · `machine`: `DiskPressure` (error → `ready=false`, размещение прекращается; k8s: taint NoSchedule) — свободный
+    диск ниже порога; агент присылает `diskFreeGb`, порог — политика домена (VO-критерий), не агента.
+  · `ready` машины = online ∧ schedulable ∧ нет condition с severity error (формула удлиняется на нашей стороне).
+  · Пустой список у здоровых — `conditions: []` присутствует всегда (как у GKE), это уже не «поле без содержимого».
+  Место в очереди: сразу после обзора ручек, ДО волны переименований (форма на проводе должна быть в proto).
+- **ПОПРАВКА v1 (юзер, 2026-09-17): `machineSelector.resources{cpuMillicores,memoryMb,diskGb}` ВОЗВРАЩЁН и у
+  заказывающих провайдеров ОБЯЗАТЕЛЕН** — пользователь явно видит, что закажет; значение должно быть ИЗГОТОВИМЫМ (металл —
+  точный размер SKU, VM — допустимая комбинация YC), иначе `INVALID_ARGUMENT` `MACHINE_SIZE_NOT_AVAILABLE` с перечнем
+  доступных; отсутствие → `MACHINE_SIZE_REQUIRED`. **REQUIRED У ВСЕХ (юзер, 2026-09-17)** — и у инвентарных: нижняя
+  граница коробки («эмуляторы только на коробках не меньше…»); UI подсказывает размер одного окружения. Единая
+  семантика: машина привязки ≥ resources; у заказывающего значение изготовимо, поэтому «≥» = «ровно». Условной
+  обязательности нет (AIP-203 доволен).
+  SKU-имена (`bm-epyc-48`) на проводе привязки НЕ появляются — размеры публикует `computeProviderTypes/{t}.machineShapes[]
+  {facts, resources}` для выбора в UI. `:quoteMachine` не нужен (значение точное). Отвергнутый ранее «абсолютный
+  resources — чужая единица» снят: единица показывается списком изготовимых размеров, а не вводится вслепую.
+- **ФИНАЛ v1 `computeBinding` — ЗАФИКСИРОВАН юзером (2026-09-16, поправка выше):** `name` (id пользовательский или uuid),
+  `uid`, `etag`, `runtime` (ссылка на `platforms/{p}/runtimes/{r}`, REQUIRED, IMMUTABLE), `limits{maxMachineCount}` (REQUIRED),
+  `conditions[]` (`NoFittingMachine` warning у инвентарных; `ProvisioningFailing` error у заказывающих), `createTime`,
+  `updateTime`. НИЧЕГО провайдер-специфичного и никакого селектора: размер машины = «под одно окружение» (VM режется
+  под заявку runtime; металл — наименьший SKU, следующие окружения пакуются на него; инвентарь — любая коробка, где
+  влезает), годность — факты ⊨ требования runtime. ОТЛОЖЕНО как additive-блок `machineSelector{minEnvironmentsPerMachine,
+  matchLabels}` + `computeProviders/{cp}:quoteMachine` (в v1 котировать нечего). ОТВЕРГНУТО по пути: `machineTemplate`
+  oneof, `machineCapacity`, `machineSharing`, точный `environmentsPerMachine` (врёт на fixed-SKU металле),
+  абсолютный `machineSelector.resources` (чужая единица для пользователя). Ручки: POST {runtime, limits} (ALREADY_EXISTS
+  на повтор пары; FAILED_PRECONDITION, если провайдер не изготовит машину ни под один профиль), GET, LIST (pageSize/
+  pageToken, filter=runtime="platforms/android/*"), PATCH ?updateMask (etag), DELETE (?force), GET :verifyAccess.
+  **Вердикт независимого ревьюера минимальной v1 (2026-09-16):** направление верное (все аналоги: N-на-машину —
+  опциональная ручка с дефолтом 1, лимит — в машинах: Karpenter `limits.nodes`, GKE `maxNodeCount`, Buildkite `MaxSize`,
+  GitLab `max_instances`), но «must-ship» до кода:
+  1. **Наблюдаемость лимита** — OUTPUT_ONLY `machineCount` на привязке: лимит без счётчика оператор проверить не
+     может (CAPI `status.replicas`, GKE). ПРИНЯТО юзером (2026-09-17). `environmentCount` — НЕ добавлять, «в будущем,
+     если надо». Почему не в списке машин: машины — ресурс провайдера и общие, «машины привязки» — не поле машины
+     (AIP-160 фильтр невыразим), а число считается по правилу привязки (pending включительно, общая — каждой).
+  2. **Правило подсчёта лимита:** считаются и ЗАКАЗЫВАЕМЫЕ машины (GitLab: «regardless of the instance state (pending,
+     running, deleting)» — иначе параллельные размещения переполняют лимит), общая машина считается КАЖДОЙ привязке,
+     чьи окружения на ней; при достижении — 429 + condition `MachineLimitReached`, не тихая очередь. Принять.
+     Оговорка: реальный спенд-кэп провайдера = Σ кэпов привязок — задокументировать.
+  3. **Политика простоя заказанных машин** — у нас ЕСТЬ (idle-TTL возврат, install-конфиг `HOST_POOL_IDLE_TTL_MS`,
+     `retireIfIdle`); ревьюер не видел. Для YC BareMetal (долгий провижн, цена по сроку) — задокументировать дефолт;
+     per-binding override (`consolidateAfter` у Karpenter) — позже, additive.
+  4. **Формат conditions:** ревьюер — убрать `severity` (следует из `type`), добавить `reason` и `lastTransitionTime`:
+     CAPI v1beta2 ОТКАЗАЛСЯ от severity («dropping the Severity field is not an issue anymore», «use of the Reason field
+     is required») в пользу k8s `metav1.Condition`; GKE `StatusCondition{code,status,message}`. МОЯ РЕКОМЕНДАЦИЯ:
+     `{type, reason, message, lastTransitionTime}` — список активных проблем, без severity (эффект на `ready` — по
+     типу), «с какого момента» реально полезно. Единый формат для machine/computeBinding/computeProvider. РЕШЕНИЕ ЗА
+     ЮЗЕРОМ (он выбирал severity после нашей проверки Knative/CAPI-v1beta1).
+  5. Разделить условия: инвентарь — `NoFittingMachine`; заказывающий — `NoFittingMachineType` (ни один SKU под
+     требования — ошибка конфигурации; на create это FAILED_PRECONDITION) и `ProvisioningFailing` (аналог Karpenter
+     `NodeRegistrationHealthy=False`); обоим — `MachineLimitReached`.
+  6. `labels` (стандартный Google-map метаданных, AIP-148 vs `annotations`) — ревьюер: добавить; МОЯ РЕКОМЕНДАЦИЯ:
+     ОТЛОЖИТЬ — нужды нет, и слово столкнётся с будущими selection-`labels` на машине (k8s-смысл), решать вместе.
+  7. Отложенную ручку звать `targetEnvironmentsPerMachine`, не `min…` (для fixed-SKU честнее «цель»).
+  8. VM-путь реализовать как ОБЫЧНУЮ Machine с арендой и idle-reclaim, НЕ «машина == окружение» (единственный способ
+     загнать модель в угол). Соседство по фактам ок, ЕСЛИ агент реально ставит cgroup-лимиты из заявки runtime —
+     иначе `allocated` бухгалтерия, не изоляция (follow-up слота).
+  `reconciling`/`state` на привязке — не нужны (AIP-128/216: два значения → «avoid states»).
+  **РЕШЕНИЕ ЮЗЕРА (2026-09-17): conditions — РОВНО k8s `metav1.Condition`:** `{type, status: True|False|Unknown,
+  reason, message, lastTransitionTime}`, в списке ВСЕ известные для ресурса типы всегда (здоровые тоже), сигнал — в
+  `status`, полярность по типу как в k8s (`Ready` хорошо-когда-True, `DiskPressure` плохо-когда-True). Верхний
+  булев `ready` у машины УБРАН — в k8s его нет, готовность = условие `Ready` (UI/пул выводят). `observedGeneration` не
+  берём (нет generation). Наборы типов:
+  · machine: `Ready` (True `AgentHealthy` = online ∧ нет pressure; False `AgentSilent`; Unknown `NeverRegistered`),
+    `DiskPressure` (True `DiskBelowThreshold` / False `DiskHasSufficientSpace` / Unknown до регистрации).
+    Schedulability — отдельное поле, как `spec.unschedulable` в k8s (cordoned нода Ready=True). Пул берёт машину при
+    Ready=True ∧ schedulable.
+  · computeBinding: `Ready` (агрегат: разместить можно прямо сейчас), `MachinesAvailable` (False: `NoFittingMachine`
+    у инвентаря / `NoFittingMachineType` у заказывающего / `MachineLimitReached`), `ProvisioningHealthy` (только у
+    заказывающих; False: `OrdersRejected`, `MachinesNotRegistering` — аналог Karpenter `NodeRegistrationHealthy`).
+  · computeProvider: `Ready`, `AccessVerified` (только у облачных; False: `GrantMissing`, `OwnershipLabelMissing`).
+  Тип, неприменимый к ресурсу, просто не перечисляется (k8s-практика).
+  **ОТКРЫТО — ОБСУДИТЬ ОТДЕЛЬНО (юзер, 2026-09-17): форма самого условия.** Юзера смущает `status: "True"|"False"|
+  "Unknown"` — строковый tri-state enum под именем `status` (k8s `metav1.Condition`, KEP-1623: «one of True, False,
+  Unknown»; `Unknown` = контроллер не может судить; имя историческое с k8s 1.0, на него завязаны `kubectl wait
+  --for=condition=`, kstatus, Argo). Варианты к обсуждению: (A) k8s дословно — цена «непривычно вне k8s», выигрыш —
+  совместимость с инструментами и читаемость для k8s-людей; (B) GKE-форма — список только проблем `{code/type,
+  message, lastTransitionTime}` без `status`; (C) k8s-семантика с другим именем поля (нестандарт — худший из трёх).
+  Решение отложено, формат conditions одинаков для machine/computeBinding/computeProvider — менять один раз.
+- **Иерархия ПОДТВЕРЖДЕНА AIP-ревьюером (2026-09-17):** машины под провайдером, аренды под привязкой — ровно AIP-124
+  («at most one canonical parent», остальные связи полями; аренда — ассоциативный саб-ресурс, оправдан метаданными
+  заказа). Прецеденты 1:1: Karpenter NodePool → NodeClaim (owner, cascade) + общая Node; GKE nodePool держит только
+  `instanceGroupUrls`, ноды — в Compute; PV/PVC. **Глоссарий:** наша `Machine` ≠ CAPI `Machine` (у них один владелец
+  = наша аренда/NodeClaim; наша Machine ≈ Node) — записать в словарь, чтобы читатели CAPI не ждали одного владельца.
+  Взаимные ссылки `machine.lease` ↔ `lease.machine` — ок (AIP-121 исключает OUTPUT_ONLY); каноническая — `lease.machine`.
+  **Две правки DELETE (AIP-135):** (1) `DELETE computeBinding?force` каскадит ТОЛЬКО на детей (аренды): release →
+  машина `draining` (cordon) → deprovision, когда опустеет; окружения ДРУГИХ привязок на общей заказанной машине —
+  не дети, убивать их через force привязки нельзя (blast radius за пределами ресурса; Karpenter finalizer, k8s drain);
+  (2) `DELETE machine` — БЕЗ `force` вовсе (юзер, 2026-09-19: «чисто по букве AIP-135»): у машины нет детей
+  (окружения — под project), а AIP-135 определяет `force` только для каскада на детей; расширять слово на «снеси,
+  хоть и занята» — натяжка. Пустая → удалена; занятая → FAILED_PRECONDITION «use :drain». Аварийный случай (коробка
+  умерла) закрывается механикой живости: агент молчит → offline → окружения умирают по хартбиту → машина пуста →
+  detach. `force` остаётся только у провайдера и привязки (у них есть дети). Сегодняшний `?force=true` на detach —
+  СНЕСТИ в срезе S3. Мелочи: `platforms/*/runtimes/*`
+  ок, пока runtime принадлежит ровно одной платформе (так и есть: `android/container` и `ubuntu/container` — разные
+  ресурсы с разными требованиями); AIP-159 `-` — документировать и отдавать канонические имена; `etag` на delete
+  — опционально; аренды — только List/Get (Create нет, release — через drain машины).
+- **`computeProviders` — разбор, вердикт ревьюера (2026-09-19), ждёт решений юзера:**
+  · Встроенных `computeBindings[]` НЕТ (своя коллекция) — согласовано. `conditions[]` на провайдере валидны (паттерн
+    статуса на любом ресурсе: k8s Pod/Node/Deployment/CRD, GKE Cluster+NodePool, Cloud Deploy Target, Karpenter).
+  · **builtin — заказывающий провайдер («локальное облако»: `docker run` = изготовить машину-контейнер), юзер прав.**
+    Семейства совпадают с механикой: инвентарь = self-hosted; заказывающие = builtin | yandex-cloud | kubernetes.
+    Дев-стенд гоняет путь заказа (аренды, лимиты, размеры) на docker без YC; тот же Mac как self-hosted — инвентарный.
+    Ревьюер поймал КОНФЛИКТ с глоссарием CLAUDE.md («`kind: vm` — виртуалка одного окружения, НЕ `Machine`») — эта
+    строка ПРЕДШЕСТВУЕТ решению «одна схема» (коробка на одно окружение — тоже Machine с capacity = 1 окружение);
+    глоссарий обновить при волне переименований. Открытый вопрос «нужен ли однослотовой машине machine-agent» — на
+    реализацию (юзер); v1-правило для builtin: изготовимый размер = ровно заявка одного окружения.
+  · **Форма — (A): плоский oneof, вложение только внутри `kubernetes`** (`kubernetes: {yandexCloud{folderId,
+    clusterId} | kubeconfig{secretRef}}`). AIP-146 запрещает только «long series of cascading oneofs»; два уровня —
+    норма, прецеденты union-внутри-члена: Cloud Scheduler `Job.target→HttpTarget.authorization_header`, Cloud Build
+    `Source→RepoSource.revision`, BigQuery Connection `properties→AwsProperties.authentication_method`, Cloud Deploy
+    `Strategy→Canary.mode`. Обёртка-семейство (B: `selfHosted | cloud{…}`) — без прецедента: классификация, не
+    настройка; ломается первым провайдером вне дихотомии, а «moving fields into/out of a oneof is breaking».
+    Семейство — понятие домена (`ComputeProviderKind`), при нужде OUTPUT_ONLY `family`.
+  · `type` — НЕ REQUIRED (два источника правды); OUTPUT_ONLY выведенный — допустимо (AlloyDB `clusterType`), полезен
+    для `filter=type=`. Google при oneof дискриминатор не дублирует (Deploy Target, BigQuery Connection, Scheduler Job).
+  · **`validateOnly` вместо `:verifyAccess` — легитимен для пре-флайта, но AIP-163 требует ответ, ИДЕНТИЧНЫЙ живому
+    Create** → решить семантику живого Create: (i) «принять и показать статус» — 200 + `AccessVerified: False`
+    (k8s-стиль, declarative-friendly с conditions; МОЯ РЕКОМЕНДАЦИЯ: подключил → UI показал, чего не хватает → выдал
+    грант → реконсилер позеленил) или (ii) отклонять `FAILED_PRECONDITION` + `ErrorInfo{GRANT_MISSING|
+    OWNERSHIP_LABEL_MISSING}` (прецедент DMS `connectionProfiles.create?validateOnly` — неудача = ошибка).
+    `PATCH ?validateOnly` как «перепроверь» — хак (PATCH без изменений ≠ change validation). Перепроверка
+    существующего — РЕКОНСИЛЕР обновляет `conditions` сам (AIP-128: GET «must return the resource's current state»);
+    custom `GET :verifyAccess` (KMS `verifyConnectivity`) нужен только без реконсилера → с реконсилером метода НЕТ.
+  · **РЕШЕНИЕ ЮЗЕРА (2026-09-19): семантика Create — (i) «принять и показать статус»**: 200, ресурс создан,
+    `AccessVerified: False` с причиной; `POST ?validateOnly=true` отвечает идентично (без name/uid/createTime, если id
+    автогенерён — AIP-163); `PATCH ?validateOnly=true` — только для валидации изменения, не «кнопка перепроверки»;
+    перепроверка — реконсилер; кастомного `:verifyAccess` НЕТ. Форма A, `type` OUTPUT_ONLY, builtin — заказывающий.
+  · **ФИНАЛ v1 `computeProvider` — ПОДТВЕРЖДЁН юзером (2026-09-19):** `name`, `uid`, `etag`, `displayName?`, `type`
+    (OUTPUT_ONLY), oneof `selfHosted{} | builtin{} | yandexCloud{folderId, zoneId, platformId?} | kubernetes{yandexCloud
+    {folderId, clusterId} | kubeconfig{secretRef}}`, `conditions[]` (`Ready`; `AccessVerified` только у облачных:
+    GrantMissing / OwnershipLabelMissing / NotCheckedYet), времена. Ручки: POST [?computeProviderId][&validateOnly],
+    GET, LIST (pageSize/pageToken/filter=type=), PATCH ?updateMask [&validateOnly] (etag), DELETE [?force] (дети:
+    привязки, машины). Кастомных методов нет.
+- **Каталог `platforms` и дети — вердикт независимого ревьюера (2026-09-19), ждёт «ок» юзера:**
+  · Сиблинги `deviceModels` и `runtimes` под `platforms/{p}` — ВЕРНО; связь «какой профиль на каком runtime» —
+    many-to-many → не вложение, а repeated-поле `deviceModel.runtimes[]` + `filter=runtimes:` (AIP-124). Прецедент —
+    Firebase Test Lab `AndroidDeviceCatalog{models[], versions[]}` с `AndroidModel.supportedVersionIds` и `form` полем.
+  · **`versions` — КОЛЛЕКЦИЯ `platforms/{p}/versions/{v}`, не массив строк** (моё «массивом» отменено): AIP-144 «if
+    additional data is likely to be needed in the future, repeated fields **should** use a message… proactively»;
+    данные точно нужны — `apiLevel` (android 14 ≠ API 34, Appium `platformVersion`), `state`; Firebase
+    `AndroidVersion{id, versionString, apiLevel, codeName, releaseDate}`. id = строка версии («13»).
+  · **`devices` → `deviceModels`**: device = конкретная коробка (наш будущий инвентарь), ресурс же — модель/профиль;
+    совпадает с capability `sw:deviceModel` (один концепт — одно имя). Firebase `AndroidModel`, simctl «device types».
+  · **`requirements.anyOf` → `machineProfiles[]`**: JSON-Schema-словарь не для AIP-полей, «или» уже выражен repeated.
+    МОЁ ОТКЛОНЕНИЕ от ревьюера: оставить обёртку `requirements{machineProfiles[], resources{}}` — юзер просил одну форму
+    с арендой (`request.requirements{…}`); ревьюер плоскую форму предлагал, не зная об этом.
+  · `state` (AIP-216 enum, OUTPUT_ONLY) на version и deviceModel: `AVAILABLE | DEPRECATED | UNAVAILABLE` (Compute
+    `deprecated.state`, Firebase tags) — закрывает follow-up «показывать только провижнящиеся версии».
+  · Добавить: `displayName` (OUTPUT_ONLY у статики) на platform/runtime/deviceModel/version; `platform.defaultVersion`
+    [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] (GKE `defaultClusterVersion` — `platformVersion` в create станет необязательным); `platform.aliases: ["linux"]`
+    (W3C-алиас объявлен в каталоге, не зашит в границу сессии); `deviceModel.formFactor` (PHONE|TABLET|DESKTOP).
+  · Каталоги: top-level коллекции с Get+List (Compute `zones`/`machineTypes`, Vertex `publishers/*/models`), НЕ
+    `serverConfig`-документ (до-AIP) и не под locations/projects; без uid/etag/createTime (AIP-148 — только
+    declarative-friendly); пагинация обязательна везде (AIP-158 «at the outset»).
+  · Для разбора `environments`: ОТМЕНЕНО следующим ревью — ссылаться ГОЛЫМИ id, не resource name (см. ниже).
+- **[DESIGN] Каталог platform/models/versions → ПРОЕКТНЫЙ РЕГИСТР (юзер + ревьюер, 2026-09-27):** источник моделей
+  должен быть ОДИН (юзер: не нравится, что у эмуляторов и реальных устройств разные источники), ручное заведение
+  моделей исключено (юзер), открытое в проекте A не должно светиться проекту B (юзер), лишние таблицы не пугают (юзер).
+  **Схема:** единственный путь чтения — `projects/{p}/platforms/{platform}/{models,versions,runtimes}/…`; содержимое
+  моделей и версий = builtin (статика кода) ∪ discovered (строки БД ЭТОГО проекта), сшивка на чтении; `runtimes` —
+  ТОЛЬКО builtin, никогда discovered. Методы только Get/List, все поля OUTPUT_ONLY, пишет только система.
+  `DeviceModel{name, displayName, formFactor, origin: BUILTIN|DISCOVERED, supportedRuntimes[], supportedVersions[],
+  availability, deviceCount, lastSeenTime}`.
+  · **Глобальный каталог отвергнут** — утечка («у кого-то в инсталляции есть Galaxy S24») и «не забыть отфильтровать в
+    каждом read-пути» как ошибка ожидания. Прецедент проектно-квалифицированного имени при вендорском содержимом:
+    GCE `GET projects/{project}/zones/{zone}/machineTypes` («available to the specified project», всё `[Output Only]`,
+    без insert/delete) и OrgPolicy `projects/{project_number}/constraints/{constraint}`. Firebase глобален, но его
+    `projectId` — «For authorization», то есть принципал, а не родитель.
+  · **Копировать builtin в каждый проект НЕ надо** — только адресация проектная, хранение общее (N копий статики и
+    миграция каждого тенанта на апгрейде — отвергнуто).
+  · **`origin: BUILTIN|DISCOVERED` — не смелл**, прямой прецедент в домене: AWS Device Farm держит публичные и
+    приватные устройства в одной коллекции `Device` с полем `fleetType: PRIVATE|PUBLIC`.
+  · **Discovered — это ПРОЕКЦИЯ фактов machine-agent, а не самостоятельное состояние**: источник правды — инвентарь
+    (`…/machines/{m}/devices/{d}`), регистр — его индекс, восстановимый с нуля. Этим снимается возражение «две правды».
+  · **Id модели — единое пространство инсталляции** (нормализованный `ro.product.model`): реальный Pixel 7 СЛИВАЕТСЯ с
+    builtin AVD-профилем `pixel-7` в одну запись с `supportedRuntimes: [emulator, device]` — это и есть дивиденд
+    «одного источника». Префиксы вроде `custom.` НЕ вводим (нужно слияние, а не разведение).
+  · **Авторегистрация системой легальна** (kubelet `--register-node`, CSINode «kubelet will automatically populate»),
+    НО k8s депрекнул авто-создание ГЛОБАЛЬНЫХ деклараций из node-side discovery (`cluster-driver-registrar`) → отсюда
+    правило «runtimes только builtin».
+  · **Lifecycle: записи НЕ удалять** (k8s: Node-объект удаляет только человек/контроллер; модель — словарная единица,
+    удаление рвёт исторические ссылки). Живость — полями: `availability` (AWS: TEMPORARY_NOT_AVAILABLE|BUSY|AVAILABLE|
+    HIGHLY_AVAILABLE), `deviceCount`, `lastSeenTime`; GC — только фоновый снос невиданных N суток И не упомянутых
+    ни одним окружением. Тип ≠ экземпляр (AWS: «A device ARN is an identifier representing a type of device rather
+    than any specific physical device instance»): экземпляр умирает с машиной, тип остаётся.
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] · **Финальные поля каталога (юзер, 2026-09-27):** platform `{name, displayName, aliases[], defaultVersion}`;
+    version `{name, displayName, supportedRuntimes[]}`; model `{name, displayName, formFactor, supportedRuntimes[]}`;
+    runtime `{name, displayName, requirements{machineProfiles[], resources{}}}`. УБРАНЫ: `origin` (выводится из
+    `supportedRuntimes`: есть emulator/container → изготавливаем сами, только device → узнали от железа; значение
+    `BUILTIN` вдобавок коллизировало с типом провайдера `builtin`, в пользу `PREDEFINED`, но поле не нужно вовсе),
+    `deviceCount`/`lastSeenTime` (агрегат над чужой коллекцией → `LIST …/devices?filter=model=` + `totalSize`;
+    «есть ли вообще железо» уже сказано наличием `device` в supportedRuntimes). Записи с пустым `supportedRuntimes`
+    (железо унесли, эмулировать нечем) не показываются в списках — уборка без удаления. `formFactor` — дословно
+    Firebase (`PHONE|TABLET|WEARABLE|TV|AUTOMOTIVE|DESKTOP|XR`, проверено по discovery), нам нужны PHONE/TABLET/DESKTOP.
+  · **Проектный АДРЕС у всего каталога, проектное СОДЕРЖИМОЕ только у моделей и версий** (юзер: рантаймы и платформы
+    общие). Глобально их не выносим — иначе у `platforms/android` два имени и дети разъезжаются по разным родителям;
+    прецедент GCE `projects/{project}/zones/{zone}/machineTypes` (содержимое одинаково для всех, адрес проектный).
+  · **`supportedRuntimes` — ПОЛНЫЕ имена ресурсов** (ссылка между ресурсами), в отличие от значений, пересекающих
+    границу W3C. Правило на весь API: ссылка между ресурсами — полное имя; значение для/из capability — голый id.
+    Подколлекция `versions/{v}/runtimes` отвергнута: дала бы рантайму несколько имён (нарушение «один канонический
+    родитель»), а AIP-124 для many-to-many предписывает именно «repeated field containing a list of resource names».
+  · **Матрица `supportedVersions[{version, runtimes[]}]` на МОДЕЛИ — подтверждена ревьюером (2026-09-27)**, т.к.
+    тройка (модель × версия × рантайм) должна быть валидна целиком (иначе API обещает `pixel-7 + android 15 + device`,
+    когда единственный Pixel 7 на 13). Вложение `models/{m}/versions/{v}` ОТВЕРГНУТО: версия — самостоятельная
+    сущность с каноническим родителем-платформой, вложение дало бы ей второе имя (AIP-124 «at most one canonical
+    parent», AIP-123 «patterns must be mutually unique»), «список всех версий» превратился бы в fan-out, а рантайм
+    потребовал бы третьего уровня. Прецедента «каталожное измерение вложено в другое» у Google нет — везде сиблинги +
+    перекрёстная ссылка (Firebase `AndroidModel.supportedVersionIds`, GKE `channels[].validVersions`).
+    ВЛОЖЕННЫЙ MESSAGE, НЕ плоский список id: AIP-144 «if additional data is likely to be needed… **should** use a
+    message instead of a scalar proactively, to avoid parallel repeated fields» — Firebase наглядный антипример
+    (плоский `supportedVersionIds` + позже параллельный `perVersionInfo`).
+    **ПРАВКА: внутри матрицы — ПОЛНЫЕ имена ресурсов, не голые id** (отменяет моё «исключение ради компактности»):
+    «strictly necessary» по AIP-122 тут нет (холодный каталог, не hot path), а Firebase не оправдывает — у его
+    `AndroidModel` вообще нет `name`, это доAIP-шный API. Голые id остаются ТОЛЬКО там, где значение пересекает
+    границу W3C-капы.
+    Отдельный ресурс `offerings/{…}` на тройку — ОТЛОЖЕН до появления атрибутов комбинации (capacity, цена,
+    deprecation) или нужды в коррелированной фильтрации; id тогда системный, НЕ составной `model~version~runtime`
+    (AIP-122 «Resources must not expose tuples»).
+  · **Ловушка фильтра (ревьюер):** `filter=supportedVersions.runtimes:"device"` синтаксически легален, но AIP-160:
+    «Filters can not query a specific element on a repeated field for a value» → `version="13" AND runtimes:"device"`
+    сматчит модель, у которой такой СТРОКИ нет. Задокументировать отсутствие корреляции; это же — главный довод за
+    будущий `offerings`.
+  · **`displayName` → `title` во ВСЁМ каталоге (юзер, 2026-09-27):** AIP-148 определяет `display_name` как «must be a
+    mutable, user-settable field», у каталога подпись серверная и неизменяемая → занятое имя с чужой семантикой не
+    берём; `title` в стандартных полях AIP отсутствует (AIP молчит) → прецедент IAM `Role.title` (у predefined-ролей
+    задаёт сервер). `displayName` остаётся у изменяемых пользователем ресурсов (`projects`, `computeProviders`).
+  · **`aliases` — только OUTPUT_ONLY подсказка для матчинга капы, НИКОГДА сегмент пути** (иначе у платформы два имени).
+    `formFactor` — нужен `FORM_FACTOR_UNSPECIFIED` первым значением (AIP-126). Отсутствие `uid`/`etag`/`createTime`
+    у read-only каталога корректно (AIP-148 привязывает их к declarative-friendly). Глобальный путь `platforms/...`
+    НЕ заводить одновременно с проектным — два имени одного объекта.
+  · **`totalSize` во ВСЕХ List-ответах — принято юзером как общее правило** (AIP-158: «may provide an `int32
+    total_size` field… may be an estimate»); счётчики-агрегаты полями на других ресурсах не заводим.
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] · **Ссылки — ГОЛЫЕ id, не resource name** (отменяет прежний совет ревьюера платформ): Firebase `AndroidModel.id` —
+    «unique opaque id», а `AndroidDevice.androidModelId/androidVersionId` — голые строки при ресурсном каталоге; GKE
+    `validNodeVersions` — строки. Full resource name породил бы две формы (в W3C-капе он невозможен) и разъехался бы с
+    матчингом; корректность держится на уникальности id в инсталляции, имя ресурса выводится тривиально. Перевод
+    `sw:deviceModel` → VO `DeviceModelId` в request-модели, resource name собирает presenter; в домене имён нет.
+- **[ARCH] СЛОТ — единая абстракция места исполнения (юзер, 2026-09-22..26; три независимых ревьюера):**
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] Требование юзера: эмулятор, реальный телефон и linux-контейнер НЕ должны различаться абстракциями. Итог: `runtime` —
+  это протокол между агентом машины и окружением (docker / adb-tcp / adb-usb; далее simctl, usbmuxd); прецедент —
+  `adb devices` показывает `emulator-5554` и серийник одним списком. Место исполнения — ОДИН ресурс
+  `…/machines/{m}/slots/{s}`: ровно одно окружение на слот, множественность даёт машина. Рекурсия нашей же оппозиции:
+  провайдер→машины (attached | ordered), машина→слоты (физический | изготовленный).
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] **Поля слота (ФИНАЛ после 4-го ревью, 2026-09-26):** `name` (id = серийник | `emulator-5554` | id контейнера), `uid`,
+  `runtime` (ссылка на каталог), **`stereotype{platform, platformVersion, model, form, device?}`** (OUTPUT_ONLY, снимок
+  наблюдённого на момент провижна), `transport: adb-usb | adb-tcp | docker`, `resources{capacity, machineAllocation}`,
+  `state: PROVISIONING|READY|ALLOCATED|DRAINING|DELETING`, `conditions[]` (тип `Ready` — здоровье вынесено из state),
+  `environment` (отсутствует у свободного физического и у мусора), времена.
+  · **Блок `device` → `stereotype`** (ревьюер): контейнер устройством не зовёт никто — AWS Device Farm `Job.device` =
+    «phone or tablet», десктоп у них отдельный `TestGridSession` без `device`; Selenium зовёт конфиг слота именно
+    stereotype: «the capability set attached to a slot… the minimal set of capabilities a new session request must
+    match» — буквально роль блока. `target` отвергнут (перегружен: Cloud Deploy Target), `guest` отвергнут (у телефона
+    нет гипервизора, и пару host/guest мы себе запретили). ВНИМАНИЕ: в копилке [NAMING] лежит вердикт другого ревьюера
+    «`Stereotype` — false friend, переименовать» — противоречия нет: там ругали использование слова для ПАРЫ
+    (платформа+исполнение), которая набором капабилити не является; здесь слово встаёт на своё настоящее место, а пара
+    растворяется в `runtime`. Переименование `Stereotype`→`PlacementKey` из копилки СНЯТЬ.
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] · **`form`, не `backing`** (ревьюер, решающий довод): `backing` в vSphere — реальное поле, но БЛОК-ссылка
+    (`"backing": {"type": "STANDARD_PORTGROUP", "network": "obj-103"}`), libvirt `<backingStore>` — то же; скаляр
+    `backing: PHYSICAL` прочтётся как сломанный тип. Мой довод «form off-label из-за контейнеров» развёрнут:
+    `formFactor` у Firebase включает DESKTOP → контейнер = `formFactor: DESKTOP` + `form: VIRTUAL` в рамках
+    прецедента; соседство form/formFactor придумал Google и живёт с ним 8 лет. Значения: PHYSICAL | EMULATOR | VIRTUAL
+    (CONTAINER/VM отвергнуты — дублируют runtime и различают реализацию, а не природу).
+  · **`state` — только жизненный цикл** (AIP-216: прогрессия), здоровье — в `conditions[Ready]` (не `healthy: bool`,
+    ради единого формата с machine/binding/provider). Двусмысленность «нет environment = свободен ИЛИ мусор» снимается
+    без вывода: CP пишет `DELETING` в тот же момент, когда удаляет окружение → READY+нет env = свободный физический,
+    DELETING+нет env = мусор под уборку.
+  · СПОРЮ с ревьюером: `transport: "docker"` он звал дублем `runtime` и предлагал `docker-exec` — нет: runtime говорит
+    «контейнер», транспорт — каким движком дотягиваемся (podman/containerd изменят транспорт, не runtime).
+  · **`stereotype` — ФАКТЫ простыми значениями, не ссылки на каталог** (юзер поймал нестыковку): реальный телефон
+    приносит модель и версию, которых в install-static каталоге нет и быть не может (`sm-s921b`, Android 15) — полное
+    имя ресурса висело бы в пустоту. Правило как в `machine.facts`: факты — значения, ссылки — полные имена
+    (единственная ссылка в блоке — `device`). Каталог `platforms/{p}/models/{m}` описывает только ИЗГОТОВИМЫЕ модели
+    (профили эмулятора + `desktop`); «какие реальные модели есть» — вопрос к инвентарю (`LIST …/devices`), не к каталогу.
+    [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] Следствие для `environments` (решить при его разборе): `platform` — ссылка на каталог (закрытый набор), а
+    `platformVersion`/`deviceModel` — простые слова с проверкой по runtime: изготавливаемым обязано быть в каталоге,
+    для `device` — совпасть с фактом устройства инвентаря. Это расходится с советом ревьюера платформ «ссылаться
+    именами всюду» — он не знал про реальные устройства.
+  · **`resources{capacity, machineAllocation}`** вместо `resources`+`machineFootprint` (ревьюер: слова «footprint» как
+    имени поля в инфраструктурных API НЕТ — только carbon-домен; в прозе = измеренное, у нас заявленное). Прецедент —
+    k8s DRA: `Device.capacity` («reflects the fixed total capacity… The consumed amount is tracked separately») +
+    `consumesCounters`; `machineAllocation` — по OpenStack Placement `allocations` (запись потребителя против
+    провайдера). Обёртка `resources` у слота — чтобы `resources.capacity` значило одно и то же у машины и слота
+    (юзер поймал расхождение). Инвариант виден в именах: `machine.resources.allocated = Σ slots.resources.machineAllocation`.
+    ОТВЕРГНУТО: `hostOverhead` (overhead = дельта сверх, у нас не дельта; «host» запрещён словарём), `machineUsage`
+    (usage = измеренное), `machineReservation` (reserved = отложено провайдером), `machineResources` (читается как
+    «ресурсы машины» = `machine.resources`).
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] · **`form` вместо `provenance`** (ревьюер): `provenance` в софте 2020-х = supply-chain attestation (SLSA, in-toto,
+    BuildKit, Artifact Analysis) — коллизия рядом с нашими образами и артефактами. `form` — дословный прецедент в
+    домене: Firebase Test Lab `AndroidModel.form = PHYSICAL|VIRTUAL|EMULATOR` (+ `DeviceIpBlock.form`), фильтр
+    `gcloud firebase test android models list --filter=virtual`. Значения: PHYSICAL — железо (наше или арендованное);
+    EMULATOR — эмулируемое устройство (qemu, «equivalent to Android Studio»); VIRTUAL — виртуализованный/
+    контейнеризованный экземпляр той же архитектуры (ubuntu-контейнер; позже android в облачной VM с нативной
+    виртуализацией). Позже возможен SIMULATOR (iOS). Поле НЕ убирать, хотя выводимо: `runtime` — ссылка на растущий
+    каталог, иначе каждый клиент захардкодит таблицу «какие runtime физические»; так же делают BrowserStack
+    (`real_mobile`), LambdaTest (`isRealMobile`).
+  · **`device` — обычное условное OUTPUT_ONLY поле, БЕЗ oneof, окончательно** (ревьюер: AIP-180 «Existing fields
+    **must not** be moved into or out of a oneof» → «потом повысим» ЗАПРЕЩЕНО, решать сейчас; порог «1–2 поля, дальше
+    oneof» — моя выдумка: Pub/Sub держит 4 взаимоисключающих поля без oneof, Cloud Tasks имеет oneof из одного члена).
+    Будущие вариант-специфичные поля туда не просятся: battery/simState — свойства ресурса `devices`, containerId/
+    avdName — уже в имени слота. AIP-203: сервер ОБЯЗАН молча очистить OUTPUT_ONLY на входе и НЕ ошибаться (моя
+    оговорка про INVALID_ARGUMENT неверна, пока поле output-only). Прецеденты условных полей: AlloyDB
+    `secondaryConfig`/`primaryConfig` (лучший), Pub/Sub `pushConfig`, Compute `ForwardingRule.serviceName`,
+    Cloud SQL `replicaConfiguration`; мои `PV.spec.nodeAffinity` и `GKE NodeConfig.accelerators` — НЕГОДНЫЕ.
+  · **Инвентарь железа — отдельный ресурс `…/computeProviders/{cp}/devices/{d}`, сиблинг machines/computeBindings**,
+    машина — ССЫЛКОЙ (телефон перетыкают в другую коробку: при вложенности менялся бы `name`, рвались история и
+    квоты; аналог — cluster-scoped PV при node-локальном томе). В v1 коллекции НЕТ (реальных устройств нет), форма
+    слота принимает её добавлением поля `device`.
+  · Ресурсы пары (модель × runtime) — ОТЛОЖЕНО (`platforms/{p}/slotTypes/{st}`, прецедент GKE machineType): сегодня
+    все эмуляторы стоят одинаково. DRA-атрибуты с селекторами и отдельный фенсинг аллокации — тоже отложены (у нас
+    оптимистичный захват под пер-аккаунтным локом + правда от хартбита агента).
+  · **АРЕНДОВАННЫЕ у внешней фермы устройства — вердикт ревьюера (2026-09-26): декомпозиция ВЫЖИВАЕТ**, ломается одно
+    определение: машина ≠ «коробка с НАШИМ агентом» (определение через реализацию) → машина = ЕДИНИЦА ЁМКОСТИ, АРЕНДЫ
+    И ОТКАЗА, агент — способ узнать состояние. Арендованный телефон = машина без агента + один слот (PHYSICAL,
+    adb-tcp); роль агента играет адаптер провайдера (прецедент virtual-kubelet: Node-объект есть, kubelet-а нет).
+    Отклонено: «вся ферма = одна машина» (убивает `maxMachineCount` — квота фермы это конкурентные устройства, прячет
+    отказ и аренду отдельного устройства; Selenium Grid Relay так делает, но у него Node — процесс, не единица аренды)
+    и «сиблинг рядом с machines» (форкает размещение). Аренда переиспользуется как есть (наш Karpenter NodeClaim).
+    **ПРИНЯТО СЕЙЧАС:** (1) определение машины через роль — правка глоссария при переименованиях; (2)
+    `computeBinding.machineSelector` получает рядом с `resources` поле `deviceSelector{model, platformVersion}` —
+    «арендовать Pixel 8 / Android 14» сегодня невыразимо; два обычных необязательных поля с валидацией «применимо
+    ровно одно», БЕЗ oneof (AIP-180: потом не переложить).
+    **ОТНОСИТСЯ К СЕГОДНЯШНЕМУ КОДУ (не к ферме):** (D7) `executing` и `endpoint` пишет хартбит агента → обобщить:
+    пишет ТОТ, КТО УЗНАЛ endpoint (агент push | адаптер poll), иначе каждый внешний провайдер = исключение в ядре
+    жизненного цикла; (D8) заказывающий провайдер ТОЖЕ отказывает (AWS `LimitExceededException`, YC — нет мощностей
+    в зоне) → путь «остаёмся в `enqueued` с backoff», не сразу `failed`; (D9) свежесть: `lastSyncTime` + общий порог
+    6с — ложь для POLL-провайдера (несвежесть = сломан наш поллер, не машина) → reclaim по ней запрещён, порог
+    объявляет провайдер.
+    **ОТЛОЖЕНО (аддитивно, при первом таком провайдере):** `agent` → `statusSource{mode: AGENT_PUSH|PROVIDER_POLL,
+    lastSyncTime, agent?}`, `machine.externalRef` (ARN/udid) и `allocationMode`, `lease.expireTime/renewTime/
+    connection{endpoint, credentialRef}`, `transport` как строка вместо enum (AIP-126 для часто растущих наборов),
+    `slot.connection` для `proprietary-webdriver` (BrowserStack/Sauce — чужой WebDriver-эндпоинт, слот без capacity).
+    **СПОРЮ:** `type` → строка + `capabilities{ordersMachines, ordersDevices, runsOurAgent}` — новый провайдер и так
+    требует схемной работы (свой блок в oneof); данные для ветвления размещения честнее в каталоге
+    `computeProviderTypes` рядом с `machineShapes`.
+    **ЦЕНА, которую ревьюер отмахнул:** у арендованного устройства машина и слот почти совпадают (одни и те же
+    характеристики телефона в `machine.resources.capacity` и `slot.resources.capacity`, `machineAllocation`
+    отсутствует) — одна из строк выглядит церемонией; терпимо ради единого размещения.
+    **Firebase Test Lab НЕ моделировать** — там нет ручки устройства и сессии (сдаёшь матрицу тестов); другой порт,
+    натягивание на `machine` испортит модель. Арендованное устройство в `devices` НЕ заводить (идентичность — в
+    `machine.externalRef`); `devices` остаётся НАШИМ инвентарём (аналог AWS `DeviceInstance`), каталог — аналог AWS `Device`.
+- **[DONE] Локальная копия AIP — `docs/reference/aip/`, в репозиторий НЕ коммитится (`.git/info/exclude`, правило в `CLAUDE.local.md`)** (127 файлов, 1 МБ, коммит 23e176e7 от 2026-08-17, CC-BY 4.0):
+  ходить в сеть за нормой больше не нужно, `grep -rn "<фраза>" docs/reference/aip/general/`. Правило в CLAUDE.md
+  обновлено. В README — команда обновления копии.
+- **[TODO] СКВОЗНАЯ AIP-СВЕРКА всех уже разобранных ручек — по правилу CLAUDE.md «строго по AIP» (юзер, 2026-09-27).**
+  Правило записано ПОСЛЕ того, как часть ресурсов уже согласована, поэтому пройти их заново одним проходом и
+  зафиксировать каждое отклонение (или устранить). Что проверять на каждом: `name`/паттерн (AIP-122/123), один
+  канонический родитель (AIP-124), стандартные поля и их семантика (AIP-148: `displayName` только mutable/user-settable
+  → иначе `title`; `uid`/`createTime`/`updateTime` только declarative-friendly), `etag` (AIP-154) только при
+  конкурентной записи, пагинация + `totalSize` (AIP-158), фильтры (AIP-160, в т.ч. ловушка некоррелированного `:` по
+  repeated), стандартные методы и их коды (AIP-131/132/133/134/135, `force` только на каскад по детям), кастомные
+  методы (AIP-136: глагол+существительное, GET для чтения), ошибки и details (AIP-193, `ErrorInfo`+`BadRequest`),
+  enum-стиль (AIP-126: UPPER_SNAKE_CASE, первое значение `*_UNSPECIFIED`, строка вместо enum для часто растущих
+  наборов), единицы в суффиксах (AIP-141), field_behavior (AIP-203), long-running (AIP-151) там, где операции долгие.
+  Ресурсы к проверке: `projects`, `computeProviders`, `computeBindings`, `machineLeases`, `machines`, `slots`,
+  `devices`, каталог `platforms/*`, `computeProviderTypes`, `environments`, `sessions`, IAM-методы, netbridge,
+  storage-ручки, internal-контур агентов. Отдельно: наши прецедентные решения, где AIP молчит (k8s-форма
+  `conditions[]`, `machineProfiles`, `stereotype`, `form`, `transport`) — пометить как ОСОЗНАННЫЙ выбор по прецеденту
+  с записью, что именно AIP не определяет.
+- **[DESIGN] `computeProviderTypes` — разбор + вердикт ревьюера (2026-09-27), ждёт «ок» юзера:**
+  · **Путь ГЛОБАЛЬНЫЙ `computeProviderTypes/{t}`, не под проектом.** AIP про каталоги молчит (явно проверено), но
+    AIP-124 «A resource **must** have at most one canonical parent» (*at most* — ноль допустим) и AIP-132 «A `parent`
+    field **must** be included unless the resource being listed is a top-level resource» делают top-level легальным;
+    отношения владения с проектом нет, контент идентичен, вложение дало бы одной сущности N имён (AIP-122: имя —
+    то, что клиент хранит как каноническое). **Правило, которое из этого выводится: вкладывать в проект, только если
+    содержимое или видимость зависят от проекта** — поэтому `projects/{p}/platforms/*` остаются проектными (модели и
+    версии выводятся из инвентаря проекта), а типы провайдеров — глобальные. Прецеденты (после AIP): IAM `roles/{role}`
+    top-level; GCE `machineTypes` per-project именно потому, что доступность и квоты различаются.
+    Появится per-project allowlist — не перевешивать каталог, а добавить отдельный проектный ресурс со ссылкой.
+  · **Баги текущей ручки:** LIST без пагинации нарушает MUST AIP-132 («`page_size` and `page_token` … **must** be
+    specified on all list request messages»), отсутствует Get (AIP-121: «A resource **must** support at minimum Get»).
+  · **`machineSupply: MACHINE_SUPPLY_UNSPECIFIED | INVENTORY | ORDERING` — поле НУЖНО** (юзер сомневался): вывод
+    «inventory ⇔ пустой список типов машин» ПРОСТО НЕВЕРЕН — у заказывающего провайдера с параметрическими размерами
+    (YC VM) фиксированных SKU тоже нет. Производное поле легально (AIP-203: «Derived or structured information based
+    on original user input»); не bool (AIP-126: bool только когда «no further flexibility will be needed»).
+  · **`machineShapes` → суб-коллекция `computeProviderTypes/{t}/machineTypes/{mt}`** (юзеру не нравилось и имя, и
+    инлайн-массив — прав): AIP-144 MUST «Repeated fields **must not** represent the body of another resource inline»
+    (на них ссылается binding) + SHOULD про верхнюю границу («A good rule of thumb is 100 elements… should use a
+    sub-resource»; у AWS 700+ типов). `shape` — вокабуляр Oracle OCI; `machineTypes` нейтрально и рифмуется с нашим
+    `Machine`. `shapeId` убрать (AIP-122: идентичность — в `name`).
+  · **Параметрические размеры** (AIP молчит) — по духу AIP-146 «least generic»: `oneof capacity { fixed |
+    configurable }`, где configurable = min/max/step по cpu/memory + memory-per-core; конкретику задаёт
+    `computeBinding.machineSelector.resources`, тип — ссылка на `machineTypes/{mt}`.
+  · **`grants`/`ownershipProof` — ОБОБЩЁННЫМИ БЫТЬ НЕ МОГУТ** (юзер прав): `{role, serviceAccountId}` разваливается на
+    AWS (ARN + externalId + trust policy) и k8s (ServiceAccount/RBAC/kubeconfig); `FOLDER_LABEL`/`CLUSTER_LABEL` —
+    словарь YC в generic-энуме, а AIP-126 требует «enums **should** receive new values infrequently… no more than once
+    a year», иначе строка. Решение: провайдер-специфичный oneof-member, зеркалящий oneof на `computeProviders`
+    (`yandexCloud{requiredGrants[], ownershipLabelKey}`); отсутствие member-поля = доказательства владения нет.
+    AIP-146: «Adding additional possible fields to an existing `oneof` is a non-breaking change».
+  · Каталог как РЕСУРС — верно: не singleton (AIP-156 требует «exactly one per parent»), не поле на `ComputeProvider`
+    (UI нужен каталог ДО создания провайдера — bootstrap). Имя `computeProviderTypes` валидно (AIP-122), тип
+    `ComputeProviderType` (AIP-123).
+  · **ВТОРОЙ РАУНД ревью proto (2026-09-27) — четыре правки, все «сделать СЕЙЧАС, потом ломающее»:**
+    1. **`oneof capacity{fixed|configurable}` → `resources` ВСЕГДА + `oneof sizing{configurable}`** (union-им не
+       ёмкость, а ограничение; отсутствие члена = размер фиксирован). Иначе каждый клиент ветвится ради тривиального
+       «какого размера машина». Образец — OCI `Shape`: `ocpus`/`memoryInGBs` заполнены всегда, а `ocpuOptions`/
+       `memoryOptions` есть только у flex («If the field is null, the shape has a fixed amount of memory equivalent to
+       memoryInGBs»); GCE — антипример (лимиты custom-типов в API не публикуются вовсе, клиент хардкодит таблицу).
+       Oneof с ОДНИМ членом объявить сразу: добавить член можно (AIP-146 «Adding additional possible fields to an
+       existing oneof is a non-breaking change»), перенести поле в/из oneof — нельзя (AIP-180).
+    2. **`Range{min,max,step}` — нарушение AIP-145** («A resource or message representing a range **should** ordinarily
+       use two separate fields… with prefixes `start_`/`end_`»; `step` AIP не определяет). Плоские
+       `min_*`/`max_*`/`*_step` по прецеденту `NodePoolAutoscaling.min_node_count/max_node_count`, инклюзивность — в доке.
+    3. **`oneof provider` с пустыми членами — УБРАТЬ с этого ресурса** (юзер сомневался — прав): здесь oneof дублирует
+       дискриминатор, который уже в `name` и в `machine_supply`, и заставляет switch-иться ради `ownership_label_key`
+       (один концепт в двух членах). Пустое message в union само по себе идиоматично — проблема в дублировании.
+       Оставить `oneof access_requirements{yandexCloud|kubernetes}` (только там, где требования реально есть),
+       `ownership_label_key` поднять на верхний уровень. На `computeProviders` зеркальный oneof ОСТАЁТСЯ — там члены
+       несут типизированные настройки.
+    4. **Регион — единственное, что станет ломающим.** AIP-180: «A resource **must not** change its name… the set of
+       valid resource names **should** not change either»; GCE держит machineTypes под `projects/*/zones/*` именно
+       поэтому. РЕШЕНИЕ: каталог объявить ГЛОБАЛЬНЫМ и зона-агностичным (форма машины от региона не зависит — это
+       `…Type`), а реальную доступность отдать подключению `computeProviders` (она зависит от фолдера, квот и
+       restrictions). Записать это контрактом в комментарий ресурса.
+    Не ломающее и потому откладывается: GPU (`repeated Accelerator` внутри `Resources`, не плоский `gpu_count`),
+    цены (`google.type.Money`, отдельным ресурсом — цена региональна), новый провайдер (член union-а).
+    **ФИНАЛ после обсуждения с юзером (2026-09-27):**
+    · `ownershipLabelKey` — ВНУТРИ члена oneof, не наверху (юзер прав; тот же довод, по которому туда ушли `grants`):
+      наверху он всегда пуст у инвентарных и зашивает в общий контракт «доказательство = метка с ключом», что
+      сломается на AWS (`externalId` в trust policy — не метка). Одинаковое имя поля в двух сообщениях — не дубль данных.
+    · **Объединение `fixedResources|configurableResources` СНЯТО** (юзер: «почему нельзя свести fixed к
+      configurable?»): «размер фиксирован» = `minResources == maxResources`, тривиально выводится сравнением — по
+      нашему же правилу не публикуем производное. Итог: `minResources`, `maxResources` (границы ВКЛЮЧИТЕЛЬНЫЕ),
+      `resourceSteps` (присутствует ВСЕГДА; `0` в измерении = шаг не ограничен, любое целое в `[min, max]` — юзер, 2026-09-27:
+      вместо «absent = шага нет». AIP-149: «Services **should not** need to distinguish between the default value and
+      unset most of the time; if an alternative design does not require such a distinction, it is usually preferred» —
+      поэтому без `optional`; плюс шаг задаётся ПО ИЗМЕРЕНИЮ, валидация одна: `step == 0 || (value - min) % step == 0`;
+      presenter выводит нули явно, смысл «0» — в описании поля) — три поля одного типа `Resources`, переиспользованного с машины/слота.
+      У ресурса не осталось ни одного oneof по ёмкости, у клиента — ни одной ветки, валидация
+      `machineSelector.resources` — одна формула на все типы.
+      Вложенный вариант `sizing{cpuMillicores{min,max,step}}` ОТВЕРГНУТ: (а) `resources.cpuMillicores` стало бы то
+      числом, то объектом — «одно имя, два смысла»; (б) обёртка-диапазон противоречит AIP-145 «two separate fields of
+      the same type». Сверка с AIP-145 (дословно, 2026-09-27): структура СООТВЕТСТВУЕТ («two separate fields of the same type»);
+      включительные границы — НЕ отклонение, а раздел Exceptions («significant colloquial precedent for inclusive start
+      and end values»), с обязанностью «**must** clearly document each range as inclusive or exclusive» — в описании полей
+      писать «границы включительные». ЕДИНСТВЕННОЕ отклонение — префиксы `min`/`max` вместо SHOULD `first_`/`last_`:
+      `first`/`last` у Google — для упорядоченных последовательностей (страницы, даты), а `lastResources` читается как
+      «последние выданные». Прецеденты самого Google для границ размера (проверено по googleapis master): Cloud Run v2 и
+      Cloud Functions v2 `min/max_instance_count`, Vertex AI `min/max_replica_count`, GKE `min/max_node_count`,
+      Spanner `min/max_nodes`, Dataproc `min/max_instances`. `step` AIP не рассматривает.
+    · Дефолтный размер для семейства НЕ публикуем: `machineSelector.resources` обязателен, значит дефолт никто не
+      прочитает — мёртвые данные, к тому же выдуманные нами (у YC у `standard-v3` своего дефолта нет).
+    Мелочи к исправлению: добавить `option (google.api.resource)` обоим (AIP-123); `MachineFacts.os.name` → `os.family`
+    (AIP-122: «the field name `name` is reserved»); `memory_mb_per_core` меряет отношение к «core», которого в
+    `Resources` нет (там millicores) — один якорь; `parent` в ListMachineTypes REQUIRED + `resource_reference
+    {child_type}`; поле типа на `computeProviders` должно нести `resource_reference` на `ComputeProviderType`;
+    `IDENTIFIER` на `name` верно и OUTPUT_ONLY туда не добавлять (AIP-203); `title` законен (AIP-148: «The string
+    `title` field **should** be the official name of an entity… a more formal variant of `display_name`») — то есть
+    наш выбор `title` для каталога подтверждён прямой цитатой, а не только прецедентом IAM.
+- **[DESIGN] `environments` — разбор (2026-09-27..28), ЗАКРЫТ (итог — пункт «ИТОГ» ниже):**
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] · Предложение: `name`, `uid`; заказ плоско теми же словами, что `slot.stereotype` и капы — `platform`,
+    `platformVersion`, `model`, `runtime` (голые id каталога; `execution` → `runtime`; `platform{name,…}` убран — AIP-122
+    резервирует `name`); `applications[]{appName, appVersion?, detected{appName, appVersion} (OUTPUT_ONLY), oneof
+    provided{} | custom{…}}` (AIP-146 вместо `source{type}`); `computeProvider` (полное имя, на create опционально)
+    вместо `cloudAccount`/`cloudType`/`computeKind` (производные); `slot` OUTPUT_ONLY; `state: CREATING | ACTIVE |
+    DELETING | FAILED` (AIP-216: ENQUEUED+PREPARING → CREATING — «only add states that are useful to customers»;
+    `UNHEALTHY` → `conditions[Ready]`, `stateReason` → reason/message условия, `lastHeartbeatTime` → в условие по
+    прецеденту k8s NodeCondition; `DELETED` убран — AIP-164 даёт его soft-delete-ресурсам, после DELETING → 404);
+    `capabilities.canAccessCurrentSession`; `createTime`, `updateTime`. Update нет → `etag` нет (AIP-154).
+    Ручки: POST `?environmentId=` (AIP-133 — сейчас id в ТЕЛЕ, баг), GET, LIST (`totalSize`, `filter`), DELETE.
+  · **РЕШЕНО юзером:** `occupancy: FREE | RESERVED | BUSY` остаётся (ревьюерское `allocation` занято
+    `slot.resources.machineAllocation`); `GET …/{e}/session` (нарушает AIP-156: синглтон «must always exist») —
+    решать в разборе `sessions`; асинхронные create/delete без LRO — вариант (б), ЕСЛИ у Google есть прецеденты.
+  · **Прецеденты (проверено по googleapis master, 2026-09-27):** CREATE — ЕСТЬ: Device Streaming v1
+    `CreateDeviceSession → DeviceSession` (`devicestreaming/v1/service.proto:53`; REQUESTED→PENDING→ACTIVE — выделение
+    физического Android-устройства, ближайший аналог), Document AI `CreateProcessor → Processor` (CREATING), Storage
+    Transfer `CreateAgentPool → AgentPool` (CREATING), Logging `CreateBucket`, Vertex/Batch/Workflows jobs. Контр: тяжёлая
+    инфраструктура (Redis, Filestore, TPU, Workstations, GKE) — LRO; Logging/Dataproc позже дорастили LRO-вариант.
+    → create возвращает ресурс в CREATING: осознанное отклонение от SHOULD AIP-133 с этими прецедентами.
+    DELETE — прецедента «ресурс с DELETING» НЕТ: ресурс из Delete у Google только при soft delete (AIP-164) или
+    синхронно; асинхронный жёсткий delete без LRO отдаёт `Empty` (Storage Transfer `DeleteAgentPool → Empty`,
+    `transfer.proto:174`, при этом у пула есть DELETING). РЕШЕНО (юзер, 2026-09-27; без LRO): `DELETE → {}`, GET показывает
+    DELETING до завершения teardown, затем 404 (тип ответа по AIP-135, отклонение только «нет LRO»).
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] · **Приложения ↔ W3C — ТРЕБОВАНИЕ ЮЗЕРА (2026-09-28):** у приложения есть МАРКЕР «это браузер». Браузер адресуется
+    и стандартными `browserName`/`browserVersion`, и `sw:appName`/`sw:appVersion`; НЕ-браузер — только `sw:appName`/
+    `sw:appVersion` (`browserName` для него невалиден). Имя в сессии матчит и пользовательское `appName`, и
+    `detectedAppName`; версия — и `appVersion`, и `detectedAppVersion`. На ревью (2026-09-28): `applications[]` массивом vs
+    вложенный ресурс; ссылка на ресурс `application` вместо слова `appName`; где место маркера «браузер»; не должны ли
+    detected-факты жить на сборке (`builds`), а не на окружении.
+  · **КАТАЛОГ ПРИЛОЖЕНИЙ — вариант A′: проект-вендор `catalog`, но ЧЕСТНЫЙ (юзер, 2026-09-28; два ревьюера):**
+    прецедент GCE — публичные образы в настоящем проекте `debian-cloud`, свой и вендорский различаются ПОЛНЫМ ИМЕНЕМ
+    (`compute/v1/compute.proto:8642` `source_image`), без перекрытия. Публичность — IAM-биндингом
+    `allAuthenticatedUsers → roles/applicationViewer` (google.iam.v1 `policy.proto:172` — специальный участник той же
+    спецификации, что наш IAM); админы каталога — узкая роль `roles/applicationPublisher` (только `applications.*`),
+    тогда IAM сам запрещает окружения/сессии/… в каталоге → УБРАТЬ 5 `ensureNotCatalogProject`, ветки `isCatalogProject`
+    в Get/List, `exposesRefs(handle)` и `appRef`-опциональность по хэндлу (решать permission-ом). ПРАВИЛО ПЕРЕКРЫТИЯ
+    own → catalog ОТМЕНЕНО (слово тихо резолвилось в один из двух ресурсов по скрытому состоянию). Id приложений —
+    читаемые, задаёт пользователь (AIP-133). Отвергнуто: C (единый проектный реестр — смешение владельцев: свои сборки
+    под встроенным ресурсом), B (глобальные `publishers/*` — второе имя платформы). Поправить PLAN «каталог выигрывает
+    всегда (docker-правило)» в разделе варки CfT — давно отменено.
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] · **Элемент `applications[]` окружения и ключи (юзер, 2026-09-28):** `displayName` у приложения/сборки — ТОЛЬКО
+    подпись для UI (AIP-148 `0148.md:41–46`: «must be a mutable, user-settable… should not have uniqueness
+    requirements» → ключом W3C-матчинга быть не может). Ключ `sw:appName` — id приложения (задаёт пользователь,
+    AIP-133); ключ `sw:appVersion` — отдельное поле сборки, уникальное в пределах приложения (id `113`/`7.1-rc2`
+    невалиден: AIP-122 `0122.md:131` — RFC-1034, первый символ буква). Предложение (ждёт юзера): элемент окружения =
+    `build` (полное имя, REQUIRED) + `detectedAppName`/`detectedAppVersion` (OUTPUT_ONLY); `appName`/`appVersion` на
+    окружении не публикуются — производное от build.
+  · **detected-факты — на ОКРУЖЕНИИ (разобрано с юзером, 2026-09-28):** определяет агент ПОСЛЕ установки на узле
+    (`linux-node.ts:29` → `/tmp/sw-detected.json`), при регистрации сборки артефакт не открывается. На сборку не
+    переносятся: preinstalled (версия = свойство пары сборка × образ платформы), URL (содержимое перекачивается без
+    digest). В разборе `applications`: после follow-up «положить в бакет один раз + sha256» сборка получит свои
+    факты артефакта (package id / versionName из манифеста при регистрации) — другой факт («что положили»), окружение
+    продолжает показывать «что установилось» (совпадение = подтверждение).
+  · **`computeProvider` окружения — REQUIRED, IMMUTABLE всегда (юзер, 2026-09-28):** снимает особый случай «один
+    провайдер → можно промолчать» (там сервер вписывал бы значение в поле пользователя — нарушение MUST AIP-129,
+    `0129.md:24–26,68`); `effectiveComputeProvider` не нужен. Последовательно с «размещение — ЯВНОЕ» (2026-09-09). UI
+    при единственном провайдере подставляет его в форму. Ослабить позже (OPTIONAL + `effectiveComputeProvider`) —
+    обратно совместимо.
+  · **ИТОГ — `environments`, `applications`, `builds` ЗАКРЫТЫ (юзер, 2026-09-28; финальный AIP-аудит, 2 ревьюера).**
+    Этот блок ГЛАВНЕЕ соседних пунктов раздела (там — история решений; имена полей — отсюда).
+    **Application** `projects/{p}/platforms/{pl}/applications/{application}` — `?applicationId=` REQUIRED (AIP-133
+    `0133.md:163` «may be required or optional», эталон `book_id` REQUIRED; RFC-1034 lowercase; id = ключ W3C, не меняется):
+    `name` IDENTIFIER · `uid` OUTPUT_ONLY · `displayName` OPTIONAL (mutable, только UI) · `browser` OPTIONAL+IMMUTABLE
+    (default false) · `etag` · `createTime`/`updateTime` OUTPUT_ONLY. Методы: Create → ресурс (без LRO), Get, List,
+    Update (`updateMask` OPTIONAL, `etag` OPTIONAL; меняется только `displayName`), Delete (`force` — каскад по сборкам;
+    без force при сборках → FAILED_PRECONDITION, AIP-135 MUST; ссылки окружений → FAILED_PRECONDITION, force НЕ снимает).
+    **Build** `…/applications/{a}/builds/{build}` — `?buildId=` OPTIONAL (не задан → серверный id; формат обоих
+    документировать): `name` IDENTIFIER · `version` REQUIRED+IMMUTABLE (свободная метка пользователя, уникальна в
+    приложении → ALREADY_EXISTS; значение `latest` запрещено; ключ W3C `sw:appVersion`/`browserVersion`) ·
+    `artifactUri` OPTIONAL+IMMUTABLE (нет → предустановлен в образе платформы) · `webdriverUri` OPTIONAL+IMMUTABLE ·
+    `createTime` OUTPUT_ONLY. Без Update, без uid/displayName/etag. Методы: Create → ресурс, Get, List (`filter`,
+    `orderBy` — поля документировать; «последняя» = новейшая по `createTime`, AIP-129 пример «most recent»), Delete
+    (ссылки окружений → FAILED_PRECONDITION).
+    **Environment** `projects/{p}/environments/{environment}` — `?environmentId=` OPTIONAL (не задан → серверный id):
+    `name` IDENTIFIER · `uid` OUTPUT_ONLY · `runtime`, `model`, `platformVersion`, `computeProvider` — полные имена,
+    REQUIRED+IMMUTABLE (сервер НЕ подставляет дефолты — AIP-129 MUST; дефолты подставляет UI) · `applications[]`
+    REQUIRED+IMMUTABLE, 1..20 элементов: {`application` REQUIRED · `build` OPTIONAL (пусто = новейшая по createTime на
+    момент создания) · `effectiveBuild` OUTPUT_ONLY (всегда заполнен; AIP-129 `effective_`) · `detectedTitle` OUTPUT_ONLY
+    (все платформы: Linux `--version`, Android подпись манифеста, iOS `CFBundleDisplayName`) · `detectedPackageId`
+    OUTPUT_ONLY (только Android) · `detectedBundleId` OUTPUT_ONLY (только iOS, появится с iOS) · `detectedVersion`
+    OUTPUT_ONLY} · `slot` OUTPUT_ONLY · `state` OUTPUT_ONLY (STATE_UNSPECIFIED|CREATING|ACTIVE|DELETING|FAILED) ·
+    `conditions[]` OUTPUT_ONLY · `occupancy` OUTPUT_ONLY (OCCUPANCY_UNSPECIFIED|FREE|RESERVED|BUSY; не двигает updateTime)
+    · `createTime`/`updateTime` OUTPUT_ONLY. Методы: Create → ресурс в CREATING (без LRO — записанное отклонение), Get,
+    List (`filter`: state, occupancy, runtime, slot с `*` ведущим/хвостовым по границе сегмента, applications.application),
+    Delete → `{}` (Get показывает DELETING, затем 404).
+    **Префикс `app` внутри ресурсов приложения убран** (AIP-140: одно понятие — одно слово, без прилагательных, что
+    «always apply»): `version`/`artifactUri`/`detectedTitle`/`detectedPackageId`/`detectedVersion`. `sw:appName`/
+    `sw:appVersion` остаются ТОЛЬКО в W3C-капах, перевод — presenter/request-модель.
+    **Ссылки между проектами:** `runtime`/`model`/`platformVersion`/`computeProvider` — только проект окружения;
+    `application`/`build` — свой проект или `catalog`; иное → INVALID_ARGUMENT. Права на ссылаемое проверяются первыми
+    (AIP-211: нет права → PERMISSION_DENIED). `build` не из `application` или приложение не той платформы →
+    INVALID_ARGUMENT; у приложения нет сборок → FAILED_PRECONDITION. Платформы сравниваются по id.
+    **Блокировка удаления сборки/приложения:** блокирует ЛЮБОЕ существующее окружение со ссылкой, включая FAILED
+    (юзер: FAILED сам уйдёт уборщиком — `WORKER_FAILED_TTL_MS`, дефолт 1 ч; или пользователь удалит окружение сразу).
+    Ошибка у каталога не перечисляет окружения чужих проектов.
+    **W3C-матчинг** (одно правило на все платформы): имя (`sw:appName`, для `browser: true` ещё `browserName` — БЕЗ
+    учёта регистра, `MicrosoftEdge`) = id приложения ИЛИ машинный идентификатор платформы (`detectedPackageId`/
+    `detectedBundleId`); версия = `version` сборки ИЛИ `detectedVersion`; `detectedTitle` не матчится. Инварианты: id
+    приложений уникальны в окружении (INVALID_ARGUMENT); совпавший detected-идентификатор → окружение невыбираемо И это
+    видно в `conditions` (reason). Доработка агента: на Linux читать название продукта из `--version`.
+    **Declarative-friendly — НЕТ ни у одного из трёх** (РЕШЕНО юзером, 2026-09-28): пометка явная (`style:
+    DECLARATIVE_FRIENDLY`, `0128.md:36`), у Google редкая (32 proto из ~7254); Create без LRO — прецеденты Secret Manager
+    `CreateSecret`, Pub/Sub `CreateTopic`, IAM `CreateRole`. Поддержка Terraform — в следующей версии API.
+    **Документировать (DOC-must):** форматы id (application/build/environment, пользовательские и серверные), формы и
+    ограничения `filter` (в т.ч. нет корреляции по repeated), поля `orderBy`, что обновляет `updateTime` (переходы
+    state/conditions — да, occupancy/хартбит — нет), пустые `detected*` по платформам, лимит 1..20, значения `transport`,
+    права ролей `roles/applicationViewer`/`roles/applicationPublisher` на builds.
+    ОТЛОЖЕНО в `sessions`: ответ New Session, «последняя» у сессии (новейшая detected) — развести с «последней сборкой»;
+    `GET …/{e}/session` (AIP-156); замена `capabilities.canAccessCurrentSession` (`:testIamPermissions`).
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] · **Итоги AIP-аудита env/app/build (юзер, 2026-09-28):** `appRef`/`webdriverRef` → `appUri`/`webdriverUri` (AIP-140
+    `0140.md:145` «should use `uri`»; значения — URI `gs://…`/`https://…`); `etag` у приложения (PATCH `displayName`;
+    наше правило «etag на всех PATCH-able»); `browser` — OPTIONAL, IMMUTABLE (AIP-203 «on every field»); `uid` у сборки
+    убран (не declarative-friendly); `displayName` у сборки убран (без Update он нарушал бы MUST AIP-148 «mutable»).
+    detected-идентичность по платформам (прецедент Firebase Test Lab: `app_package_id` Android / `app_bundle_id` iOS,
+    `test_execution.proto:479,521`): Android — `detectedAppPackageId`, iOS позже — `detectedAppBundleId`, Linux — нет
+    (идентичности не существует); плюс `detectedAppTitle` у всех (РЕШЕНО). Документировать: формат
+    серверного id сборки; формы `filter` (`*`); `force` НЕ снимает запрет удаления сборки со ссылками; платформы
+    сравниваются по id.
+  · **Сборки — РЕШЕНО (юзер, 2026-09-28):** коллекция `…/applications/{a}/builds/{build}` (вместо `versions`); id
+    сборки: `?buildId=` OPTIONAL — не задан → генерирует сервер (ИСПРАВЛЕНО аудитом: «только сервер» нарушало MUST
+    AIP-133 `0133.md:136` «An API **must** allow a user to specify the ID component… on the management plane»; OPTIONAL
+    разрешён `0133.md:147`; формат серверного id задокументировать, `0122.md:141`; расхождение id с `appVersion`
+    (`v113` при `"114"`) допустимо — ключом служит только `appVersion`); ЕДИНСТВЕННЫЙ пользовательский ключ сборки — `appVersion` (REQUIRED, IMMUTABLE, уникален в
+    приложении, ALREADY_EXISTS на повтор) — он же ключ W3C `sw:appVersion`/`browserVersion`. Удаление сборки (и
+    приложения), на которую ссылается нетерминальное окружение → `FAILED_PRECONDITION` (AIP о ссылках молчит →
+    решение юзера; окружению сборка нужна постоянно — ключи W3C-матчинга). Удаление приложения с детьми без `force`
+    → `FAILED_PRECONDITION` (AIP-135 MUST).
+  · **Ссылки на РЕСУРСАХ — строго по AIP-122: ПОЛНЫЕ ИМЕНА везде, включая каталог (юзер, 2026-09-27):** `0122.md:297`
+    «When a field represents another resource, the field **should** be of type `string` and accept the resource name»;
+    голый id — только если «strictly necessary», и тогда с суффиксом `_id`. Голые значения живут ТОЛЬКО в W3C-капах
+    (сторона W3C), перевод — в presenter/request-модели. Отменяет правило «ссылки — ГОЛЫЕ id» у каталога платформ.
+    Окружение: `runtime`, `model`, `platformVersion` — полные имена (`projects/{p}/platforms/android/runtimes/emulator`
+    и т.д.), `platform` УБРАН (производное: сидит в имени каждой из трёх ссылок); у слота `runtime` — полное имя.
+    Принцип юзера: делаем строго по AIP; видна проблема — приносим на обсуждение (как `min`/`max` vs `first`/`last`).
+  · **Ссылка на место — ТОЛЬКО `slot` — РЕШЕНО (юзер, 2026-09-27; два ревьюера единогласно, отклонений от AIP нет):** довод за
+    `machine` («AIP-160 без префикса») ложный — `0160.md:116`: «when comparing strings for equality, services **should**
+    support wildcards using the `*` character» → «окружения на машине» = `filter=slot="…/machines/{m}/slots/*"`;
+    поддерживаемые формы `*` (ведущий и хвостовой, по границе сегмента — пример AIP `a = "*.foo"` как раз ведущий; исправлено 2026-09-28) и `slot:*` («размещено») ДОКУМЕНТИРУЕМ по
+    `0160.md:208–214` — не отклонение. Дублировать предка ссылки AIP не требует и не запрещает (AIP-203 MAY) → правило
+    проекта «производное не публикуем»: `environment.machine` и `filter=machine=` (решение у PLAN:1457) СНЯТЬ. Страница
+    машины отвечает `List …/machines/{m}/slots` (у слота `environment`). Пара `slot.environment` ↔ `environment.slot`
+    законна (AIP молчит; каждая сторона — Get своего ресурса), пишется одной транзакцией размещения.
+  · **`form` УБРАН СОВСЕМ — и со слота, и из каталога (юзер, 2026-09-27; два ревьюера):** выводим из runtime
+    (device→физ., прочие — нет); у Firebase EMULATOR/VIRTUAL различают СПОСОБ виртуализации (вложенная/нативная) —
+    наш `emulator` на KVM-железе был бы VIRTUAL: занятое слово с чужим смыслом. Пользователю нужна ось «реальное/нет»
+    (BrowserStack `realMobile`, LambdaTest `isRealMobile` — булевы) — её даёт `runtime=device`; капы form нет.
+    AIP-203 выводимое допускает (MAY) — отказ по правилу проекта. Инвариант каталога: одна природа на runtime, иная —
+    новый runtime. «Все физические» = `filter=runtime="*/runtimes/device"` (AIP-160 `0160.md:116` — ведущий `*`,
+    ровно пример AIP; документировать). Отменяет PLAN у слота (form/`PHYSICAL|EMULATOR|VIRTUAL`). `transport` — только
+    у слота, СТРОКА kebab-case с задокументированным списком (AIP-126: «must document the allowed values»).
+    Попутно исправить: определение `runtime` у слота («протокол между агентом и окружением» — это transport); капа
+    `sw:execution` → `sw:runtime` (одно понятие — одно имя).
+- **[AIP] ошибки без `ErrorInfo` — СКВОЗНОЕ, НЕ начато (финальный аудит, 2026-09-28):** AIP-193 `0193.md:84` «All error
+  responses **must** include an `ErrorInfo` within `details`». В `apps/backend/src` `ErrorInfo` нет вообще. Сделать
+  единым механизмом для всех ресурсов: `ErrorInfo.reason` на каждую ошибку, `PreconditionFailure` для
+  FAILED_PRECONDITION (что мешает), `BadRequest.fieldViolations` для INVALID_ARGUMENT.
+- **ОЧЕРЕДЬ ОБЗОРА «ручка за ручкой» (юзер смотрит каждую подробно; 2026-09-13):** `machines` ✓, `machineLeases` ✓,
+  `computeBindings` ✓ (с правками выше). ДАЛЬШЕ по порядку:
+  1. `computeProviders/{cp}` — `kubernetes` как ТИП провайдера (не вид машины), `folderId` на соединении (не в
+     шаблоне), где живёт `:verifyAccess` (креды провайдера vs папка привязки), `resourceId`/`displayName`, `uid`/`etag`.
+  2. `computeProviderTypes/{t}` — `machineTemplateKinds[] {kind, facts}` (совместимость UI = сервер), снос
+     `provides[]` (пары выводятся из требований runtime) и `requiredConfig[]` (валидирует типизированная схема
+     `machineTemplate`), `grants`/`ownershipProof` остаются.
+  3. `platforms/{p}` + новая дочерняя `platforms/{p}/runtimes/{r}` — `requirements{anyOf, resources}` (размер слота
+     включая overhead), `versions[]`, `devices[]`.
+  [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] 4. Затем — модель приложения окружения (`nameAlias`/`versionAlias` → `appName`/`appVersion` + `detected{}`),
+     `environments` (`UNHEALTHY` внутри state, `occupancy`, `machine` OUTPUT_ONLY + `filter=machine=`), `sessions`,
+     IAM (`roles/wizard`), netbridge (`netBridgeCredentials`, `sw:netbridge`), enum-casing.
+  Каждый пункт — по формату «было / предлагается, JSON со всеми `|`, ручки с curl».
+- **Какие runtime предлагает провайдер — НЕ захардкожено по типу провайдера** (юзер: android/container на self-hosted
+  «ничего не мешает» — верно, redroid на Linux-коробке с docker). Под одной схемой предложение выводится из
+  требований runtime против того, что провайдер может дать: у изготавливающего — решаемо при создании привязки
+  (YC `vm` не даёт kvm → `FAILED_PRECONDITION` для эмулятора); у инвентарного — НЕ решаемо заранее (инвентарь
+  меняется: Mac не поднимет android/container — нет binder в ядре Docker Desktop, Linux-VM поднимет) → привязка
+  создаётся, решает размещение (нет подходящей коробки → `FAILED_PRECONDITION` на create-environment с перечнем
+  требований). Каталог `computeProviderTypes.provides[]` с ручным списком пар на тип провайдера — упраздняется в
+  пользу этого правила; профиль android/container = {ubuntu/amd64}, {ubuntu/arm64} (не macos).
+- **`platforms/ubuntu` — ПОДТВЕРЖДЕНО юзером повторно (2026-09-13)**, решение №9 от 2026-09-05 в силе: платформа =
+  конкретная ОС с честной версией (`ubuntu 24.04`, `android 14`), `linux` — только family-алиас W3C `platformName` на
+  границе сессии (уже реализовано в RequestedPlatform). Разобранная альтернатива: `platforms/linux` БЕЗ версий (как Sauce)
+  — законно, но это отмена №9 и потеря оси версии; переименование оси в `os`/`osVersion` (BrowserStack) — разъезд с
+  W3C-именами капов, не стоит того. Не переоткрывать без новой причины.
+- **Статика у self-hosted (юзер: «не должны ли требовать, как у vm/baremetal?»)** — развилка верна по РОДУ: шаблон =
+  «как изготовить», у инвентаря аналог — «как ВЫБРАТЬ» (селектор), не «какой формы» (объявленная форма дублировала
+  бы измеренные факты и врала). Обязательный селектор уже есть — требования runtime; необязательное сужение
+  (labels / минимальные ресурсы) — отложенный пункт labels+selector, поле `machineSelector` (не член `machineTemplate`:
+  template ≠ selector). Не требовать. Общая статика обоих родов — только `limits.maxMachineCount`.
+- **Снимок шаблона в аренду**: `machineLease.request` копирует `machineTemplate` в момент заказа — замена/удаление
+  шаблона не меняет смысл живых аренд.
+- **`etag` — внедрять ЕДИНООБРАЗНО** на всех PATCH-able ресурсах (project, computeProvider, computeBinding, machine)
+  одним механизмом (etag = хеш версии/updateTime; в запросе опционален — AIP-154), в том же срезе, что Update-методы
+  и `updateMask` (см. [AIP] «Update methods missing»). Не точечно.
+- **`validateOnly` (AIP-163) — В ПЕРВОЙ ВЕРСИИ НЕ НУЖЕН (юзер, 2026-09-13):** его задачу (превью в наших терминах до
+  создания) забрал `computeProviders/{cp}:quoteMachine`; ошибки формы отдаёт настоящий POST структурно. Вернуть при
+  реальном dry-run-сценарии (обратно совместимо). Ниже — исходная запись, оставлена как обоснование формата: ввёл конфиг, ничего не создал, а сервер уже
+  отдал `machineCapacity` в наших терминах — расчёт НЕ дублируется на клиенте. AIP-163 дословно: API «**may** provide
+  an option to validate, but not actually execute, a request, and provide the same response (status code, headers,
+  and response body) that it would have provided if the request was actually executed»; «**must** perform permission
+  checks and any other validation that would be performed on a 'live' request»; «a request using validate_only
+  **must** fail if … the actual request would fail»; поля вроде автогенерённого id — omit. Для declarative-friendly
+  (AIP-128) поле обязательно «on methods that mutate the resource» — то есть это ТА ЖЕ полоса, что uid/etag: делать
+  одним срезом на Create/Update всех конфигурационных ресурсов. Форма: `POST …/computeBindings?validateOnly=true`
+  и `PATCH …/{b}?validateOnly=true` → тело ресурса без `name`/`uid`/`createTime`, с `machineCapacity`.
+- **`baremetal.configurationId` — оставить SKU входом**, а рядом отдавать OUTPUT_ONLY `resources` (разрешено из
+  каталога провайдера), чтобы пользователь видел, что получит. Сахар «скажи cores/memory — система выберет SKU»
+  ОТКРЫТ (юзер спросил): против — SKU дискретны и дороги, «ближайший подходящий» прячет ценовое решение (60 ядер →
+  64-ядерный, 65 → 128-ядерный за ×2), GPU/NVMe/пул в три числа не влезают; за — единая модель «говорю, сколько нужно».
+  Если делать — как опциональный селектор `minResources` поверх явного `configurationId`, не вместо.
+- **`coreFraction`** — не стандарт, а поле самого YC (`resourcesSpec.coreFraction`, 5|20|50|100 — гарантированная
+  доля vCPU, аналог AWS burstable / GCE shared-core); в члене `vm` зеркалим словарь провайдера. НО в ёмкость он
+  ВХОДИТ: `capacity.cpuMillicores = cores × coreFraction/100 × 1000` (4 vCPU по 50% = 2000m гарантированного
+  компьюта) — иначе 4000m-эмулятор «влезет» на коробку, которая даёт половину. Разрешённая ёмкость — ОТДЕЛЬНЫМ
+  OUTPUT_ONLY полем привязки `machineCapacity{cpuMillicores,memoryMb,diskGb}` (юзер: не внутри template — это не
+  конфиг, а вычисленное из конфига), у `vm` считается из полей, у `baremetal` — из каталога SKU; absent у инвентарных.
+  Дубль памяти/диска с `vm`-полями юзера НЕ смущает при чётком разведении: template — «в терминах системы, которая
+  выдаёт ресурсы», machineCapacity — «что фактически получишь в наших терминах».
+- **Как считается заявка окружения:** НЕ измеряется в рантайме — это ДЕКЛАРИРОВАННЫЙ размер слота на runtime
+  (k8s `requests`-семантика: гарантированный компьют + память + диск, включая overhead), выбранный нами из опыта
+  (эмулятор ≈ 4000m/8 ГБ, браузерный контейнер ≈ 1000–2000m/2–4 ГБ); пул вычитает его из `capacity` при размещении.
+
+## [ARCH] control-plane API на protobuf/gRPC, HTTP/JSON — через Envoy-транскодер — ИДЕЯ, НЕ начато (юзер, 2026-09-13)
+
+**Идея юзера:** все НЕ-WebDriver ручки (control plane `api`, internal для агентов) описать протобуфами — proto и есть
+документация API; для клиентов, говорящих HTTP/1.1+JSON, поставить Envoy, который принимает HTTP-запрос и сам
+превращает его в gRPC (HTTP/2) и обратно. WebDriver/Appium (`wd`) и netbridge остаются как есть — W3C диктует
+HTTP/JSON.
+
+**Как это устроено у Google и почему ложится на нас без натяжки:**
+- Envoy `grpc_json_transcoder` работает ровно по `google.api.http`-аннотациям в proto (`get: "/v1/{name=projects/*/…}"`,
+  `post: "/v1/{parent=…}/computeBindings" body: "compute_binding"`, кастом-методы `post: "/v1/{name=…}:cordon"`),
+  на вход берёт descriptor set (`protoc --descriptor_set_out --include_imports`). Это тот же механизм, что
+  Google ESPv2/Cloud Endpoints.
+- Всё, что мы сейчас выверяем по AIP руками, становится МАШИННО ПРОВЕРЯЕМЫМ: `google.api.field_behavior`
+  (REQUIRED/IMMUTABLE/OUTPUT_ONLY), `google.api.resource`/`resource_reference` (имена ресурсов, ссылки
+  `platforms/*/runtimes/*`), `google.protobuf.FieldMask update_mask`, `validate_only`, `etag`, `page_token`,
+  `google.rpc.Status` с `PreconditionFailure.violations` (AIP-193 — транскодер сам мапит в HTTP-код) — и всё это
+  линтуется `api-linter` (официальный линтер AIP) + `buf lint`/`buf breaking` (детект ломающих изменений) в CI.
+- Стиль JSON на проводе не меняется: proto3-JSON даёт lowerCamel, oneof — сиблинги, `Timestamp` — RFC 3339.
+  Закрывает пункт копилки «три стиля enum-значений»: proto-энумы SCREAMING_SNAKE с `*_UNSPECIFIED`, правило CLAUDE.md
+  (прятать `*_UNSPECIFIED` в presentation) остаётся.
+- Серверная сторона: NestJS gRPC-транспорт (`@nestjs/microservices` + `@grpc/grpc-js`) либо nice-grpc (прецедент
+  hyperenv, там же middlewares); TS-типы — `ts-proto`. Структура `presentation/server/grpc/services/<scope>/<version>/
+  services/<service>/handlers/` в CLAUDE.md УЖЕ заложена под это. Request-модели/presenter-ы остаются: proto-message
+  не проходит в use case (правило CLAUDE.md), handler конвертирует.
+- Агенты (internal): gRPC даёт server-streaming вместо полла `:sync`/`:heartbeat` — отдельное решение, не обязательное
+  для первого шага; можно оставить unary.
+
+**Место в очереди:** ПОСЛЕ словарного обзора и ВМЕСТЕ с волной переименований — proto пишется один раз с финальными
+именами. Более того, естественный артефакт текущего обзора «ручка за ручкой» — это и есть `.proto` файлы: спека
+в формате, который линтер проверит на AIP, прежде чем писать код. Предложение: следующий срез после обзора —
+`proto/sw/v1/*.proto` + `api-linter` зелёный + Envoy в compose, затем переименования реализуются уже против proto.
+
+**Цена/риски:** ещё один контейнер (Envoy) в single-VM проде и в dev-compose; descriptor set надо пересобирать при
+каждом изменении proto (шаг сборки); отладка через transcoder добавляет слой (логи Envoy); интеграционные blackbox-тесты
+гоняются через Envoy, чтобы проверять реальный HTTP-контракт, а не gRPC напрямую (или оба).
 
 ## [NAMING] переименования, копящиеся под один PR — НЕ начато (решение слов за юзером)
 
@@ -1442,8 +2399,10 @@ AWS/GCP/YC читается как БИЛЛИНГОВЫЙ аккаунт. Оба
   два, и ровно в одном месте (ответ `:sync`) machine-токен и env-токен лежат рядом.
 - `Stereotype` — false friend: у Selenium это ПОЛНЫЙ шаблон capability, у нас два поля → `PlacementKey` или
   `RuntimeTarget`. (Закрывает пункт 1 этой копилки: ни `Stereotype`, ни `Substrate`.)
-- `MachineLease` → `MachineClaim`: lease в распределённых системах ограничен временем и продлевается, у нас claim без
-  TTL — читатель пойдёт искать renew-путь. `SlotAssignment` назван лучше всех, `MachinePool` нормально.
+- ~~`MachineLease` → `MachineClaim`~~ ОТМЕНЕНО (независимый ревьюер, 2026-09-13): наша семантика — «удержание,
+  продлеваемое использованием, истекает по idle TTL» — это буквально k8s `coordination.k8s.io/Lease`
+  (`holderIdentity`/`acquireTime`/`renewTime`); claim (PVC) по простою не истекает. Остаётся `MachineLease`, глаголы
+  `acquire`/`release` (AWS `AllocateHosts`/`ReleaseHosts`). `SlotAssignment` назван лучше всех, `MachinePool` нормально.
 - `launch` → `runtimeSpec`: глагол в роли существительного, и это дискриминированное объединение спецификаций, а не
   непрозрачный мешок; его `kind` должен браться из того же перечисления, что и род хоста.
 - `Headroom` держит два понятия (остаток + форма следующей машины) → расщепить при следующем касании.
@@ -1530,7 +2489,7 @@ api под nodemon, потом прогон `cloud-types.test.integration`; ме
 ## Follow-up: строка окружения показывает приложение алиасами (`chrome 113`), detected — вторым планом — НЕ начато (юзер, 2026-09-07)
 
 Сейчас в таблице окружений приложение подписано словом + detected-версией (`chrome 113.0.5672.136`), а во вкладке
-Applications и в модалке — ярлыком билда (`113`). Для консистентности показывать `nameAlias versionAlias`
+[ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] Applications и в модалке — ярлыком билда (`113`). Для консистентности показывать `nameAlias versionAlias`
 (`chrome 113`), а detected-правду (`com.android.chrome 113.0.5672.136`) — тултипом/второй строкой. Делать
 вместе с разнесением платформы и устройства на две колонки.
 ## Follow-up: варка каталога — регулярные АКТУАЛЬНЫЕ сборки Chrome из Chrome for Testing — НЕ начато (решение юзера 2026-09-07: отдельная задача, сейчас не делаем)
@@ -1543,7 +2502,7 @@ Applications и в модалке — ярлыком билда (`113`). Для 
 1. **Источник** — фид CfT (`last-known-good-versions.json` / `known-good-versions-with-downloads.json`): полные версии по
    каналам, парные chrome+chromedriver на каждую.
 2. **Политика** — какие каналы (предложение: Stable + Beta) и сколько мажоров держать (последние N); старые билды не удалять —
-   окружения снапшотят рефы, но история версий нужна пользователям. `versionAlias` билда = мажор (`153`), полная версия —
+   [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] окружения снапшотят рефы, но история версий нужна пользователям. `versionAlias` билда = мажор (`153`), полная версия —
    detected на окружении, как у всех.
 3. **Периодичность** — тик воркера (раз в сутки), идемпотентный: билд с таким ярлыком уже есть → пропуск; регистрация через
    `POST /projects/catalog/platforms/ubuntu/applications/chrome/versions` (варка — обычный клиент каталога от лица его
@@ -1552,7 +2511,7 @@ Applications и в модалке — ярлыком билда (`113`). Для 
    СВОЙ URL/ключ — доставка на ноду не зависит от `storage.googleapis.com` в рантайме (из RU-облака может не работать), там
    же считается **sha256**; digest сверяется агентом при доставке — единственная защита целостности артефактов (см.
    «мисматч-чека нет» в модели детектированной идентичности).
-5. Post-hoc коллизия слов: варка добавляет слово, занятое чьим-то кастомом → каталог выигрывает всегда (docker-правило);
+[ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] 5. Post-hoc коллизия слов: варка добавляет слово, занятое чьим-то кастомом → каталог выигрывает всегда (docker-правило);
    при варке — отказаться добавлять занятое слово или хотя бы предупредить в лог (решить при реализации).
 
 НЕ входит: базовый образ (он про ОС, не про браузер), android (публичного chrome-APK у Google нет — там кастомы и
@@ -1560,7 +2519,7 @@ preinstalled), firefox/geckodriver (следующая линейка по то�
 
 ## Follow-up: URL-реф билда = «положить в бакет проекта один раз», а не «качать при каждом старте» — НЕ начато (юзер, 2026-09-07)
 
-Сейчас `appRef`/`webdriverRef` билда — ключ в делегированном бакете проекта ИЛИ https-URL; URL при каждом старте
+[ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] Сейчас `appRef`/`webdriverRef` билда — ключ в делегированном бакете проекта ИЛИ https-URL; URL при каждом старте
 окружения тянет control plane (не слот) и стримит в слот: без кэша, без sha256, доступность = доступность у CP
 (из RU-облака GitHub/googleapis могут не открываться). Сделать: регистрация билда по URL → CP скачивает артефакт
 один раз в бакет проекта (под ключ вида `sw/apps/<app>/<versionAlias>/…`), считает sha256 и хранит уже ключ +
