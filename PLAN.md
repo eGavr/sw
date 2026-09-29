@@ -2092,8 +2092,8 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     Этот блок ГЛАВНЕЕ соседних пунктов раздела (там — история решений; имена полей — отсюда).
     **Application** `projects/{p}/platforms/{pl}/applications/{application}` — `?applicationId=` REQUIRED (AIP-133
     `0133.md:163` «may be required or optional», эталон `book_id` REQUIRED; RFC-1034 lowercase; id = ключ W3C, не меняется):
-    `name` IDENTIFIER · `uid` OUTPUT_ONLY · `displayName` OPTIONAL (mutable, только UI) · `browser` OPTIONAL+IMMUTABLE
-    (default false) · `etag` · `createTime`/`updateTime` OUTPUT_ONLY. Методы: Create → ресурс (без LRO), Get, List,
+    `name` IDENTIFIER · `uid` OUTPUT_ONLY · `displayName` OPTIONAL (mutable, только UI) · [`browser` УБРАН 2026-09-29 — см. `sessions`:
+    браузер определяет нода, `detectedBrowserName`] · `etag` · `createTime`/`updateTime` OUTPUT_ONLY. Методы: Create → ресурс (без LRO), Get, List,
     Update (`updateMask` OPTIONAL, `etag` OPTIONAL; меняется только `displayName`), Delete (`force` — каскад по сборкам;
     без force при сборках → FAILED_PRECONDITION, AIP-135 MUST; ссылки окружений → FAILED_PRECONDITION, force НЕ снимает).
     **Build** `…/applications/{a}/builds/{build}` — `?buildId=` OPTIONAL (не задан → серверный id; формат обоих
@@ -2125,19 +2125,22 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     **Блокировка удаления сборки/приложения:** блокирует ЛЮБОЕ существующее окружение со ссылкой, включая FAILED
     (юзер: FAILED сам уйдёт уборщиком — `WORKER_FAILED_TTL_MS`, дефолт 1 ч; или пользователь удалит окружение сразу).
     Ошибка у каталога не перечисляет окружения чужих проектов.
-    **W3C-матчинг** (одно правило на все платформы): имя (`sw:appName`, для `browser: true` ещё `browserName` — БЕЗ
-    учёта регистра, `MicrosoftEdge`) = id приложения ИЛИ машинный идентификатор платформы (`detectedPackageId`/
-    `detectedBundleId`); версия = `version` сборки ИЛИ `detectedVersion`; `detectedTitle` не матчится. Инварианты: id
-    приложений уникальны в окружении (INVALID_ARGUMENT); совпавший detected-идентификатор → окружение невыбираемо И это
-    видно в `conditions` (reason). Доработка агента: на Linux читать название продукта из `--version`.
+    **W3C-матчинг** (уточнено 2026-09-29, подробности — ИТОГ `sessions`): `browserName` = РЕАЛЬНЫЙ браузер окружения
+    `detectedBrowserName` (без учёта регистра + синонимы `microsoftedge↔msedge`), `browserVersion` = `detectedVersion`;
+    `sw:appName` = id приложения ИЛИ машинный идентификатор (`detectedPackageId`/`detectedBundleId`), `sw:appVersion` =
+    `version` сборки ИЛИ `detectedVersion`; `detectedTitle` не матчится. Инварианты: id приложений уникальны в
+    окружении (INVALID_ARGUMENT); совпавший машинный идентификатор → окружение невыбираемо И видно в `conditions`;
+    два браузера с одним `detectedBrowserName` различаются по версии. Элемент `applications[]` дополнительно несёт
+    `detectedBrowserName` (OUTPUT_ONLY, только браузеры; берёт `wd-door` у драйвера — `capabilities.browserName` — и
+    передаёт агентом в хартбит). Доработка агента: на Linux читать название продукта из `--version`.
     **Declarative-friendly — НЕТ ни у одного из трёх** (РЕШЕНО юзером, 2026-09-28): пометка явная (`style:
     DECLARATIVE_FRIENDLY`, `0128.md:36`), у Google редкая (32 proto из ~7254); Create без LRO — прецеденты Secret Manager
     `CreateSecret`, Pub/Sub `CreateTopic`, IAM `CreateRole`. Поддержка Terraform — в следующей версии API.
     **Документировать (DOC-must):** форматы id (application/build/environment, пользовательские и серверные), формы и
     ограничения `filter` (в т.ч. нет корреляции по repeated), поля `orderBy`, что обновляет `updateTime` (переходы
-    state/conditions — да, occupancy/хартбит — нет), пустые `detected*` по платформам, лимит 1..20, значения `transport`,
+    state/conditions — да, occupancy/хартбит — нет), пустые `detected*` (включая `detectedBrowserName`) по платформам, лимит 1..20, значения `transport`,
     права ролей `roles/applicationViewer`/`roles/applicationPublisher` на builds.
-    ОТЛОЖЕНО в `sessions`: ответ New Session, «последняя» у сессии (новейшая detected) — развести с «последней сборкой»;
+    [РЕШЕНО 2026-09-29 в ИТОГ `sessions`] ОТЛОЖЕНО в `sessions`: ответ New Session, «последняя» у сессии (новейшая detected) — развести с «последней сборкой»;
     `GET …/{e}/session` (AIP-156); замена `capabilities.canAccessCurrentSession` (`:testIamPermissions`).
   [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] · **Итоги AIP-аудита env/app/build (юзер, 2026-09-28):** `appRef`/`webdriverRef` → `appUri`/`webdriverUri` (AIP-140
     `0140.md:145` «should use `uri`»; значения — URI `gs://…`/`https://…`); `etag` у приложения (PATCH `displayName`;
@@ -2182,6 +2185,123 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     у слота, СТРОКА kebab-case с задокументированным списком (AIP-126: «must document the allowed values»).
     Попутно исправить: определение `runtime` у слота («протокол между агентом и окружением» — это transport); капа
     `sw:execution` → `sw:runtime` (одно понятие — одно имя).
+- **[DESIGN] `sessions` — разбор (2026-09-29), В РАБОТЕ.** Две стороны: `wd` — W3C WebDriver/BiDi/Appium по букве,
+  `api` — AIP. Черновик формата — ответ в сессии 2026-09-29 (пути `/session`, ответ New Session поверх ответа ноды,
+  `webSocketUrl` вместо `sw:bidi`, проброс не-`sw:*` кап и перебор `firstMatch`, `sw:runtime`/`sw:model`/`sw:netBridge`,
+  ошибки в формате W3C; на `api` — `sessionLogs`/`sessionVideos` + `:download`, `environments/{e}:accessSession`, снос
+  `…/sessions/{id}/logs|video`, `…/environments/{e}/session`, `capabilities.canAccessCurrentSession`). РЕШЕНО юзером:
+  · **Самопроверяемый id сессии** (follow-up «self-verifying session id» переходит в дизайн): в id — подпись сервера
+    (HMAC серверным ключом по содержимому id; прецедент — Geewax «API Design Patterns», контрольная сумма в
+    идентификаторе: проверка без базы и без хранения выданных id). Подпись не сходится → «такой сессии не было»,
+    подпись сходится, сессия не жива → «сессия завершена» — РАЗНЫЕ коды (отклонение от W3C, где на оба случая один
+    `invalid session id` 404 — принято юзером ради точного ответа; документировать).
+  · **Нет свободного окружения → HTTP 429** с W3C-телом `session not created` (отклонение от W3C-таблицы, где 500;
+    принято юзером: корректнее для клиента «повтори позже»; документировать).
+  · **Аутентификация:** нет токена → 401, нет права `session:create` → 403, тело в W3C-форме (W3C аутентификацию не
+    покрывает — не отклонение).
+  · **`sw:projectId` в капах** (как BrowserStack/Sauce) — отклонение от W3C «recommended … top-level parameters, and not
+    as part of the requested capabilities»; top-level `projectId` не принимаем.
+  · **Операторы версий** `<`, `<=`, `>`, `>=` в `browserVersion`/`sw:appVersion` ПОДДЕРЖИВАЕМ (W3C: «accept a value that
+    places constraints on the version using the "<", "<=", ">", and ">=" operators» — не отклонение): по сегментам для
+    определённых версий; для меток сборок (`7.1-rc2`) — порядок по правилам SemVer (pre-release ниже релиза), метка,
+    которую не разобрать, — только равенство (документировать).
+  · **`browserName` — ТОЧНО по W3C против РЕАЛЬНОГО имени браузера от ноды (юзер, 2026-09-29, вариант b):** W3C
+    `browserName` = имя user agent; стоковые клиенты ставят его сами (`ChromeOptions` → `chrome`, `EdgeOptions` →
+    `MicrosoftEdge`). Агент при подъёме сообщает новое OUTPUT_ONLY-поле элемента окружения `detectedBrowserName`
+    (только у браузеров). Матч `browserName`/`browserVersion` — только с `detectedBrowserName`/`detectedVersion`;
+    алиасы (приложение `firefox` с Chrome внутри) — только через `sw:appName`. Отклонений нет, регистр не проблема.
+    ПОПРАВКА к закрытому `applications`: маркер `browser` УБРАН — производное (браузер = приложение, у которого нода
+    сообщила `browserName`). Ответ New Session: `browserName`/`browserVersion` — фактические от ноды.
+- **[DESIGN] `sessions` — решения после финального ревью (юзер, 2026-09-29):**
+  · **Коды id сессии — РАЗНЫЕ:** подпись не сошлась («сессии не было») → 400 `invalid argument`; подпись сошлась, сессия
+    не жива → 404 `invalid session id` (строго W3C — клиенты особо обрабатывают именно его). Отклонение — только первый
+    случай; документировать. Подпись: `timingSafeEqual`, `kid` + набор ключей (ротация без «убийства» живых сессий),
+    лучше AEAD (шифрование) — иначе в id открыт внутренний `host:port` ноды.
+  · **Нет окружения:** подходящее ЕСТЬ, но занято → 429 + `Retry-After` (отклонение, W3C-тело `session not created`);
+    подходящих нет вообще → 400 `session not created` (юзер: проблема параметров запроса, не сервиса; отклонение от
+    W3C-таблицы, где 500; документировать).
+  · **`browserName`:** сравнение с реальным браузером от ноды (`detectedBrowserName`, хранится в нижнем регистре), без
+    учёта регистра + синонимы `microsoftedge ↔ msedge` (клиенты шлют `MicrosoftEdge`/Appium `Chrome`, msedgedriver
+    зовёт себя `msedge`) — малое отклонение от W3C «string equal», документировать. В ответе — значение от ноды.
+  · **`platformName` в ответе = `linux`** (стандартное значение W3C; Selenium Java может не знать `ubuntu`), платформа
+    нашего каталога — отдельной капой `sw:platform: "ubuntu"` (разные понятия: семейство W3C и платформа каталога).
+  · **`sw:*` не доходят до драйвера** (W3C «must not be forwarded to the endpoint node»): `wd` вырезает свои
+    (`sw:projectId`, `sw:environmentId`, `sw:appName`, `sw:runtime`, …); опции сессии (`sw:logging`, `sw:video`,
+    `sw:netBridge`) доходят только до `wd-door` (наш посредник в окружении, перед chromedriver/geckodriver/Appium),
+    он отдаёт их агенту через свой `/status` и вырезает все `sw:*` перед драйвером (сейчас у Appium passthrough — баг).
+  · **Артефакты:** `sessionLogs`/`sessionVideos` — порядок по id, БЕЗ `totalSize`/`orderBy` (AIP везде MAY: `0132.md:138`,
+    `0158.md:92`; исключение из нашего правила «totalSize во всех List» — бакет не умеет дешёвый подсчёт/сортировку).
+    id — НЕПРОЗРАЧНЫЙ серверный (агент при загрузке не знает полного id сессии — «клиент посчитает сам» снято); в
+    ответе New Session — полные имена `sw:sessionLog`/`sw:sessionVideo` (только если logging/video включены).
+    `contentType` → `mimeType` (AIP-143 MUST); `:download` → HttpBody (отклонение от SHOULD «…Response», записать).
+  · **Сделать без решений (стандарты/гигиена):** `se:cdp` в ответе ПЕРЕПИСАТЬ на наш адрес (стоковые Selenium ищут CDP
+    по нему), вычистить внутренние адреса ноды (`ws://<node>`, `debuggerAddress`); `webSocketUrl` строго по BiDi —
+    `wss://host/session/{id}`, только по запросу; `firstMatch` по W3C (пустой → invalid argument, валидировать все,
+    `null` = не задано, на ноду — только выбранный); `GET /status`; `sw/alive` на мёртвую → 404; `:accessSession`:
+    сверка несекретного id сессии (гонка), `Cache-Control: no-store`, `AccessSessionResponse`, порядок проверок IAM →
+    окружение → сессия → создатель; права `sw.sessionLogs.{get,list}`, `sw.sessionVideos.{get,list}` (admin/developer/
+    viewer), `sw.environments.accessSession` (admin/developer); `project.uid` в ключе хранилища артефактов.
+- **ИТОГ `sessions` — ЗАКРЫТ (юзер, 2026-09-29; 2 финальных ревью + ревью oneof).** Главнее пунктов `sessions` выше.
+  **`wd` — W3C WebDriver/BiDi/Appium по букве, отклонения перечислены.** Ручки: `POST /session` · `DELETE /session/{id}` и
+  `* /session/{id}/…` (прокси) · `GET /status` → `{value:{ready,message}}` · `GET /session/{id}/sw/alive` →
+  `{value:{alive:true}}` (мёртвая → 404; неизвестные `/session/{id}/sw/*` → 404 `unknown command`) · WS BiDi
+  `wss://host/session/{id}` · WS `/session/{id}/sw/{cdp|vnc}` · `GET /interactive?path=…`.
+  **Аутентификация:** `Authorization: Bearer <токен>` ИЛИ `Basic` (токен в поле пароля — стоковые клиенты:
+  `https://acme:<токен>@wd…`, как BrowserStack/Sauce); только HTTPS (+HSTS), `Authorization` не логируется, лимит частоты
+  на 401. Отдельный отзываемый ключ проекта для CI вместо пользовательского токена IdP — в разбор IAM.
+  **Запрос:** `sw:projectId` REQUIRED (только `alwaysMatch`; отклонение от «recommended … top-level parameters», как
+  BrowserStack) · приложение одним словарём: `browserName`(+`browserVersion`) ↔ `detectedBrowserName`(без учёта
+  регистра + синонимы `microsoftedge↔msedge`, малое отклонение)/`detectedVersion`; ИЛИ `sw:appName`(+`sw:appVersion`) ↔
+  id приложения или `detectedPackageId`/`detectedBundleId`, версия ↔ `version` сборки или `detectedVersion` · версии:
+  операторы `<,<=,>,>=` (сегменты; SemVer для меток; неразбираемая метка — только равенство); нет версии/`latest` =
+  новейшая по ВСЕМ подходящим окружениям · `platformName` — ТОЛЬКО семейство W3C (`linux`/`android`/`ios`), без учёта
+  регистра (малое отклонение) · `sw:platform` (id платформы каталога, `ubuntu`) · `sw:platformVersion` (синоним
+  `appium:platformVersion`) · `sw:model` (синоним `appium:deviceName`; конфликт значений с синонимом → 400) ·
+  `sw:runtime` (container|emulator|device, по умолч. container) · `sw:environmentId` (опц., только `alwaysMatch`) ·
+  `sw:logging`/`sw:video`/`sw:netBridge` · `webSocketUrl: true` (нода без BiDi → окружение не подходит) · прочие капы и
+  неизвестные top-level параметры — на ноду · `firstMatch` строго по W3C (пустой → 400, валидировать все, `null` = не
+  задано, ключ и в `alwaysMatch`, и в `firstMatch` → 400, на ноду — только выбранный вариант) · `desiredCapabilities`
+  без `capabilities` → 400 с объяснением. `sw:*` до драйвера не доходят: `wd` вырезает свои, опции сессии доходят только
+  до `wd-door`, он отдаёт их агенту через `/status` и вырезает `sw:*` перед драйвером.
+  **Ответ:** капы ноды (внутренние адреса вычищены, `debuggerAddress` убран, `se:cdp` переписан на наш адрес,
+  `se:cdpVersion` сохранён) + `platformName` (`linux`/`android`), `sw:platform`, `sw:platformVersion`, `sw:model`,
+  `sw:runtime`, `sw:appName` (id приложения), `sw:appVersion` (= `detectedVersion`, документировать: спросил `152` —
+  получил `152.0.7977.82`), `sw:projectId`, `sw:environmentId` (что пишет пользователь — коротко и так же возвращается);
+  ссылки — ПОЛНЫМИ URL, как принято в W3C-мире (`webSocketUrl`, Grid `se:cdp`; решение юзера): `sw:buildUrl`
+  (`https://api…/v1/projects/…/builds/{b}`), `sw:sessionLogUrl` / `sw:sessionVideoUrl` (`…:download`; только если
+  logging/video включены; нужен токен), `webSocketUrl` (если просили), `sw:cdp`, `sw:vnc`, `sw:interactive`. `wd`
+  знает публичный адрес `api` из конфига.
+  **Ошибки** `{value:{error,message,stacktrace}}`: подпись id не сошлась → 400 `invalid argument`; сессия не жива → 404
+  `invalid session id`; подходящее есть, но занято (для `firstMatch` — хоть один вариант) → 429 + `Retry-After`
+  `session not created`; подходящих нет → 400 `session not created`; кривые капы → 400 `invalid argument`; нет/битый
+  токен → 401 + `WWW-Authenticate: Basic` `unauthenticated`; нет `sw.sessions.create` → 403 `permission denied`.
+  **id сессии:** AEAD (AES-GCM) с `kid` открытым префиксом и набором ключей (ротация), случайный nonce; внутренний адрес
+  ноды не виден. Маска логов ловит `/session/` и `/sessions/`, а также `?path=` у `/interactive`.
+  **`api` — AIP:** `projects/{p}/sessionLogs/{sessionLog}`, `projects/{p}/sessionVideos/{sessionVideo}` — `name`
+  IDENTIFIER, `environment` (полное имя) · `mimeType` · `sizeBytes` · `createTime` OUTPUT_ONLY; Get · List (pageSize,
+  pageToken, `filter=environment=…`; порядок по id; без totalSize/orderBy — AIP MAY, исключение из нашего правила) ·
+  `GET …:download` → HttpBody (text/plain | стрим video/mp4; отклонение от SHOULD «…Response»); id непрозрачный
+  серверный (формат документировать); нет Create/Update/Delete; `project.uid` в ключе хранилища.
+  `GET projects/{p}/environments/{e}:accessSession` → `AccessSessionResponse{environment, sessionId, sessionLog?,
+  sessionVideo?}`; `Cache-Control: no-store`; проверки: IAM → окружение → живая сессия (NOT_FOUND) → создатель
+  (PERMISSION_DENIED); защита от гонки — случайный несекретный id сессии в строке владения, `wd-door` отдаёт его в
+  `/status`, секрет выдаётся только при совпадении. Снять: `projects/{p}/sessions/{id}/{logs,video}`,
+  `projects/{p}/environments/{e}/session`, `environment.capabilities.canAccessCurrentSession` (UI: стрелка на любом
+  BUSY, клик → `:accessSession`), право `sw.sessions.get`. Права: `sw.sessionLogs.{get,list}`,
+  `sw.sessionVideos.{get,list}` (admin/developer/viewer), `sw.environments.accessSession` (admin/developer),
+  `sw.sessions.create` (как есть). `ErrorInfo.reason` на все новые ошибки.
+  **Документировать:** все отклонения выше; формат id артефакта и id сессии; `pageSize` по умолчанию/максимум; смысл
+  порядка списка; артефакт появляется атомарно после конца сессии; таблицу синонимов браузеров; правило версий.
+- **[DESIGN] `sessions`/`environments` — решения 2026-09-29 (продолжение):**
+  · **Элемент `applications[]` — ПАРА `application` (REQUIRED) + `build` (OPTIONAL, обязан быть ребёнком application),
+    НЕ oneof** (юзер; 2 ревьюера разошлись): AIP-146 oneof допускает (MAY), но по AIP-129 сервер обязан вернуть ввод
+    как есть → при заданном `build` поле `application` было бы пустым, ключ «какое приложение» пропал бы у части
+    элементов (фильтр `applications.application`, UI). Прецеденты «родитель + ребёнок» у Google — пары: Cloud Run v2
+    `secret`+`version` (`k8s.min.proto:162-179`), Functions v2 `secret`+`version`, Vertex `model` + OUTPUT_ONLY
+    `model_version_id`; прецедент oneof (Notebooks `image{name|family}`) — не про родителя/ребёнка. Повтор ввода —
+    сознательный, несовпадение → INVALID_ARGUMENT. AIP-180: переход в oneof позже — ломающий.
+  · **Ошибки аутентификации `wd`:** нет/битый токен → 401 + `WWW-Authenticate: Basic`, `error: "unauthenticated"`;
+    нет `sw.sessions.create` → 403, `error: "permission denied"` (свои коды — отклонение, у W3C их нет).
 - **[AIP] ошибки без `ErrorInfo` — СКВОЗНОЕ, НЕ начато (финальный аудит, 2026-09-28):** AIP-193 `0193.md:84` «All error
   responses **must** include an `ErrorInfo` within `details`». В `apps/backend/src` `ErrorInfo` нет вообще. Сделать
   единым механизмом для всех ресурсов: `ErrorInfo.reason` на каждую ошибку, `PreconditionFailure` для
