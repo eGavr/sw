@@ -2062,8 +2062,8 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   · **КАТАЛОГ ПРИЛОЖЕНИЙ — вариант A′: проект-вендор `catalog`, но ЧЕСТНЫЙ (юзер, 2026-09-28; два ревьюера):**
     прецедент GCE — публичные образы в настоящем проекте `debian-cloud`, свой и вендорский различаются ПОЛНЫМ ИМЕНЕМ
     (`compute/v1/compute.proto:8642` `source_image`), без перекрытия. Публичность — IAM-биндингом
-    `allAuthenticatedUsers → roles/applicationViewer` (google.iam.v1 `policy.proto:172` — специальный участник той же
-    спецификации, что наш IAM); админы каталога — узкая роль `roles/applicationPublisher` (только `applications.*`),
+    `allAuthenticatedUsers → roles/sw.applicationViewer` [на приложениях, не на проекте — см. ИТОГ IAM] (google.iam.v1 `policy.proto:172` — специальный участник той же
+    спецификации, что наш IAM); админы каталога — узкая роль `roles/sw.applicationPublisher` (только `applications.*`),
     тогда IAM сам запрещает окружения/сессии/… в каталоге → УБРАТЬ 5 `ensureNotCatalogProject`, ветки `isCatalogProject`
     в Get/List, `exposesRefs(handle)` и `appRef`-опциональность по хэндлу (решать permission-ом). ПРАВИЛО ПЕРЕКРЫТИЯ
     own → catalog ОТМЕНЕНО (слово тихо резолвилось в один из двух ресурсов по скрытому состоянию). Id приложений —
@@ -2139,7 +2139,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     **Документировать (DOC-must):** форматы id (application/build/environment, пользовательские и серверные), формы и
     ограничения `filter` (в т.ч. нет корреляции по repeated), поля `orderBy`, что обновляет `updateTime` (переходы
     state/conditions — да, occupancy/хартбит — нет), пустые `detected*` (включая `detectedBrowserName`) по платформам, лимит 1..20, значения `transport`,
-    права ролей `roles/applicationViewer`/`roles/applicationPublisher` на builds.
+    права ролей `roles/sw.applicationViewer`/`roles/sw.applicationPublisher` на builds.
     [РЕШЕНО 2026-09-29 в ИТОГ `sessions`] ОТЛОЖЕНО в `sessions`: ответ New Session, «последняя» у сессии (новейшая detected) — развести с «последней сборкой»;
     `GET …/{e}/session` (AIP-156); замена `capabilities.canAccessCurrentSession` (`:testIamPermissions`).
   [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] · **Итоги AIP-аудита env/app/build (юзер, 2026-09-28):** `appRef`/`webdriverRef` → `appUri`/`webdriverUri` (AIP-140
@@ -2302,6 +2302,142 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     сознательный, несовпадение → INVALID_ARGUMENT. AIP-180: переход в oneof позже — ломающий.
   · **Ошибки аутентификации `wd`:** нет/битый токен → 401 + `WWW-Authenticate: Basic`, `error: "unauthenticated"`;
     нет `sw.sessions.create` → 403, `error: "permission denied"` (свои коды — отклонение, у W3C их нет).
+- **[DESIGN] IAM — разбор (2026-09-29), В РАБОТЕ.** Решено юзером:
+  · **Публичный каталог — IAM-политика НА РЕСУРСЕ ПРИЛОЖЕНИЯ, без отклонения от Google** (Resource Manager запрещает
+    `allUsers`/`allAuthenticatedUsers` в политике проекта — `projects.proto:242`; Compute держит IAM на самих образах —
+    `images/{resource}:setIamPolicy`): `…/applications/{a}:getIamPolicy|:setIamPolicy|:testIamPermissions`;
+    эффективные права = политика проекта ∪ политика приложения (сборки наследуют). Каталог: политика проекта `catalog`
+    — только `roles/sw.applicationPublisher` ← конфиг `CATALOG_ADMIN_MEMBERS` (bootstrap приводит к конфигу и
+    добавляет, и убирает); на каждом приложении каталога `allAuthenticatedUsers → roles/sw.applicationViewer`; публичному
+    участнику — только роли без изменяющих прав. `catalog` — ОБЫЧНЫЙ проект, «урезанность» выражена только IAM (ни у
+    кого нет прав на окружения/сессии/провайдеры/`delete`/`setIamPolicy` в нём) → снять `ensureNotCatalogProject` ×5,
+    `isCatalogProject`, `exposesRefs(handle)`; особое — только bootstrap и зарезервированный id. ОТКРЫТО: как публика
+    получает LIST приложений каталога — РЕШЕНО (юзер, 2026-10-04, вариант b): List строгий (`list` на проекте; публике →
+    403, как у Compute: «Publicly shared images do not appear in the images list»), обнаружение — кастомный метод
+    `GET /v1/projects/-/platforms/{pl}/applications:search` (AIP-159 `-` + Search по праву `get` на каждом элементе;
+    AIP-132:110 «Search methods are more relaxed»; прецедент `projects:search`). Отвергнуто (a): `allAuthenticatedUsers`
+    на проекте `catalog` — запрещено Google (`projects.proto:242`, «cannot share projects… with all authenticated users»).
+  · **Каталог ролей `GET /v1/roles[/{role}]`** — глобальный, только Get/List, С ПАГИНАЦИЕЙ (AIP-132/158 — у любого List;
+    при 6 ролях одна страница, пустой `nextPageToken` не выводится). **Имена ролей** по схеме Google `roles/{сервис}.{роль}`
+    (`admin/v1/iam.proto:1099` «roles/logging.viewer for predefined roles»): `roles/sw.admin|developer|viewer`,
+    `roles/sw.applicationViewer|applicationPublisher` (юзер: ок, если по стандарту Google — форму частей проверяет ревью).
+  · **«Гейт на вход» — НЕ ДЕЛАЕМ:** `builtin` — только dev-инсталляции (тип провайдера включается конфигом; в проде его
+    нет и в `computeProviderTypes`) → чужие ресурсы оператора не расходуются → создание проекта открыто всем вошедшим;
+    право `sw.projects.create` и роль `projectCreator` УДАЛИТЬ; пункты плана «гейт на вход / allowlist» закрыты.
+- **ИТОГ IAM — ЗАКРЫТ (юзер, 2026-10-04; 2 финальных ревью).** Главнее пунктов IAM выше; уточнения — пункт «УТОЧНЕНИЯ ИТОГ IAM» ниже (главнее этого блока там, где расходятся).
+  **Политика проекта:** `GET /v1/projects/{p}:getIamPolicy[?options.requestedPolicyVersion=N]` (GET по AIP-136; google.iam.v1
+  объявляет POST — Compute делает GET) → `{version:1, etag, bindings:[{role, members[]}]}` · `POST …:setIamPolicy`
+  `{policy:{version?, etag?, bindings}, updateMask?}` (по умолч. `bindings,etag`, `iam_policy.proto:113-119`) · `POST
+  …:testIamPermissions {permissions[]}` → `{permissions[]}` (POST законен: `0136.md:54` — может не влезть в URL).
+  Ошибки setIamPolicy: etag устарел → 409 ABORTED; не осталось `roles/sw.admin` → 400 FAILED_PRECONDITION; пустой
+  `members`, неизвестная роль/участник, `condition`, `version: 3`, `updateMask` кроме bindings/etag → 400
+  INVALID_ARGUMENT; нет права → 403 «(or it might not exist)». Не поддерживаем (записать): `auditConfigs`, условия,
+  версия 3. etag — хэш содержимого (слабый, AIP-154). Запись политики — под локом (`with(id, cb)`).
+  **Политика приложения** (публичность каталога и шаринг отдельного приложения): те же три метода на
+  `projects/{p}/platforms/{pl}/applications/{a}`; эффективные права = проект ∪ приложение; сборки наследуют;
+  `allAuthenticatedUsers` — только с ролями без изменяющих прав.
+  **Каталог ролей:** `GET /v1/roles` (пагинация) · `GET /v1/roles/{role}` → `{name, title, description,
+  includedPermissions[]}`; без права (достаточно войти); пользовательских ролей нет.
+  **Роли** (`roles/{сервис}.{роль}`): `roles/sw.admin` — всё; `roles/sw.developer` — чтение всего + окружения
+  (create/delete/accessSession), `sessions.create`, приложения/сборки (create/update/delete); `roles/sw.viewer` — все
+  get/list; `roles/sw.applicationViewer` — get/list приложений и сборок; `roles/sw.applicationPublisher` — всё на
+  приложения/сборки + `projects.get`. Инфраструктура (провайдеры, привязки, машины: create/update/delete, cordon/
+  uncordon/drain, generateRegistrationToken), `storageDestinations.update|delete`, `tunnelKeys.*`,
+  `serviceAccounts.*`, `serviceAccountKeys.*`, `projects.update|delete|getIamPolicy|setIamPolicy` — только admin.
+  **Права** `sw.<коллекция>.<глагол>`: projects {get, update, delete, getIamPolicy, setIamPolicy}; computeProviders,
+  computeBindings {get, list, create, update, delete}; machines {get, list, create, delete, generateRegistrationToken,
+  cordon, uncordon, drain}; machineLeases, slots {get, list}; applications {get, list, create, update, delete,
+  getIamPolicy, setIamPolicy}; builds {get, list, create, delete}; environments {get, list, create, delete,
+  accessSession}; sessions {create}; sessionLogs, sessionVideos {get, list}; storageDestinations {get, update, delete};
+  tunnelKeys, serviceAccounts {get, list, create, delete, disable, enable}; serviceAccountKeys {get, list, create,
+  delete, disable}. Снять: `sw.projects.create`, `sw.sessions.get`, `sw.cloudAccounts.*` (→ computeProviders),
+  `sw.netBridgeCredentials.*` (→ tunnelKeys), `storageDestinations.set` (→ update). Глобальные каталоги
+  (`platforms`, `computeProviderTypes`, `roles`) — без прав, достаточно войти.
+  **Участники:** `user:<externalId>`, `group:<groupId>`, `serviceAccount:<sa>@<project>`, `allAuthenticatedUsers`;
+  иное (`allUsers`, `domain:`, `deleted:`) → 400. Отклонение: идентификатор — externalId из IdP, а не email.
+  **Сервисные аккаунты (CI, стоковые клиенты):** `projects/{p}/serviceAccounts/{sa}` (`?serviceAccountId=`, поля
+  `name, uid, member, displayName, disabled, createTime`; `:disable`/`:enable`) и `…/keys/{key}` (id серверный; ответ
+  Create один раз содержит `secret` вида `swk_<keyId>_<random>`, хранится только хэш; `expireTime`, `lastUseTime`;
+  `:disable`; Delete = отзыв). Ключ работает как `Authorization: Bearer` и как Basic-пароль. Удаление SA каскадно
+  чистит его связки.
+  **Каталог приложений:** проект `catalog` — обычный; его политика из конфига `CATALOG_ADMIN_MEMBERS` →
+  `roles/sw.applicationPublisher` (bootstrap и добавляет, и убирает); на приложениях каталога `allAuthenticatedUsers
+  → roles/sw.applicationViewer`; List каталога публике → 403; обнаружение — `projects/-/platforms/{pl}/applications:search`.
+  **Создание проекта** — открыто всем вошедшим (`builtin` только в dev); права/роли на создание нет.
+  Баги из «[IAM] баги к исправлению» — часть итога.
+- **[IAM] решения после финального ревью (юзер, 2026-10-04):**
+  · **Шаринг — только каталог:** IAM-политики на приложениях — ради публичности приложений `catalog`; межпроектного
+    шаринга своих приложений в v1 НЕТ (окружение берёт приложения только из своего проекта или `catalog`).
+  · **Проекты создают только люди** (`user:`; сервисный аккаунт не может); среди admin проекта всегда есть хотя бы один
+    `user:`/`group:` (удаление последнего человека-admin или единственного SA-admin → FAILED_PRECONDITION); аварийный
+    доступ оператора инсталляции (break-glass) через конфиг — добавить.
+  · **Журнал изменений IAM (аудит) — НЕ делаем в v1** (решение юзера; только `lastUseTime` у ключей).
+  · **Список проектов — `GET /v1/projects:search`** (проекты, где у вызывающего есть `sw.projects.get`; прецедент Resource
+    Manager `SearchProjects`); обычного List проектов нет (у проекта нет родителя для проверки права).
+- **УТОЧНЕНИЯ ИТОГ IAM (финальное ревью, 2026-10-04):**
+  · **Публичный участник:** `allAuthenticatedUsers` разрешён ТОЛЬКО в политиках приложений проекта `catalog` и только с
+    `roles/sw.applicationViewer`; в политике любого проекта и в приложениях других проектов → 400 FAILED_PRECONDITION (`reason:
+    PUBLIC_MEMBER_NOT_ALLOWED`). Аналог best practice Google «запрещено везде, кроме явного исключения» (org policy
+    Domain restricted sharing / Public access prevention — по памяти). Значение: любой вошедший через IdP + любой SA.
+  · **IAM-методы на приложении — ВЕЗДЕ одинаковы** (юзер, 2026-10-04; как у Google: метод не выключается по родителю,
+    ограничение — правило на СОДЕРЖИМОЕ, прецедент org policy Domain restricted sharing → FAILED_PRECONDITION):
+    публичный участник вне приложений `catalog` → 400 FAILED_PRECONDITION `PUBLIC_MEMBER_NOT_ALLOWED`. Политика на
+    приложении обычного проекта разрешена, но в v1 даёт только ЧТЕНИЕ (Get, `:search`): окружение берёт приложения
+    только из своего проекта и `catalog` (межпроектного использования нет) — задокументировать.
+  · **Политика приложения** учитывается ТОЛЬКО для прав `applications.*`/`builds.*` на этом ресурсе; на приложении можно
+    выдать только `roles/sw.applicationViewer`/`roles/sw.applicationPublisher` (иное → 400 `UNKNOWN_ROLE`/role not
+    supported). `applications.getIamPolicy|setIamPolicy` — только admin и applicationPublisher. Инвариант «последний
+    admin» — только для политики проекта.
+  · **Сервисные аккаунты:** связка хранит `uid` SA (повторное создание SA/проекта с тем же id не наследует старые
+    гранты; удалённые — как Google `deleted:serviceAccount:…?uid=`); id удалённого проекта не переиспользуется;
+    `setIamPolicy` проверяет существование SA; удаление SA/проекта каскадно чистит связки во всех политиках (с новым
+    etag). `PATCH serviceAccounts/{sa}` (`displayName`, `updateMask`, `etag`) + право `sw.serviceAccounts.update`
+    (AIP-148: `displayName` must be mutable). Ключи: `?serviceAccountKeyId=` OPTIONAL (AIP-133 MUST), `:enable` +
+    право `serviceAccountKeys.enable`, срок — oneof `expireTime | ttl` (AIP-214), формат `swk_<keyId>_<random>` (keyId
+    без `_`), поиск по keyId + `timingSafeEqual` по sha256, `lastUseTime` — не чаще раза в час, ≤10 ключей на SA,
+    выключенный/просроченный/удалённый → 401 `unauthenticated`, пароль из URL маскируется в логах; SA-принципал без
+    групп; SA с admin может выпускать себе ключи (как у Google, записано).
+  · **Политика:** `version` 0/1/3 принимается (google.iam.v1 `options.proto:35-37`; Terraform шлёт 3), ответ `version: 1`;
+    отвергается только `condition`. `testIamPermissions`: право не требуется; нет ресурса → пустой список; `*`/`sw.*` →
+    400. etag — сильный (хэш канонической формы; иначе по AIP-154 нужен префикс `W/`). Прецедент GET у getIamPolicy —
+    Secret Manager / Cloud Run v2 (у Compute плоский `optionsRequestedPolicyVersion`).
+  · **ErrorInfo.reason:** `ETAG_MISMATCH` (409), `LAST_ADMIN_REQUIRED` (+`PreconditionFailure`), `UNSUPPORTED_POLICY_VERSION`,
+    `UNKNOWN_ROLE`, `INVALID_MEMBER`, `PUBLIC_MEMBER_NOT_ALLOWED` (+`BadRequest.fieldViolations`), `IAM_PERMISSION_DENIED`.
+  · **Права — добавки/правки:** `sw.platforms.{get,list}` (проектный реестр — НЕ глобальный; глобальные без прав —
+    только `computeProviderTypes`, `roles`); `sw.storageDestinations.{get,update,test}` (`delete` снят — AIP-156:
+    синглтон «must not define … Delete»; сброс — `PATCH …?updateMask=bucket` с пустым значением — ПРЕДВАРИТЕЛЬНО,
+    подтвердить при разборе storage); `machines.update` — только если у машины остаётся PATCH (решить при сквозной
+    сверке); `tunnelKeys.{disable,enable}` — только если такие методы есть (разбор netbridge); `:download` у
+    sessionLogs/Videos проверяет `.get`; `:search` приложений проверяет `sw.applications.get` на каждом элементе, шаблон
+    пути `projects/*/…` (не хардкод `-`, AIP-159), имена в ответе канонические.
+  · **Матрица ролей — выписать ПО КАЖДОМУ ПРАВУ** при реализации (сейчас словами; противоречие «viewer — все get/list»
+    против «tunnelKeys/serviceAccounts/getIamPolicy — только admin» → viewer НЕ видит tunnelKeys, serviceAccounts(+keys),
+    `projects.getIamPolicy`).
+  · **Каталог-bootstrap:** конфиг `CATALOG_ADMIN_MEMBERS` — полные строки `Member` (`user:`/`group:`), битое → не
+    стартуем, пустое → warn (каталог без издателей, законно); сверка под `with(catalogId, cb)`/FOR UPDATE, запись только
+    при отличии (много инстансов; при rolling deploy побеждает последний); seed-приложения получают
+    `allAuthenticatedUsers`, новые — явным `setIamPolicy`.
+  · **Отклонения (записать):** id роли с заглавной (`applicationViewer`, AIP-122 SHOULD lowercase — как у Google
+    `roles/iam.serviceAccountUser`); member — externalId, не email; нет `auditConfigs`/условий; нет пользовательских
+    ролей; `GET /v1/roles` всегда полный вид.
+  · [СДЕЛАНО] Поправлено в ИТОГ `environments` старые имена `roles/applicationViewer|applicationPublisher` → `roles/sw.*`.
+- **[SECURITY] аудит безопасности — ПОСЛЕ проектирования всех ручек (юзер, 2026-09-29; не прод — не срочно):**
+  · **P0 — `wd` = открытый прокси во внутреннюю сеть:** `SessionRoute.decode` принимает любой адрес из id (base64url без
+    подписи), `WebDriverProxy.forward` делает `fetch` туда любым методом и отдаёт ответ; `/sessions/:id/*`, WS-прокси и
+    `sw/alive` без аутентификации → SSRF (метаданные облака 169.254.169.254, `/internal`, Docker/k8s API). Фикс:
+    подписанный/шифрованный id (HMAC/AEAD ключом инсталляции — уже в ИТОГ `sessions`), проверка ДО прокси.
+  · **Защита в глубину:** egress-allowlist из `wd` — только сеть окружений; запрет 169.254.169.254 и локальных адресов.
+  · **P1 — SSRF через `appRef` своей сборки** (роль developer): `ApplicationSource.refKind` считает любой `https?://`
+    URL-ом, control plane качает произвольный адрес и отдаёт байты в окружение. Фикс: у своих сборок — только ключ в
+    бакете проекта (инвариант в домене).
+- **[IAM] баги к исправлению (ревью 2026-09-29):** (1) `setIamPolicy` отвергает честный read-modify-write: `version`
+  и `updateMask` в теле → 400 (`forbidNonWhitelisted`); (2) гонка записи политики — два писателя с одним etag проходят
+  оба (нужен `with(id, cb)` под `FOR UPDATE` или условная запись); (3) можно удалить последнего admin → нужен
+  FAILED_PRECONDITION (прецедент Resource Manager); (4) binding без участников принимается (`policy.proto:137` «must
+  contain at least one principal»); (5) `listProjects` не учитывает группы (`pageByMember(Member.user(...))`);
+  (6) утечка существования проекта: чужой несуществующий → 404, существующий → 403 (AIP-211: PERMISSION_DENIED «or it
+  might not exist»); (7) ownership сессии сравнивается по `externalId` → перевести на строку `Member` (сервисные
+  аккаунты); (8) админы каталога только добавляются из конфига и не отзываются, пустой конфиг — каталог без админов.
 - **[AIP] ошибки без `ErrorInfo` — СКВОЗНОЕ, НЕ начато (финальный аудит, 2026-09-28):** AIP-193 `0193.md:84` «All error
   responses **must** include an `ErrorInfo` within `details`». В `apps/backend/src` `ErrorInfo` нет вообще. Сделать
   единым механизмом для всех ресурсов: `ErrorInfo.reason` на каждую ошибку, `PreconditionFailure` для
