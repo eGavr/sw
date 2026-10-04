@@ -1650,7 +1650,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   · computeBinding: `Ready` (агрегат: разместить можно прямо сейчас), `MachinesAvailable` (False: `NoFittingMachine`
     у инвентаря / `NoFittingMachineType` у заказывающего / `MachineLimitReached`), `ProvisioningHealthy` (только у
     заказывающих; False: `OrdersRejected`, `MachinesNotRegistering` — аналог Karpenter `NodeRegistrationHealthy`).
-  · computeProvider: `Ready`, `AccessVerified` (только у облачных; False: `GrantMissing`, `OwnershipLabelMissing`).
+  · computeProvider: `Ready`, `AccessVerified` (только у облачных; False: `GrantMissing`, `OwnershipProofMissing`).
   Тип, неприменимый к ресурсу, просто не перечисляется (k8s-практика).
   **ОТКРЫТО — ОБСУДИТЬ ОТДЕЛЬНО (юзер, 2026-09-17): форма самого условия.** Юзера смущает `status: "True"|"False"|
   "Unknown"` — строковый tri-state enum под именем `status` (k8s `metav1.Condition`, KEP-1623: «one of True, False,
@@ -1711,7 +1711,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   · **ФИНАЛ v1 `computeProvider` — ПОДТВЕРЖДЁН юзером (2026-09-19):** `name`, `uid`, `etag`, `displayName?`, `type`
     (OUTPUT_ONLY), oneof `selfHosted{} | builtin{} | yandexCloud{folderId, zoneId, platformId?} | kubernetes{yandexCloud
     {folderId, clusterId} | kubeconfig{secretRef}}`, `conditions[]` (`Ready`; `AccessVerified` только у облачных:
-    GrantMissing / OwnershipLabelMissing / NotCheckedYet), времена. Ручки: POST [?computeProviderId][&validateOnly],
+    GrantMissing / OwnershipProofMissing / NotCheckedYet), времена. Ручки: POST [?computeProviderId][&validateOnly],
     GET, LIST (pageSize/pageToken/filter=type=), PATCH ?updateMask [&validateOnly] (etag), DELETE [?force] (дети:
     привязки, машины). Кастомных методов нет.
 - **Каталог `platforms` и дети — вердикт независимого ревьюера (2026-09-19), ждёт «ок» юзера:**
@@ -2275,6 +2275,9 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   `invalid session id`; подходящее есть, но занято (для `firstMatch` — хоть один вариант) → 429 + `Retry-After`
   `session not created`; подходящих нет → 400 `session not created`; кривые капы → 400 `invalid argument`; нет/битый
   токен → 401 + `WWW-Authenticate: Basic` `unauthenticated`; нет `sw.sessions.create` → 403 `permission denied`.
+  Запрошены `sw:logging`/`sw:video`, а хранилище проекта не настроено или его `AccessVerified` ≠ True → 400 `session
+  not created`, причина в `message`: `STORAGE_DESTINATION_NOT_CONFIGURED` / `STORAGE_ACCESS_NOT_VERIFIED` (юзер,
+  2026-10-04: честный отказ сразу, а не молча без записи; по W3C — запрошенную капу выполнить нельзя).
   **id сессии:** AEAD (AES-GCM) с `kid` открытым префиксом и набором ключей (ротация), случайный nonce; внутренний адрес
   ноды не виден. Маска логов ловит `/session/` и `/sessions/`, а также `?path=` у `/interactive`.
   **`api` — AIP:** `projects/{p}/sessionLogs/{sessionLog}`, `projects/{p}/sessionVideos/{sessionVideo}` — `name`
@@ -2404,9 +2407,9 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   · **ErrorInfo.reason:** `ETAG_MISMATCH` (409), `LAST_ADMIN_REQUIRED` (+`PreconditionFailure`), `UNSUPPORTED_POLICY_VERSION`,
     `UNKNOWN_ROLE`, `INVALID_MEMBER`, `PUBLIC_MEMBER_NOT_ALLOWED` (+`BadRequest.fieldViolations`), `IAM_PERMISSION_DENIED`.
   · **Права — добавки/правки:** `sw.platforms.{get,list}` (проектный реестр — НЕ глобальный; глобальные без прав —
-    только `computeProviderTypes`, `roles`); `sw.storageDestinations.{get,update,test}` (`delete` снят — AIP-156:
-    синглтон «must not define … Delete»; сброс — `PATCH …?updateMask=bucket` с пустым значением — ПРЕДВАРИТЕЛЬНО,
-    подтвердить при разборе storage); `machines.update` — только если у машины остаётся PATCH (решить при сквозной
+    только `computeProviderTypes`, `storageProviderTypes`, `roles`); `sw.storageDestinations.{get,update}` (`delete` снят — AIP-156:
+    синглтон «must not define … Delete»; `test` снят вместе с методом; сброс — `PATCH …?updateMask=*` `{}` — РЕШЕНО в
+    ИТОГ storage; get — admin/developer/viewer, update — admin); `machines.update` — только если у машины остаётся PATCH (решить при сквозной
     сверке); `tunnelKeys.{disable,enable}` — только если такие методы есть (разбор netbridge); `:download` у
     sessionLogs/Videos проверяет `.get`; `:search` приложений проверяет `sw.applications.get` на каждом элементе, шаблон
     пути `projects/*/…` (не хардкод `-`, AIP-159), имена в ответе канонические.
@@ -2421,12 +2424,115 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     `roles/iam.serviceAccountUser`); member — externalId, не email; нет `auditConfigs`/условий; нет пользовательских
     ролей; `GET /v1/roles` всегда полный вид.
   · [СДЕЛАНО] Поправлено в ИТОГ `environments` старые имена `roles/applicationViewer|applicationPublisher` → `roles/sw.*`.
+- **[DESIGN] storage — разбор (2026-10-04), В РАБОТЕ.** Решено юзером:
+  · **Каталог `storageProviderTypes/{t}`** (Get/List, глобальный, зеркально `computeProviderTypes`) вместо синглтона
+    `storageDelegation` с инлайн-массивом `providers[]` (AIP-144); `grant` (наш SA + минимальный набор действий на ОДИН
+    бакет, не `storage.editor` на фолдер) — в каталоге, не в настройке проекта (иначе производное).
+  · **`projects/{p}/storageDestination`** — синглтон AIP-156: существует всегда (не настроено → 200 с пустыми полями,
+    не 404), только Get/Update; `DELETE` снят, сброс — `PATCH ?updateMask=*` `{}` (прецедент KMS `EkmConfig`: «empty
+    string removes»); `updateMask` (сейчас PATCH молча стирает `prefix` — баг); `etag` (наше правило «etag на всех
+    PATCH-able»); `oneof` по типу хранилища без свободного `endpoint`/`region` (выводятся из типа; закрывает SSRF), в
+    v1 только `yandexObjectStorage`, позже `amazonS3{region, roleArn, externalId (OUTPUT_ONLY, генерирует сервер —
+    confused deputy)}`; `type` OUTPUT_ONLY; `bucket`, `prefix`; маркер владения — OUTPUT_ONLY (имя на ревью).
+  · **`:test` УБРАН → `conditions[AccessVerified]`** (как `computeProviders`): проверка ставится в очередь СРАЗУ после
+    PATCH (секунды, тот же воркер с LISTEN/NOTIFY), затем периодически; причины `GrantMissing | BucketNotFound |
+    OwnershipProofMissing | NotCheckedYet`; пробная запись — только после подтверждения маркера и только при
+    изменении настройки. Права `sw.storageDestinations.{get,update}` (`test` снят).
+  · Ошибки New Session при `sw:logging`/`sw:video`: не настроено / не подтверждено → FAILED_PRECONDITION
+    `STORAGE_DESTINATION_NOT_CONFIGURED` / `STORAGE_OWNERSHIP_UNVERIFIED` (сейчас ошибочно INVALID_ARGUMENT).
+  · [РЕШЕНО — см. ИТОГ storage] имя поля маркера; вложенность oneof; раскладка ключей.
+- **ИТОГ storage — ЗАКРЫТ (юзер, 2026-10-04; 2 финальных ревью).** Главнее пункта «storage — разбор» выше; уточнения — «УТОЧНЕНИЯ ИТОГ storage» ниже (главнее там, где расходятся).
+  **Каталог `storageProviderTypes/{t}`** (глобальный, только Get/List с пагинацией, без прав — достаточно войти;
+  зеркально `computeProviderTypes`): `name` (`storageProviderTypes/yandex-object-storage`), `title`, что выдать
+  пользователю на ОДИН бакет — наш сервисный аккаунт + минимальный набор действий (`s3:PutObject`, `s3:GetObject`,
+  `s3:AbortMultipartUpload` на `<bucket>/<prefix>/sw/*`; не `storage.editor` на фолдер). Форму требований свести с
+  `computeProviderTypes` (там `oneof accessRequirements{yandexCloud{requiredGrants[], ownershipLabelKey}}`).
+  Заменяет синглтон `storageDelegation` с инлайн-массивом `providers[]` (AIP-144).
+  **`projects/{p}/storageDestination`** — синглтон AIP-156, существует всегда; методы Get / Update (PATCH) — `DELETE`
+  нет (AIP-156 must not), кастомных методов нет:
+  `name` IDENTIFIER · `type` OUTPUT_ONLY (`storageProviderTypes/…`, выводится из члена oneof) · `bucket` OPTIONAL
+  (пусто = не настроено) · `prefix` OPTIONAL · плоский `oneof` по типу (как `computeProviders`; AIP-146 «least
+  generic», прецеденты Cloud Deploy `Target`, BigQuery `Connection`): `yandexObjectStorage{ownershipObjectKey
+  (OUTPUT_ONLY — ключ объекта, который пользователь кладёт в корень бакета как доказательство владения; проверяется
+  только СУЩЕСТВОВАНИЕ — писать в бакет может лишь владелец, ключ уникален для проекта)}`; позже `amazonS3{region,
+  roleArn, externalId (OUTPUT_ONLY, генерирует сервер — confused deputy)}` — свободных `endpoint`/`region` нет ·
+  `conditions[]` OUTPUT_ONLY: `AccessVerified` — `TRUE` | `FALSE` (`GrantMissing` | `BucketNotFound` |
+  `OwnershipProofMissing`) | `UNKNOWN` (`NotCheckedYet`); конкретика (ключ объекта, бакет) — в `message` · `etag`.
+  PATCH — с `updateMask` (без маски = заполненные поля; `*` поддерживается), `etag` OPTIONAL. Сброс — `PATCH
+  ?updateMask=*` `{}` (прецедент KMS `EkmConfig`); инвариант: пустой `bucket` ⇒ всё остальное пусто, иначе 400.
+  **Проверка доступа:** фоновый реконсилер; ставится в очередь СРАЗУ после PATCH (LISTEN/NOTIFY, результат за секунды),
+  затем раз в ~15 мин; порядок: маркер → пробная запись (запись только после подтверждения владения и только при
+  изменении настройки). Загрузка артефакта проверяет владение (не только создание сессии).
+  **Сценарий в UI (юзер: обратная связь как можно быстрее):** (1) «Сохранить» → ответ PATCH сразу содержит
+  `AccessVerified: UNKNOWN / NotCheckedYet`; (2) воркер получает сигнал мгновенно (LISTEN/NOTIFY, без ожидания
+  расписания) и за секунды пишет результат; UI коротко опрашивает `GET` (раз в 1–2 с, до ~30 с) и показывает `TRUE` или
+  причину с подсказкой из `message` (`GrantMissing` / `OwnershipProofMissing` / `BucketNotFound`); (3) дальше —
+  перепроверка раз в ~15 мин (заметить отозванный доступ). Пользователь исправил у себя в облаке (выдал доступ,
+  положил объект) → повторный быстрый прогон по кнопке «Проверить снова» = `PATCH` без изменений? — НЕТ (AIP: PATCH
+  без изменений ≠ проверка); вместо этого реконсилер перепроверяет FALSE-условия чаще (раз в ~30 с первые 10 мин после
+  PATCH), так UI увидит исправление без отдельного метода.
+  **Раскладка в бакете:** `<prefix>/sw/projects/<project.uid>/sessionLogs/<id>.log`,
+  `…/sessionVideos/<id>.mp4` (рисунок CloudTrail/ELB: префикс клиента / корень вендора / владелец / вид / файлы;
+  имена — как коллекции API; раздельные префиксы → разные сроки хранения правилами бакета). В записи артефакта —
+  снимок назначения.
+  **Ошибки:** формат/маска → 400 INVALID_ARGUMENT (`BadRequest`); New Session — см. ИТОГ `sessions`. Права `sw.storageDestinations.{get,update}`.
+  **Отклонения/решения:** нет `uid`/`createTime`/`updateTime` (синглтон, не declarative-friendly); «не настроено» —
+  пустые поля, не `state` (KMS EkmConfig/Autokey); reason `OwnershipProofMissing` — единый с `computeProviders`.
+- **УТОЧНЕНИЯ ИТОГ storage (финальное ревью, 2026-10-04):**
+  · **БЛОКЕР закрыт — права на маркер.** Маркер лежит в корне бакета, вне `<prefix>/sw/*`; расширять `PutObject` на него
+    нельзя (мы сами смогли бы создать доказательство). Каталог: `oneof accessRequirements{yandexObjectStorage{
+    requiredGrants[]}}` (зеркально `computeProviderTypes`), два элемента: `{serviceAccountId, actions: [s3:PutObject,
+    s3:GetObject, s3:AbortMultipartUpload], objectKeyPattern: "{prefix}/sw/*"}` и `{serviceAccountId, actions:
+    [s3:GetObject], objectKeyPattern: "{ownershipObjectKey}"}` (плейсхолдеры — в доке; конкретная политика проекта —
+    в `message` условия). `s3:ListBucket` НЕ выдаём → отсутствующий маркер даёт 403, не 404 (по памяти, проверить на YC)
+    → на этапе маркера одна причина `OwnershipProofMissing` с обеими возможностями в `message`; `GrantMissing` — только
+    после подтверждённого маркера, когда упала пробная запись.
+  · **Пробная запись** — внутри раскладки: `<prefix>/sw/projects/<project.uid>/.probe` (не `.sw-connectivity-check`
+    в корне — вне гранта, ложный GrantMissing).
+  · **Инвариант ключей в домене + тест:** любой наш ключ записи содержит `sw/projects/<uid>/`, ключ маркера — один
+    сегмент без `/` и не начинается с `sw/`; маркер проверяется точным HEAD/GET, не ListObjects. Валидация `bucket`
+    (S3: 3–63, `[a-z0-9.-]`), `prefix` (без ведущего/замыкающего `/`, без `..` и пустых сегментов, лимит длины).
+  · **Условие привязано к версии настройки:** PATCH в той же транзакции сбрасывает `AccessVerified` в `Unknown/
+    NotCheckedYet`; условие хранит отпечаток проверенной настройки, запись результата — условная (проверка старой
+    версии не перетирает новую); дедупликация по проекту (`FOR UPDATE SKIP LOCKED`/advisory-lock, много воркеров);
+    5xx/таймаут провайдера → причина `CheckFailed` (не False), повтор с backoff. Постановка проверки после PATCH —
+    реконсиляция, не побочный эффект Update (как `computeProviders`, AIP-134:121).
+  · **Загрузка артефакта:** только при `True` для ТЕКУЩЕЙ версии + живой HEAD маркера (1 запрос на артефакт); иначе
+    артефакт не создаётся, метрика `sw_artifact_dropped_total{reason}`. Снимок назначения `{type, bucket, prefix}` в
+    записи артефакта; чтение — по снимку, с проверкой маркера по снимку. Отдача артефакта: фиксированный
+    `Content-Type`, `X-Content-Type-Options: nosniff` (не доверять типу из бакета).
+  · **Маска (AIP-134/203):** присутствие члена oneof (даже пустого `yandexObjectStorage{}`) считается заполнением;
+    инвариант двусторонний: непустой `bucket` ⇔ задан ровно один член; пути OUTPUT_ONLY-полей в маске ИГНОРИРУЮТСЯ
+    (`0203.md:139` must ignore), 400 — только на несуществующие пути (`0161.md:151`).
+  · **etag** считается только по полям пользователя (`bucket`, `prefix`, член oneof), не по `conditions` — иначе
+    реконсилер ломал бы read-modify-write ложным ABORTED (`0154.md:24` разрешает); формат в кавычках (RFC 7232).
+  · **Условия:** у ненастроенного `conditions: []`; статусы — `True|False|Unknown` (k8s, как у `computeProviders`;
+    открытый общий вопрос о форме условия — PLAN «status как tri-state»); у True reason `Verified`;
+    `lastTransitionTime`.
+  · **Ресурс:** `type` с `resource_reference{type: StorageProviderType}`; `google.api.resource` `singular:
+    storageDestination`, `plural: storageDestinations` (`0156.md:60` must); формат `ownershipObjectKey` документировать
+    — стабилен (из `project.uid`), не меняется при сбросе/перенастройке (асимметрия с `ownershipLabelKey`: тот задаёт
+    тип — живёт в каталоге, этот свой у проекта — на ресурсе).
+  · Ошибки New Session при `sw:logging`/`sw:video` и неготовом хранилище — правило СЕССИЙ, перенесено в ИТОГ
+    `sessions` (ошибки); здесь — только статус `AccessVerified`, на который оно опирается.
+  · **P1, не блокируют (→ [SECURITY] аудит / реализация):** лимиты размера лога/видео и частоты на проект (иначе мы
+    бесплатный писатель в чужой бакет); бакет с SSE-KMS — нашему SA нужна роль на ключ (условное требование в каталоге +
+    отдельное сообщение); доку: lifecycle-правила отдельно на `sessionLogs/`/`sessionVideos/` +
+    `AbortIncompleteMultipartUpload`; объекты удалённого проекта остаются в бакете клиента — мы их не чистим.
+  · Устарело: «не настроено → 404» и `DELETE` в ранней истории storage; `sw.storageDestinations.test` в IAM.
 - **[SECURITY] аудит безопасности — ПОСЛЕ проектирования всех ручек (юзер, 2026-09-29; не прод — не срочно):**
   · **P0 — `wd` = открытый прокси во внутреннюю сеть:** `SessionRoute.decode` принимает любой адрес из id (base64url без
     подписи), `WebDriverProxy.forward` делает `fetch` туда любым методом и отдаёт ответ; `/sessions/:id/*`, WS-прокси и
     `sw/alive` без аутентификации → SSRF (метаданные облака 169.254.169.254, `/internal`, Docker/k8s API). Фикс:
     подписанный/шифрованный id (HMAC/AEAD ключом инсталляции — уже в ИТОГ `sessions`), проверка ДО прокси.
   · **Защита в глубину:** egress-allowlist из `wd` — только сеть окружений; запрет 169.254.169.254 и локальных адресов.
+  · **Storage (ревью 2026-10-04):** владение бакетом проверяется только при создании сессии — загрузка логов/видео и
+    read-back пишут/читают без проверки (можно переключить назначение на чужой бакет посреди сессии); пробная запись
+    `:test` идёт ДО проверки маркера; свободный `endpoint` — SSRF (`S3ObjectStorageGateway.clientFor` ходит на любой URL,
+    `:test` возвращает сырое сообщение — сканирование портов; утекают `AccessKeyId`/session token); пользователю
+    советуют `storage.editor` (весь фолдер) вместо политики на один бакет; комментарий про префикс `sw-verify/`
+    расходится с реальным ключом маркера; инвариант «ключ записи ≠ ключ маркера» неявный — закрепить в домене + тест;
+    в записи артефакта хранить снимок назначения (после смены бакета читать из старого).
   · **P1 — SSRF через `appRef` своей сборки** (роль developer): `ApplicationSource.refKind` считает любой `https?://`
     URL-ом, control plane качает произвольный адрес и отдаёт байты в окружение. Фикс: у своих сборок — только ключ в
     бакете проекта (инвариант в домене).
