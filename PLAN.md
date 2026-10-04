@@ -1228,7 +1228,7 @@ Live на маке (2026-09-08): мак подключён как `Machine` че
 (`CloudAccount.rename`), но ручки, которая бы его вызвала, я не сделал. Поле выглядит изменяемым и не является им.
 
 Кто Update умеет сегодня: привязка платформы, машина, назначение хранилища. Не умеют: проект, облачное подключение,
-окружение (оно неизменяемо по замыслу — пересоздаётся), netbridge-кред.
+окружение (оно неизменяемо по замыслу — пересоздаётся), netbridge-кред [→ ИТОГ tunnels].
 
 Что делать: `PATCH` проекту и подключению, меняющий только `displayName` (и `description`, если заведём). Заодно решить
 про **`updateMask`** (AIP-134): сейчас ни один наш PATCH его не принимает, семантика — «меняю поля, которые прислал».
@@ -1243,7 +1243,7 @@ lowerCamelCase (AIP-140), клиентский идентификатор при
 
 Неровности (замер по всем presenter-ам API):
 [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] - **`updateTime` есть только у проекта и облачного подключения.** У окружения, привязки, машины, приложения, версии
-  приложения и netbridge-кредa есть `createTime`, но нет `updateTime` — а все они изменяемые.
+  приложения и netbridge-кредa [→ ИТОГ tunnels] есть `createTime`, но нет `updateTime` — а все они изменяемые.
 - `displayName` нет там, где он был бы уместен: у окружения и у машины (человеку удобнее «ночная коробка», чем fqdn).
 - `uid` нет у `platform`, `storageDelegation`, `storageDestination` — первые два install-статика, третий синглтон
   (AIP-156), для них это допустимо, но стоит решить осознанно.
@@ -1253,7 +1253,7 @@ lowerCamelCase (AIP-140), клиентский идентификатор при
 ## [AIP] списки без пагинации — НЕ начато (аудит 2026-09-09)
 
 AIP-158 требует, чтобы List-методы отдавали страницы. Постранично у нас: проекты, окружения, приложения проекта.
-Целиком отдаются: `cloudAccounts`, `computeBindings`, `machines`, `netBridgeCredentials`, `cloudTypes`, `platforms`.
+Целиком отдаются: `cloudAccounts`, `computeBindings`, `machines`, `netBridgeCredentials` [→ ИТОГ tunnels], `cloudTypes`, `platforms`.
 Для первых четырёх это осознанный компромисс «их немного» — но `machines` в инсталляции с сотней коробок уже не
 «немного», и это первый кандидат на `pageSize`/`pageToken`. `cloudTypes` и `platforms` — install-статика, там
 пагинация бессмысленна (гугл такие ресурсы тоже отдаёт целиком).
@@ -1935,7 +1935,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   enum-стиль (AIP-126: UPPER_SNAKE_CASE, первое значение `*_UNSPECIFIED`, строка вместо enum для часто растущих
   наборов), единицы в суффиксах (AIP-141), field_behavior (AIP-203), long-running (AIP-151) там, где операции долгие.
   Ресурсы к проверке: `projects`, `computeProviders`, `computeBindings`, `machineLeases`, `machines`, `slots`,
-  `devices`, каталог `platforms/*`, `computeProviderTypes`, `environments`, `sessions`, IAM-методы, netbridge,
+  `devices`, каталог `platforms/*`, `computeProviderTypes`, `environments`, `sessions`, IAM-методы, туннели (бывш. netbridge),
   storage-ручки, internal-контур агентов. Отдельно: наши прецедентные решения, где AIP молчит (k8s-форма
   `conditions[]`, `machineProfiles`, `stereotype`, `form`, `transport`) — пометить как ОСОЗНАННЫЙ выбор по прецеденту
   с записью, что именно AIP не определяет.
@@ -2187,7 +2187,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     `sw:execution` → `sw:runtime` (одно понятие — одно имя).
 - **[DESIGN] `sessions` — разбор (2026-09-29), В РАБОТЕ.** Две стороны: `wd` — W3C WebDriver/BiDi/Appium по букве,
   `api` — AIP. Черновик формата — ответ в сессии 2026-09-29 (пути `/session`, ответ New Session поверх ответа ноды,
-  `webSocketUrl` вместо `sw:bidi`, проброс не-`sw:*` кап и перебор `firstMatch`, `sw:runtime`/`sw:model`/`sw:netBridge`,
+  `webSocketUrl` вместо `sw:bidi`, проброс не-`sw:*` кап и перебор `firstMatch`, `sw:runtime`/`sw:model`/`sw:netBridge` [→ ИТОГ tunnels],
   ошибки в формате W3C; на `api` — `sessionLogs`/`sessionVideos` + `:download`, `environments/{e}:accessSession`, снос
   `…/sessions/{id}/logs|video`, `…/environments/{e}/session`, `capabilities.canAccessCurrentSession`). РЕШЕНО юзером:
   · **Самопроверяемый id сессии** (follow-up «self-verifying session id» переходит в дизайн): в id — подпись сервера
@@ -2227,7 +2227,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     нашего каталога — отдельной капой `sw:platform: "ubuntu"` (разные понятия: семейство W3C и платформа каталога).
   · **`sw:*` не доходят до драйвера** (W3C «must not be forwarded to the endpoint node»): `wd` вырезает свои
     (`sw:projectId`, `sw:environmentId`, `sw:appName`, `sw:runtime`, …); опции сессии (`sw:logging`, `sw:video`,
-    `sw:netBridge`) доходят только до `wd-door` (наш посредник в окружении, перед chromedriver/geckodriver/Appium),
+    `sw:netBridge` [→ ИТОГ tunnels]) доходят только до `wd-door` (наш посредник в окружении, перед chromedriver/geckodriver/Appium),
     он отдаёт их агенту через свой `/status` и вырезает все `sw:*` перед драйвером (сейчас у Appium passthrough — баг).
   · **Артефакты:** `sessionLogs`/`sessionVideos` — порядок по id, БЕЗ `totalSize`/`orderBy` (AIP везде MAY: `0132.md:138`,
     `0158.md:92`; исключение из нашего правила «totalSize во всех List» — бакет не умеет дешёвый подсчёт/сортировку).
@@ -2258,7 +2258,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   регистра (малое отклонение) · `sw:platform` (id платформы каталога, `ubuntu`) · `sw:platformVersion` (синоним
   `appium:platformVersion`) · `sw:model` (синоним `appium:deviceName`; конфликт значений с синонимом → 400) ·
   `sw:runtime` (container|emulator|device, по умолч. container) · `sw:environmentId` (опц., только `alwaysMatch`) ·
-  `sw:logging`/`sw:video`/`sw:netBridge` · `webSocketUrl: true` (нода без BiDi → окружение не подходит) · прочие капы и
+  `sw:logging`/`sw:video` · `sw:tunnel: "<имя>"` (бывш. `sw:netBridge`; см. ИТОГ tunnels) · `webSocketUrl: true` (нода без BiDi → окружение не подходит) · прочие капы и
   неизвестные top-level параметры — на ноду · `firstMatch` строго по W3C (пустой → 400, валидировать все, `null` = не
   задано, ключ и в `alwaysMatch`, и в `firstMatch` → 400, на ноду — только выбранный вариант) · `desiredCapabilities`
   без `capabilities` → 400 с объяснением. `sw:*` до драйвера не доходят: `wd` вырезает свои, опции сессии доходят только
@@ -2340,21 +2340,22 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   `projects/{p}/platforms/{pl}/applications/{a}`; эффективные права = проект ∪ приложение; сборки наследуют;
   `allAuthenticatedUsers` — только с ролями без изменяющих прав.
   **Каталог ролей:** `GET /v1/roles` (пагинация) · `GET /v1/roles/{role}` → `{name, title, description,
-  includedPermissions[]}`; без права (достаточно войти); пользовательских ролей нет.
+  includedPermissions[]}`; без права (достаточно войти); пользовательских ролей нет. Роли в каталоге: `roles/sw.admin`, `roles/sw.developer`,
+  `roles/sw.viewer`, `roles/sw.applicationViewer`, `roles/sw.applicationPublisher`, `roles/sw.tunnelUser` (см. ИТОГ tunnels).
   **Роли** (`roles/{сервис}.{роль}`): `roles/sw.admin` — всё; `roles/sw.developer` — чтение всего + окружения
   (create/delete/accessSession), `sessions.create`, приложения/сборки (create/update/delete); `roles/sw.viewer` — все
   get/list; `roles/sw.applicationViewer` — get/list приложений и сборок; `roles/sw.applicationPublisher` — всё на
   приложения/сборки + `projects.get`. Инфраструктура (провайдеры, привязки, машины: create/update/delete, cordon/
-  uncordon/drain, generateRegistrationToken), `storageDestinations.update|delete`, `tunnelKeys.*`,
+  uncordon/drain, generateRegistrationToken), `storageDestinations.update` (tunnels — НЕ только admin, см. ИТОГ tunnels),
   `serviceAccounts.*`, `serviceAccountKeys.*`, `projects.update|delete|getIamPolicy|setIamPolicy` — только admin.
   **Права** `sw.<коллекция>.<глагол>`: projects {get, update, delete, getIamPolicy, setIamPolicy}; computeProviders,
   computeBindings {get, list, create, update, delete}; machines {get, list, create, delete, generateRegistrationToken,
   cordon, uncordon, drain}; machineLeases, slots {get, list}; applications {get, list, create, update, delete,
   getIamPolicy, setIamPolicy}; builds {get, list, create, delete}; environments {get, list, create, delete,
   accessSession}; sessions {create}; sessionLogs, sessionVideos {get, list}; storageDestinations {get, update, delete};
-  tunnelKeys, serviceAccounts {get, list, create, delete, disable, enable}; serviceAccountKeys {get, list, create,
+  tunnels {get, list, delete, connect, use} (см. ИТОГ tunnels); serviceAccounts {get, list, create, delete, disable, enable}; serviceAccountKeys {get, list, create,
   delete, disable}. Снять: `sw.projects.create`, `sw.sessions.get`, `sw.cloudAccounts.*` (→ computeProviders),
-  `sw.netBridgeCredentials.*` (→ tunnelKeys), `storageDestinations.set` (→ update). Глобальные каталоги
+  `sw.netBridgeCredentials.*` (→ УБРАНЫ: ключи туннеля = ключи сервисных аккаунтов, ИТОГ tunnels), `storageDestinations.set` (→ update). Глобальные каталоги
   (`platforms`, `computeProviderTypes`, `roles`) — без прав, достаточно войти.
   **Участники:** `user:<externalId>`, `group:<groupId>`, `serviceAccount:<sa>@<project>`, `allAuthenticatedUsers`;
   иное (`allUsers`, `domain:`, `deleted:`) → 400. Отклонение: идентификатор — externalId из IdP, а не email.
@@ -2410,11 +2411,11 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     только `computeProviderTypes`, `storageProviderTypes`, `roles`); `sw.storageDestinations.{get,update}` (`delete` снят — AIP-156:
     синглтон «must not define … Delete»; `test` снят вместе с методом; сброс — `PATCH …?updateMask=*` `{}` — РЕШЕНО в
     ИТОГ storage; get — admin/developer/viewer, update — admin); `machines.update` — только если у машины остаётся PATCH (решить при сквозной
-    сверке); `tunnelKeys.{disable,enable}` — только если такие методы есть (разбор netbridge); `:download` у
+    сверке); [РЕШЕНО в ИТОГ tunnels: отдельных ключей туннеля нет]; `:download` у
     sessionLogs/Videos проверяет `.get`; `:search` приложений проверяет `sw.applications.get` на каждом элементе, шаблон
     пути `projects/*/…` (не хардкод `-`, AIP-159), имена в ответе канонические.
   · **Матрица ролей — выписать ПО КАЖДОМУ ПРАВУ** при реализации (сейчас словами; противоречие «viewer — все get/list»
-    против «tunnelKeys/serviceAccounts/getIamPolicy — только admin» → viewer НЕ видит tunnelKeys, serviceAccounts(+keys),
+    против «serviceAccounts/getIamPolicy — только admin» → viewer НЕ видит serviceAccounts(+keys),
     `projects.getIamPolicy`).
   · **Каталог-bootstrap:** конфиг `CATALOG_ADMIN_MEMBERS` — полные строки `Member` (`user:`/`group:`), битое → не
     стартуем, пустое → warn (каталог без издателей, законно); сверка под `with(catalogId, cb)`/FOR UPDATE, запись только
@@ -2520,6 +2521,83 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     отдельное сообщение); доку: lifecycle-правила отдельно на `sessionLogs/`/`sessionVideos/` +
     `AbortIncompleteMultipartUpload`; объекты удалённого проекта остаются в бакете клиента — мы их не чистим.
   · Устарело: «не настроено → 404» и `DELETE` в ранней истории storage; `sw.storageDestinations.test` в IAM.
+- **ИТОГ tunnels (бывш. NetBridge) — ЗАКРЫТ (юзер, 2026-10-04; 2 финальных ревью, уточнения ниже).** `netBridge` (бренд) → `tunnel` (отрасль:
+  Sauce `tunnelName`, BrowserStack `localIdentifier`) ВЕЗДЕ: ресурс `tunnels`, права `sw.tunnels.*`, капа `sw:tunnel`, CLI
+  `sw-tunnel`, пакеты `@sw/tunnel` / `@sw/tunnel-cli`, `/internal/netbridge:download` → `/internal/tunnelForwarder:download`.
+  **Ресурс `projects/{p}/tunnels/{tunnel}`** — существует, пока CLI подключён (создаёт сервер при подключении,
+  исчезает при отключении; Create нет — AIP-121 требует минимум Get/List; прецеденты Cloud Run revisions, Sauce tunnels):
+  `name` IDENTIFIER (id задаёт CLI, AIP-122 `[a-z0-9-]`, по умолч. `default`) · `connectTime` · `principal` (кто
+  подключил: `user:`/`serviceAccount:`) · `shared` (bool) · `clientVersion` — всё OUTPUT_ONLY; без `state` (существование
+  и есть состояние), без `uid`/`etag` (не декларативный). Методы: Get, List (pageSize/pageToken/totalSize), Delete
+  (принудительно отключить → `{}`).
+  **Подключение** (data plane, wd; AIP-136 не применяется): WS `wss://<wd>/v1/projects/{p}/tunnels/{t}:connect
+  [?replace=true][&shared=true]`, вход — `Bearer`/`Basic` ключом сервисного аккаунта или токеном пользователя, право
+  `sw.tunnels.connect`. Имя занято → 409 ALREADY_EXISTS; CLI при СВОЁМ переподключении шлёт `replace=true` (юзер: не пул —
+  иначе разные сети под одним именем; пул — позже явным флагом). Forwarder в окружении — `…/tunnels/{t}:forward` с
+  пропуском сессии (не голое «agent»). Только `wss` (CLI отказывается от `ws://` к не-loopback).
+  **Ключи — одна система с IAM (юзер, как у Google: у IAP-туннелей нет своих ключей):** отдельный ресурс
+  `netBridgeCredentials`/`tunnelKeys`, его права и префикс `swnb_` УБРАНЫ; CI — сервисный аккаунт с ролью
+  `roles/sw.tunnelUser` (`sw.tunnels.connect`, `sw.tunnels.get`, `sw.projects.get`). Отзыв/выключение ключа рвёт уже
+  открытый туннель (перепроверка раз в ~60 с).
+  **Кто пользуется туннелем (юзер, как Sauce):** по умолчанию ПРИВАТНЫЙ — им ходят только сессии того же `principal`,
+  что подключил; `shared=true` при подключении открывает его сессиям любого участника проекта с `sw.tunnels.use`.
+  Права: `sw.tunnels.{get, list}` — admin/developer/viewer; `connect`, `use`, `delete` — admin/developer.
+  **Сессия:** капа `sw:tunnel: "<имя>"` (наличие = ходить через туннель) заменяет `sw:netBridge: true`. Туннель не
+  подключён / нет доступа (приватный чужой, нет `sw.tunnels.use`) → 400 `session not created` с причиной в `message`.
+  Обрыв посреди сессии — сессия живёт, новые соединения через прокси отклоняются, CLI переподключается (`replace`),
+  работа восстанавливается.
+  **Привязка к сессии (P0, сейчас дыра):** forwarder открыт не всему окружению, а только сессии с `sw:tunnel`:
+  control plane выдаёт сессии подписанный пропуск (TTL, `project`, `tunnel`, `session`); локальный прокси в окружении
+  (терминирует `wd-door`/агент — Chrome не умеет SOCKS-auth) требует его; на DELETE сессии пропуск гаснет.
+  **Политика выхода у CLI:** по умолчанию всё (как BrowserStack) + проверка по ИТОГОВОМУ IP (link-local, метаданные
+  облака, IPv4-mapped закрыты), `--allow`/`--deny` с CIDR и масками, явное предупреждение «весь трафик браузера идёт
+  через вашу сеть»; для CI рекомендовать `--allow`.
+  **Доставка:** контракт «loopback-прокси туннеля в окружении, активный только для сессии с `sw:tunnel`» обязан
+  выполнить каждый адаптер (docker — есть; VM, k8s, слоты машин — нет). Капу применяет `wd-door` по браузеру: Chrome/Edge
+  `--proxy-server` + `<-loopback>`; Firefox — `network.proxy.*` (socks, `socks_remote_dns`,
+  `allow_hijacking_localhost`). Android в v1 НЕ поддерживается — `sw:tunnel` там → 400 (не молча).
+  **Эксплуатация:** реестр туннелей — общий для инстансов wd (строка в Postgres с lease + брокер/sticky по
+  `project+tunnel`; сейчас в памяти одного процесса — противоречит «design for many workers»); лимиты (каналы, байты/с,
+  туннели на проект, rate limit на 401); журнал метаданных на CP (project, tunnel, session, host:port, байты — без
+  содержимого). Баги сейчас: два CLI одного проекта вытесняют друг друга (`attachClient`); `hasClient` не используется
+  (сессия с туннелем создаётся без туннеля); срок/отзыв ключа проверяется только при подключении; правило выхода —
+  строковое (обходится резолвом в 169.254.x.x); демо-ключ на проде — отозвать.
+- **УТОЧНЕНИЯ ИТОГ tunnels (2 финальных ревью, 2026-10-04) — главнее ИТОГ tunnels там, где расходятся.**
+  · **БЛОКЕР закрыт — перехват через `replace`:** при подключении сервер выдаёт CLI одноразовый resume-токен; `replace`
+    принимается только с ним (иначе 409 `TUNNEL_NAME_IN_USE`) — так ни чужой участник, ни второй CI-джоб на том же SA не
+    вытеснит туннель; забрать имя чужого — сначала `DELETE` (право `sw.tunnels.delete`). Пропуск сессии привязан к
+    конкретному ПОДКЛЮЧЕНИЮ (creator + поколение подключения): при замене туннеля новые каналы старых сессий
+    отклоняются, а не уезжают в чужую сеть. Для CI в доке — уникальное имя на запуск, не `default`.
+  · **Пропуск сессии — как работает:** его предъявляет forwarder на `:forward` (браузер его не видит; Chrome не умеет
+    SOCKS-auth); wd проверяет офлайн на каждый Open-фрейм канала: подпись, `exp` (~60 с, продление в ответе хартбита,
+    пока сессия жива), `env` пропуска = `env` из токена окружения (защита от переноса в другое окружение); `:forward`
+    требует токен окружения И пропуск. Плечо «браузер → loopback» без аутентификации, поэтому: прокси «взведён» только
+    на время сессии и гасится на ЛЮБОМ её конце (DELETE, idle-таймаут, падение ноды); `wd-door` отклоняет
+    пользовательские proxy-капы/`--proxy-server`, указывающие на порт туннеля. На общих хостах (слоты машин — общий
+    loopback, порт виден чужим проектам) контракт адаптера: отдельный netns на окружение ИЛИ отдельный uid на слот +
+    `iptables -m owner`; пока этого нет — `sw:tunnel` на слотах → 400 (unix-сокет не годится — Chrome не принимает).
+  · **DNS-rebinding:** CLI соединяется ровно с проверенным IP (свой resolve, проверка всех A/AAAA, connect по адресу);
+    в запрете также `0.0.0.0/8`, `::`, NAT64 `64:ff9b::/96`, 6to4, metadata IPv6 `fd00:ec2::254`; числовые/восьмеричные
+    формы адреса нормализуются до проверки.
+  · **«Тот же создатель»:** поле `principal` → **`creator`** (как Cloud Run `Revision.creator`; значение — строка
+    `Member`), сравнение — точная строка `Member` (`user:`/`serviceAccount:`, группы не в счёт; SA — по `uid`, как в
+    УТОЧНЕНИЯХ IAM); туннель пользователя ≠ сессия SA (для этого `shared`). Право `use` проверяется ВСЕГДА, и у владельца.
+    CI-рецепт: SA с `roles/sw.tunnelUser` + `roles/sw.developer` (роли раздельные; `tunnelUser` НЕ включает
+    `sessions.create`); `tunnelUser` = `connect` + `use` + `get` (CLI читает свой туннель) + `projects.get`. Перепроверка
+    раз в ~60 с — ключ и право `connect`, НЕ срок OIDC-токена (иначе обрыв каждые ~5 мин). Зависимость: баг IAM (7).
+  · **`DELETE` при живых сессиях:** закрытие отдельным WS close-кодом «deleted» — CLI завершается и НЕ
+    переподключается (отзыв ключа/права — тот же код + 401/403 при новом подключении); сессии живут, новые каналы
+    отклоняются.
+  · **Ошибки `:connect`** (путь в стиле AIP → до WS-upgrade формат AIP-193 с `ErrorInfo`): `TUNNEL_NAME_IN_USE` (409),
+    `IAM_PERMISSION_DENIED` (403, «or it might not exist»), `INVALID_TUNNEL_ID` (400). Отказы New Session (W3C, причина в
+    `message`): `TUNNEL_NOT_CONNECTED`, `TUNNEL_ACCESS_DENIED`, `TUNNEL_NOT_SUPPORTED` (Android/слоты без изоляции).
+  · **id туннеля:** `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$` (AIP-122), иное → 400, без молчаливой нормализации.
+  · **List:** `filter` (`creator="…"`, `shared=true` — «мои/общие»), `totalSize` после фильтра, порядок — по `connectTime`.
+  · **Несколько инстансов wd:** lease-строка с поколением (fencing — инстанс, не продливший lease, сам перестаёт
+    ретранслировать), адрес владельца + пересылка между инстансами (не sticky-хэш LB); просроченные lease в Get/List не
+    видны, имя освобождается по TTL (~30 с) или через resume-токен.
+  · Записать как осознанное: viewer видит `creator` чужих туннелей (как Cloud Run); developer может отключить чужой
+    приватный туннель (`delete`).
 - **[SECURITY] аудит безопасности — ПОСЛЕ проектирования всех ручек (юзер, 2026-09-29; не прод — не срочно):**
   · **P0 — `wd` = открытый прокси во внутреннюю сеть:** `SessionRoute.decode` принимает любой адрес из id (base64url без
     подписи), `WebDriverProxy.forward` делает `fetch` туда любым методом и отдаёт ответ; `/sessions/:id/*`, WS-прокси и
@@ -2559,7 +2637,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
      включая overhead), `versions[]`, `devices[]`.
   [ЗАМЕНЕНО 2026-09-28 → см. «ИТОГ — `environments`, `applications`, `builds`»] 4. Затем — модель приложения окружения (`nameAlias`/`versionAlias` → `appName`/`appVersion` + `detected{}`),
      `environments` (`UNHEALTHY` внутри state, `occupancy`, `machine` OUTPUT_ONLY + `filter=machine=`), `sessions`,
-     IAM (`roles/wizard`), netbridge (`netBridgeCredentials`, `sw:netbridge`), enum-casing.
+     IAM (`roles/wizard`), netbridge [→ ИТОГ tunnels], enum-casing.
   Каждый пункт — по формату «было / предлагается, JSON со всеми `|`, ручки с curl».
 - **Какие runtime предлагает провайдер — НЕ захардкожено по типу провайдера** (юзер: android/container на self-hosted
   «ничего не мешает» — верно, redroid на Linux-коробке с docker). Под одной схемой предложение выводится из
@@ -2616,7 +2694,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
 
 **Идея юзера:** все НЕ-WebDriver ручки (control plane `api`, internal для агентов) описать протобуфами — proto и есть
 документация API; для клиентов, говорящих HTTP/1.1+JSON, поставить Envoy, который принимает HTTP-запрос и сам
-превращает его в gRPC (HTTP/2) и обратно. WebDriver/Appium (`wd`) и netbridge остаются как есть — W3C диктует
+превращает его в gRPC (HTTP/2) и обратно. WebDriver/Appium (`wd`) и туннели (`:connect`/`:forward`, data plane) остаются как есть — W3C диктует
 HTTP/JSON.
 
 **Как это устроено у Google и почему ложится на нас без натяжки:**
@@ -2745,8 +2823,8 @@ AWS/GCP/YC читается как БИЛЛИНГОВЫЙ аккаунт. Оба
 - `roles/wizard` не сообщает ни объёма прав, ни места в иерархии → `roles/operator`.
 - `occupancy` читается как метрика-число (occupancy rate) → `allocation: AVAILABLE|RESERVED|IN_USE`.
 - `sw.environments.teleport` — чужой бренд (Teleport = продукт infra-access) → `sw.environments.attach`.
-- `netBridgeCredentials` — бренд вместо отраслевого слова (BrowserStack Local, Sauce Connect) → `tunnelKeys`.
-- `sw:netbridge` — единственная капабилити в нижнем регистре среди lowerCamel-соседей.
+- `netBridgeCredentials` — бренд вместо отраслевого слова (BrowserStack Local, Sauce Connect) → [РЕШЕНО 2026-10-04: ресурс убран, туннели — `projects/{p}/tunnels`, ключи — сервисных аккаунтов].
+- `sw:netbridge` — единственная капабилити в нижнем регистре среди lowerCamel-соседей. [РЕШЕНО: `sw:tunnel`]
 - Три стиля значений в одном API: `ENQUEUED` / `online` / `self-hosted`; kebab не ложится в proto-энумы.
 - Один корень «provide» в трёх смыслах: `computeProviders`, `source.type: provided`, `machine.provides[]`.
 - Устройство названо четырьмя способами: `sw:deviceModel`, `platform.deviceModel`, `platforms.devices[].id`,
