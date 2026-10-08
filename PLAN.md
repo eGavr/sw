@@ -134,7 +134,7 @@ Get/List/Create/Delete (Delete → `{}` — **пересмотреть, см. п
 Сделано также: **permissions по IAM** — `GET .../permissions` заменён на IAM-метод
 `POST /v1/accounts/{account}:testIamPermissions` (google.iam.v1): тестирует переданный набор и
 возвращает подмножество, которым владеет вызывающий (детали — в разделе «Сделано»).
-**`{resource}_id` (человекочитаемые id) — ПРОЕКТЫ СДЕЛАНЫ (ветка `feat.human-readable-resource-ids`); ОКРУЖЕНИЯ — следующим PR.**
+**[→ ИТОГ `projects` (2026-10-08): `projectId` теперь REQUIRED, uid-алиас в URL убран]** **`{resource}_id` (человекочитаемые id) — ПРОЕКТЫ СДЕЛАНЫ (ветка `feat.human-readable-resource-ids`); ОКРУЖЕНИЯ — следующим PR.**
 Реализовано по AIP-133: клиент опц. задаёт `projectId` (`^[a-z][a-z0-9-]*$`, VO `ResourceId`, uuid-форма запрещена во избежание коллизии
 с uid-namespace), он идёт в `name: projects/my-team`; не задал → `name: projects/<uid>` (backward-compatible). `uid` (uuid) остаётся
 стабильным хэндлом; `displayName` — отдельная изменяемая метка. Дубликат → 409 (`ResourceIdConflictError`, глобально уникален,
@@ -1017,6 +1017,7 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 - **Минимум в UI (решение юзера «хотя бы в UI дизейблить»):** в New session модалке дизейблить тумблеры sw:logging/sw:video, если у проекта нет destination, с подсказкой «configure storage first». — СДЕЛАНО в рамках `feat.settings-storage-ui`.
 
 ## Follow-up: удаление проекта (API + UI) — НЕ начато
+**[→ ИТОГ `projects` (2026-10-08) — главнее этого раздела: Delete, дети, `force`, повтор id]**
 
 Вопрос юзера (2026-08-31): удаления проекта нет нигде — ни `DELETE /v1/projects/{p}` в api, ни в UI. Сделать:
 - **[ПОПРАВКА 2026-09-28: при детях — FAILED_PRECONDITION, не 409 (AIP-135 `0135.md:154` MUST); среди детей теперь applications; проект `catalog` удалять нельзя]** **API**: `DELETE /v1/projects/{project}` (AIP-135), новое право `sw.projects.delete` (только admin-роль). Семантика с детьми — первым заходом **вариант «пустой или отказ»**: при живых окружениях → 409 «delete environments first» (арбитр — FK, как у cloudAccounts); у пустого проекта остальное (iam-биндинги, cloud accounts, storage destination) удаляется каскадом/явно. Каскадный вариант (перевести все env в deleting → воркер депровиженит → потом снести проект) — сложная асинхронная оркестрация, отложить, пока не понадобится. Hard delete — по нашей доктрине (soft отвергнут юзером ранее); для справки: GCP держит проекты 30 дней в soft-delete, нам это осознанно не нужно.
@@ -2376,7 +2377,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     `user:`/`group:` (удаление последнего человека-admin или единственного SA-admin → FAILED_PRECONDITION); аварийный
     доступ оператора инсталляции (break-glass) через конфиг — добавить.
   · **Журнал изменений IAM (аудит) — НЕ делаем в v1** (решение юзера; только `lastUseTime` у ключей).
-  · **Список проектов — `GET /v1/projects:search`** (проекты, где у вызывающего есть `sw.projects.get`; прецедент Resource
+  · **[→ уточнено в ИТОГ `projects`: фильтр по праву, группы, break-glass]** **Список проектов — `GET /v1/projects:search`** (проекты, где у вызывающего есть `sw.projects.get`; прецедент Resource
     Manager `SearchProjects`); обычного List проектов нет (у проекта нет родителя для проверки права).
 - **УТОЧНЕНИЯ ИТОГ IAM (финальное ревью, 2026-10-04):**
   · **Публичный участник:** `allAuthenticatedUsers` разрешён ТОЛЬКО в политиках приложений проекта `catalog` и только с
@@ -2393,7 +2394,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     supported). `applications.getIamPolicy|setIamPolicy` — только admin и applicationPublisher. Инвариант «последний
     admin» — только для политики проекта.
   · **Сервисные аккаунты:** связка хранит `uid` SA (повторное создание SA/проекта с тем же id не наследует старые
-    гранты; удалённые — как Google `deleted:serviceAccount:…?uid=`); id удалённого проекта не переиспользуется;
+    гранты; удалённые — как Google `deleted:serviceAccount:…?uid=`); [ОТМЕНЕНО ИТОГ `projects`, 2026-10-08: id удалённого проекта переиспользуется (AIP-128), от наследования защищает только `uid`] ~~id удалённого проекта не переиспользуется~~;
     `setIamPolicy` проверяет существование SA; удаление SA/проекта каскадно чистит связки во всех политиках (с новым
     etag). `PATCH serviceAccounts/{sa}` (`displayName`, `updateMask`, `etag`) + право `sw.serviceAccounts.update`
     (AIP-148: `displayName` must be mutable). Ключи: `?serviceAccountKeyId=` OPTIONAL (AIP-133 MUST), `:enable` +
@@ -2758,6 +2759,108 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     (иначе обход). Капа `sw:sessionUid` — в список ответа New Session; рассмотреть `sw:sessionUrl` (полный URL).
   · **Туннели:** `:connect` — ключом SA ИЛИ ЛИЧНЫМ КЛЮЧОМ пользователя (не токеном IdP); перепроверка раз в ~60 с — ключ
     и право `connect`. OIDC-вход для CLI — вместе с `sw login`, позже.
+- **ИТОГ `projects` — ЗАКРЫТ (юзер, 2026-10-08; 2 ревью + проверка прецедентов break-glass + 2 финальных ревью; уточнения — «УТОЧНЕНИЯ ИТОГ `projects`» ниже, главнее там, где расходятся).**
+  Главнее пунктов о проектах выше (п.«`{resource}_id` … ПРОЕКТЫ СДЕЛАНЫ», «Follow-up: удаление проекта», проектные пункты ИТОГ IAM).
+  ```
+  POST   /v1/projects?projectId=team-a  {"displayName":"Team A"}          → Project
+  GET    /v1/projects/{project}                                            → Project
+  PATCH  /v1/projects/{project}?updateMask=displayName  {"displayName":"…","etag":"…"} → Project
+  DELETE /v1/projects/{project}                                            → {}
+  GET    /v1/projects:search?pageSize=&pageToken=                          → {projects[], nextPageToken}
+  GET    /v1/projects/{project}:getIamPolicy · POST …:setIamPolicy · POST …:testIamPermissions  (как в ИТОГ IAM)
+  Project = {name:"projects/team-a", uid, displayName, etag, createTime, updateTime}
+  ```
+  · **`projectId` — REQUIRED, в query, не в теле** (AIP-133 `0133.md:161` «The `{resource}_id` field **must** exist on the
+    request message, not the resource itself»; прецедент Resource Manager `CreateProjectRequest`: «Project ID is required»).
+    Каноническое имя всегда `projects/{projectId}`; **uid как алиас в URL УБРАН** (одно имя на понятие; `uid` — OUTPUT_ONLY,
+    внутренний хэндл AEAD-id сессий, ключей объектов в бакете, связок SA). Существующим проектам без id — миграция с
+    выдачей id. Формат — AIP-122 `0122.md:133-136`: `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$` (сейчас пропускается хвостовой `-`);
+    uuid-форма запрещена. Зарезервирован `catalog` (создаёт только bootstrap): пользовательский create → 400
+    INVALID_ARGUMENT `reason: RESERVED_RESOURCE_ID` (иначе окно «занять `catalog` до первого boot» = подмена каталога).
+  · **Ошибки create:** повтор id → **409 ALREADY_EXISTS** `RESOURCE_ALREADY_EXISTS` (AIP-133 `0133.md:174` MUST; сейчас
+    ABORTED — баг: отдельная `AlreadyExistsError`, `ABORTED` только `ETAG_MISMATCH`); гонка двух create (unique
+    violation 23505 → сейчас 500) маппится в data source в тот же 409. Создают только люди: SA → 403.
+  · **Update:** только `displayName` (AIP-148 `0148.md:41` «**must** be a mutable, user-settable field»; ≤63 символа —
+    `0148.md:46`, сейчас 64), право `sw.projects.update` (admin). `updateMask` OPTIONAL (без маски — заполненные поля, `*`
+    поддерживается, AIP-134). **`etag`** — по нашему правилу «etag на всех PATCH-able» (AIP-154 «may»): OPTIONAL на PATCH,
+    считается ТОЛЬКО по полям проекта (`displayName`), не по политике; рассинхрон → 409 ABORTED `ETAG_MISMATCH`.
+    **`setIamPolicy` больше НЕ трогает `updateTime`** проекта — у политики свой `etag` (как у Google: политика не поле ресурса).
+  · **Delete — hard, `{}`** (AIP-135 `0135.md:40` Empty), право `sw.projects.delete` (admin). **id после удаления можно
+    занять снова** — по AIP-128 «Resources **should not** implement soft-delete. If the id cannot be re-used, the resource
+    **must** implement soft-delete and the undelete RPC»: soft-delete не нужен → повторное использование разрешено, без
+    отклонения. Пересозданный проект ничего не наследует: всё внутреннее завязано на `uid` (AEAD-id, бакет, связки SA,
+    ключ кэша `wd` — по uid, проверить).
+    · Дети (AIP-135 `0135.md:60` MUST FAILED_PRECONDITION): окружения (с сессиями), cloudAccounts/computeProviders (с
+      привязками, машинами, арендами), приложения (со сборками), туннели, сервисные аккаунты → 400 FAILED_PRECONDITION
+      `reason: PROJECT_NOT_EMPTY` + `PreconditionFailure.violations[{type:"HAS_CHILDREN", subject:"projects/p/environments",
+      description:"3 environments"}]`. У приложений и туннелей FK сейчас `CASCADE` (молча стирает) — проверка явная, в
+      data source под локом строки проекта.
+    · Синглтон `storage` и IAM-политика удаляются вместе с проектом (`0135.md:63` «If the only child resource type is a
+      Singleton, deletion **must** be allowed»); метаданные сессий `projects/{p}/sessions/*` удаление не блокируют.
+    · **`force` НЕ делаем — записанное отклонение от SHOULD** (`0135.md:135` «**should** provide a `bool force`»): каскад
+      асинхронный (гасить окружения через воркер) — платим ручной очисткой детей, получаем синхронный строгий Delete без
+      LRO. Вернуть, если понадобится.
+    · `catalog` → 400 FAILED_PRECONDITION `reason: CATALOG_PROJECT_UNDELETABLE` (доменное правило, не только IAM).
+    · Инвариант «последний человек-admin» к Delete не относится (политика уходит вместе с проектом).
+  · **Search** (`GET /v1/projects:search`, прецедент Resource Manager `SearchProjects` — «projects that the caller has …
+    `resourcemanager.projects.get` permission on»): проекты, где у вызывающего ЕСТЬ ПРАВО `sw.projects.get` (набор ролей с
+    этим правом формирует домен, data source транслирует), с учётом `group:`-членства. Сейчас два бага: группы не
+    учитываются (`pageByMember` только `user:`), фильтр по любой связке (applicationViewer/tunnelUser видят проект, GET → 403).
+    `GET /v1/projects` (List) удаляется. `query`/`filter` не вводим, пока не нужны. Отрицательный `pageSize` → 400 (AIP-132 MUST).
+  · **Get/IAM-методы:** право проверяется ДО существования — чужой и несуществующий проект → одинаково 403
+    «Permission 'sw.projects.get' denied on resource 'projects/x' (or it might not exist)» (AIP-135 `0135.md:222`, AIP-211);
+    сейчас 404 раньше 403 → перебор id.
+  · **Каноническое имя проекта во ВСЕХ вложенных ресурсах** (AIP-122 `0122.md:156` MUST «all data returned from the API
+    **must** use the canonical resource name»): сейчас окружения/cloudAccounts/computeBindings/приложения подставляют хэндл
+    из URL, а туннели/storage — uid. Строить из сущности проекта.
+  · **Админ инсталляции (break-glass, `INSTALLATION_ADMIN_MEMBERS`) на проектах** — по прецедентам (сверено):
+    Google `roles/resourcemanager.organizationAdmin` = `projects.get/list/getIamPolicy/setIamPolicy` на все проекты и БЕЗ
+    `compute.*`/`storage.*` («Access to manage IAM policies … for organizations, folders, and projects»); GitHub Enterprise:
+    владелец предприятия без членства не видит содержимое, восстанавливает доступ «Join as an organization owner».
+    У нас: `projects:search` показывает ему ВСЕ проекты; `:getIamPolicy`/`:setIamPolicy`/Get проекта — на любом проекте
+    (вернуть admin в осиротевший проект); содержимое (окружения, сессии, приложения, storage) — ТОЛЬКО через явно
+    добавленную себе роль. Отклонение то же, что у `users` (гейт по конфигу, не IAM-право — организации над проектами нет).
+    Каждый его `setIamPolicy` на чужом проекте — отдельное структурированное событие в серверном логе (кто, проект, diff
+    биндингов) — по совету Google «set up alerts … when a SetIamPolicy() API call is made»; API-журнала IAM в v1 по-прежнему нет.
+  · **ErrorInfo.reason:** `RESOURCE_ALREADY_EXISTS`, `RESERVED_RESOURCE_ID`, `INVALID_RESOURCE_ID` (+`BadRequest.fieldViolations`),
+    `ETAG_MISMATCH`, `PROJECT_NOT_EMPTY` (+`PreconditionFailure`), `CATALOG_PROJECT_UNDELETABLE`, `LAST_ADMIN_REQUIRED`.
+- **УТОЧНЕНИЯ ИТОГ `projects` (2 финальных ревью, 2026-10-08) — главнее ИТОГ `projects` там, где расходятся.**
+  · **List ОСТАЁТСЯ** (AIP-121 `0121.md:84` «A resource **must** also support [List][], except for [singleton resources]»;
+    `:search` его не заменяет — `0132.md:110-112` «Search methods are more relaxed»): `GET /v1/projects` — только админ
+    инсталляции (все проекты), остальным 403, как `GET /v1/users`. Пользователь находит свои проекты через `:search`.
+    Пункт «`GET /v1/projects` (List) удаляется» и «обычного List проектов нет» (ИТОГ IAM) — отменены.
+  · **Повтор id на create:** 409 ALREADY_EXISTS только если у вызывающего есть `sw.projects.get` на существующем проекте;
+    иначе 403 «Permission 'sw.projects.get' denied on resource 'projects/x' (or it might not exist)» (AIP-133 `0133.md:176`
+    «if the user making the call does not have permission to see the duplicate resource, the service **must** error with
+    `PERMISSION_DENIED` instead»); то же для гонки (23505). Иначе create — перебор чужих id.
+  · **Ссылки:** 403-до-существования для Get/IAM-методов — AIP-211 `0211.md:25` и AIP-131 (не 0135:222, тот про Delete);
+    формат id — `0122.md:131-136`. AIP-128 о soft-delete — из раздела declarative-friendly, берём как ориентир.
+  · **field_behavior:** `name` IDENTIFIER (в теле Create игнорируется, `0133.md:165`) · `uid` OUTPUT_ONLY (UUID4) ·
+    `displayName` OPTIONAL · `createTime`/`updateTime` OUTPUT_ONLY · `etag` без аннотации. Пути OUTPUT_ONLY/IDENTIFIER в
+    `updateMask` игнорируются (`0203.md:139`), несуществующий путь → 400 — как в УТОЧНЕНИЯХ storage. `etag` сильный, в
+    кавычках, как у политики.
+  · **ErrorInfo:** + `IAM_PERMISSION_DENIED` для всех 403 (пары reason/domain — как в ИТОГ IAM).
+  · **Арбитр Delete — БД:** FK детей на `project` (`environment`, `cloud_account`, `project_application`,
+    `net_bridge_credential`/туннели, сервисные аккаунты) — `ON DELETE RESTRICT` (сейчас у приложений и туннелей CASCADE);
+    CASCADE только у синглтона `storage_destination`, IAM-связок и следов (метаданные сессий, записи `sessionLogs`/
+    `sessionVideos`). Delete берёт `SELECT … FOR UPDATE` строки проекта; вставка ребёнка конфликтует через FK-лок; 23503
+    на create ребёнка → тот же ответ, что «проекта нет» (403 по AIP-211), не 500.
+  · **Дети уточнены:** окружения в ЛЮБОМ состоянии (вкл. `failed`/`deleting`) блокируют; машины/аренды/слоты покрыты
+    блокировкой по computeProviders; объекты в бакете пользователя под `sw/projects/<uid>/` не трогаем — документировать.
+    Туннели блокируют своими строками; живое подключение рвётся при удалении туннеля (ИТОГ tunnels); ключ реестра
+    подключений `wd` — `project.uid`, не id из URL.
+  · **Кэш разрешений `wd` (учётка, проект)** — ключ строго `project.uid`; удаление проекта сбрасывает кэш тем же `NOTIFY`,
+    что отзыв роли. В AEAD `creator` для SA — uid SA, не строка `serviceAccount:…@<project>`.
+  · **Миграция id:** проектам без `resource_id` — `'p-' || left(replace(id::text,'-',''), 10)` (+суффикс при коллизии),
+    затем `NOT NULL` + полный UNIQUE; `catalog`, созданный не системой, → миграция падает. Ссылки по uid ломаются (ок).
+  · **`catalog`:** резерв — доменное правило пользовательского create; bootstrap создаёт отдельной фабрикой
+    (`Project.createCatalog`); найденный `catalog` не системного происхождения → bootstrap падает (сейчас
+    `ensureProject` усыновляет любой). Баг: в коде `CATALOG_ADMIN_EXTERNAL_IDS` → `roles/admin`, по ИТОГ IAM —
+    `CATALOG_ADMIN_MEMBERS` → `roles/sw.applicationPublisher`.
+  · **Break-glass без прямых `projects.update|delete`** (как `organizationAdmin` — только get/list/getIamPolicy/setIamPolicy):
+    всё прочее — через выданную себе роль (событие в логе с `project.uid` рядом с именем). Инвариант последнего
+    человека-admin действует и для него; его `setIamPolicy` на `catalog` перезапишет bootstrap — документировать.
+  · **Осознанно:** `tunnelUser`/`applicationViewer` без `sw.projects.get` не видят проект в `:search` — ходят по прямому имени.
   · «Секрет сессии в неположенном месте → 400 с подсказкой» — и маскировать его в логах `api`.
 - **Группы и увольнения для личных ключей — КОПИЯ КАТАЛОГА ПОЛЬЗОВАТЕЛЕЙ (юзер, 2026-10-08; исследование 10
   источников):** снимок групп «с последнего входа» отвергнут (юзер: в UI заходят редко, основной путь — API/CI; так же
