@@ -193,13 +193,13 @@ REST-body: `platform`/`applications`/`device`/выбор провайдера), 
    следующим хартбитом агента (окружение снова аллоцируемо). Проверено e2e: сессия переживает активность и умирает
    от простоя; после `DELETE` команда → `NoSuchSession`, `busy=false`. **Спекулятивная доменная idle-машинерия
    удалена** (`Session.idleTimeout`/`isIdleAt`/`touch`/`lastActivityAt`, `SessionId`, `SessionIdleTimeout`,
-   `SessionData`/`fromObject`) — в новой модели сессия не персистится и её lifecycle держит нода; `Session` теперь
+   `SessionData`/`fromObject`) — в новой модели сессия не персистится [→ 2026-10-08: метаданные сессии хранятся (ресурс `sessions`), секрет — нет; см. ИТОГ wd-auth] и её lifecycle держит нода; `Session` теперь
    чистый immutable-VO результата аллокации. Свой in-process reaper понадобится только для мульти-инстансной
    политики → см. п.9.
 
 2. ~~**Аутентификация data-plane (`wd`).**~~ **СДЕЛАНО.** Токен требуется только на СОЗДАНИЕ сессии
    (`POST /sessions`): `create-session-use-case` резолвит `User` через `UserRepository` (как `api`),
-   поэтому `wd` теперь работает с Postgres. Остальное — без auth: доступ по неугадываемому
+   поэтому `wd` теперь работает с Postgres. Остальное — без auth [→ 2026-10-08: auth на КАЖДОЙ команде, ИТОГ wd-auth]: доступ по неугадываемому
    `session_id` (capability-модель; секрет — 128-битный wdSessionId внутри id). Реальную схему токена
    (JWT/ключи + выпуск в control-plane) добавим как impl того же auth-порта; авторизацию «может ли
    создать сессию в этом окружении» — вместе с аккаунтами (п.3). Проверено e2e: без/невалидный токен
@@ -1041,7 +1041,7 @@ Apple Silicon: Docker Desktop запущен; образ `seleniarm/standalone-c
 
 **СДЕЛАНО:** `GET /v1/projects/{p}/environments/{e}/session` (recover live id только создателю сессии; чужим 404), `session_ownership`-синглтон с событийной чисткой, `capabilities.canAccessCurrentSession` в GET environments, UI: серая стрелка на busy-строке → Sessions-таб. Ниже — исходный дизайн.
 
-Идея юзера, согласована: сессию через UI сейчас нельзя ни увидеть, ни убить (id показывается один раз и нигде не хранится — by design). Решение БЕЗ отказа от «не персистим секрет»: **live-восстановление по запросу**. Активный `wdSessionId` уже отдаёт сама нода в `GET {endpoint}/status` (агент не нужен — он сам берёт id оттуда), endpoint окружения в БД есть, а наш session id — детерминированная функция `encode(endpoint, wdSessionId)`. Ручка: `GET /v1/projects/{p}/environments/{e}/session` → env → live-запрос к ноде → id (нет активной сессии → 404). At-rest по-прежнему ничего.
+Идея юзера, согласована: сессию через UI сейчас нельзя ни увидеть, ни убить (id показывается один раз и нигде не хранится [→ 2026-10-08: метаданные сессии хранятся (ресурс `sessions`), секрет — нет; см. ИТОГ wd-auth] — by design). Решение БЕЗ отказа от «не персистим секрет»: **live-восстановление по запросу**. Активный `wdSessionId` уже отдаёт сама нода в `GET {endpoint}/status` (агент не нужен — он сам берёт id оттуда), endpoint окружения в БД есть, а наш session id — детерминированная функция `encode(endpoint, wdSessionId)`. Ручка: `GET /v1/projects/{p}/environments/{e}/session` → env → live-запрос к ноде → id (нет активной сессии → 404). At-rest по-прежнему ничего.
 
 - **Доступ (решение юзера — НЕ смягчать секрет-модель):** восстановить id может **только создатель СЕССИИ** (не окружения! — в pool-модели на «твоём» env может крутиться чужая сессия, и env-creator получил бы контроль над ней). Так как сессии не персистятся, для правила нужны **ownership-метаданные сессии БЕЗ секрета**: владение не секрет, capability по-прежнему живёт только на ноде. Чужим — **404** (не 403: не палим существование сессии). Админский кейс «прибить чужое зависшее» уже покрыт удалением окружения (`environments.delete` → deprovision убивает сессию) — смягчение не нужно.
 - **Ownership-строка = синглтон на окружение + событийная чистка (сессия умирает и МИМО нашего api: idle-kill нодой, смерть контейнера, прямой DELETE в wd по capability).** Таблица `(environment_id UNIQUE, created_by, created_at)`: create-session (единственный путь создания — наш wd) делает **upsert** (новая сессия перезаписывает владельца — перехват чужой невозможен); **heartbeat `busy→false`** (internal уже ловит переход) удаляет строку — покрывает idle-kill и capability-DELETE без нового цикла; удаление окружения — FK `ON DELETE CASCADE`. **Арбитр всегда — живой `/status` ноды**: протухшая строка сама по себе доступа не даёт (id восстанавливается только из живого ответа; в окне «сессия умерла, хартбит ещё не дошёл» — честный 404).
@@ -2107,7 +2107,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     `name` IDENTIFIER · `uid` OUTPUT_ONLY · `runtime`, `model`, `platformVersion`, `computeProvider` — полные имена,
     REQUIRED+IMMUTABLE (сервер НЕ подставляет дефолты — AIP-129 MUST; дефолты подставляет UI) · `applications[]`
     REQUIRED+IMMUTABLE, 1..20 элементов: {`application` REQUIRED · `build` OPTIONAL (пусто = новейшая по createTime на
-    момент создания) · `effectiveBuild` OUTPUT_ONLY (всегда заполнен; AIP-129 `effective_`) · `detectedTitle` OUTPUT_ONLY
+    момент создания) · `effectiveApplicationBuild` OUTPUT_ONLY (всегда заполнен; AIP-129 `effective_`) · `detectedTitle` OUTPUT_ONLY
     (все платформы: Linux `--version`, Android подпись манифеста, iOS `CFBundleDisplayName`) · `detectedPackageId`
     OUTPUT_ONLY (только Android) · `detectedBundleId` OUTPUT_ONLY (только iOS, появится с iOS) · `detectedVersion`
     OUTPUT_ONLY} · `slot` OUTPUT_ONLY · `state` OUTPUT_ONLY (STATE_UNSPECIFIED|CREATING|ACTIVE|DELETING|FAILED) ·
@@ -2245,10 +2245,10 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   **`wd` — W3C WebDriver/BiDi/Appium по букве, отклонения перечислены.** Ручки: `POST /session` · `DELETE /session/{id}` и
   `* /session/{id}/…` (прокси) · `GET /status` → `{value:{ready,message}}` · `GET /session/{id}/sw/alive` →
   `{value:{alive:true}}` (мёртвая → 404; неизвестные `/session/{id}/sw/*` → 404 `unknown command`) · WS BiDi
-  `wss://host/session/{id}` · WS `/session/{id}/sw/{cdp|vnc}` · `GET /interactive?path=…`.
+  `wss://host/session/{id}` · WS `/session/{id}/sw/{cdp|vnc}` · `GET /interactive?path=…` [→ вьюер = страница дашборда + `:generateAccessToken`, ИТОГ wd-auth].
   **Аутентификация:** `Authorization: Bearer <токен>` ИЛИ `Basic` (токен в поле пароля — стоковые клиенты:
   `https://acme:<токен>@wd…`, как BrowserStack/Sauce); только HTTPS (+HSTS), `Authorization` не логируется, лимит частоты
-  на 401. Отдельный отзываемый ключ проекта для CI вместо пользовательского токена IdP — в разбор IAM.
+  на 401. Отдельный отзываемый ключ проекта для CI вместо пользовательского токена IdP — в разбор IAM [→ РЕШЕНО: только ключи (личные + SA), ИТОГ wd-auth].
   **Запрос:** `sw:projectId` REQUIRED (только `alwaysMatch`; отклонение от «recommended … top-level parameters», как
   BrowserStack) · приложение одним словарём: `browserName`(+`browserVersion`) ↔ `detectedBrowserName`(без учёта
   регистра + синонимы `microsoftedge↔msedge`, малое отклонение)/`detectedVersion`; ИЛИ `sw:appName`(+`sw:appVersion`) ↔
@@ -2267,7 +2267,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   `se:cdpVersion` сохранён) + `platformName` (`linux`/`android`), `sw:platform`, `sw:platformVersion`, `sw:model`,
   `sw:runtime`, `sw:appName` (id приложения), `sw:appVersion` (= `detectedVersion`, документировать: спросил `152` —
   получил `152.0.7977.82`), `sw:projectId`, `sw:environmentId` (что пишет пользователь — коротко и так же возвращается);
-  ссылки — ПОЛНЫМИ URL, как принято в W3C-мире (`webSocketUrl`, Grid `se:cdp`; решение юзера): `sw:buildUrl`
+  ссылки — ПОЛНЫМИ URL, как принято в W3C-мире (`webSocketUrl`, Grid `se:cdp`; решение юзера): `sw:applicationBuildUrl`
   (`https://api…/v1/projects/…/builds/{b}`), `sw:sessionLogUrl` / `sw:sessionVideoUrl` (`…:download`; только если
   logging/video включены; нужен токен), `webSocketUrl` (если просили), `sw:cdp`, `sw:vnc`, `sw:interactive`. `wd`
   знает публичный адрес `api` из конфига.
@@ -2354,7 +2354,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   getIamPolicy, setIamPolicy}; builds {get, list, create, delete}; environments {get, list, create, delete,
   accessSession}; sessions {create}; sessionLogs, sessionVideos {get, list}; storageDestinations {get, update, delete};
   tunnels {get, list, delete, connect, use} (см. ИТОГ tunnels); serviceAccounts {get, list, create, delete, disable, enable}; serviceAccountKeys {get, list, create,
-  delete, disable}. Снять: `sw.projects.create`, `sw.sessions.get`, `sw.cloudAccounts.*` (→ computeProviders),
+  delete, disable}. Снять: `sw.projects.create`, `sw.sessions.get` [→ ВЕРНУЛОСЬ: `sessions {create, get, list, use}`, ИТОГ wd-auth], `sw.cloudAccounts.*` (→ computeProviders),
   `sw.netBridgeCredentials.*` (→ УБРАНЫ: ключи туннеля = ключи сервисных аккаунтов, ИТОГ tunnels), `storageDestinations.set` (→ update). Глобальные каталоги
   (`platforms`, `computeProviderTypes`, `roles`) — без прав, достаточно войти.
   **Участники:** `user:<externalId>`, `group:<groupId>`, `serviceAccount:<sa>@<project>`, `allAuthenticatedUsers`;
@@ -2531,7 +2531,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   и есть состояние), без `uid`/`etag` (не декларативный). Методы: Get, List (pageSize/pageToken/totalSize), Delete
   (принудительно отключить → `{}`).
   **Подключение** (data plane, wd; AIP-136 не применяется): WS `wss://<wd>/v1/projects/{p}/tunnels/{t}:connect
-  [?replace=true][&shared=true]`, вход — `Bearer`/`Basic` ключом сервисного аккаунта или токеном пользователя, право
+  [?replace=true][&shared=true]`, вход — `Bearer`/`Basic` ключом сервисного аккаунта или личным ключом пользователя [уточнено 2026-10-08], право
   `sw.tunnels.connect`. Имя занято → 409 ALREADY_EXISTS; CLI при СВОЁМ переподключении шлёт `replace=true` (юзер: не пул —
   иначе разные сети под одним именем; пул — позже явным флагом). Forwarder в окружении — `…/tunnels/{t}:forward` с
   пропуском сессии (не голое «agent»). Только `wss` (CLI отказывается от `ws://` к не-loopback).
@@ -2584,7 +2584,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     УТОЧНЕНИЯХ IAM); туннель пользователя ≠ сессия SA (для этого `shared`). Право `use` проверяется ВСЕГДА, и у владельца.
     CI-рецепт: SA с `roles/sw.tunnelUser` + `roles/sw.developer` (роли раздельные; `tunnelUser` НЕ включает
     `sessions.create`); `tunnelUser` = `connect` + `use` + `get` (CLI читает свой туннель) + `projects.get`. Перепроверка
-    раз в ~60 с — ключ и право `connect`, НЕ срок OIDC-токена (иначе обрыв каждые ~5 мин). Зависимость: баг IAM (7).
+    раз в ~60 с — ключ и право `connect` (вход по ключам, не по токену IdP — см. ИТОГ wd-auth). Зависимость: баг IAM (7).
   · **`DELETE` при живых сессиях:** закрытие отдельным WS close-кодом «deleted» — CLI завершается и НЕ
     переподключается (отзыв ключа/права — тот же код + 401/403 при новом подключении); сессии живут, новые каналы
     отклоняются.
@@ -2598,12 +2598,211 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
     видны, имя освобождается по TTL (~30 с) или через resume-токен.
   · Записать как осознанное: viewer видит `creator` чужих туннелей (как Cloud Run); developer может отключить чужой
     приватный туннель (`delete`).
+- **ИТОГ internal-контур агентов — ЗАКРЫТ (юзер, 2026-10-04..08; финальные ревью; уточнения — «УТОЧНЕНИЯ ИТОГ internal», «ИТОГ wd-auth» и далее).** Решено юзером:
+  · **Канонические имена + `/v1` на internal-хосте** (AIP-122 `0122.md:196`: у сервиса может быть приватная точка
+    входа, имена ресурсов те же): `https://internal…/v1/projects/{p}/environments/{e}:…`,
+    `…/v1/projects/{p}/computeProviders/{cp}/machines/{m}:…` вместо `/internal/environments/{uuid}`,
+    `/internal/machines/{uuid}`; в ответах — полные имена, не голые `uid`.
+  · **Один глагол `:sync` для обоих агентов** (оба — цикл согласования: наблюдаемое → желаемое): у окружения
+    `:heartbeat` → `:sync`; словарь тел — по решениям (`occupancy`, `detected*`, `environmentAgentToken`, без голого
+    «agent»).
+  · **`wd-door` → `webdriver-relay`** (термин Selenium Grid 4 «Relay» — нода, ретранслирующая во внешний WebDriver-
+    сервис/Appium; `node`/`agent`/`proxy`/`gateway`/`sidecar` заняты или неточны); переменные `SW_DOOR_*` → `SW_RELAY_*`.
+  · **Каталог `components/{component}` с версиями** (прецедент Artifact Registry `packages/*/versions/*` + `files:download`,
+    проверено по discovery): `components/{c}` {name, title, latestVersion}; `components/{c}/versions/{v}` {name, createTime,
+    files[]{architecture AMD64|ARM64, sizeBytes, sha256}}; `GET …/versions/{v}:download?architecture=…` → байты (HttpBody —
+    отклонение от SHOULD «…Response», как `sessionLogs:download`). Версия неизменяема (пин, кэш); `machine:sync` отдаёт
+    нужную версию + sha256, агент сверяет. Анонимно — только `machine-installer` (отклонение в IAM, записать). id:
+    `environment-agent`, `machine-agent`, `machine-installer`, `tunnel-forwarder`, `linux-node`, `webdriver-relay`, `ffmpeg`.
+  · **Логи и видео — одна механика, байты у нас НЕ хранятся** (юзер: миллионы сессий × МБ — не в Postgres): ресурс
+    `sessionLog`/`sessionVideo` создаётся при New Session (`state` RUNNING → SUCCEEDED | FAILED, `sizeBytes`, `finishTime`;
+    id = несекретный id сессии) вместе с S3 multipart-загрузкой; агент окружения по ходу сессии берёт подписанную ссылку на
+    часть (`POST …/sessionLogs/{id}:allocatePart {partNumber}` → `{uploadUri, expireTime}`), кладёт часть (≥5 МБ, последняя
+    любая) НАПРЯМУЮ в бакет пользователя, в конце `:finalize {parts[]}`; в БД — только `uploadId` и etag'и частей; CP
+    байтов не видит. Окружению разрешается выход ровно к хосту хранилища. Живой просмотр лога — `GET
+    …/sessionLogs/{id}:tail` (серверный поток, SSE): CP проксирует в окружение, где агент держит лог локально (как
+    `kubectl logs -f` через kubelet), ничего не оседает. Видео вживую не смотрим (есть VNC). Окружение умерло — сохраняется
+    до последней части, `FAILED`; брошенные загрузки — `AbortMultipartUpload` реконсилером + правило бакета. Лимиты размера.
+    `/upload/` не нужен.
+  · **Proto СРАЗУ (юзер):** соединение машины — двунаправленный gRPC-поток `ConnectMachine(stream) returns (stream)` без
+    промежуточного WebSocket; по AIP-127 рядом остаётся unary `:sync`. Долгий поток: без дедлайна у клиента, keepalive,
+    прикладной `sync` в потоке каждые ~15 с (HTTP/2 PING не сбрасывает `stream_idle_timeout` Envoy, по умолч. 5 мин),
+    на роуте `timeout: 0`, `max_connection_age` ~45 мин + GOAWAY и переподключение; соединение держит один инстанс (lease с
+    поколением), остальные пересылают ему трафик; слоты мультиплексируются кадрами протокола туннелей + новый кадр
+    `Credit` (поканальное окно — иначе медленный VNC блокирует WebDriver; касается и туннелей). `machine-agent` → бинарь на
+    Go (статический, amd64/arm64, без рантайма; как `tunnel-forwarder`), по правилам архитектуры из CLAUDE.md «Агенты и
+    прочие компоненты вне control plane». Агент окружения — REST через транскодирование (`:sync`, `:allocatePart`,
+    `:finalize`).
+- **[NAMING] `Build` → `ApplicationBuild` (юзер, 2026-10-08; ревью):** по AIP-122 «Nested collections» (`0122.md:85-107`)
+  коллекция сокращается (`…/applications/{a}/builds/{b}` — путь НЕ меняется), но «the _message_ and _resource type_ are
+  still called `UserEvent`» → тип/сообщение `ApplicationBuild` (`singular: applicationBuild`, `plural:
+  applicationBuilds`); поля-ссылки по `0122.md:301` — по имени сообщения: элемент окружения `application`,
+  `applicationBuild` (OPTIONAL), `effectiveApplicationBuild` (OUTPUT_ONLY); метаданные сессии, `sessionLogs`,
+  `sessionVideos` — `applicationBuild`; капа `sw:applicationBuildUrl`. Довод: «build» у BrowserStack/Sauce в капах =
+  группа тестовых прогонов, у нас — сборка golden-образа, `docker build`, варка CfT (AIP-140 «avoid overly general
+  names»). Действует во ВСЕХ ИТОГ-блоках: голое поле `build` там читать как `applicationBuild`.
+- **Совместный доступ к чужой сессии (`sw:shared`) — НЕ делаем в v1 (юзер, 2026-10-08):** сессией пользуется только её
+  создатель; вернуться позже (модель — как `shared` у туннелей + `sw.sessions.use`).
+- **УТОЧНЕНИЯ ИТОГ internal (2 финальных ревью, 2026-10-07..08) — главнее ИТОГ internal там, где расходятся.**
+  · **Аутентификация internal-методов** — токенами окружения/машины, НЕ IAM (прав `sw.*` у них нет); `sub` токена
+    сверяется с ДЕКОДИРОВАННЫМ `name`, fail-closed; токен окружения пускает только к `sessionLogs`/`sessionVideos`, у
+    которых `environment` = его окружение; на публичном `api` эти методы не отвечают. В контракт добавить
+    `RegisterMachine` (`…/machines/{m}:register`: одноразовый токен регистрации → токен машины + `generation`).
+  · **Имена методов (AIP-136/140):** `SyncEnvironment`, `SyncMachine`, `RegisterMachine`, `ConnectMachine`;
+    `:allocatePart` → `GenerateSessionLogUploadUrl` (`…/sessionLogs/{id}:generateUploadUrl`, прецедент Cloud Functions);
+    `uploadUri` → `uploadUrl` (AIP-140 «url»); `CommitSessionLogPart` (`:commitPart {partNumber, etag, sizeBytes}` — агент
+    подтверждает часть СРАЗУ после загрузки → при смерти окружения есть что собрать, права на бакет не расширяются);
+    `FinalizeSessionLog` (`:finalize` → сам ресурс, AIP-216); то же для видео; `TailSessionLog`;
+    `DownloadComponentVersion`. Сообщения `…Request`/`…Response`. Все поля, `field_behavior` и `ErrorInfo.reason` —
+    выписать при переводе в proto.
+  · **Подписанные ссылки на части ограничены:** только при `state=RUNNING` и сессии этого окружения; `partNumber` ≤
+    лимита (из лимита размера); агент объявляет `sizeBytes`, CP подписывает `host;content-length` и считает сумму против
+    квоты проекта; срок ~10 мин (не дефолт; у YC до 30 дней). `CompleteMultipartUpload` делает ТОЛЬКО CP (по
+    подтверждённым частям; размер после — HEAD). Лог < 5 МБ к смерти окружения не сохраняется (ни одной полной части) —
+    `FAILED` без байтов, записать. `EntityTooSmall` при Complete → `FAILED`, не 500.
+  · **Выход окружения к хранилищу:** хост хранилища общий для всех бакетов → открыт ТОЛЬКО процессу агента
+    (отдельный пользователь + `iptables -m owner` в netns окружения); всем процессам закрыты 169.254.169.254 и сеть CP;
+    для слотов машин части может грузить `machine-agent`. Политику выхода окружений записать явно (браузеру нужен
+    интернет до тестируемого сайта).
+  · **`ConnectMachine` без обрывов:** плановое пересоздание — «новое до закрытия старого» (агент открывает новый поток,
+    новые каналы идут в него, старые доживают в `max_connection_age_grace`) или lease + drain при деплое вместо
+    `max_connection_age`. Lease на уровне инстанса (не машины) + маппинг машина → инстанс; fencing поколением на КАЖДОЙ
+    записи из потока; пересылка между инстансами — только mTLS, `Credit` проходит через лишний хоп; backoff с full
+    jitter, `RESOURCE_EXHAUSTED` + `RetryInfo`, поэтапный drain. Первый кадр несёт `name`, токен — в metadata.
+  · **`:tail` — публичный `api`** (право `sw.sessionLogs.get`, GET; SSE — записанное отклонение от транскодированного
+    server-streaming): один апстрим на лог в CP, раздача читателям, лимит читателей на лог/проект; апстрим к окружению
+    — через поток машины или internal-канал с аутентификацией CP (не открытый слушатель агента — повтор бага wd-door);
+    у агента кольцевой буфер с лимитом (tmpfs с квотой); SSE-комментарии раз в ~15 с (idle Envoy); окружение умерло —
+    поток закрывается с итоговым `state`.
+  · **Согласование с ИТОГ `sessions`:** у `sessionLog`/`sessionVideo` — `state` (`STATE_UNSPECIFIED | RUNNING |
+    SUCCEEDED | FAILED`, OUTPUT_ONLY), `finishTime`; `:download` при `RUNNING` → 409 FAILED_PRECONDITION
+    `SESSION_LOG_NOT_FINISHED`, при `FAILED` — собранное; «артефакт появляется атомарно после конца сессии» — устарело;
+    id = несекретный UUID сессии (НЕ W3C `sessionId`); видео — fragmented MP4 (обрезанный файл проигрывается).
+  · **Каталог компонентов:** в список глобальных каталогов IAM; анонимно — только `machine-installer` (отклонение в
+    IAM); остальное — токены агентов; `Architecture { ARCHITECTURE_UNSPECIFIED, AMD64, ARM64 }`, обязательный
+    параметр `:download`; `latestVersion` — полное имя + `resource_reference`; формат id версии (semver) и `sha256` (hex)
+    задокументировать; подписанный манифест (ключ вшит в `machine-installer`/`machine-agent`), минимальная версия против
+    отката; неизменяемость версии — ограничением в БД.
+  · **`SyncEnvironment`:** в ответе `tunnelPass{token, expireTime}` и ротация `environmentAgentToken`; в запросе
+    монотонный `sequence`; endpoint слотов вычисляет CP.
+  · **`machine-agent` на Go** (правило CLAUDE.md «Агенты…»): конфиг 0600, каталог состояния 0700 под отдельным
+    пользователем, токен не в argv; группа `docker` = root (записать); обновление — отдельный use case за портом:
+    скачать в `state/versions/<v>`, проверить sha256 и подпись, атомарно переключить symlink, перезапуск systemd; нет
+    успешного `sync` за N с — откат на предыдущую; версию пинит CP, даунгрейд только явный.
+  · **Миллионы сессий:** строки логов/видео — части jsonb-массивом в строке; разбивка по дням, удаление старых по TTL
+    (согласовать с lifecycle бакета; объект удалён правилом → `:download` 404); частичный индекс `WHERE state='RUNNING'`
+    для реконсилера; `AbortMultipartUpload` батчами; правило бакета `AbortIncompleteMultipartUpload` не короче
+    максимальной длины сессии.
+  · **Устаревшее пометить при сквозной сверке:** `/internal/environments/…/sessionLogs`, `:uploadSessionLogs/Video`,
+    `:heartbeat`/`heartbeat-agent.sh`, `wdDoor:download`, `wd-door` (→ `webdriver-relay`), «ответ хартбита» (→ `:sync`),
+    `/internal/tunnelForwarder:download` (→ `components/tunnel-forwarder/versions/{v}:download`).
+- **ИТОГ wd-auth — аутентификация КАЖДОЙ W3C-команды — ЗАКРЫТ (юзер, 2026-10-08; 3 ревью + 2 исследования).** Как в мире W3C
+  (Sauce/BrowserStack/LambdaTest/Grid: долгоживущий отзываемый ключ в URL хаба, стоковые клиенты шлют его на каждом
+  запросе — проверено по Selenium Python `remote_connection.py`, Grid `RouterServer` `BasicAuthenticationFilter`):
+  · **Чем входит W3C-трафик: ТОЛЬКО ключи** — личный ключ пользователя или ключ сервисного аккаунта (CI); `Basic`
+    (ключ в поле пароля, `https://user:swk_…@wd…`) или `Bearer`. Токен входа IdP (OIDC, ~5 мин, стоковые клиенты не
+    обновляют) на `wd` в v1 НЕ принимается (отложено: «сессия по токену входа для коротких локальных прогонов»; `sw login`
+    по образцу `gcloud auth application-default login`; обмен OIDC-токена CI на временный ключ, как GH Actions → AWS).
+  · **Личные ключи пользователя** (модель Sauce/GitHub PAT; у Google личных ключей нет — там OAuth refresh, но стоковые
+    WebDriver-клиенты обновлять не умеют): ресурс `users/{user}/accessKeys/{accessKey}` в `api` строго по AIP —
+    Create (`?accessKeyId=` OPTIONAL; `displayName`; срок — oneof `expireTime | ttl`, AIP-214), Get, List (пагинация),
+    Update (`displayName`, `updateMask`), Delete (отзыв → `{}`); `secret` (`swk_…`) OUTPUT_ONLY и ТОЛЬКО в ответе Create
+    (прецедент `ServiceAccountKey.private_key_data`), хранится хэш; `createTime`, `expireTime`, `lastUseTime`. Ключ даёт
+    ровно права владельца в IAM на момент запроса (без своей роли). Пользователь управляет своими; админ инсталляции
+    может отозвать чужой. Родитель `users/{user}`: Get (`users/me` — алиас AIP-122, ответ с каноническим именем; поля
+    `name`, `displayName`), List — только с правом `sw.users.list` (админы инсталляции; иначе 403 — AIP разрешает
+    авторизовать List правом).
+  · **Проверки на каждой команде и WS-подключении:** (1) учётка (ключ) → иначе 401 `unauthenticated` +
+    `WWW-Authenticate: Basic`; (2) подпись/расшифровка id сессии → иначе 400 `invalid argument`; (3) вызывающий =
+    создатель сессии (точная строка `Member`, SA по `uid`) → иначе 404 `invalid session id` (не раскрываем
+    существование); (4) право `sw.sessions.use` (admin/developer) — ВСЕГДА, и у создателя (снятая роль сразу
+    останавливает его сессии) → иначе 403 `permission denied`.
+  · **Производительность:** проект/создатель/uid сессии — в AEAD-id (`{v, kid, endpoint, wdSessionId, projectUid,
+    sessionUid, creator}`) → на горячем пути БД нет; кэш на инстансе `wd`: ключ → {хэш, владелец, состояние},
+    (учётка, проект) → разрешение, TTL ~60 с; отзыв ключа/роли — `NOTIFY` из БД сбрасывает кэш на всех инстансах
+    почти мгновенно, TTL — подстраховка. Оценка: ~10–100 мкс на команду при команде 5–100+ мс (< 1–2 %).
+  · **WebSocket BiDi/CDP:** стоковые клиенты туда учётку, вероятно, не шлют (проверить на живых Selenium Java/Python,
+    WebdriverIO) → если `Authorization` пришёл — полная проверка; иначе узкий тикет в возвращаемом URL
+    (`webSocketUrl: wss://wd…/session/{id}?ticket=…`, то же для `sw:cdp`): AEAD `{sessionUid, projectUid, creator,
+    credentialRef, purpose: bidi|cdp, exp}`, годен только для своего протокола и сессии, перепроверка раз в ~60 с,
+    маска логов на `?ticket=`.
+  · **Вьюер `sw:interactive`** = страница дашборда `https://app…/projects/{p}/sessions/{uid}/interactive` (секрета в
+    URL нет); человек входит обычным логином, BFF вызывает `POST /v1/projects/{p}/sessions/{uid}:generateAccessToken` →
+    `{accessToken, expireTime}` (прецедент Cloud Workstations `:generateAccessToken` + `workstations.use`), одноразовый,
+    ~60 с, `purpose: vnc`; noVNC передаёт его в `Sec-WebSocket-Protocol` (не в URL). Сырой `sw:vnc` — по `Authorization`.
+  · `GET /status` — анонимный (статичный `{ready, message}`, лимит частоты); `sw/alive` — с полной проверкой.
+  · Совместный доступ к чужой сессии (`sw:shared`) — НЕ в v1.
+- **УТОЧНЕНИЯ ИТОГ wd-auth / sessions / accessKeys (финальное ревью, 2026-10-08):**
+  · **Секрет ключа** содержит СЕРВЕРНЫЙ глобальный `uid` ключа (`swk_<uid>_<random>`), а не `{accessKey}` из имени —
+    иначе пользовательские id ключей разных пользователей и SA столкнутся (поиск по ключу секрета).
+  · **Админ инсталляции** = break-glass-оператор: конфиг `INSTALLATION_ADMIN_MEMBERS` (полные строки `Member`, тот же
+    bootstrap, что у каталога) — записанное отклонение «гейт по конфигу, не IAM-право» (у `users` нет родителя, на
+    котором выдать роль). Может: `GET /v1/users` (List), Get чужого `users/{u}`, Delete чужого ключа; остальным → 403
+    (AIP-211). Свои ключи и `users/me` — без права, достаточно войти. Право `sw.users.list` не вводим (выдать негде).
+  · **`users/{user}`:** id — серверный, формат `[a-z0-9-]` (AIP-122), не externalId; OUTPUT_ONLY `member`
+    (`user:<externalId>`, как у SA); подпись — `displayName` приходит из IdP и неизменяема у нас → по нашему правилу
+    `title` (AIP-148: displayName must be user-settable). Ответы через `users/me` — с каноническим `name`.
+  · **Ключи:** комментарий поля `secret` — «Output only. Populated only in the Create response» (прецедент
+    `ServiceAccountKey.private_key_data`; AIP-147 — только для секретов, задаваемых пользователем); `:disable`/`:enable`
+    и лимит ≤10 на пользователя — как у ключей SA.
+  · **Сессия:** `state` — `STATE_UNSPECIFIED | ACTIVE | ENDED` (двухзначный — оставить ради фильтра и единообразия с
+    `sessionLog.state`, записать по AIP-216 «When to avoid states»); `endReason` с `END_REASON_UNSPECIFIED`; одно имя
+    времени окончания — `endTime` и у сессии, и у `sessionLog`/`sessionVideo` (вместо `finishTime`); List — фильтр
+    `creator=` («мои»), порядок по `createTime` desc, `totalSize`; одна общая константа хранения: TTL строк
+    логов/видео ≥ TTL сессий. Права `sw.sessions.{get,list}` → admin/developer/viewer, `use` → admin/developer
+    (в матрицу ролей; в список прав IAM `sessions {create, get, list, use}`; `tunnelUser` `use` сессий не получает).
+  · **`:generateAccessToken`** — право `sw.sessions.use` + проверка создателя (как `workstations.use`);
+    `:accessSession` в ответе дополняется полем `session`. 404 от wd для не-создателя против 403 от `:accessSession` —
+    различие плоскостей (W3C не раскрывает существование; AIP-211 — 403), записать.
+  · **Тикет WS:** `exp` = до конца жизни сессии + перепроверка `credentialRef`; переписанный `se:cdp` тоже с тикетом
+    (иначе обход). Капа `sw:sessionUid` — в список ответа New Session; рассмотреть `sw:sessionUrl` (полный URL).
+  · **Туннели:** `:connect` — ключом SA ИЛИ ЛИЧНЫМ КЛЮЧОМ пользователя (не токеном IdP); перепроверка раз в ~60 с — ключ
+    и право `connect`. OIDC-вход для CLI — вместе с `sw login`, позже.
+  · «Секрет сессии в неположенном месте → 400 с подсказкой» — и маскировать его в логах `api`.
+- **Группы и увольнения для личных ключей — КОПИЯ КАТАЛОГА ПОЛЬЗОВАТЕЛЕЙ (юзер, 2026-10-08; исследование 10
+  источников):** снимок групп «с последнего входа» отвергнут (юзер: в UI заходят редко, основной путь — API/CI; так же
+  страдает GitLab SAML Group Sync — «evaluated each time a user signs in»). Как у GitHub/GitLab/AWS с долгими токенами:
+  источник правды при запросе с ключом — НАША проекция `user(externalId, providerType, state, syncedAt)` +
+  `userGroupMembership(externalId, groupId, syncedAt)`; проверка ключа — только по БД (мгновенно, без похода в IdP).
+  Обновление: порт `DirectoryGateway` (`fetchUser` / `listUserGroups` / `listGroupMembers`) с адаптером под IdP; v1 —
+  опрос Keycloak Admin REST служебной учёткой (`view-users`, `query-groups`) раз в 5–15 мин для пользователей с активными
+  ключами + обход групп из IAM-биндингов; задача безопасна для многих воркеров (advisory lock); вход в UI тоже обновляет
+  проекцию. Позже: входящий SCIM 2.0 (`/scim/v2/Users|Groups`, `active=false`) — второй адаптер той же проекции (Okta,
+  Entra); Keycloak SSF (CAEP/RISC) — когда выйдет из experimental.
+  Ключи: IdP «выключен» → ПРИОСТАНОВЛЕНЫ (включили — снова работают); IdP «нет такого» → ОТОЗВАНЫ навсегда; убрали из
+  группы → права пересчитаются при синхронизации (ключ не трогаем); обязательный максимальный срок ключа — страховка.
+  IdP недоступен → последнее известное состояние (НЕ блокировать всех — урок GitLab LDAP); старше порога (~24 ч) →
+  перестают действовать только права через `group:`, прямые `user:` работают; алерт на устаревание синхронизации
+  (урок AWS: истёкший SCIM-токен молча останавливает синхронизацию).
+- **Ресурс `projects/{p}/sessions/{session}` — метаданные сессии (юзер, 2026-10-08):** id = несекретный UUID сессии
+  (в ответе New Session — капа `sw:sessionUid`); поля `name`, `environment`, `creator`, `applicationBuild`, `state`
+  (`ACTIVE | ENDED`), `endReason` (`DELETED | IDLE_TIMEOUT | ENVIRONMENT_LOST`), `createTime`, `endTime`, `sessionLog`,
+  `sessionVideo` (ссылки; пусто, если не запрашивали); Get/List (`filter` environment/state/createTime), без
+  Create/Update/Delete (создаётся при New Session); права `sw.sessions.{get,list}`; сырые капы НЕ храним (в них бывают
+  пароли); хранение 30–90 дней, разбивка по дням. Секрет `sessionId` — только в W3C-ответе и `:accessSession`
+  (документировать как «секрет сессии»; сервер распознаёт его формат в неположенном месте → 400 с подсказкой).
+  **Логи/видео остаются на верхнем уровне** `projects/{p}/sessionLogs|sessionVideos/{id}` (id = тот же UUID) + поле
+  `session`; вложенность отвергнута: синглтон `sessions/{s}/log` нарушает AIP-156 (существует не всегда), коллекция
+  `sessions/{s}/logs` привязала бы ресурс лога к сроку жизни метаданных сессии (AIP-135), а владелец жизненного цикла
+  артефакта — проект (бакет). Ресурс артефакта живёт не меньше метаданных сессии; `session` может указывать на уже
+  истёкшую сессию (404) — документировать.
 - **[SECURITY] аудит безопасности — ПОСЛЕ проектирования всех ручек (юзер, 2026-09-29; не прод — не срочно):**
   · **P0 — `wd` = открытый прокси во внутреннюю сеть:** `SessionRoute.decode` принимает любой адрес из id (base64url без
     подписи), `WebDriverProxy.forward` делает `fetch` туда любым методом и отдаёт ответ; `/sessions/:id/*`, WS-прокси и
     `sw/alive` без аутентификации → SSRF (метаданные облака 169.254.169.254, `/internal`, Docker/k8s API). Фикс:
     подписанный/шифрованный id (HMAC/AEAD ключом инсталляции — уже в ИТОГ `sessions`), проверка ДО прокси.
   · **Защита в глубину:** egress-allowlist из `wd` — только сеть окружений; запрет 169.254.169.254 и локальных адресов.
+  · **Internal-контур (ревью 2026-10-04) — ИСПРАВЛЯТЬ ПЕРВЫМИ в аудите (юзер):** P0 обход `InternalMachineTokenGuard`
+    через URL-кодирование (`/internal/machines/%33fa…:sync` — регэксп по сырому пути не находит uuid, guard пропускает
+    любой валидный токен машины, а параметр декодируется в чужую машину → токены окружений чужой машины, в т.ч. другого
+    проекта): сверять `sub` с ДЕКОДИРОВАННЫМ параметром, fail-closed, тест на `%33…`; `InternalAgentTokenGuard` — на ту
+    же схему. P0 `wd-door` слушает `0.0.0.0` без аутентификации, `/status` отдаёт живой id сессии → секрет CP на каждый
+    запрос, `/status` без id, слушать только сеть окружений. Токен окружения 48 ч без ротации (окружения старше 2 суток,
+    вероятно, перестают хартбитить) и без отзыва. Токены в argv `curl` (видны в `ps`), `sync.json` в `/tmp` с правами по
+    умолчанию. Загрузка артефакта не привязана к сессии этого окружения, размер не ограничен. Endpoint окружения задаёт
+    агент (для слотов должен вычислять CP). Хартбит без `seq` (запоздавший `busy=false` рушит владение живой сессией),
+    время с инстанса, не из БД. Исполняемые компоненты без проверки целостности. `sendBinary` — голый `.pipe()`;
+    presigned-URL в логе ошибки.
   · **Storage (ревью 2026-10-04):** владение бакетом проверяется только при создании сессии — загрузка логов/видео и
     read-back пишут/читают без проверки (можно переключить назначение на чужой бакет посреди сессии); пробная запись
     `:test` идёт ДО проверки маркера; свободный `endpoint` — SSRF (`S3ObjectStorageGateway.clientFor` ходит на любой URL,
@@ -2690,7 +2889,7 @@ requirements; неудобство от `yandexCloudVm` внутри привя�
   (k8s `requests`-семантика: гарантированный компьют + память + диск, включая overhead), выбранный нами из опыта
   (эмулятор ≈ 4000m/8 ГБ, браузерный контейнер ≈ 1000–2000m/2–4 ГБ); пул вычитает его из `capacity` при размещении.
 
-## [ARCH] control-plane API на protobuf/gRPC, HTTP/JSON — через Envoy-транскодер — ИДЕЯ, НЕ начато (юзер, 2026-09-13)
+## [ARCH] control-plane API на protobuf/gRPC, HTTP/JSON — через Envoy-транскодер — РЕШЕНО: всё сразу на proto (юзер, 2026-10-07; было «ИДЕЯ, НЕ начато», 2026-09-13)
 
 **Идея юзера:** все НЕ-WebDriver ручки (control plane `api`, internal для агентов) описать протобуфами — proto и есть
 документация API; для клиентов, говорящих HTTP/1.1+JSON, поставить Envoy, который принимает HTTP-запрос и сам
